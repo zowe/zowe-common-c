@@ -169,6 +169,13 @@ void jsonAddBoolean(jsonPrinter *p, char *keyOrNull, int value);
 
 void jsonAddInt(jsonPrinter *p, char *keyOrNull, int value);
 
+/**
+ * \brief This adds an unsigned int to a streaming JSON object or array from a string that is not terminated.
+ *
+ */
+
+void jsonAddUInt(jsonPrinter *p, char *keyOrNull, unsigned int value);
+
 /** 
  * \brief This adds a signed 64 bit integer to a streaming JSON object or array from a string that is not terminated.
  *

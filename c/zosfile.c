@@ -607,7 +607,7 @@ int fileClose(UnixFile *file, int *returnCode, int *reasonCode) {
   return returnValue;
 }
 
-int fileChangeTag(const char *fileName, FileAttributes *attributes, int *returnCode, int *reasonCode) {
+int fileChangeTag(const char *fileName, int *returnCode, int *reasonCode, int ccsid) {
   int nameLength = strlen(fileName);
   int attributeLength = sizeof(BPXYATT);
   int *reasonCodePtr;
@@ -620,10 +620,21 @@ int fileChangeTag(const char *fileName, FileAttributes *attributes, int *returnC
   reasonCodePtr = reasonCode;
 #endif
 
+  FileAttributes attributes = {0};
+  memcpy(attributes.eyecatcher, "ATT ", 4);
+  attributes.version = 3;
+  attributes.flag3 = ATTCHARSETIDCHG;
+
+  attributes.fileTagCCSID = ccsid;
+
+  if (ccsid != CCSID_BINARY) {
+    attributes.fileTagFlags = FILE_PURE_TEXT;
+  }
+
   BPXCHR(nameLength,
          fileName,
          attributeLength,
-         attributes,
+         &attributes,
          &returnValue,
          returnCode,
          reasonCodePtr);
@@ -705,7 +716,7 @@ int fileCopy(const char *existingFile, const char *newFile, int forceCopy){
 
   UnixFile *fileCheckTo = fileOpen(newFile,
                                   FILE_OPTION_WRITE_ONLY | FILE_OPTION_CREATE,
-                                  0,
+                                  0700,
                                   0,
                                   &returnCode,
                                   &reasonCode);
@@ -718,6 +729,36 @@ int fileCopy(const char *existingFile, const char *newFile, int forceCopy){
       tmpFileCleanup(newFile);
     }
     return -1;
+  }
+
+  /* If the file is not untagged.
+   */
+  if (ccsid != 0) {
+    status = fileChangeTag(newFile, &returnCode, &reasonCode, ccsid);
+    if (status == -1) {
+#ifdef DEBUG
+      printf("Failed to change file tag for %s: (return = 0x%x, reason = 0x%x)\n", newFile, returnCode, reasonCode);
+#endif
+      if (fileExists) {
+        tmpFileCleanup(newFile);
+      }
+      else {
+        fileDelete(newFile, &returnCode, &reasonCode);
+      }
+    return -1;
+    }
+  }
+
+  /* Disable automatic conversion to prevent any wacky
+   * problems that may arise from auto convert.
+   */
+  status = fileDisableConversion(fileCheckTo, &returnCode, &reasonCode);
+  if (status != 0) {
+    printf("Failed to disable automatic conversion. Unexpected results may occur.\n");
+  }
+  status = fileDisableConversion(fileCheckFrom, &returnCode, &reasonCode);
+  if (status != 0) {
+    printf("Failed to disable automatic conversion. Unexpected results may occur.\n");
   }
 
   while (bytesRead = fileRead(fileCheckFrom, buffer, FILE_BUFFER_SIZE, &returnCode, &reasonCode)){
@@ -778,49 +819,6 @@ int fileCopy(const char *existingFile, const char *newFile, int forceCopy){
     return -1;
   }
 
-  FileAttributes *attributes = (FileAttributes*)safeMalloc31(sizeof(FileAttributes), "ATTRIBUTES");
-
-  if (attributes == NULL) {
-#ifdef DEBUG
-    printf("Attributes parameter list could not be allocated.\n");
-#endif
-    if (fileExists) {
-      tmpFileCleanup(newFile);
-    }
-    else {
-      fileDelete(newFile, &returnCode, &reasonCode);
-    }
-    return -1;
-  }
-
-  memcpy(attributes->eyecatcher, "ATT ", 4);
-  attributes->version |= 3;
-  attributes->flag3 |= ATTCHARSETIDCHG;
-
-  if (ccsid == -1) {
-    attributes->fileTagCCSID |= CCSID_BINARY;
-  }
-  else {
-    attributes->fileTagCCSID |= ccsid;
-    attributes->fileTagFlags = FILE_PURE_TEXT;
-  }
-
-  status = fileChangeTag(newFile, attributes, &returnCode, &reasonCode);
-  if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to change file tag for %s: (return = 0x%x, reason = 0x%x)\n", newFile, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      tmpFileCleanup(newFile);
-      safeFree31((char*)attributes, sizeof(attributes));
-    }
-    else {
-      fileDelete(newFile, &returnCode, &reasonCode);
-    }
-    return -1;
-  }
-
-  safeFree31((char*)attributes, sizeof(attributes));
   tmpFileDelete(newFile);
   return 0;
 }
@@ -1741,7 +1739,6 @@ int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode) {
 
   return returnValue;
 }
-
 
 
 /*
