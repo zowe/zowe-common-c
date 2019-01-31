@@ -412,7 +412,7 @@ int fileDelete(const char *fileName, int *returnCode, int *reasonCode);
 int fileInfo(const char *filename, FileInfo *fileInfo, int *returnCode, int *reasonCode);
 
 #ifdef __ZOWE_OS_ZOS
-int fileChangeTag(const char *fileName, FileAttributes *attributes, int *returnCode, int *reasonCode);
+int fileChangeTag(const char *fileName, int *returnCode, int *reasonCode, int ccsid);
 
 #define F_CONTROL_CVT 13
 #define F_CVT_SETCVTOFF     0      /* Set Off */

@@ -50,6 +50,7 @@ void response200WithMessage(HttpResponse *response, char *msg) {
   addStringHeader(response, "Server", "jdmfws");
   setContentType(response, "text/json");
   addStringHeader(response,"Transfer-Encoding","chunked");
+  addStringHeader(response,"Connection","close");
   writeHeader(response);
   jsonPrinter *out = respondWithJsonPrinter(response);
   jsonStart(out);
@@ -84,39 +85,6 @@ int doesItExist(char *absolutePath) {
   }
 
   return TRUE;
-}
-
-int tagFile(char *absolutePath, char *targetEncoding, int isBinary) {
-  int status = 0;
-  int returnCode = 0;
-  int reasonCode = 0;
-  int ccsid = 0;
-
-  FileAttributes attributes = {0};
-  memcpy(attributes.eyecatcher, "ATT ", 4);
-  attributes.version = 3;
-  attributes.flag3 = ATTCHARSETIDCHG;
-
-  if (isBinary == TRUE) {
-    attributes.fileTagCCSID = CCSID_BINARY;
-  }
-  else {
-    int ccsid = getCharsetCode(targetEncoding);
-    if (ccsid == -1) {
-      return -1;
-    }
-    attributes.fileTagCCSID = ccsid;
-    attributes.fileTagFlags = FILE_PURE_TEXT;
-  }
-
-  status = fileChangeTag(absolutePath, &attributes, &returnCode, &reasonCode);
-  if (status != 0) {
-#ifdef DEBUG
-    printf("Error changing tag. returnCode: %d, reasonCode: %d\n", returnCode, reasonCode);
-#endif
-  }
-
-  return status;
 }
 
 static int createUnixDirectory(char *absolutePath, int forceCreate) {
@@ -425,7 +393,7 @@ int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLen
   return 0;
 }
 
-int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLength, char *sourceEncoding, char *targetEncoding) {
+int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLength, int sourceEncoding, int targetEncoding) {
   int status = 0;
   int returnCode = 0;
   int reasonCode = 0;
@@ -453,35 +421,36 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
    resultBuffer = safeMalloc(resultBufferSize, "ResultBuffer");
    int decodedLength = decodeBase64(dataToWrite, resultBuffer);
    if (decodedLength > 0) {
-     int source, target = -1;
-     source = getCharsetCode(sourceEncoding);
-     target = getCharsetCode(targetEncoding);
-     if (source != -1 && target != -1) {
-       status = convertCharset(resultBuffer,
-                               decodedLength,
-                               source,
-                               CHARSET_OUTPUT_USE_BUFFER,
-                               &dataToWrite,
-                               decodedLength * 2,
-                               target,
-                               NULL,
-                               &dataSize,
-                               &reasonCode);
-
-       if (status == 0) {
-         int writtenLength = 0;
-         while (dataSize != 0) {
-           writtenLength = fileWrite(file, dataToWrite, dataSize, &returnCode, &reasonCode);
-           if (writtenLength >= 0) {
-             dataSize -= writtenLength;
-             dataToWrite -= writtenLength;
-           }
-           else {
-             printf("Error writing to file: return: %d, rsn: %d.\n", returnCode, reasonCode);
-             safeFree(resultBuffer, resultBufferSize);
-             safeFree(dataToWrite, dataToWriteSize);
-             return -1;
-           }
+     /* Disable automatic conversion to prevent any wacky
+      * problems that may arise from auto convert.
+      */
+     status = fileDisableConversion(file, &returnCode, &reasonCode);
+     if (status != 0) {
+       printf("Failed to disable automatic conversion. Unexpected results may occur.\n");
+     }
+     status = convertCharset(resultBuffer,
+                             decodedLength,
+                             sourceEncoding,
+                             CHARSET_OUTPUT_USE_BUFFER,
+                             &dataToWrite,
+                             decodedLength * 2,
+                             targetEncoding,
+                             NULL,
+                             &dataSize,
+                             &reasonCode);
+     if (status == 0) {
+       int writtenLength = 0;
+       while (dataSize != 0) {
+         writtenLength = fileWrite(file, dataToWrite, dataSize, &returnCode, &reasonCode);
+         if (writtenLength >= 0) {
+           dataSize -= writtenLength;
+           dataToWrite -= writtenLength;
+         }
+         else {
+           printf("Error writing to file: return: %d, rsn: %d.\n", returnCode, reasonCode);
+           safeFree(resultBuffer, resultBufferSize);
+           safeFree(dataToWrite, dataToWriteSize);
+           return -1;
          }
        }
      }
