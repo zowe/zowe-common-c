@@ -2043,7 +2043,7 @@ static int handleProgramCall(PCHandlerParmList *parmList, bool isSpaceSwitchPC) 
     return RC_CMS_WRONG_CLIENT_VERSION;
   }
 
-  if (CROSS_MEMORY_SERVER_MAX_SERVICE_ID < localParmList.serviceID) {
+  if (localParmList.serviceID <= 0 || CROSS_MEMORY_SERVER_MAX_SERVICE_ID < localParmList.serviceID) {
     return RC_CMS_FUNCTION_ID_OUT_OF_RANGE;
   }
 
@@ -2435,7 +2435,7 @@ void removeCrossMemoryServer(CrossMemoryServer *server) {
 
 int cmsRegisterService(CrossMemoryServer *server, int id, CrossMemoryServiceFunction *serviceFunction, void *serviceData, int flags) {
 
-  if (id < CROSS_MEMORY_SERVER_MIN_SERVICE_ID && CROSS_MEMORY_SERVER_MAX_SERVICE_ID < id) {
+  if (id < CROSS_MEMORY_SERVER_MIN_SERVICE_ID || CROSS_MEMORY_SERVER_MAX_SERVICE_ID < id) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_BAD_SERVICE_ID_MSG, id);
     return RC_CMS_FUNCTION_ID_OUT_OF_RANGE;
   }
@@ -4136,7 +4136,7 @@ static int callServiceInternal(CrossMemoryServerGlobalArea *globalArea, int serv
 
 int cmsCallService(const CrossMemoryServerName *serverName, int serviceID, void *parmList, int *serviceRC) {
 
-  if (CROSS_MEMORY_SERVER_MAX_SERVICE_ID < serviceID) {
+  if (serviceID <= 0 || CROSS_MEMORY_SERVER_MAX_SERVICE_ID < serviceID) {
     return RC_CMS_FUNCTION_ID_OUT_OF_RANGE;
   }
 
