@@ -131,7 +131,7 @@ int indexOf(char *str, int len, char c, int startPos){
   return -1;
 }
 
-int lastIndexOf(char *str, int len, char c) {
+int lastIndexOf(const char *str, int len, char c) {
   int pos = len - 1;
   while(pos >= 0) {
     char c1 = str[pos];
