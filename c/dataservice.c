@@ -217,21 +217,25 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
       char *serviceName = jsonObjectGetString(serviceDef, "name");
       if (!serviceName) {
         // Return a null plugin since the dataservice definition is not correct.
-        printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct dataservice syntax ***\n");
+        printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'name' fields for dataservices. ***\n");
         plugin = NULL;
         return plugin;
       } else {
-        if (!type || !strcmp(type, "service")) {
+        if (!type) {
+          printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'type' fields on dataservices. ***\n");
+          plugin = NULL;
+          return plugin;
+        } else if (!strcmp(type, "service")) {
           plugin->dataServiceCount ++;
         } else if (!strcmp(type, "group")) {
           JsonArray* group = jsonObjectGetArray(serviceDef, "subservices");
           if (group) {
             plugin->dataServiceCount += jsonArrayGetCount(group);
           }
-        } else if (!strcmp(type,"nodeService")){
-          /* Node services will be handled by node without ever going to the MVD server */
+        } else if (!strcmp(type,"nodeService") || !strcmp(type,"import") || !strcmp(type,"router") || !strcmp(type,"external")) {
+          /* Node services will be handled by node without ever going to the MVD server. Ignoring. */
         } else {
-          /* import, ignore */
+          printf(" %s : Type unknown.\n", type);
         }
       }
     }
