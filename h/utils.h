@@ -37,7 +37,7 @@ extern "C" {
 char * strcopy_safe(char * dest, const char * source, int dest_size);
 
 int indexOf(char *str, int len, char c, int startPos);
-int lastIndexOf(char *str, int len, char c);
+int lastIndexOf(const char *str, int len, char c);
 int indexOfString(char *str, int len, char *searchString, int startPos);
 int indexOfStringInsensitive(char *str, int len, char *searchString, int startPos);
 

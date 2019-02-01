@@ -260,7 +260,7 @@ HttpService *makeHttpDataService(DataService *dataService, HttpServer *server) {
   makeHttpDataServiceUrlMask(dataService, urlMask, sizeof(urlMask), server->defaultProductURLPrefix);
   printf("installing service %s at URI %s\n", dataService->identifier, urlMask);
   HttpService *httpService = makeGeneratedService(dataService->identifier, urlMask);
-  httpService->authType = SERVICE_AUTH_NONE; /* TODO: this needs to be fleshed out a lot based on your specification */
+  httpService->authType = SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN; /* The default */
   registerHttpService(server, httpService);
   httpService->userPointer = dataService;
   return httpService;
