@@ -42,6 +42,16 @@ int icsfDigestInit(ICSFDigest *digest, int type);
 int icsfDigestUpdate(ICSFDigest *digest, char *data, int len);
 int icsfDigestFinish(ICSFDigest *digest, char *hash);
 
+int icsfEncipher(const void *key, unsigned int keyLength,
+                 const char *text, unsigned int textLength,
+                 char *resultBuffer, unsigned int resultBufferLength,
+                 int *reasonCode);
+int icsfDecipher(const void *key, unsigned int keyLength,
+                 const char *text, unsigned int textLength,
+                 char *resultBuffer, unsigned int resultBufferLength,
+                 int *reasonCode);
+int icsfGenerateRandomNumber(void *result, int resultLength, int *reasonCode);
+
 #endif
 
 
