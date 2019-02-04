@@ -216,16 +216,17 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
       char *type = jsonObjectGetString(serviceDef, "type");
       char *serviceName = jsonObjectGetString(serviceDef, "name");
       char *sourceName = jsonObjectGetString(serviceDef, "sourceName");
+      int isImport = strcmp(type,"import");
       if (!type) {
         printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'type' fields on dataservices. ***\n");
         plugin = NULL;
         return plugin;
-      } else if (strcmp(type,"import") && !serviceName) {
+      } else if (isImport!=0 && !serviceName) {
         // Return a null plugin when 'name' is not set for dataservices of types: router or service or modeService or external.
         printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'name' fields for dataservices. ***\n");
         plugin = NULL;
         return plugin;
-      } else if (!strcmp(type,"import") && !sourceName) {
+      } else if (isImport==0 && !sourceName) {
         // Return a null plugin when 'sourceName' is not set for dataservices of type: import.
         printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'sourceName' fields for dataservices of type 'import'. ***\n");
         plugin = NULL;
@@ -237,7 +238,7 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
         if (group) {
           plugin->dataServiceCount += jsonArrayGetCount(group);
         }
-      } else if (!strcmp(type,"nodeService") || !strcmp(type,"import") || !strcmp(type,"router") || !strcmp(type,"external")) {
+      } else if (!strcmp(type,"nodeService") || isImport==0 || !strcmp(type,"router") || !strcmp(type,"external")) {
         /* Node services will be handled by node without ever going to the MVD server. Ignoring. */
       } else {
         printf(" %s : Type unknown.\n", type);
