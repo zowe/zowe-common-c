@@ -1439,8 +1439,6 @@ static char *getNative(char *s){
   return native;
 }
 
-static char message[] ={ 0x65, 0x66, 0x67, 0x0d, 0x0a, 0x0};
-
 /* makeHttpResponse alloc's the response structure on the passed SLH,
  * but now infuses the HttpResponse with its own SLH */
 HttpResponse *makeHttpResponse(HttpRequest *request, ShortLivedHeap *slh, Socket *socket){
@@ -3595,13 +3593,13 @@ void respondWithUnixDirectory(HttpResponse *response, char* absolutePath, int js
 
 // Response must ALWAYS be finished on return
 void respondWithUnixFileNotFound(HttpResponse* response, int jsonMode) {
-  setResponseStatus(response,404,message);
   if (jsonMode == 0) {
     char message[] = "File not found";
     int len = strlen(message);
 
     addStringHeader(response,"Server","jdmfws");
     setContentType(response,"text/plain");
+    setResponseStatus(response,404,"Not Found");
     addIntHeader(response,"Content-Length",len);
     writeHeader(response);
 
