@@ -215,30 +215,35 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
       JsonObject *serviceDef = jsonArrayGetObject(dataServices, i);
       char *type = jsonObjectGetString(serviceDef, "type");
       char *serviceName = jsonObjectGetString(serviceDef, "name");
-      if (!serviceName) {
-        // Return a null plugin since the dataservice definition is not correct.
+      char *sourceName = jsonObjectGetString(serviceDef, "sourceName");
+      if (!type) {
+        printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'type' fields on dataservices. ***\n");
+        plugin = NULL;
+        return plugin;
+      } else if (strcmp(type,"import") && !serviceName) {
+        // Return a null plugin when 'name' is not set for dataservices of types: router or service or modeService or external.
         printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'name' fields for dataservices. ***\n");
         plugin = NULL;
         return plugin;
-      } else {
-        if (!type) {
-          printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'type' fields on dataservices. ***\n");
-          plugin = NULL;
-          return plugin;
-        } else if (!strcmp(type, "service")) {
-          plugin->dataServiceCount ++;
-        } else if (!strcmp(type, "group")) {
-          JsonArray* group = jsonObjectGetArray(serviceDef, "subservices");
-          if (group) {
-            plugin->dataServiceCount += jsonArrayGetCount(group);
-          }
-        } else if (!strcmp(type,"nodeService") || !strcmp(type,"import") || !strcmp(type,"router") || !strcmp(type,"external")) {
-          /* Node services will be handled by node without ever going to the MVD server. Ignoring. */
-        } else {
-          printf(" %s : Type unknown.\n", type);
+      } else if (!strcmp(type,"import") && !sourceName) {
+        // Return a null plugin when 'sourceName' is not set for dataservices of type: import.
+        printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'sourceName' fields for dataservices of type 'import'. ***\n");
+        plugin = NULL;
+        return plugin;
+      } else if (!strcmp(type, "service")){
+        plugin->dataServiceCount ++;
+      } else if (!strcmp(type, "group")) {
+        JsonArray* group = jsonObjectGetArray(serviceDef, "subservices");
+        if (group) {
+          plugin->dataServiceCount += jsonArrayGetCount(group);
         }
+      } else if (!strcmp(type,"nodeService") || !strcmp(type,"import") || !strcmp(type,"router") || !strcmp(type,"external")) {
+        /* Node services will be handled by node without ever going to the MVD server. Ignoring. */
+      } else {
+        printf(" %s : Type unknown.\n", type);
       }
     }
+  }
 
     printf("For plugin=%s, found %d data service(s)\n", plugin->identifier, plugin->dataServiceCount);
     plugin->dataServices = (DataService**)safeMalloc(sizeof(DataService*) * plugin->dataServiceCount,"DataServices");
