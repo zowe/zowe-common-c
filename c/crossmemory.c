@@ -2945,52 +2945,51 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
     moduleAddressLPA =
         globalArea->lpaModuleInfo.outputInfo.stuff.successInfo.loadPointAddr;
 
-#ifdef CMS_LPA_DEV_MODE
-
-    /* Compiling with CMS_LPA_DEV_MODE will force the server to remove the
-     * exiting module every time you start the server. This will help avoid
-     * abandoning too many module in LPA when during development. */
     if (moduleAddressLPA != NULL) {
 
-      int lpaDeleteRSN = 0;
-      int lpaDeleteRC = csvdylpaDelete(&globalArea->lpaModuleInfo, &lpaDeleteRSN);
-      if (lpaDeleteRC != 0) {
-        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
-        return RC_CMS_LPA_DELETE_FAILED;
-      }
+      /* Does the module in LPA match our private storage module? */
+      CMSBuildTimestamp privateModuleTimestamp = getServerBuildTimestamp();
+      if (memcmp(&privateModuleTimestamp, &globalArea->lpaModuleTimestamp,
+                 sizeof(CMSBuildTimestamp))) {
 
-      moduleAddressLPA = NULL;
-      memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
-      memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
+        /* No, discard the LPA module. */
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+                CMS_LOG_BUILD_TIME_MISMATCH_MSG, moduleAddressLPA,
+                globalArea->lpaModuleTimestamp.value,
+                privateModuleTimestamp.value);
+        zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+                 (char *)&globalArea->lpaModuleInfo, sizeof(LPMEA));
+        wtoPrintf(CMS_LOG_BUILD_TIME_MISMATCH_MSG, moduleAddressLPA,
+                  globalArea->lpaModuleTimestamp.value,
+                  privateModuleTimestamp.value);
+
+#ifdef CMS_LPA_DEV_MODE
+        /* Compiling with CMS_LPA_DEV_MODE will force the server to remove the
+         * existing LPA module if the private module doesn't match it.
+         * This will help avoid abandoning too many module in LPA during
+         * development. */
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
+                " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
+        int lpaDeleteRSN = 0;
+        int lpaDeleteRC = csvdylpaDelete(&globalArea->lpaModuleInfo,
+                                         &lpaDeleteRSN);
+        if (lpaDeleteRC != 0) {
+          zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+                  CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
+          return RC_CMS_LPA_DELETE_FAILED;
+        }
+#endif /* CMS_LPA_DEV_MODE */
+
+        moduleAddressLPA = NULL;
+        memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
+        memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
+
+      }
 
     } else {
       zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_LPMEA_INVALID_MSG);
       zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, (char *)&globalArea->lpaModuleInfo, sizeof(LPMEA));
     }
-
-#else
-
-    /* Does the module in LPA match our private storage module? */
-    CMSBuildTimestamp privateModuleTimestamp = getServerBuildTimestamp();
-    if (memcmp(&privateModuleTimestamp, &globalArea->lpaModuleTimestamp,
-               sizeof(CMSBuildTimestamp))) {
-
-      /* No, discard the LPA module. */
-      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
-              CMS_LOG_BUILD_TIME_MISMATCH_MSG, moduleAddressLPA,
-              globalArea->lpaModuleTimestamp.value, privateModuleTimestamp.value);
-      zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
-               (char *)&globalArea->lpaModuleInfo, sizeof(LPMEA));
-      wtoPrintf(CMS_LOG_BUILD_TIME_MISMATCH_MSG, moduleAddressLPA,
-                globalArea->lpaModuleTimestamp.value, privateModuleTimestamp.value);
-
-      moduleAddressLPA = NULL;
-      memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
-      memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
-
-    }
-
-#endif /* CMS_LPA_DEV_MODE */
 
   }
 
