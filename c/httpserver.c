@@ -1420,6 +1420,7 @@ static int decodeSessionToken(ShortLivedHeap *slh,
 HttpServer *makeHttpServer2(STCBase *base,
                            InetAddr *addr,
                            int port,
+                           int tlsFlags,
                            int *returnCode, int *reasonCode){
 
   SessionTokenKey sessionTokenKey = {0};
@@ -1427,7 +1428,7 @@ HttpServer *makeHttpServer2(STCBase *base,
     return NULL;
   }
 
-  Socket *listenerSocket = tcpServer(addr,port,returnCode,reasonCode);
+  Socket *listenerSocket = tcpServer2(addr,port,tlsFlags,returnCode,reasonCode);
   if (listenerSocket == NULL){
     return NULL;
   }
@@ -4854,19 +4855,17 @@ static int httpHandleTCP(STCBase *base,
 #if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
       int sxStatus = sxUpdateTLSInfo(peerExtension,
                                      1); /* prevent multiple ioctl calls on repeated reads */
-  #ifdef DEBUG
       if (0 != sxStatus) {
         printf("error from sxUpdateTLSInfo: %d\n", sxStatus);
       } else if ((RS_TLS_WANT_TLS & peerExtension->tlsFlags) &&
                  (0 == (RS_TLS_HAVE_TLS & peerExtension->tlsFlags)))
       {
-        printf("WARNING: Before readWork, Want TLS and don't have it.\n");
+        printf("*** WARNING: Connection is insecure! TLS needed but not found on socket. ***\n");
       } else if ((RS_TLS_WANT_PEERCERT & peerExtension->tlsFlags) &&
                  (0 == (RS_TLS_HAVE_PEERCERT & peerExtension->tlsFlags)))
       {
-        printf("WARNING: Before readWork, Want peer certificate and don't have it.\n");
+        printf("*** WARNING: Connection is insecure! Peer certificate wanted but not found. ***\n");
       }
-  #endif
 #endif
 
   #ifdef DEBUG
