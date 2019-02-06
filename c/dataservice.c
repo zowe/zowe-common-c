@@ -278,11 +278,11 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
 HttpService *makeHttpDataService(DataService *dataService, HttpServer *server) {
   char urlMask[512] = {0};
   int result;
-  HttpService *httpService = (HttpService*) NULL;
+  HttpService *httpService = NULL;
   result = makeHttpDataServiceUrlMask(dataService, urlMask, sizeof(urlMask), server->defaultProductURLPrefix);
   if (result != -1) {
     printf("installing service %s at URI %s\n", dataService->identifier, urlMask);
-    HttpService *httpService = makeGeneratedService(dataService->identifier, urlMask);
+    httpService = makeGeneratedService(dataService->identifier, urlMask);
     httpService->authType = SERVICE_AUTH_NONE; /* TODO: this needs to be fleshed out a lot based on your specification */
     registerHttpService(server, httpService);
     httpService->userPointer = dataService;
