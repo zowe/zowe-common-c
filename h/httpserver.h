@@ -402,7 +402,7 @@ HttpRequest *dequeueHttpRequest(HttpRequestParser *parser);
 HttpRequestParser *makeHttpRequestParser(ShortLivedHeap *slh);
 HttpResponse *makeHttpResponse(HttpRequest *request, ShortLivedHeap *slh, Socket *socket);
 
-HttpServer *makeHttpServer2(STCBase *base, InetAddr *ip, int port, int *returnCode, int *reasonCode);
+HttpServer *makeHttpServer2(STCBase *base, InetAddr *ip, int tlsFlags, int port, int *returnCode, int *reasonCode);
 HttpServer *makeHttpServer(STCBase *base, int port, int *returnCode, int *reasonCode);
 
 #ifdef USE_RS_SSL

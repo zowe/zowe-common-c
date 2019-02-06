@@ -1524,7 +1524,7 @@ int httpServerSetSessionTokenKey(HttpServer *server, unsigned int size,
 }
 
 HttpServer *makeHttpServer(STCBase *base, int port, int *returnCode, int *reasonCode){
-  return makeHttpServer2(base, NULL, port, returnCode, reasonCode);
+  return makeHttpServer2(base, NULL, 0, port, returnCode, reasonCode);
 }
 
 int registerHttpService(HttpServer *server, HttpService *service){
