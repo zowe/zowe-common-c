@@ -406,7 +406,7 @@ void addDetailedDatasetMetadata(char *datasetName, int nameLength,
 
   int isPDS = FALSE;
   printf("Going to check dataset %s attributes\n",datasetName);
-  char *dscb = safeMalloc(INDEXED_DSCB,"DSCB Buffer");
+  char dscb[INDEXED_DSCB] = {0};
   int rc = obtainDSCB1(datasetName, nameLength,
                        volser, volserLength,
                        dscb);
@@ -416,16 +416,12 @@ void addDetailedDatasetMetadata(char *datasetName, int nameLength,
       dumpbuffer(dscb,INDEXED_DSCB);
     }
     addDetailsFromDSCB(dscb,jPrinter,&isPDS);
-    safeFree(dscb,INDEXED_DSCB);
   }
   else{
-    safeFree(dscb,INDEXED_DSCB);
     char buffer[100];
     sprintf(buffer,"Type 1 or 8 DSCB for dataset %s not found",datasetName);
     jsonAddString(jPrinter,"error",buffer);
-    return;
   }
-  safeFree(dscb,INDEXED_DSCB);
 }
 #endif /* __ZOWE_OS_ZOS */
 
@@ -437,7 +433,7 @@ void addMemberedDatasetMetadata(char *datasetName, int nameLength,
                                 int includeUnprintable) {
 
   int isPDS = FALSE;
-  char *dscb = safeMalloc(INDEXED_DSCB,"DSCB Buffer");
+  char dscb[INDEXED_DSCB] = {0};
   int rc = obtainDSCB1(datasetName, nameLength,
                        volser, volserLength,
                        dscb);
@@ -446,7 +442,6 @@ void addMemberedDatasetMetadata(char *datasetName, int nameLength,
     char buffer[100];
     sprintf(buffer, "Type 1 or 8 DSCB for dataset %s not found", datasetName);
     jsonAddString(jPrinter, "error", buffer);
-    safeFree(dscb, INDEXED_DSCB);
     return;
   }
 
@@ -459,7 +454,6 @@ void addMemberedDatasetMetadata(char *datasetName, int nameLength,
   /* If it's not a PDS, we exit. */
   if (!isPDS) {
     printf("Cannot print members. Selected dataset is not a PDS.");
-    safeFree(dscb, INDEXED_DSCB);
     return;
   }
 
@@ -539,7 +533,7 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
   int volserSuccess = getVolserForDataset(&dsn, &volser);
   if (!volserSuccess){
     
-    char *dscb = safeMalloc(INDEXED_DSCB,"DSCB Buffer");
+    char dscb[INDEXED_DSCB] = {0};
     int rc = obtainDSCB1(dsn.value, sizeof(dsn.value),
                          volser.value, sizeof(volser.value),
                          dscb);
@@ -554,7 +548,6 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
       if (recordType == 'F'){
         isFixed = TRUE;
       }
-      safeFree(dscb,INDEXED_DSCB);
     }
   }
   else{
@@ -788,18 +781,16 @@ static int getVolserForDataset(const DatasetName *dataset, Volser *volser) {
   EntryData *entry = entrySet->entries ? entrySet->entries[0] : NULL;
   int rc = -1;
   if (entry){
-    if (entry->name){
-      char *fieldData = (char*)entry+sizeof(EntryData);
-      unsigned short *fieldLengthArray = ((unsigned short *)((char*)entry+sizeof(EntryData)));
-      char *fieldValueStart = (char*)entry+sizeof(EntryData)+defaultCSIFieldCount*sizeof(short);
-      for (int j=0; j<defaultCSIFieldCount; j++){
-        if (!strcmp(defaultCSIFields[j],"VOLSER  ") && fieldLengthArray[j]){
-          memcpy(volser->value,fieldValueStart,6);
-          rc = 0;
-          break;
-        }
-        fieldValueStart += fieldLengthArray[j];
+    char *fieldData = (char*)entry+sizeof(EntryData);
+    unsigned short *fieldLengthArray = ((unsigned short *)((char*)entry+sizeof(EntryData)));
+    char *fieldValueStart = (char*)entry+sizeof(EntryData)+defaultCSIFieldCount*sizeof(short);
+    for (int j=0; j<defaultCSIFieldCount; j++){
+      if (!strcmp(defaultCSIFields[j],"VOLSER  ") && fieldLengthArray[j]){
+        memcpy(volser->value,fieldValueStart,6);
+        rc = 0;
+        break;
       }
+      fieldValueStart += fieldLengthArray[j];
     }
   }
 
@@ -999,7 +990,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
   int lrecl;
   if (!volserSuccess){
     
-    char *dscb = safeMalloc(INDEXED_DSCB,"DSCB Buffer");
+    char dscb[INDEXED_DSCB] = {0};
     int rc = obtainDSCB1(dsn.value, sizeof(dsn.value),
                          volser.value, sizeof(volser.value),
                          dscb);
@@ -1014,10 +1005,8 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
       if (recordType == 'U'){
         fclose(in);
         respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Undefined-length dataset");
-        safeFree(dscb,INDEXED_DSCB);
         return;
       }
-      safeFree(dscb,INDEXED_DSCB);
       handledThroughDSCB = TRUE;
     }
   }
@@ -1110,25 +1099,21 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
   EntryDataSet *entrySet = returnEntries(dsn, clusterTypesAllowed, clusterTypesCount, 0, defaultVSAMCSIFields, defaultVSAMCSIFieldCount, NULL, NULL, returnParms);
   EntryData *entry = entrySet->entries[0];
   if (entry){
-    if (entry->name) printf("Entry DSN = \"%s\" of type [%c]\n", entry->name, entry->type);
     if (entry->type == 'I') { /* TODO: how do we want to handle INDEX datasets?  Some editors use */
       /* TODO: free the entire entrySet, then call CSI again */
     }
     if (entry->type == 'C') {
-      char *datasetName = entry->name;
-      if (datasetName){
-        unsigned short *fieldLengthArray = ((unsigned short *)((char*)entry+sizeof(EntryData)));
-        char *fieldValueStart = (char*)entry+sizeof(EntryData)+defaultVSAMCSIFieldCount*sizeof(short);
-        for (int j=0; j<defaultVSAMCSIFieldCount; j++){
-          /* printf("j = %d: '%s' (%d)\n", j, defaultVSAMCSIFields[j], fieldLengthArray[j]); */
-          if (!strcmp(defaultVSAMCSIFields[j],"ASSOC   ") && fieldLengthArray[j]){
-            printf("DATA     = '%44.44s' [%c]\n", fieldValueStart+1, *fieldValueStart);
-            memcpy(dsnData,fieldValueStart+1,44);
-            /* Is there a use to storing the index component, located here in the case of KSDS? */
-            break;
-          }
-          fieldValueStart += fieldLengthArray[j];
+      unsigned short *fieldLengthArray = ((unsigned short *)((char*)entry+sizeof(EntryData)));
+      char *fieldValueStart = (char*)entry+sizeof(EntryData)+defaultVSAMCSIFieldCount*sizeof(short);
+      for (int j=0; j<defaultVSAMCSIFieldCount; j++){
+        /* printf("j = %d: '%s' (%d)\n", j, defaultVSAMCSIFields[j], fieldLengthArray[j]); */
+        if (!strcmp(defaultVSAMCSIFields[j],"ASSOC   ") && fieldLengthArray[j]){
+          printf("DATA     = '%44.44s' [%c]\n", fieldValueStart+1, *fieldValueStart);
+          memcpy(dsnData,fieldValueStart+1,44);
+          /* Is there a use to storing the index component, located here in the case of KSDS? */
+          break;
         }
+        fieldValueStart += fieldLengthArray[j];
       }
       for (int i = 0; i < entrySet->length; i++){
         EntryData *currentEntry = entrySet->entries[i];
@@ -1159,7 +1144,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
       return;
     }
 
-    if (entry->name && entry->type == 'D') {
+    if (entry->type == 'D') {
       memcpy(dsnData, entry->name, 44);
       unsigned short *fieldLengthArray = ((unsigned short *)((char*)entry+sizeof(EntryData)));
       char *fieldValueStart = (char*)entry+sizeof(EntryData)+defaultVSAMCSIFieldCount*sizeof(short);
@@ -1523,56 +1508,52 @@ void respondWithDatasetMetadata(HttpResponse *response) {
       if (entry) {
         int fieldDataLength = entry->data.fieldInfoHeader.totalLength;
         int entrySize = sizeof(EntryData)+fieldDataLength-4; /* -4 for the fact that the length is 4 from end of EntryData */
-        char *datasetName = entry->name;
         int isMigrated = FALSE;
-        if (datasetName){
-          jsonStartObject(jPrinter, NULL);
-          int originalNameLen = strlen(datasetName);
-          char *type = safeMalloc(1,"DS Type");
-          memcpy(type,&(entry->type),1);
-          jsonAddString(jPrinter,"name",datasetName);
-          jsonAddString(jPrinter,"csiEntryType",type);
-          int volserLength = 0;
-          memset(volser, 0, sizeof(volser));
-          if (type[0] == 'A' || type[0] == 'B' || type[0] == 'D' || type[0] == 'H'){
-            char *fieldData = (char*)entry+sizeof(EntryData);
-            unsigned short *fieldLengthArray = ((unsigned short *)((char*)entry+sizeof(EntryData)));
-            char *fieldValueStart = (char*)entry+sizeof(EntryData)+fieldCount*sizeof(short);
-            for (int j=0; j<fieldCount; j++){
-              if (!strcmp(csiFields[j],"VOLSER  ") && fieldLengthArray[j]){
-                volserLength = 6; /* may contain spaces */
-                memcpy(volser,fieldValueStart,volserLength);
-                jsonAddString(jPrinter,"volser",volser);
-                if (!strcmp(volser,"MIGRAT") || !strcmp(volser,"ARCHIV")){
-                  isMigrated = TRUE;
-                }
-                break;
+        jsonStartObject(jPrinter, NULL);
+        int datasetNameLength = sizeof(entry->name);
+        char *datasetName = entry->name;
+        jsonAddUnterminatedString(jPrinter, "name", datasetName, datasetNameLength);
+        jsonAddUnterminatedString(jPrinter, "csiEntryType", &entry->type, 1);
+        int volserLength = 0;
+        memset(volser, 0, sizeof(volser));
+        char type = entry->type;
+        if (type == 'A' || type == 'B' || type == 'D' || type == 'H'){
+          char *fieldData = (char*)entry+sizeof(EntryData);
+          unsigned short *fieldLengthArray = ((unsigned short *)((char*)entry+sizeof(EntryData)));
+          char *fieldValueStart = (char*)entry+sizeof(EntryData)+fieldCount*sizeof(short);
+          for (int j=0; j<fieldCount; j++){
+            if (!strcmp(csiFields[j],"VOLSER  ") && fieldLengthArray[j]){
+              volserLength = 6; /* may contain spaces */
+              memcpy(volser,fieldValueStart,volserLength);
+              jsonAddString(jPrinter,"volser",volser);
+              if (!strcmp(volser,"MIGRAT") || !strcmp(volser,"ARCHIV")){
+                isMigrated = TRUE;
               }
-              fieldValueStart += fieldLengthArray[j];
+              break;
             }
+            fieldValueStart += fieldLengthArray[j];
           }
-
-          int shouldListMembers = !strcmp(listMembersArg,"true") || (lParenIndex > 0);
-          int detail = !strcmp(detailArg, "true");
-
-          if (detail){
-            if (!isMigrated || !strcmp(migratedArg, "true")){
-              addDetailedDatasetMetadata(datasetName, originalNameLen,
-                                         volser, volserLength,
-                                         jPrinter);
-            }
-          }
-          if (shouldListMembers) {
-            if (!isMigrated || !strcmp(migratedArg, "true")){
-              addMemberedDatasetMetadata(datasetName, originalNameLen,
-                                         volser, volserLength,
-                                         pdsMember, memberNameLength,
-                                         jPrinter, includeUnprintable);
-            }
-          }
-          jsonEndObject(jPrinter);
-          safeFree(type,1);
         }
+
+        int shouldListMembers = !strcmp(listMembersArg,"true") || (lParenIndex > 0);
+        int detail = !strcmp(detailArg, "true");
+
+        if (detail){
+          if (!isMigrated || !strcmp(migratedArg, "true")){
+            addDetailedDatasetMetadata(datasetName, datasetNameLength,
+                                       volser, volserLength,
+                                       jPrinter);
+          }
+        }
+        if (shouldListMembers) {
+          if (!isMigrated || !strcmp(migratedArg, "true")){
+            addMemberedDatasetMetadata(datasetName, datasetNameLength,
+                                       volser, volserLength,
+                                       pdsMember, memberNameLength,
+                                       jPrinter, includeUnprintable);
+          }
+        }
+        jsonEndObject(jPrinter);
         safeFree((char*)(entry),entrySize);
       }
     }
@@ -1583,7 +1564,6 @@ void respondWithDatasetMetadata(HttpResponse *response) {
   safeFree((char*)returnParms,sizeof(csi_parmblock));
   safeFree((char*)(entrySet->entries),sizeof(EntryData*)*entrySet->length);
   safeFree((char*)entrySet,sizeof(EntryDataSet));    
-  safeFree(dsn,strlen(dsn));
 #endif /* __ZOWE_OS_ZOS */
 }
 
@@ -1663,30 +1643,28 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
       if (entry) {
         int fieldDataLength = entry->data.fieldInfoHeader.totalLength;
         int entrySize = sizeof(EntryData)+fieldDataLength-4; /* -4 for the fact that the length is 4 from end of EntryData */
-        if (entry->name) {
-          if (isBlanks(entry->name, 0, strlen(entry->name))){
-            continue;
-          }
-          jsonStartObject(jPrinter, NULL);
-          jsonAddString(jPrinter,"name",entry->name);
-          jsonAddUnterminatedString(jPrinter,"type",&entry->type,1);
-          char type = entry->type;
-          if (type == 'A' || type == 'B' || type == 'D' || type == 'H'){
-            int fieldDataLength = entry->data.fieldInfoHeader.totalLength;
-            char *fieldData = (char*)entry+sizeof(EntryData);
-            unsigned short *fieldLengthArray = ((unsigned short *)((char*)entry+sizeof(EntryData)));
-            char *fieldValueStart = (char*)entry+sizeof(EntryData)+fieldCount*sizeof(short);
-            for (int j=0; j<fieldCount; j++){
-              if (!strcmp(csiFields[j],"VOLSER  ") && fieldLengthArray[j]){
-                jsonAddUnterminatedString(jPrinter,"VOLSER",fieldValueStart,fieldLengthArray[j]);
-                break;
-              }
-              fieldValueStart += fieldLengthArray[j];
-            }
-          }
-
-          jsonEndObject(jPrinter);
+        if (isBlanks(entry->name, 0, sizeof(entry->name))){
+          continue;
         }
+        jsonStartObject(jPrinter, NULL);
+        jsonAddUnterminatedString(jPrinter, "name", entry->name, sizeof(entry->name));
+        jsonAddUnterminatedString(jPrinter, "type", &entry->type, 1);
+        char type = entry->type;
+        if (type == 'A' || type == 'B' || type == 'D' || type == 'H'){
+          int fieldDataLength = entry->data.fieldInfoHeader.totalLength;
+          char *fieldData = (char*)entry+sizeof(EntryData);
+          unsigned short *fieldLengthArray = ((unsigned short *)((char*)entry+sizeof(EntryData)));
+          char *fieldValueStart = (char*)entry+sizeof(EntryData)+fieldCount*sizeof(short);
+          for (int j=0; j<fieldCount; j++){
+            if (!strcmp(csiFields[j],"VOLSER  ") && fieldLengthArray[j]){
+              jsonAddUnterminatedString(jPrinter,"VOLSER",fieldValueStart,fieldLengthArray[j]);
+              break;
+            }
+            fieldValueStart += fieldLengthArray[j];
+          }
+        }
+
+        jsonEndObject(jPrinter);
       }
     }
     jsonEndArray(jPrinter);
