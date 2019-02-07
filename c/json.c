@@ -456,6 +456,14 @@ void jsonWriteInt64(jsonPrinter *p, int64 value) {
   jsonWrite(p, buffer, false, SOURCE_CODE_CHARSET);
 }
 
+
+static
+void jsonWriteUInt64(jsonPrinter *p, uint64 value) {
+  char buffer[64];
+  snprintf(buffer, sizeof (buffer), "%llu", value);
+  jsonWrite(p, buffer, false, SOURCE_CODE_CHARSET);
+}
+
 static
 void jsonWriteBoolean(jsonPrinter *p, int value) {
   jsonWrite(p, value ? "true" : "false", false, SOURCE_CODE_CHARSET);
@@ -702,6 +710,19 @@ void jsonAddInt64(jsonPrinter *p, char *keyOrNull, int64 value) {
   }
   jsonWriteKeyAndSemicolon(p, keyOrNull);
   jsonWriteInt64(p, value);
+}
+
+void jsonAddUInt64(jsonPrinter *p, char *keyOrNull, uint64 value) {
+  if (jsonShouldStopWriting(p)) {
+    return;
+  }
+  if (p->isFirstLine) {
+    p->isFirstLine = FALSE;
+  } else {
+    jsonNewLine(p);
+  }
+  jsonWriteKeyAndSemicolon(p, keyOrNull);
+  jsonWriteUInt64(p, value);
 }
 
 void jsonSetIOErrorFlag(jsonPrinter *p) {

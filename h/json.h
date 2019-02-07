@@ -177,11 +177,19 @@ void jsonAddInt(jsonPrinter *p, char *keyOrNull, int value);
 void jsonAddUInt(jsonPrinter *p, char *keyOrNull, unsigned int value);
 
 /** 
- * \brief This adds a signed 64 bit integer to a streaming JSON object or array from a string that is not terminated.
+ * \brief This adds an unsigned 64 bit integer to a streaming JSON object or
+ * array from a string that is not terminated.
  *
  * keyOrValue should be NULL when adding to an array
  */
 
+void jsonAddUInt64(jsonPrinter *p, char *keyOrNull, uint64 value);
+
+/**
+ * \brief This adds a signed 64 bit integer to a streaming JSON object or array from a string that is not terminated.
+ *
+ * keyOrValue should be NULL when adding to an array
+ */
 
 void jsonAddInt64(jsonPrinter *p, char *keyOrNull, int64 value);
 
