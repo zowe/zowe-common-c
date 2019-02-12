@@ -216,38 +216,40 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
       char *type = jsonObjectGetString(serviceDef, "type");
       char *serviceName = jsonObjectGetString(serviceDef, "name");
       char *sourceName = jsonObjectGetString(serviceDef, "sourceName");
-      bool isImport = strcmp(type, "import") ? false : true;
-      if (!type) {
-        printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'type' fields on dataservices. ***\n");
-        plugin = NULL;
-        safeFree((char*)plugin,sizeof(WebPlugin));
-        return NULL;
-      } else if (!isImport && !serviceName) {
-        // Return a null plugin when 'name' is not set for dataservices of types: router or service or modeService or external.
-        printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'name' fields for dataservices. ***\n");
-        plugin = NULL;
-        safeFree((char*)plugin,sizeof(WebPlugin));
-        return NULL;
-      } else if (isImport && !sourceName) {
-        // Return a null plugin when 'sourceName' is not set for dataservices of type: import.
-        printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'sourceName' fields for dataservices of type 'import'. ***\n");
-        plugin= NULL;
-        safeFree((char*)plugin,sizeof(WebPlugin));
-        return NULL;
-      } else if (!strcmp(type, "service")){
-        plugin->dataServiceCount ++;
-      } else if (!strcmp(type, "group")) {
-        JsonArray* group = jsonObjectGetArray(serviceDef, "subservices");
-        if (group) {
-          plugin->dataServiceCount += jsonArrayGetCount(group);
+      bool isImport = false;
+      if(type) {
+        isImport = strcmp(type, "import") ? false : true;
+        if (!isImport && !serviceName) {
+          // Return a null plugin when 'name' is not set for dataservices of types: router or service or modeService or external.
+          printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'name' fields for dataservices. ***\n");
+          freePlugin(plugin);
+          plugin = NULL;
+          return NULL;
+        } else if (isImport && !sourceName) {
+          // Return a null plugin when 'sourceName' is not set for dataservices of type: import.
+          printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'sourceName' fields for dataservices of type 'import'. ***\n");
+          freePlugin(plugin);
+          plugin = NULL;
+          return NULL;
+        } else if (!strcmp(type, "service")){
+          plugin->dataServiceCount ++;
+        } else if (!strcmp(type, "group")) {
+          JsonArray* group = jsonObjectGetArray(serviceDef, "subservices");
+          if (group) {
+            plugin->dataServiceCount += jsonArrayGetCount(group);
+          }
+        } else if (!strcmp(type,"nodeService") || isImport || !strcmp(type,"router") || !strcmp(type,"external")) {
+          /* Node services will be handled by node without ever going to the MVD server. Ignoring. */
+        } else {
+          printf(" %s : Type unknown.\n", type);
         }
-      } else if (!strcmp(type,"nodeService") || isImport || !strcmp(type,"router") || !strcmp(type,"external")) {
-        /* Node services will be handled by node without ever going to the MVD server. Ignoring. */
       } else {
-        printf(" %s : Type unknown.\n", type);
+        printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'type' fields on dataservices. ***\n");
+        freePlugin(plugin);
+        plugin = NULL;
+        return NULL;
       }
     }
-  }
 
     printf("For plugin=%s, found %d data service(s)\n", plugin->identifier, plugin->dataServiceCount);
     plugin->dataServices = (DataService**)safeMalloc(sizeof(DataService*) * plugin->dataServiceCount,"DataServices");
@@ -273,6 +275,10 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
   }
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s end\n", __FUNCTION__);
   return plugin;
+}
+
+static void freePlugin(WebPlugin *plugin) {
+  safeFree((char*)plugin,sizeof(WebPlugin));
 }
 
 HttpService *makeHttpDataService(DataService *dataService, HttpServer *server) {
