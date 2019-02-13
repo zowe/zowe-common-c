@@ -36,8 +36,14 @@
 
 #ifndef _LP64
 #pragma linkage(CSNBOWH,OS)
+#pragma linkage(CSNESYE,OS)
+#pragma linkage(CSNESYD,OS)
+#pragma linkage(CSNERNGL,OS)
 #else
 #pragma linkage(CSNEOWH,OS)
+#pragma linkage(CSNBSYE,OS)
+#pragma linkage(CSNBSYD,OS)
+#pragma linkage(CSNBRNGL,OS)
 #endif
 
 /*
@@ -316,6 +322,235 @@ int icsfDigestFully(char *digestType, char *s, int len){
 	  
   return returnCode;
   
+}
+
+int icsfEncipher(const void *key, unsigned int keyLength,
+                 const char *text, unsigned int textLength,
+                 char *resultBuffer, unsigned int resultBufferLength,
+                 int *reasonCode) {
+
+  int rc = 0, rsn = 0;
+
+  unsigned int exitDataLength = 0;
+  char *exitData = NULL;
+
+#define ICSF_SYN_ENC_RULE_COUNT 4
+  char ruleArray[ICSF_SYN_ENC_RULE_COUNT][8] = {
+      {"AES     "},
+      {"CFB     "},
+      {"KEY-CLR "},
+      {"INITIAL "},
+  };
+  unsigned int ruleArrayCount = ICSF_SYN_ENC_RULE_COUNT;
+
+  unsigned int keyIdentifierLength = keyLength;
+  const void *keyIdentifier = key;
+
+  unsigned int keyParmsLength = 0;
+  void *keyParms = NULL;
+
+  unsigned int blockLength = 16; /* AES */
+
+  /* ICV doesn't need to be secret */
+  char icv[16] = {
+      0xEB, 0xE3, 0xD0, 0x08,
+      0x00, 0x24, 0xB9, 0x04,
+      0x00, 0xFD, 0xE3, 0xD0,
+      0xD0, 0x88, 0x00, 0x04
+  };
+  unsigned int icvLength = sizeof(icv);
+
+  char chainData[32] = {0};
+  unsigned int chainDataLength = sizeof(chainData);
+
+  unsigned int clearTextLength = textLength;
+  const char *clearText = text;
+
+  unsigned int cipherTextLength = resultBufferLength;
+  char *cipherText = resultBuffer;
+
+  unsigned int optionalDataLength = 0;
+  void *optionalData = NULL;
+
+#ifdef _LP64
+  CSNESYE
+#else
+  CSNBSYE
+#endif
+  (
+      &rc,
+      &rsn,
+
+      &exitDataLength,
+      exitData,
+
+      &ruleArrayCount,
+      ruleArray,
+
+      &keyIdentifierLength,
+      keyIdentifier,
+
+      &keyParmsLength,
+      keyParms,
+
+      &blockLength,
+
+      &icvLength,
+      icv,
+
+      &chainDataLength,
+      chainData,
+
+      &clearTextLength,
+      clearText,
+
+      &cipherTextLength,
+      cipherText,
+
+      &optionalDataLength,
+      optionalData
+  );
+
+  *reasonCode = rsn;
+  return rc;
+}
+
+
+int icsfDecipher(const void *key, unsigned int keyLength,
+                 const char *text, unsigned int textLength,
+                 char *resultBuffer, unsigned int resultBufferLength,
+                 int *reasonCode) {
+
+  int rc = 0, rsn = 0;
+
+  unsigned int exitDataLength = 0;
+  char *exitData = NULL;
+
+#define ICSF_SYN_DEC_RULE_COUNT 4
+  char ruleArray[ICSF_SYN_DEC_RULE_COUNT][8] = {
+      {"AES     "},
+      {"CFB     "},
+      {"KEY-CLR "},
+      {"INITIAL "},
+  };
+  unsigned int ruleArrayCount = ICSF_SYN_DEC_RULE_COUNT;
+
+  unsigned int keyIdentifierLength = keyLength;
+  const void *keyIdentifier = key;
+
+  unsigned int keyParmsLength = 0;
+  void *keyParms = NULL;
+
+  unsigned int blockLength = 16; /* AES */
+
+  /* ICV doesn't need to be secret */
+  char icv[16] = {
+      0xEB, 0xE3, 0xD0, 0x08,
+      0x00, 0x24, 0xB9, 0x04,
+      0x00, 0xFD, 0xE3, 0xD0,
+      0xD0, 0x88, 0x00, 0x04
+  };
+  unsigned int icvLength = sizeof(icv);
+
+  char chainData[32] = {0};
+  unsigned int chainDataLength = sizeof(chainData);
+
+  unsigned int cipherTextLength = textLength;
+  const char *cipherText = text;
+
+  unsigned int clearTextLength = resultBufferLength;
+  const char *clearText = resultBuffer;
+
+  unsigned int optionalDataLength = 0;
+  void *optionalData = NULL;
+
+#ifdef _LP64
+  CSNESYD
+#else
+  CSNBSYD
+#endif
+  (
+      &rc,
+      &rsn,
+
+      &exitDataLength,
+      exitData,
+
+      &ruleArrayCount,
+      ruleArray,
+
+      &keyIdentifierLength,
+      keyIdentifier,
+
+      &keyParmsLength,
+      keyParms,
+
+      &blockLength,
+
+      &icvLength,
+      icv,
+
+      &chainDataLength,
+      chainData,
+
+      &cipherTextLength,
+      cipherText,
+
+      &clearTextLength,
+      clearText,
+
+      &optionalDataLength,
+      optionalData
+  );
+
+  *reasonCode = rsn;
+  return rc;
+}
+
+int icsfGenerateRandomNumber(void *result, int resultLength, int *reasonCode) {
+
+
+  int rc = 0, rsn = 0;
+
+  unsigned int exitDataLength = 0;
+  char *exitData = NULL;
+
+#define ICSF_RNG_RULE_COUNT 1
+  char ruleArray[ICSF_RNG_RULE_COUNT][8] = {
+      {"RANDOM  "},
+  };
+  unsigned int ruleArrayCount = ICSF_RNG_RULE_COUNT;
+
+  unsigned int reservedLength = 0;
+  void *reserved = NULL;
+
+  unsigned int randomNumberLength = resultLength;
+  void *randomNumber = result;
+
+#ifdef _LP64
+  CSNERNGL
+#else
+  CSNBRNGL
+#endif
+  (
+      &rc,
+      &rsn,
+
+      &exitDataLength,
+      exitData,
+
+      &ruleArrayCount,
+      ruleArray,
+
+      &reservedLength,
+      reserved,
+
+      &randomNumberLength,
+      randomNumber
+  );
+
+  *reasonCode = rsn;
+  return rc;
 }
 
 

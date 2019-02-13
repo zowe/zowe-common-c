@@ -366,7 +366,7 @@ EntryDataSet *getHLQs(char *typesAllowed, int typesCount, int workAreaSize, char
   int pos = 0;  
   for (int i = 0; i < 29; i++){
     if (entrySets[i]->length > 0) {
-      for (int j = 0; entrySets[i]->entries[j]->name && j < entrySets[i]->length;j++){
+      for (int j = 0; j < entrySets[i]->length; j++){
         combinedEntrySet->entries[pos++]=entrySets[i]->entries[j];
       }
     }

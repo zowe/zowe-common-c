@@ -235,6 +235,10 @@ typedef struct CrossMemoryService_tag {
 #define CROSS_MEMORY_SERVER_VERSION             2
 #define CROSS_MEMORY_SERVER_DISCARDED_VERSION   0xDEADDA7A
 
+typedef struct CMSTimestamp_tag {
+  char value[32];
+} CMSBuildTimestamp;
+
 typedef struct CrossMemoryServerGlobalArea_tag {
 
   char eyecatcher[8];
@@ -254,7 +258,8 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   int ecsaBlockCount; /* must be on a 4-byte boundary for atomicIncrement */
 #define CMS_MAX_ECSA_BLOCK_NUMBER 32
 #define CMS_MAX_ECSA_BLOCK_SIZE   65536
-  char reserved2[48];
+  CMSBuildTimestamp lpaModuleTimestamp;
+  char reserved2[16];
 
   int (* __ptr32 pccpHandler)();
   LPMEA lpaModuleInfo;
@@ -783,6 +788,12 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 #endif
 #define CMS_LOG_NT_NAME_FAILURE_MSG_TEXT        "%s NAME (NT) not created, %s"
 #define CMS_LOG_NT_NAME_FAILURE_MSG             CMS_LOG_NT_NAME_FAILURE_MSG_ID" "CMS_LOG_NT_NAME_FAILURE_MSG_TEXT
+
+#ifndef CMS_LOG_BUILD_TIME_MISMATCH_MSG_ID
+#define CMS_LOG_BUILD_TIME_MISMATCH_MSG_ID      CMS_MSG_PRFX"0240W"
+#endif
+#define CMS_LOG_BUILD_TIME_MISMATCH_MSG_TEXT    "Discarding outdated LPA module at %p (%26.26s - %26.26s)"
+#define CMS_LOG_BUILD_TIME_MISMATCH_MSG          CMS_LOG_BUILD_TIME_MISMATCH_MSG_ID" "CMS_LOG_BUILD_TIME_MISMATCH_MSG_TEXT
 
 #endif /* H_CROSSMEMORY_H_ */
 
