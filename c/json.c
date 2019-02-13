@@ -443,6 +443,13 @@ void jsonWriteInt(jsonPrinter *p, int value) {
 }
 
 static
+void jsonWriteUInt(jsonPrinter *p, unsigned int value) {
+  char buffer[64];
+  snprintf(buffer, sizeof (buffer), "%u", value);
+  jsonWrite(p, buffer, false, SOURCE_CODE_CHARSET);
+}
+
+static
 void jsonWriteInt64(jsonPrinter *p, int64 value) {
   char buffer[64];
   snprintf(buffer, sizeof (buffer), "%lld", value);
@@ -656,6 +663,19 @@ void jsonAddNull(jsonPrinter *p, char *keyOrNull) {
   }
   jsonWriteKeyAndSemicolon(p, keyOrNull);
   jsonWriteNull(p);
+}
+
+void jsonAddUInt(jsonPrinter *p, char *keyOrNull, unsigned int value) {
+  if (jsonShouldStopWriting(p)) {
+    return;
+  }
+  if (p->isFirstLine) {
+    p->isFirstLine = FALSE;
+  } else {
+    jsonNewLine(p);
+  }
+  jsonWriteKeyAndSemicolon(p, keyOrNull);
+  jsonWriteUInt(p, value);
 }
 
 void jsonAddInt(jsonPrinter *p, char *keyOrNull, int value) {

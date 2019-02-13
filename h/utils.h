@@ -37,7 +37,7 @@ extern "C" {
 char * strcopy_safe(char * dest, const char * source, int dest_size);
 
 int indexOf(char *str, int len, char c, int startPos);
-int lastIndexOf(char *str, int len, char c);
+int lastIndexOf(const char *str, int len, char c);
 int indexOfString(char *str, int len, char *searchString, int startPos);
 int indexOfStringInsensitive(char *str, int len, char *searchString, int startPos);
 
@@ -364,32 +364,6 @@ unsigned int decToHex(unsigned int dec, int digitCount);
 int compareSequences(const char *firstSequence,
                      const char *secondSequence,
                      int compareLength);
-
-
-/** Basic ARCFOUR support **/
-
-typedef struct RC4State_tag{
-  int *s;
-  char *key;
-  int   keyLen;
-  int i;
-  int j;
-} RC4State;
-
-
-RC4State *createRC4(char *key, int len);
-
-char rc4Next(RC4State *rc4);
-
-char rc4EncChar(RC4State *rc4, char b);
-
-void rc4Encrypt(RC4State *rc4, char *src, int len, char *dst);
-
-void rc4Decrypt(RC4State *rc4, char *src, int len, char *dst);
-
-void rc4Reset(RC4State *rc4);
-
-void rc4Free(RC4State *rc4);
 
 typedef struct ISOTime_tag {
   char data[20];

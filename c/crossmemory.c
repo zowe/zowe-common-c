@@ -2043,7 +2043,7 @@ static int handleProgramCall(PCHandlerParmList *parmList, bool isSpaceSwitchPC) 
     return RC_CMS_WRONG_CLIENT_VERSION;
   }
 
-  if (CROSS_MEMORY_SERVER_MAX_SERVICE_ID < localParmList.serviceID) {
+  if (localParmList.serviceID <= 0 || CROSS_MEMORY_SERVER_MAX_SERVICE_ID < localParmList.serviceID) {
     return RC_CMS_FUNCTION_ID_OUT_OF_RANGE;
   }
 
@@ -2435,7 +2435,7 @@ void removeCrossMemoryServer(CrossMemoryServer *server) {
 
 int cmsRegisterService(CrossMemoryServer *server, int id, CrossMemoryServiceFunction *serviceFunction, void *serviceData, int flags) {
 
-  if (id < CROSS_MEMORY_SERVER_MIN_SERVICE_ID && CROSS_MEMORY_SERVER_MAX_SERVICE_ID < id) {
+  if (id < CROSS_MEMORY_SERVER_MIN_SERVICE_ID || CROSS_MEMORY_SERVER_MAX_SERVICE_ID < id) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_BAD_SERVICE_ID_MSG, id);
     return RC_CMS_FUNCTION_ID_OUT_OF_RANGE;
   }
@@ -2859,6 +2859,41 @@ static int addGlobalArea(const CrossMemoryServerName *serverName, CrossMemorySer
 #endif
 }
 
+/* This timestamp value will be updated every time this file gets re-assembled */
+static CMSBuildTimestamp getServerBuildTimestamp() {
+
+  CMSBuildTimestamp timestamp = {0};
+
+  __asm(
+      ASM_PREFIX
+
+      "         MACRO                                                          \n"
+      "&LABEL   GENTIMST                                                       \n"
+      "MODTIME  DS    0D                                                       \n"
+      "         DC    CL26'&SYSCLOCK'                                          \n"
+      "         DC    CL6' '                                                   \n"
+      "         MEND  ,                                                        \n"
+
+      "L$MDTBGN DS    0H                                                       \n"
+      "         PUSH  USING                                                    \n"
+      "         DROP                                                           \n"
+      "         LARL  10,L$MDTBGN                                              \n"
+      "         USING L$MDTBGN,10                                              \n"
+
+      "         MVC   0(32,%[timestamp]),MODTIME                               \n"
+      "         J     L$MDTEXT                                                 \n"
+      "         GENTIMST                                                       \n"
+
+      "L$MDTEXT DS    0H                                                       \n"
+      "         POP   USING                                                    \n"
+      :
+      : [timestamp]"r"(&timestamp)
+      : "r10"
+  );
+
+  return timestamp;
+}
+
 static int allocateGlobalResources(CrossMemoryServer *server) {
 
 #ifndef CROSS_MEMORY_SERVER_DEBUG
@@ -2871,6 +2906,7 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_GLB_AREA_NOT_SET_MSG, getRC);
     return getRC;
   }
+  char * __ptr32 moduleAddressLPA = NULL;
 
   if (globalArea == NULL) {
 
@@ -2906,14 +2942,50 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
 
     globalArea->serverFlags = 0;
 
-    if (globalArea->lpaModuleInfo.outputInfo.stuff.successInfo.loadPointAddr != NULL) {
-      int lpaDeleteRSN = 0;
-      int lpaDeleteRC = csvdylpaDelete(&globalArea->lpaModuleInfo, &lpaDeleteRSN);
-      if (lpaDeleteRC != 0) {
-        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
-        return RC_CMS_LPA_DELETE_FAILED;
+    moduleAddressLPA =
+        globalArea->lpaModuleInfo.outputInfo.stuff.successInfo.loadPointAddr;
+
+    if (moduleAddressLPA != NULL) {
+
+      /* Does the module in LPA match our private storage module? */
+      CMSBuildTimestamp privateModuleTimestamp = getServerBuildTimestamp();
+      if (memcmp(&privateModuleTimestamp, &globalArea->lpaModuleTimestamp,
+                 sizeof(CMSBuildTimestamp))) {
+
+        /* No, discard the LPA module. */
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+                CMS_LOG_BUILD_TIME_MISMATCH_MSG, moduleAddressLPA,
+                globalArea->lpaModuleTimestamp.value,
+                privateModuleTimestamp.value);
+        zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+                 (char *)&globalArea->lpaModuleInfo, sizeof(LPMEA));
+        wtoPrintf(CMS_LOG_BUILD_TIME_MISMATCH_MSG, moduleAddressLPA,
+                  globalArea->lpaModuleTimestamp.value,
+                  privateModuleTimestamp.value);
+
+#ifdef CMS_LPA_DEV_MODE
+        /* Compiling with CMS_LPA_DEV_MODE will force the server to remove the
+         * existing LPA module if the private module doesn't match it.
+         * This will help avoid abandoning too many module in LPA during
+         * development. */
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
+                " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
+        int lpaDeleteRSN = 0;
+        int lpaDeleteRC = csvdylpaDelete(&globalArea->lpaModuleInfo,
+                                         &lpaDeleteRSN);
+        if (lpaDeleteRC != 0) {
+          zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+                  CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
+          return RC_CMS_LPA_DELETE_FAILED;
+        }
+#endif /* CMS_LPA_DEV_MODE */
+
+        moduleAddressLPA = NULL;
+        memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
+        memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
+
       }
-      memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
+
     } else {
       zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_LPMEA_INVALID_MSG);
       zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, (char *)&globalArea->lpaModuleInfo, sizeof(LPMEA));
@@ -2921,33 +2993,51 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
 
   }
 
+  /* Update the server information in the global area. */
   server->globalArea = globalArea;
   globalArea->serverName = server->name;
   globalArea->localServerAddress = server;
   globalArea->serverFlags |= server->flags;
   globalArea->serverASID = getMyPASID();
 
-  int lpaAddRSN = 0;
-  int lpaAddRC = csvdylpaAdd(&server->lpaCodeInfo, &server->ddname, &server->dsname, &lpaAddRSN);
-  if (lpaAddRC != 0) {
-    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_LPA_LOAD_FAILURE_MSG, lpaAddRC, lpaAddRSN);
-    return RC_CMS_LPA_ADD_FAILED;
+  /* Load the module to LPA if needed, otherwise re-use the existing module. */
+  if (moduleAddressLPA == NULL) {
+
+    int lpaAddRSN = 0;
+    int lpaAddRC = csvdylpaAdd(&server->lpaCodeInfo, &server->ddname, &server->dsname, &lpaAddRSN);
+    if (lpaAddRC != 0) {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_LPA_LOAD_FAILURE_MSG, lpaAddRC, lpaAddRSN);
+      return RC_CMS_LPA_ADD_FAILED;
+    }
+    globalArea->lpaModuleInfo = server->lpaCodeInfo;
+
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID
+            " module successfully loaded into LPA @ 0x%p, LPMEA:\n",
+            moduleAddressLPA);
+    zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+             (char *)&server->lpaCodeInfo, sizeof(LPMEA));
+
+  } else {
+
+    server->lpaCodeInfo = globalArea->lpaModuleInfo;
+
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID
+            " LPA module will be re-used @ 0x%p, LPMEA:\n", moduleAddressLPA);
+    zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+             (char *)&server->lpaCodeInfo, sizeof(LPMEA));
+
   }
 
-  memcpy(&globalArea->lpaModuleInfo, &server->lpaCodeInfo, sizeof(LPMEA));
-  memcpy(globalArea->serviceTable, server->serviceTable, sizeof(globalArea->serviceTable));
-
-  char * __ptr32 moduleAddressLPA = *(char * __ptr32 *)&server->lpaCodeInfo.outputInfo.stuff.successInfo.loadPointAddr;
+  /* The required module is in LPA, update the corresponding fields. */
+  globalArea->lpaModuleTimestamp = getServerBuildTimestamp();
+  moduleAddressLPA = server->lpaCodeInfo.outputInfo.stuff.successInfo.loadPointAddr;
   server->moduleAddressLPA = moduleAddressLPA;
+
+  /* Prepare the service table */
   initializeServiceTable(server);
-
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" module successfully loaded into LPA @ 0x%p, LPMEA:\n", moduleAddressLPA);
-  zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, (char *)&server->lpaCodeInfo, sizeof(LPMEA));
-
-  globalArea->localServerAddress = server;
-  memcpy(&globalArea->lpaModuleInfo, &server->lpaCodeInfo, sizeof(LPMEA));
   memcpy(globalArea->serviceTable, server->serviceTable, sizeof(globalArea->serviceTable));
 
+  /* Prepare the PC-cp handler. */
   char *handlerAddressLocal = (char *)handlePCCP;
   char *moduleAddressLocal = (char *)getMyModuleAddressAndSize(NULL);
   char *handlerAddressLPA = handlerAddressLocal - moduleAddressLocal + moduleAddressLPA;
@@ -4136,7 +4226,7 @@ static int callServiceInternal(CrossMemoryServerGlobalArea *globalArea, int serv
 
 int cmsCallService(const CrossMemoryServerName *serverName, int serviceID, void *parmList, int *serviceRC) {
 
-  if (CROSS_MEMORY_SERVER_MAX_SERVICE_ID < serviceID) {
+  if (serviceID <= 0 || CROSS_MEMORY_SERVER_MAX_SERVICE_ID < serviceID) {
     return RC_CMS_FUNCTION_ID_OUT_OF_RANGE;
   }
 

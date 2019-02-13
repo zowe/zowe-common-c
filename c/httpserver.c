@@ -47,6 +47,7 @@
 
 #ifdef __ZOWE_OS_ZOS
 #include "zos.h"
+#include "icsf.h"
 #include "recovery.h"
 #include "zis/client.h"
 #endif 
@@ -1301,11 +1302,133 @@ HttpHeader *getHeader(HttpRequest *request, char *name){
   return NULL;
 }
 
+#define HTTPSERVER_SESSION_TOKEN_KEY_SIZE  32
+
+typedef struct SessionTokenKey_tag {
+  char value[HTTPSERVER_SESSION_TOKEN_KEY_SIZE];
+} SessionTokenKey;
+
+static int initSessionTokenKey(SessionTokenKey *key) {
+
+#ifdef __ZOWE_OS_ZOS
+
+  int icsfRSN = 0;
+  int icsfRC = icsfGenerateRandomNumber(key, sizeof(SessionTokenKey), &icsfRSN);
+  if (icsfRC != 0) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
+            "Error: session token key not generated, RC = %d, RSN = %d\n",
+            icsfRC, icsfRSN);
+    return -1;
+  }
+
+#else
+
+#error Session token key generation has been implemented for z/OS only
+
+#endif
+
+  return 0;
+}
+
+static int encodeSessionToken(ShortLivedHeap *slh,
+                              const HttpServerConfig *config,
+                              const char *tokenText,
+                              unsigned int tokenTextLength,
+                              char **result) {
+
+
+#ifdef __ZOWE_OS_ZOS
+
+  unsigned int encodedTokenTextLength = tokenTextLength;
+  char *encodedTokenText = SLHAlloc(slh, encodedTokenTextLength);
+  if (encodedTokenText == NULL) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
+            "Error: encoded session token buffer not allocated "
+            "(size=%u, SLH=%p)\n", encodedTokenTextLength, slh);
+    return -1;
+  }
+
+  int icsfRSN = 0;
+  int icsfRC = icsfEncipher(config->sessionTokenKey,
+                            config->sessionTokenKeySize,
+                            tokenText,
+                            tokenTextLength,
+                            encodedTokenText,
+                            encodedTokenTextLength,
+                            &icsfRSN);
+  if (icsfRC != 0) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
+            "Error: session token encoding failed, RC = %d, RSN = %d\n",
+            icsfRC, icsfRSN);
+    return -1;
+  }
+
+  *result = encodedTokenText;
+  return 0;
+
+#else
+
+#error Session token encoding has been implemented for z/OS only
+
+#endif /* __ZOWE_OS_ZOS */
+
+}
+
+static int decodeSessionToken(ShortLivedHeap *slh,
+                              const HttpServerConfig *config,
+                              const char *encodedTokenText,
+                              unsigned int encodedTokenTextLength,
+                              char **result) {
+
+#ifdef __ZOWE_OS_ZOS
+
+  unsigned int tokenTextLength = encodedTokenTextLength;
+  char *tokenText = SLHAlloc(slh, tokenTextLength);
+  if (tokenText == NULL) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
+            "Error: decoded session token buffer not allocated "
+            "(size=%u, SLH=%p)\n", encodedTokenTextLength, slh);
+    return -1;
+  }
+
+  int icsfRSN = 0;
+  int icsfRC = icsfDecipher(config->sessionTokenKey,
+                            config->sessionTokenKeySize,
+                            encodedTokenText,
+                            encodedTokenTextLength,
+                            tokenText,
+                            tokenTextLength,
+                            &icsfRSN);
+  if (icsfRC != 0) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
+            "Error: session token decoding failed, RC = %d, RSN = %d\n",
+            icsfRC, icsfRSN);
+    return FALSE;
+  }
+
+  *result = tokenText;
+  return 0;
+
+#else
+
+#error Session token decoding has been implemented for z/OS only
+
+#endif /* __ZOWE_OS_ZOS */
+
+}
+
 HttpServer *makeHttpServer2(STCBase *base,
                            InetAddr *addr,
                            int port,
+                           int tlsFlags,
                            int *returnCode, int *reasonCode){
-  Socket *listenerSocket = tcpServer(addr,port,returnCode,reasonCode);
+
+  SessionTokenKey sessionTokenKey = {0};
+  if (initSessionTokenKey(&sessionTokenKey) != 0) {
+    return NULL;
+  }
+
+  Socket *listenerSocket = tcpServer2(addr,port,tlsFlags,returnCode,reasonCode);
   if (listenerSocket == NULL){
     return NULL;
   }
@@ -1333,9 +1456,11 @@ HttpServer *makeHttpServer2(STCBase *base,
   server->config = (HttpServerConfig*)safeMalloc31(sizeof(HttpServerConfig),"HttpServerConfig");
   server->properties = htCreate(4001,stringHash,stringCompare,NULL,NULL);
   memset(server->config,0,sizeof(HttpServerConfig));
-  int64 now = getFineGrainedTime();
-  server->config->sessionTokenKeySize = sizeof (now);
-  memcpy(&server->config->sessionTokenKey[0], &now, sizeof (now));
+
+  server->config->sessionTokenKeySize = sizeof (sessionTokenKey);
+  memcpy(&server->config->sessionTokenKey[0], &sessionTokenKey,
+         sizeof (sessionTokenKey));
+
   return server;
 }
 
@@ -1399,7 +1524,7 @@ int httpServerSetSessionTokenKey(HttpServer *server, unsigned int size,
 }
 
 HttpServer *makeHttpServer(STCBase *base, int port, int *returnCode, int *reasonCode){
-  return makeHttpServer2(base, NULL, port, returnCode, reasonCode);
+  return makeHttpServer2(base, NULL, 0, port, returnCode, reasonCode);
 }
 
 int registerHttpService(HttpServer *server, HttpService *service){
@@ -1438,8 +1563,6 @@ static char *getNative(char *s){
 #endif
   return native;
 }
-
-static char message[] ={ 0x65, 0x66, 0x67, 0x0d, 0x0a, 0x0};
 
 /* makeHttpResponse alloc's the response structure on the passed SLH,
  * but now infuses the HttpResponse with its own SLH */
@@ -2511,12 +2634,16 @@ static int sessionTokenStillValid(HttpService *service, HttpRequest *request, ch
     printf("decoded session token data for text %s\n",sessionTokenText);
     dumpbuffer(decodedData,decodedDataLength);
   }
-  char *plaintextSessionToken = SLHAlloc(slh,decodedDataLength);
-  RC4State *state = createRC4(server->config->sessionTokenKey,
-      server->config->sessionTokenKeySize);
-  rc4Decrypt(state,decodedData,decodedDataLength,plaintextSessionToken);
-  rc4Free(state);
-  state = NULL;
+
+  char *plaintextSessionToken = NULL;
+  int decodeRC = decodeSessionToken(slh, server->config,
+                                    decodedData,
+                                    decodedDataLength,
+                                    &plaintextSessionToken);
+  if (decodeRC != 0) {
+    return FALSE;
+  }
+
   int colonPos = indexOf(plaintextSessionToken, decodedDataLength, ':', 0);
   if (traceAuth){
     printf("colon pos %d;decoded data token:\n",colonPos);
@@ -2575,12 +2702,16 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
   char *tokenPlaintextBuffer = SLHAlloc(slh,528); /* started at 512, and I added a STCK. May be overkill, but I felt the number needed an explanation */
   /* NOTE: could add randomness in addition to getFineGrainedTime() */
   int tokenPlaintextLength = sprintf(tokenPlaintextBuffer,"%s:%llx:%llx",username,getFineGrainedTime(),service->serverInstanceUID);
-  RC4State *state = createRC4(server->config->sessionTokenKey,
-      server->config->sessionTokenKeySize);
-  char *tokenCiphertext = SLHAlloc(slh,tokenPlaintextLength);
-  rc4Encrypt(state,tokenPlaintextBuffer,tokenPlaintextLength,tokenCiphertext);
-  rc4Free(state);
-  state = NULL;
+
+  char *tokenCiphertext = NULL;
+  int encodeRC = encodeSessionToken(slh, server->config,
+                                    tokenPlaintextBuffer,
+                                    tokenPlaintextLength,
+                                    &tokenCiphertext);
+  if (encodeRC != 0) {
+    return NULL;
+  }
+
   int encodedLength = 0;
   char *base64Output = encodeBase64(slh,tokenCiphertext,tokenPlaintextLength,&encodedLength,TRUE);
   char *keyValueBuffer = SLHAlloc(slh,512);
@@ -2638,6 +2769,9 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
         printf("auth cookie still good, renewing cookie\n");
       }
       char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
+      if (sessionToken == NULL) {
+        return FALSE;
+      }
       addStringHeader(response,"Set-Cookie",sessionToken);
       response->sessionCookie = sessionToken;
       return TRUE;
@@ -3595,13 +3729,13 @@ void respondWithUnixDirectory(HttpResponse *response, char* absolutePath, int js
 
 // Response must ALWAYS be finished on return
 void respondWithUnixFileNotFound(HttpResponse* response, int jsonMode) {
-  setResponseStatus(response,404,message);
   if (jsonMode == 0) {
     char message[] = "File not found";
     int len = strlen(message);
 
     addStringHeader(response,"Server","jdmfws");
     setContentType(response,"text/plain");
+    setResponseStatus(response,404,"Not Found");
     addIntHeader(response,"Content-Length",len);
     writeHeader(response);
 
@@ -4721,19 +4855,17 @@ static int httpHandleTCP(STCBase *base,
 #if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
       int sxStatus = sxUpdateTLSInfo(peerExtension,
                                      1); /* prevent multiple ioctl calls on repeated reads */
-  #ifdef DEBUG
       if (0 != sxStatus) {
         printf("error from sxUpdateTLSInfo: %d\n", sxStatus);
       } else if ((RS_TLS_WANT_TLS & peerExtension->tlsFlags) &&
                  (0 == (RS_TLS_HAVE_TLS & peerExtension->tlsFlags)))
       {
-        printf("WARNING: Before readWork, Want TLS and don't have it.\n");
+        printf("*** WARNING: Connection is insecure! TLS needed but not found on socket. ***\n");
       } else if ((RS_TLS_WANT_PEERCERT & peerExtension->tlsFlags) &&
                  (0 == (RS_TLS_HAVE_PEERCERT & peerExtension->tlsFlags)))
       {
-        printf("WARNING: Before readWork, Want peer certificate and don't have it.\n");
+        printf("*** WARNING: Connection is insecure! Peer certificate wanted but not found. ***\n");
       }
-  #endif
 #endif
 
   #ifdef DEBUG
