@@ -192,7 +192,7 @@ void initalizeWebPlugin(WebPlugin *plugin, HttpServer *server) {
   printf("%s end\n", __FUNCTION__);
 }
 
-static void freePlugin(WebPlugin *plugin) {
+static void freeWebPlugin(WebPlugin *plugin) {
   safeFree((char*)plugin,sizeof(WebPlugin));
 }
 
@@ -226,13 +226,13 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
         if (!isImport && !serviceName) {
           // Return a null plugin when 'name' is not set for dataservices of types: router or service or modeService or external.
           printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'name' fields for dataservices. ***\n");
-          freePlugin(plugin);
+          freeWebPlugin(plugin);
           plugin = NULL;
           return NULL;
         } else if (isImport && !sourceName) {
           // Return a null plugin when 'sourceName' is not set for dataservices of type: import.
           printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'sourceName' fields for dataservices of type 'import'. ***\n");
-          freePlugin(plugin);
+          freeWebPlugin(plugin);
           plugin = NULL;
           return NULL;
         } else if (!strcmp(type, "service")){
@@ -249,7 +249,7 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
         }
       } else {
         printf("*** PANIC: Returning NULL for plugin. Check pluginDefinition for correct 'type' fields on dataservices. ***\n");
-        freePlugin(plugin);
+        freeWebPlugin(plugin);
         plugin = NULL;
         return NULL;
       }
