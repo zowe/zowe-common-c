@@ -192,6 +192,10 @@ void initalizeWebPlugin(WebPlugin *plugin, HttpServer *server) {
   printf("%s end\n", __FUNCTION__);
 }
 
+static void freePlugin(WebPlugin *plugin) {
+  safeFree((char*)plugin,sizeof(WebPlugin));
+}
+
 WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, InternalAPIMap *internalAPIMap) {
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s begin\n", __FUNCTION__);
   WebPlugin *plugin = (WebPlugin*)safeMalloc(sizeof(WebPlugin),"WebPlugin");
@@ -275,10 +279,6 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
   }
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s end\n", __FUNCTION__);
   return plugin;
-}
-
-static void freePlugin(WebPlugin *plugin) {
-  safeFree((char*)plugin,sizeof(WebPlugin));
 }
 
 HttpService *makeHttpDataService(DataService *dataService, HttpServer *server) {
