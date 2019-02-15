@@ -192,6 +192,35 @@ void initalizeWebPlugin(WebPlugin *plugin, HttpServer *server) {
   printf("%s end\n", __FUNCTION__);
 }
 
+static void freeWebPlugin(WebPlugin *plugin) {
+  safeFree((char*)plugin, sizeof(WebPlugin));
+}
+
+static bool isValidServiceDef(JsonObject *serviceDef) {
+  char *type = jsonObjectGetString(serviceDef, "type");
+  char *serviceName = jsonObjectGetString(serviceDef, "name");
+  char *sourceName = jsonObjectGetString(serviceDef, "sourceName");
+  bool isImport = false;
+  if (type) {
+    isImport = strcmp(type, "import") ? false : true;
+    if (!isImport && !serviceName) {
+      // Return a null plugin when 'name' is not set for dataservices of types: router or service or modeService or external.
+      printf("** PANIC: Missing 'name' fields for dataservices. **\n");
+      return false;
+    } else if (isImport && !sourceName) {
+      // Return a null plugin when 'sourceName' is not set for dataservices of type: import.
+      printf("** PANIC: Missing 'sourceName' fields for dataservices of type 'import'. **\n");
+      return false;
+    }else{
+      // Add more validations if any.
+    }
+  } else {
+    printf("** PANIC: Check pluginDefinition for correct 'type' fields on dataservices.** \n");
+    return false;
+  }
+  return true;
+}
+
 WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, InternalAPIMap *internalAPIMap) {
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s begin\n", __FUNCTION__);
   WebPlugin *plugin = (WebPlugin*)safeMalloc(sizeof(WebPlugin),"WebPlugin");
@@ -214,18 +243,19 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
     for (int i = 0; i < jsonArrayGetCount(dataServices); i ++) {
       JsonObject *serviceDef = jsonArrayGetObject(dataServices, i);
       char *type = jsonObjectGetString(serviceDef, "type");
+      if (!isValidServiceDef(serviceDef)){
+        freeWebPlugin(plugin);
+        plugin = NULL;
+        return NULL;
+      }
 
-      if (!type || !strcmp(type, "service")) {
+      if (!strcmp(type, "service")){
         plugin->dataServiceCount ++;
       } else if (!strcmp(type, "group")) {
         JsonArray* group = jsonObjectGetArray(serviceDef, "subservices");
         if (group) {
           plugin->dataServiceCount += jsonArrayGetCount(group);
         }
-      } else if (!strcmp(type,"nodeService")){
-        /* Node services will be handled by node without ever going to the MVD server */
-      } else {
-        /* import, ignore */
       }
     }
 
@@ -257,18 +287,21 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
 
 HttpService *makeHttpDataService(DataService *dataService, HttpServer *server) {
   char urlMask[512] = {0};
-  makeHttpDataServiceUrlMask(dataService, urlMask, sizeof(urlMask), server->defaultProductURLPrefix);
-  printf("installing service %s at URI %s\n", dataService->identifier, urlMask);
-  HttpService *httpService = makeGeneratedService(dataService->identifier, urlMask);
-  httpService->authType = SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN; /* The default */
-  registerHttpService(server, httpService);
-  httpService->userPointer = dataService;
+  int result;
+  HttpService *httpService = NULL;
+  result = makeHttpDataServiceUrlMask(dataService, urlMask, sizeof(urlMask), server->defaultProductURLPrefix);
+  if (result != -1) {
+    printf("installing service %s at URI %s\n", dataService->identifier, urlMask);
+    httpService = makeGeneratedService(dataService->identifier, urlMask);
+    httpService->authType = SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN; /* The default */
+    registerHttpService(server, httpService);
+    httpService->userPointer = dataService;
+  }
   return httpService;
 }
 
 int makeHttpDataServiceUrlMask(DataService *dataService, char *urlMaskBuffer, int urlMaskBufferSize, char *productPrefix) {
   WebPlugin *plugin = dataService->plugin;
-  // TODO: null checks?
   if (productPrefix) {
     if (dataService->subURI) {
       snprintf(urlMaskBuffer, urlMaskBufferSize, "/%s/plugins/%s/services/%s/%s", productPrefix, plugin->identifier,
@@ -278,6 +311,7 @@ int makeHttpDataServiceUrlMask(DataService *dataService, char *urlMaskBuffer, in
                dataService->name);
     } else {
       printf("** PANIC: Data service has no name, group name, or pattern **\n");
+      return -1;
     }
   } else {
     if (dataService->subURI) {
@@ -288,6 +322,7 @@ int makeHttpDataServiceUrlMask(DataService *dataService, char *urlMaskBuffer, in
                dataService->name);
     } else {
       printf("** PANIC: Data service has no name, group name, or pattern **\n");
+      return -1;
     }
   }
   return 0;
