@@ -259,6 +259,7 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
       }
     }
 
+    printf("For plugin=%s, found %d data service(s)\n", plugin->identifier, plugin->dataServiceCount);
     plugin->dataServices = (DataService**)safeMalloc(sizeof(DataService*) * plugin->dataServiceCount,"DataServices");
     int k = 0;
     for (int i = 0; i < jsonArrayGetCount(dataServices); i++) {
