@@ -23,6 +23,8 @@
 #include "zowetypes.h"
 #include "utils.h"
 #include "bpxnet.h"
+#include "isgenq.h"
+#include "lpa.h"
 #include "nametoken.h"
 #include "zos.h"
 #include "socketmgmt.h"
@@ -47,6 +49,9 @@
 #ifndef CMS_MSG_PRFX
 #define CMS_MSG_PRFX  CMS_COMP_ID CMS_MSG_SUBCOMP
 #endif
+
+#define CROSS_MEMORY_SERVER_KEY     4
+#define CROSS_MEMORY_SERVER_SUBPOOL 228
 
 #define RC_CMS_OK                           0
 #define RC_CMS_ERROR                        8
@@ -141,66 +146,6 @@ typedef struct CrossMemoryServerName_tag {
 
 extern const CrossMemoryServerName CMS_DEFAULT_SERVER_NAME;
 
-typedef struct EightCharString_tag {
-  char text[8];
-} EightCharString;
-
-typedef struct LPMEA_tag {
-  struct {
-    char name[8];
-    char inputFlags0;
-#define LPMEA_INPUT_FLAGS0_FIXED                  0x80
-#define LPMEA_INPUT_FLAGS0_PAGEPROTPAGE           0x40
-#define LPMEA_INPUT_FLAGS0_STORAGEOWNERSYSTEM     0x20
-    char inputFlags1;
-  } inputInfo;
-  struct {
-    char outputFlags0;
-    union {
-      char modProbFunction;
-      char successConcatNum;
-    };
-    union {
-      struct {
-        char deleteToken[8];
-        struct {
-          char entryPointAddrBytes0To2[3];
-          char entryPointAddrByte3;
-        } entryPointAddr;
-        void * __ptr32 loadPointAddr;
-        char modLen[4];
-        char loadPointAddr2[4];
-        char modLen2[4];
-      } successInfo;
-      struct {
-        char retCode[4];
-        char rsnCode[4];
-      } retRsnCodes;
-      struct {
-        char abendCode[4];
-        char abendRsnCode[4];
-      } abendRsnCodes;
-    } stuff; /* name from IBM doc */
-  } outputInfo;
-} LPMEA;
-
-typedef struct LPMED_tag {
-  struct {
-    char name[8];
-    char deleteToken[8];
-    char inputFlags0;
-    char inputFlags1;
-  } inputInfo;
-  struct {
-    char outputFlags0;
-    char modProbFunction;
-  } outputInfo;
-} LPMED;
-
-typedef struct ENQToken_tag {
-  char token[32];
-} ENQToken;
-
 typedef struct ELXLISTEntry_tag {
   int sequenceNumber;
   int pcNumber;
@@ -248,7 +193,9 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   unsigned char subpool;
   unsigned short size;
   unsigned int flags;
-  char reserved1[60];
+  char reserved1[56];
+
+  void * __ptr32 userServerAnchor;
 
   CrossMemoryServerName serverName;
   struct CrossMemoryServer_tag * __ptr32 localServerAddress;
@@ -300,6 +247,12 @@ typedef struct CMSWTORouteInfo_tag {
   char padding[4];
 } CMSWTORouteInfo;
 
+
+typedef int (CMSStarCallback)(CrossMemoryServerGlobalArea *globalArea,
+                              void *userData);
+typedef int (CMSStopCallback)(CrossMemoryServerGlobalArea *globalArea,
+                              void *userData);
+
 typedef struct CrossMemoryServer_tag {
   char eyecatcher[8];
 #define CMS_EYECATCHER "RSCMSRV1"
@@ -308,8 +261,11 @@ typedef struct CrossMemoryServer_tag {
 #define CROSS_MEMORY_SERVER_FLAG_READY        0x00000002
 #define CROSS_MEMORY_SERVER_FLAG_TERM_STARTED 0x00000004
 #define CROSS_MEMORY_SERVER_FLAG_TERM_ENDED   0x00000008
-  CrossMemoryServerGlobalArea * __ptr32 globalArea;
   STCBase * __ptr32 base;
+  CMSStarCallback * __ptr32 startCallback;
+  CMSStopCallback * __ptr32 stopCallback;
+  PAD_LONG(0, void *callbackData);
+  CrossMemoryServerGlobalArea * __ptr32 globalArea;
   CMSWTORouteInfo startCommandInfo;
   CMSWTORouteInfo termCommandInfo;
   void * __ptr32 moduleAddressLocal;
@@ -364,18 +320,15 @@ ZOWE_PRAGMA_PACK_RESET
 
 #define cmsInitializeLogging CMINILOG
 #define makeCrossMemoryServer CMMCMSRV
+#define makeCrossMemoryServer2 CMMCMSR2
 #define removeCrossMemoryServer CMMCRSRV
 #define cmsRegisterService CMCMSRSR
 #define cmsStartMainLoop CMCMAINL
 #define cmsGetGlobalArea CMGETGA
-#define cmCopyToSecondaryWithCallerKey CMCPTSSK
-#define cmCopyFromSecondaryWithCallerKey CMCPFSSK
-#define cmCopyToPrimaryWithCallerKey CMCPTPSK
-#define cmCopyFromPrimaryWithCallerKey CMCFPFSK
-#define cmCopyWithSourceKeyAndALET CMCPYSKA
 #define cmGetCallerTaskACEE CMGTACEE
 #define cmsAddConfigParm CMADDPRM
 #define cmsCallService CMCMSRCS
+#define cmsCallService2 CMCALLS2
 #define cmsPrintf CMCMSPRF
 #define cmsGetConfigParm CMGETPRM
 #define cmsGetPCLogLevel CMGETLOG
@@ -399,16 +352,19 @@ ZOWE_PRAGMA_PACK_RESET
 /* server side functions (must be authorized and in supervisor mode) */
 void cmsInitializeLogging();
 CrossMemoryServer *makeCrossMemoryServer(STCBase *base, const CrossMemoryServerName *serverName, unsigned int flags, int *reasonCode);
+CrossMemoryServer *makeCrossMemoryServer2(
+    STCBase *base,
+    const CrossMemoryServerName *serverName,
+    unsigned int flags,
+    CMSStarCallback *startCallback,
+    CMSStopCallback *stopCallback,
+    void *callbackData,
+    int *reasonCode
+);
 void removeCrossMemoryServer(CrossMemoryServer *server);
 int cmsRegisterService(CrossMemoryServer *server, int id, CrossMemoryServiceFunction *serviceFunction, void *serviceData, int flags);
 int cmsStartMainLoop(CrossMemoryServer *server);
 int cmsGetGlobalArea(const CrossMemoryServerName *serverName, CrossMemoryServerGlobalArea **globalAreaAddress);
-void cmCopyToSecondaryWithCallerKey(void *dest, const void *src, size_t size);
-void cmCopyFromSecondaryWithCallerKey(void *dest, const void *src, size_t size);
-void cmCopyToPrimaryWithCallerKey(void *dest, const void *src, size_t size);
-void cmCopyFromPrimaryWithCallerKey(void *dest, const void *src, size_t size);
-void cmCopyWithSourceKeyAndALET(void *dest, const void *src, unsigned int key,
-                                unsigned int alet, size_t size);
 void cmGetCallerTaskACEE(ACEE *content, ACEE **address);
 int cmsAddConfigParm(CrossMemoryServer *server,
                      const char *name, const void *value,
@@ -425,6 +381,8 @@ void cmsFreeECSAStorage2(CrossMemoryServerGlobalArea *globalArea,
 
 /* client side functions */
 int cmsCallService(const CrossMemoryServerName *serverName, int functionID, void *parmList, int *serviceRC);
+int cmsCallService2(CrossMemoryServerGlobalArea *cmsGlobalArea,
+                    int serviceID, void *parmList, int *serviceRC);
 int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, ...);
 int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,
                      CrossMemoryServerConfigParm *parm);
@@ -794,6 +752,12 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 #endif
 #define CMS_LOG_BUILD_TIME_MISMATCH_MSG_TEXT    "Discarding outdated LPA module at %p (%26.26s - %26.26s)"
 #define CMS_LOG_BUILD_TIME_MISMATCH_MSG          CMS_LOG_BUILD_TIME_MISMATCH_MSG_ID" "CMS_LOG_BUILD_TIME_MISMATCH_MSG_TEXT
+
+#ifndef CMS_LOG_TMP_DEV_MSG_ID
+#define CMS_LOG_TMP_DEV_MSG_ID                  CMS_MSG_PRFX"999X"
+#endif
+#define CMS_LOG_TMP_DEV_MSG_TEXT                ""
+#define CMS_LOG_TMP_DEV_MSG                     CMS_LOG_TMP_DEV_MSG_ID" "CMS_LOG_TMP_DEV_MSG_TEXT
 
 #endif /* H_CROSSMEMORY_H_ */
 
