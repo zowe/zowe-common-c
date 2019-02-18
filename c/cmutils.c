@@ -365,6 +365,391 @@ void cmFree2(void **dataPtr, unsigned int size, int subpool, int key) {
 
 }
 
+ZOWE_PRAGMA_PACK
+
+typedef int32_t CPID;
+
+typedef struct CPHeader_tag {
+  char text[24];
+} CPHeader;
+
+ZOWE_PRAGMA_PACK_RESET
+
+static CPID cellpoolBuild(unsigned int pCellCount,
+                          unsigned int sCellCount,
+                          unsigned int cellSize,
+                          int subpool, int key,
+                          const CPHeader *header) {
+
+  CPID cpid = -1;
+
+  ALLOC_STRUCT31(
+    STRUCT31_NAME(below2G),
+    STRUCT31_FIELDS(
+      char parmList[64];
+      CPHeader header;
+    )
+  );
+
+  if (below2G == NULL) { /* This can only fail in LE 64-bit */
+    return cpid;
+  }
+
+  below2G->header = *header;
+
+  __asm(
+
+      ASM_PREFIX
+      "         SYSSTATE PUSH                                                  \n"
+      "         SYSSTATE OSREL=ZOSV1R6                                         \n"
+#ifdef _LP64
+      "         SAM31                                                          \n"
+      "         SYSSTATE AMODE64=NO                                            \n"
+#endif
+
+      "         CPOOL BUILD"
+      ",PCELLCT=(%[pcell])"
+      ",SCELLCT=(%[scell])"
+      ",CSIZE=(%[csize])"
+      ",SP=(%[sp])"
+      ",KEY=(%[key])"
+      ",LOC=(31,64)"
+      ",CPID=(%[cpid])"
+      ",HDR=%[header]"
+      ",MF=(E,%[parmList])"
+      "                                                                        \n"
+
+#ifdef _LP64
+      "         SAM64                                                          \n"
+#endif
+      "         SYSSTATE POP                                                   \n"
+
+      : [cpid]"=NR:r0"(cpid)
+      : [pcell]"r"(pCellCount), [scell]"r"(sCellCount), [csize]"r"(cellSize),
+        [sp]"r"(subpool), [key]"r"(key), [header]"m"(below2G->header),
+        [parmList]"m"(below2G->parmList)
+      : "r0", "r1", "r14", "r15"
+  );
+
+  FREE_STRUCT31(
+    STRUCT31_NAME(below2G)
+  );
+
+  return cpid;
+}
+
+static void cellpoolDelete(CPID cellpoolID) {
+
+  __asm(
+
+      ASM_PREFIX
+      "         SYSSTATE PUSH                                                  \n"
+      "         SYSSTATE OSREL=ZOSV1R6                                         \n"
+#ifdef _LP64
+      "         SAM31                                                          \n"
+      "         SYSSTATE AMODE64=NO                                            \n"
+#endif
+
+      "         CPOOL DELETE,CPID=(%[cpid])                                    \n"
+
+#ifdef _LP64
+      "         SAM64                                                          \n"
+#endif
+      "         SYSSTATE POP                                                   \n"
+
+      :
+      : [cpid]"r"(cellpoolID)
+      : "r0", "r1", "r14", "r15"
+  );
+
+}
+
+static void *cellpoolGet(CPID cellpoolID, bool conditional) {
+
+  uint64 callerGPRs[12] = {0};
+
+  void * __ptr32 cell = NULL;
+
+  if (conditional) {
+    __asm(
+
+        ASM_PREFIX
+        "         STMG  2,13,%[gprs]                                             \n"
+        "         LA    13,%[gprs]                                               \n"
+  #ifdef _LP64
+        "         SAM31                                                          \n"
+  #endif
+
+        "         CPOOL GET,C,CPID=(%[cpid]),REGS=USE                            \n"
+
+  #ifdef _LP64
+        "         SAM64                                                          \n"
+  #endif
+        "         LMG   2,13,0(13)                                               \n"
+
+        : [cell]"=NR:r1"(cell)
+        : [gprs]"m"(callerGPRs), [cpid]"r"(cellpoolID)
+        : "r0", "r1", "r14", "r15"
+    );
+  } else {
+    __asm(
+
+        ASM_PREFIX
+        "         STMG  2,13,%[gprs]                                             \n"
+        "         LA    13,%[gprs]                                               \n"
+  #ifdef _LP64
+        "         SAM31                                                          \n"
+  #endif
+
+        "         CPOOL GET,U,CPID=(%[cpid]),REGS=USE                            \n"
+
+  #ifdef _LP64
+        "         SAM64                                                          \n"
+  #endif
+        "         LMG   2,13,0(13)                                               \n"
+
+        : [cell]"=NR:r1"(cell)
+        : [gprs]"m"(callerGPRs), [cpid]"r"(cellpoolID)
+        : "r0", "r1", "r14", "r15"
+    );
+  }
+
+  return cell;
+}
+
+static void cellpoolFree(CPID cellpoolID, void *cell) {
+
+  uint64 callerGPRs[12] = {0};
+
+  __asm(
+
+      ASM_PREFIX
+      "         STMG  2,13,%[gprs]                                             \n"
+      "         LA    13,%[gprs]                                               \n"
+#ifdef _LP64
+      "         SAM31                                                          \n"
+#endif
+
+      "         CPOOL FREE,CPID=(%[cpid]),CELL=(%[cell]),REGS=USE              \n"
+
+#ifdef _LP64
+      "         SAM64                                                          \n"
+#endif
+      "         LMG   2,13,0(13)                                               \n"
+
+      :
+      : [gprs]"m"(callerGPRs), [cpid]"r"(cellpoolID), [cell]"=NR:r1"(cell)
+      : "r0", "r1", "r14", "r15"
+  );
+
+}
+
+ZOWE_PRAGMA_PACK
+
+typedef struct CrossMemoryMapEntry_tag {
+  char eyecatcher[4];
+#define CM_MAP_ENTRY_EYECATCHER "CMME"
+  struct CrossMemoryMapEntry_tag * __ptr32 next;
+  PAD_LONG(0, void *value);
+  char key[0];
+} CrossMemoryMapEntry;
+
+typedef struct CrossMemoryMap_tag {
+  char eyecatcher[8];
+#define CROSS_MEMORY_MAP_EYECATCHER "CMMAPEYE"
+  unsigned int size;
+  unsigned int keySize;
+  unsigned int entrySize;
+  CPID entryCellpool;
+  unsigned int bucketCount;
+  CrossMemoryMapEntry * __ptr32 buckets[0];
+} CrossMemoryMap;
+
+ZOWE_PRAGMA_PACK_RESET
+
+#define CM_MAP_SUBPOOL  228
+#define CM_MAP_KEY      4
+
+#define CM_MAP_MAX_KEY_SIZE 64
+#define CM_MAP_BUCKET_COUNT 29
+
+#define CM_MAP_PRIMARY_CELL_COUNT     16
+#define CM_MAP_SECONDARY_CELL_COUNT   32
+
+#define CM_MAP_HEADER "CMUTILS ESCA MAP        "
+
+CrossMemoryMap *makeCrossMemoryMap(unsigned int keySize) {
+
+  if (keySize > CM_MAP_MAX_KEY_SIZE) {
+    return NULL;
+  }
+
+  unsigned int mapSize = sizeof(CrossMemoryMap) +
+      sizeof(CrossMemoryMapEntry * __ptr32) * CM_MAP_BUCKET_COUNT;
+
+  CrossMemoryMap *map =
+      cmAlloc(mapSize, CM_MAP_SUBPOOL, CM_MAP_KEY);
+  if (map == NULL) {
+    return NULL;
+  }
+  memset(map, 0, mapSize);
+  memcpy(map->eyecatcher, CROSS_MEMORY_MAP_EYECATCHER, sizeof(map->eyecatcher));
+  map->size = mapSize;
+  map->keySize = keySize;
+  map->bucketCount = CM_MAP_BUCKET_COUNT;
+
+  CPHeader header = {
+      .text = CM_MAP_HEADER,
+  };
+
+  if (keySize & 0x00000003) {
+    keySize += (4 - (keySize % 4));
+  }
+
+  map->entrySize = sizeof(CrossMemoryMapEntry) + keySize;
+  map->entryCellpool = cellpoolBuild(CM_MAP_PRIMARY_CELL_COUNT,
+                                     CM_MAP_SECONDARY_CELL_COUNT,
+                                     map->entrySize,
+                                     CM_MAP_SUBPOOL, CM_MAP_KEY,
+                                     &header);
+
+  return map;
+}
+
+/* This function is not thread-safe. */
+void removeCrossMemoryMap(CrossMemoryMap *map) {
+  cellpoolDelete(map->entryCellpool);
+  map->entryCellpool = -1;
+  cmFree(map, map->size, CM_MAP_SUBPOOL, CM_MAP_KEY);
+}
+
+static unsigned int calculateKeyHash(const void *key, unsigned int size) {
+  const char *target = key;
+  unsigned int hash = 0;
+  /* TODO: make sure we cover the last (size % 4) bytes */
+  for (unsigned int i = 0; i < size; i += sizeof(int)) {
+    hash = hash ^ *((unsigned int *)(target + i));
+  }
+  return hash;
+}
+
+static CrossMemoryMapEntry *findEntry(CrossMemoryMapEntry *chain,
+                                      const void *key, unsigned int keySize) {
+  CrossMemoryMapEntry *currEntry = chain;
+  while (currEntry != NULL) {
+    if (memcmp(currEntry->key, key, keySize) == 0) {
+      return currEntry;
+    }
+    currEntry = currEntry->next;
+  }
+
+  return NULL;
+}
+
+static CrossMemoryMapEntry *makeEntry(CrossMemoryMap *map,
+                                      const void *key,
+                                      void *value) {
+
+  CrossMemoryMapEntry *entry = cellpoolGet(map->entryCellpool, FALSE);
+  if (entry == NULL) {
+    return NULL;
+  }
+
+  memset(entry, 0, map->entrySize);
+  memcpy(entry->eyecatcher, CROSS_MEMORY_MAP_EYECATCHER,
+         sizeof(entry->eyecatcher));
+  memcpy(entry->key, key, map->keySize);
+  entry->value = value;
+
+  return entry;
+}
+
+static void removeEntry(CrossMemoryMap *map, CrossMemoryMapEntry *entry) {
+  cellpoolFree(map->entryCellpool, entry);
+}
+
+/* Put a new key-value into the map:
+ *  0 - success
+ *  1 - entry already exists
+ * -1 - fatal error
+ *
+ * This function is thread-safe.
+ */
+int crossMemoryMapPut(CrossMemoryMap *map, const void *key, void *value) {
+
+  unsigned int keySize = map->keySize;
+  unsigned int hash = calculateKeyHash(key, keySize);
+  unsigned int bucketID = hash % map->bucketCount;
+
+  CrossMemoryMapEntry *chain = map->buckets[bucketID];
+  CrossMemoryMapEntry *existingEntry = findEntry(chain, key, keySize);
+  CrossMemoryMapEntry *newEntry = NULL;
+
+  if (existingEntry == NULL) {
+    newEntry = makeEntry(map, key, value);
+    if (newEntry == NULL) {
+      return -1; /* fatal error */
+    }
+    newEntry->next = chain;
+  }
+
+  /* we don't allow entry removal, so it should be safe to assume that when
+   * a new entry is added to a chain, the chain head address always changes */
+  while (cs((cs_t *)&chain, (cs_t *)&map->buckets[bucketID], (cs_t)newEntry)) {
+    /* chain has been updated */
+    if (findEntry(chain, key, keySize)) {
+      removeEntry(map, newEntry);
+      newEntry = NULL;
+      return 1; /* the same key has been added */
+    }
+    newEntry->next = chain;
+  }
+
+  return 0;
+}
+
+/* Get the handle of the value with the specified key.
+ *
+ * This function is thread-safe. */
+void **crossMemoryMapGetHandle(CrossMemoryMap *map, const void *key) {
+
+  unsigned int keySize = map->keySize;
+  unsigned int hash = calculateKeyHash(key, keySize);
+  unsigned int bucketID = hash % map->bucketCount;
+
+  CrossMemoryMapEntry *chain = map->buckets[bucketID];
+  CrossMemoryMapEntry *entry = findEntry(chain, key, keySize);
+
+  if (entry != NULL) {
+    return &entry->value;
+  }
+
+  return NULL;
+}
+
+void *crossMemoryMapGet(CrossMemoryMap *map, const void *key) {
+  void **valueHandle = crossMemoryMapGetHandle(map, key);
+  return valueHandle ? *valueHandle : NULL;
+}
+
+/* Iterate a map.
+ *
+ * This function is thread-safe as long as the user handles the values properly.
+ */
+void crossMemoryMapIterate(CrossMemoryMap *map,
+                           CrossMemoryMapVisitor *visitor,
+                           void *visitorData) {
+
+  for (unsigned int bucketID = 0; bucketID < map->bucketCount; bucketID++) {
+    CrossMemoryMapEntry *entry = map->buckets[bucketID];
+    while (entry != NULL) {
+      visitor(entry->key, map->keySize, &entry->value, visitorData);
+      entry = entry->next;
+    }
+  }
+
+}
+
 
 /*
   This program and the accompanying materials are

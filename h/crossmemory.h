@@ -177,7 +177,7 @@ typedef struct CrossMemoryService_tag {
   PAD_LONG(1, void *serviceData);
 } CrossMemoryService;
 
-#define CROSS_MEMORY_SERVER_VERSION             2
+#define CROSS_MEMORY_SERVER_VERSION             3
 #define CROSS_MEMORY_SERVER_DISCARDED_VERSION   0xDEADDA7A
 
 typedef struct CMSTimestamp_tag {

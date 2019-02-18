@@ -40,6 +40,13 @@
 #define cmAlloc2 CMALLOC2
 #define cmFree2 CMFREE2
 
+#define makeCrossMemoryMap CMUMKMAP
+#define removeCrossMemoryMap CMURMMAP
+#define crossMemoryMapPut CMUMAPP
+#define crossMemoryMapGetHandle CMUMAPGH
+#define crossMemoryMapGet CMUMAPGT
+#define crossMemoryMapIterate CMUMAPIT
+
 #endif
 
 void cmCopyToSecondaryWithCallerKey(void *dest, const void *src, size_t size);
@@ -55,6 +62,26 @@ void *cmAlloc(unsigned int size, int subpool, int key);
 void cmFree(void *data, unsigned int size, int subpool, int key);
 void cmAlloc2(unsigned int size, int subpool, int key, void **resultPtr);
 void cmFree2(void **dataPtr, unsigned int size, int subpool, int key);
+
+typedef struct CrossMemoryMap_tag CrossMemoryMap;
+
+CrossMemoryMap *makeCrossMemoryMap(unsigned int keySize);
+void removeCrossMemoryMap(CrossMemoryMap *map);
+int crossMemoryMapPut(CrossMemoryMap *map, const void *key, void *value);
+void **crossMemoryMapGetHandle(CrossMemoryMap *map, const void *key);
+void *crossMemoryMapGet(CrossMemoryMap *map, const void *key);
+
+typedef void (CrossMemoryMapVisitor)(const char *key, unsigned int keySize,
+                                     void **valueHandle, void *visitorData);
+void crossMemoryMapIterate(CrossMemoryMap *map,
+                           CrossMemoryMapVisitor *visitor,
+                           void *visitorData);
+
+typedef void (CrossMemoryMapVisitor)(const char *key, unsigned int keySize,
+                                     void **valueHandle, void *visitorData);
+void crossMemoryMapIterate(CrossMemoryMap *map,
+                           CrossMemoryMapVisitor *visitor,
+                           void *visitorData);
 
 #endif /* H_CMUTILS_H_ */
 
