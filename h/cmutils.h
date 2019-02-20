@@ -20,6 +20,7 @@
 #include <stddef.h>
 #endif
 
+#include "zos.h"
 #include "zowetypes.h"
 
 #define CROSS_MEMORY_ALET_PASN  0
@@ -35,6 +36,10 @@
 #define cmCopyToHomeWithCallerKey CMCPTHSK
 #define cmCopyFromHomeWithCallerKey CMCPFHSK
 #define cmCopyWithSourceKeyAndALET CMCPYSKA
+
+#define cmGetCallerAddressSpaceACEE CMGAACEE
+#define cmGetCallerTaskACEE CMGTACEE
+
 #define cmAlloc CMALLOC
 #define cmFree CMFREE
 #define cmAlloc2 CMALLOC2
@@ -58,6 +63,9 @@ void cmCopyFromHomeWithCallerKey(void *dest, const void *src, size_t size);
 void cmCopyWithSourceKeyAndALET(void *dest, const void *src, unsigned int key,
                                 unsigned int alet, size_t size);
 
+void cmGetCallerAddressSpaceACEE(ACEE *content, ACEE **address);
+void cmGetCallerTaskACEE(ACEE *content, ACEE **address);
+
 void *cmAlloc(unsigned int size, int subpool, int key);
 void cmFree(void *data, unsigned int size, int subpool, int key);
 void cmAlloc2(unsigned int size, int subpool, int key, void **resultPtr);
@@ -66,19 +74,13 @@ void cmFree2(void **dataPtr, unsigned int size, int subpool, int key);
 typedef struct CrossMemoryMap_tag CrossMemoryMap;
 
 CrossMemoryMap *makeCrossMemoryMap(unsigned int keySize);
-void removeCrossMemoryMap(CrossMemoryMap *map);
+void removeCrossMemoryMap(CrossMemoryMap **mapAddr);
 int crossMemoryMapPut(CrossMemoryMap *map, const void *key, void *value);
 void **crossMemoryMapGetHandle(CrossMemoryMap *map, const void *key);
 void *crossMemoryMapGet(CrossMemoryMap *map, const void *key);
 
-typedef void (CrossMemoryMapVisitor)(const char *key, unsigned int keySize,
-                                     void **valueHandle, void *visitorData);
-void crossMemoryMapIterate(CrossMemoryMap *map,
-                           CrossMemoryMapVisitor *visitor,
-                           void *visitorData);
-
-typedef void (CrossMemoryMapVisitor)(const char *key, unsigned int keySize,
-                                     void **valueHandle, void *visitorData);
+typedef int (CrossMemoryMapVisitor)(const char *key, unsigned int keySize,
+                                    void **valueHandle, void *visitorData);
 void crossMemoryMapIterate(CrossMemoryMap *map,
                            CrossMemoryMapVisitor *visitor,
                            void *visitorData);

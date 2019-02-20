@@ -576,7 +576,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define CM_MAP_PRIMARY_CELL_COUNT     16
 #define CM_MAP_SECONDARY_CELL_COUNT   32
 
-#define CM_MAP_HEADER "CMUTILS ESCA MAP        "
+#define CM_MAP_HEADER "CMUTILS ECSA MAP        "
 
 CrossMemoryMap *makeCrossMemoryMap(unsigned int keySize) {
 
@@ -617,10 +617,14 @@ CrossMemoryMap *makeCrossMemoryMap(unsigned int keySize) {
 }
 
 /* This function is not thread-safe. */
-void removeCrossMemoryMap(CrossMemoryMap *map) {
-  cellpoolDelete(map->entryCellpool);
+void removeCrossMemoryMap(CrossMemoryMap **mapAddr) {
+  CrossMemoryMap *map = *mapAddr;
+  CPID cellpoolToDelete = map->entryCellpool;
   map->entryCellpool = -1;
-  cmFree(map, map->size, CM_MAP_SUBPOOL, CM_MAP_KEY);
+  if (cellpoolToDelete != -1) {
+    cellpoolDelete(cellpoolToDelete);
+  }
+  cmFree2((void **)mapAddr, map->size, CM_MAP_SUBPOOL, CM_MAP_KEY);
 }
 
 static unsigned int calculateKeyHash(const void *key, unsigned int size) {
@@ -670,7 +674,7 @@ static void removeEntry(CrossMemoryMap *map, CrossMemoryMapEntry *entry) {
 
 /* Put a new key-value into the map:
  *  0 - success
- *  1 - entry already exists
+ *  1 - entry already exists (the value is not updated)
  * -1 - fatal error
  *
  * This function is thread-safe.
@@ -691,10 +695,13 @@ int crossMemoryMapPut(CrossMemoryMap *map, const void *key, void *value) {
       return -1; /* fatal error */
     }
     newEntry->next = chain;
+  } else {
+    return 1;
   }
 
-  /* we don't allow entry removal, so it should be safe to assume that when
-   * a new entry is added to a chain, the chain head address always changes */
+  /* We don't allow entry removal, so it should be safe to assume that when
+   * a new entry is added to a chain, the chain head address always changes,
+   * that is, there should not be the ABA problem. */
   while (cs((cs_t *)&chain, (cs_t *)&map->buckets[bucketID], (cs_t)newEntry)) {
     /* chain has been updated */
     if (findEntry(chain, key, keySize)) {
@@ -743,7 +750,9 @@ void crossMemoryMapIterate(CrossMemoryMap *map,
   for (unsigned int bucketID = 0; bucketID < map->bucketCount; bucketID++) {
     CrossMemoryMapEntry *entry = map->buckets[bucketID];
     while (entry != NULL) {
-      visitor(entry->key, map->keySize, &entry->value, visitorData);
+      if (visitor(entry->key, map->keySize, &entry->value, visitorData) != 0) {
+        return;
+      }
       entry = entry->next;
     }
   }

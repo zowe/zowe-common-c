@@ -37,6 +37,9 @@
 
 #define getASCBJobname GETASCBJ
 
+#define loadByName LOADBYNAM
+#define loadByNameLocally LOADBNML
+
 #endif
 
 
@@ -1187,6 +1190,7 @@ int64 getR12();
 int64 getR13();
 
 void *loadByName(char *moduleName, int *statusPtr);
+void *loadByNameLocally(char *moduleName, int *statusPtr);
 
 char *getASCBJobname(ASCB *ascb);
 
