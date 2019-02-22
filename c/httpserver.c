@@ -3801,10 +3801,12 @@ void respondWithUnixFileNotFound(HttpResponse* response, int jsonMode) {
 void respondWithJsonError(HttpResponse *response, char *error, int statusCode, char *statusMessage) {
   jsonPrinter *out = respondWithJsonPrinter(response);
 
-  setContentType(response, "text/json");
+  setContentType(response, "application/json");
   setResponseStatus(response,statusCode,statusMessage);
   addStringHeader(response, "Server", "jdmfws");
   addStringHeader(response, "Transfer-Encoding", "chunked");
+  addStringHeader(response, "Cache-control", "no-store");
+  addStringHeader(response, "Pragma", "no-cache");
   writeHeader(response);
 
   jsonStart(out);
