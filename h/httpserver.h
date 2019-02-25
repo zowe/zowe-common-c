@@ -524,7 +524,10 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
 int makeHTMLForDirectory(HttpResponse *response, char *dirname, char *stem, int includeDotted);
 int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotted);
 
-
+/**
+   Convenience function to set headers specific to sending small JSON objects for a REST API
+ */
+void setDefaultJSONRESTHeaders(HttpResponse *response);
 
 int setHttpParseTrace(int toWhat);
 int setHttpDispatchTrace(int toWhat);

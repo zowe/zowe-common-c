@@ -83,10 +83,7 @@ void initalizeWebPlugin(WebPlugin *plugin, HttpServer *server);
 HttpService *makeHttpDataService(DataService *dataService, HttpServer *server);
 int makeHttpDataServiceUrlMask(DataService *dataService, char *urlMaskBuffer, int urlMaskBufferSize, char *productPrefix);
 
-/**
-   Convenience function to set headers specific to sending small JSON objects for a REST API
- */
-void setDefaultJSONRESTHeaders(HttpResponse *response);
+
 
 #endif /* __DATASERVICE__ */
 

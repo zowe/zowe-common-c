@@ -328,14 +328,6 @@ int makeHttpDataServiceUrlMask(DataService *dataService, char *urlMaskBuffer, in
   return 0;
 }
 
-void setDefaultJSONRESTHeaders(HttpResponse *response) {
-  setContentType(response, "application/json");
-  addStringHeader(response, "Server", "jdmfws");
-  addStringHeader(response, "Transfer-Encoding", "chunked");
-  addStringHeader(response, "Cache-control", "no-store");
-  addStringHeader(response, "Pragma", "no-cache");
-}
-
 /*
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies

@@ -3804,6 +3804,13 @@ void respondWithUnixFileNotFound(HttpResponse* response, int jsonMode) {
   }
 }
 
+void setDefaultJSONRESTHeaders(HttpResponse *response) {
+  setContentType(response, "application/json");
+  addStringHeader(response, "Server", "jdmfws");
+  addStringHeader(response, "Transfer-Encoding", "chunked");
+  addStringHeader(response, "Cache-control", "no-store");
+  addStringHeader(response, "Pragma", "no-cache");
+}
 
 // Response must ALWAYS be finished on return
 void respondWithJsonError(HttpResponse *response, char *error, int statusCode, char *statusMessage) {
