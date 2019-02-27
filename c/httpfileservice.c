@@ -47,9 +47,7 @@
 
 void response200WithMessage(HttpResponse *response, char *msg) {
   setResponseStatus(response,200,"OK");
-  addStringHeader(response, "Server", "jdmfws");
-  setContentType(response, "text/json");
-  addStringHeader(response,"Transfer-Encoding","chunked");
+  setDefaultJSONRESTHeaders(response);
   addStringHeader(response,"Connection","close");
   writeHeader(response);
   jsonPrinter *out = respondWithJsonPrinter(response);
@@ -560,9 +558,7 @@ void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
     jsonPrinter *out = respondWithJsonPrinter(response);
 
     setResponseStatus(response, 200, "OK");
-    setContentType(response, "text/json");
-    addStringHeader(response, "Server", "jdmfws");
-    addStringHeader(response, "Transfer-Encoding", "chunked");
+    setDefaultJSONRESTHeaders(response);
     writeHeader(response);
 
     int decimalMode = fileUnixMode(&info);

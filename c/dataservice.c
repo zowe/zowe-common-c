@@ -328,7 +328,6 @@ int makeHttpDataServiceUrlMask(DataService *dataService, char *urlMaskBuffer, in
   return 0;
 }
 
-
 /*
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
