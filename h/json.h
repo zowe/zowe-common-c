@@ -13,6 +13,10 @@
 #ifndef __JSON__
 #define	__JSON__ 1
 
+#include <stdlib.h>
+#include "zowetypes.h"
+#include "utils.h"
+
 /** \file
  *  \brief json.h is an implementation of an efficient low-level JSON writer and parser.
  *
