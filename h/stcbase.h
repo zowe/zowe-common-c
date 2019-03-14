@@ -32,10 +32,13 @@
   - referring to HttpServer as "struct HttpServer" is less strict than using HttpServer
  */
 
-#include "zowetypes.h"
+#include "bpxnet.h"
 #include "collections.h"
 #include "le.h"
 #include "logging.h"
+#include "socketmgmt.h"
+#include "utils.h"
+#include "zowetypes.h"
 
 #define STC_MODULE_GENERIC          0x00000000
 #define STC_MODULE_JEDHTTP          0x00010000
