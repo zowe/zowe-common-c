@@ -518,9 +518,9 @@ int registerHttpService(HttpServer *server, HttpService *service);
 int registerHttpServiceOfLastResort(HttpServer *server, HttpService *service);
 int processHttpFragment(HttpRequestParser *parser, char *data, int len);
 int mainHttpLoop(HttpServer *server);
-int streamBinaryForFile(Socket *socket, UnixFile *in);
+int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64);
 int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
-                      int sourceCCSID, int targetCCSID);
+                      int sourceCCSID, int targetCCSID, bool asB64);
 int makeHTMLForDirectory(HttpResponse *response, char *dirname, char *stem, int includeDotted);
 int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotted);
 

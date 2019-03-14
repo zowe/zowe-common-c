@@ -3448,8 +3448,8 @@ char *getMimeType(char *extension, int *isBinary){
 static void respondWithUnixFileInternal(HttpResponse* response, char* absolutePath, int jsonMode, int secureFlag);
 static void respondWithUnixDirectoryInternal(HttpResponse* response, char* absolutePath, int jsonMode, int secureFlag);
 
-static void respondWithUnixFile(HttpResponse* response, char* absolutePath, int jsonMode);
-static void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode, int autocvt);
+static void respondWithUnixFile(HttpResponse* response, char* absolutePath, int jsonMode, bool asB64);
+static void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode, int autocvt, bool asB64);
 void respondWithUnixDirectory(HttpResponse *response, char* absolutePath, int jsonMode);
 void respondWithUnixFileSafer(HttpResponse* response, char* absolutePath, int jsonMode);
 void respondWithUnixDirectorySafer(HttpResponse* response, char* absolutePath, int jsonMode);
@@ -3482,7 +3482,7 @@ static uint64_t makeFileEtag(FileInfo *file) {
 
 // Response must ALWAYS be finished on return
 void respondWithUnixFileContents2 (HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode) {
-  respondWithUnixFileContentsWithAutocvtMode(service, response, absolutePath, jsonMode, 1);
+  respondWithUnixFileContentsWithAutocvtMode(service, response, absolutePath, jsonMode, TRUE);
   // Response is finished on return
 }
 
@@ -3505,7 +3505,16 @@ void respondWithUnixFileContentsWithAutocvtMode (HttpService* service, HttpRespo
     respondWithUnixDirectory(response, absolutePath, jsonMode);
     // Response is finished on return
   } else {
-    respondWithUnixFile2(service, response, absolutePath, jsonMode, autocvt);
+    bool asB64 = TRUE;
+    char *base64Param = getQueryParam(response->request, "mode");
+
+    if (NULL != base64Param) {
+      if (!strcmp(strupcase(base64Param), "RAW")) {
+        asB64 = FALSE;
+      }
+    }
+
+    respondWithUnixFile2(service, response, absolutePath, jsonMode, autocvt, asB64);
     // Response is finished on return
   }
 }
@@ -3609,7 +3618,7 @@ bool isCachedCopyModified(HttpRequest *req, uint64_t etag, time_t mtime) {
 }
 
 // Response must ALWAYS be finished on return
-void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode, int autocvt) {
+void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode, int autocvt, bool asB64) {
   FileInfo info;
   int returnCode;
   int reasonCode;
@@ -3648,8 +3657,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
                             FILE_OPTION_READ_ONLY,
                             0, 0,
                             &returnCode, &reasonCode);
-    if (NULL == in)
-    {
+    if (NULL == in) {
       sprintf(tmperr, "Forbidden (rc=%d, rsn=0x%x)", returnCode, reasonCode);
       if (jsonMode) {
         respondWithJsonError(response, "Forbidden", 403, tmperr);
@@ -3674,7 +3682,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     addStringHeader(response,"Server","jdmfws");
     addStringHeader(response, "Cache-control", "no-store");
     addStringHeader(response, "Pragma", "no-cache");
-    addIntHeader(response,"Content-Length",fileSize); /* Is this safe post-conversion??? */
+    addIntHeader(response, "Content-Length", asB64 ? 4 * ((fileSize + 2) / 3) : fileSize); /* Is this safe post-conversion??? */
     setContentType(response, mimeType);
     addCacheRelatedHeaders(response, mtime, etag);
 
@@ -3684,13 +3692,14 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
       service->customHeadersFunction(service, response);
     }
 
-    if (isBinary || ccsid == -1){
+    if (isBinary || ccsid == -1) {
       writeHeader(response);
 #ifdef DEBUG
       printf("Streaming binary for %s\n", absolutePath);
 #endif
-      streamBinaryForFile(response->socket, in);
-    } else{
+      
+      streamBinaryForFile(response->socket, in, asB64);
+    } else {
       writeHeader(response);
 #ifdef DEBUG
       printf("Streaming %d for %s\n", ccsid, absolutePath);
@@ -3720,9 +3729,9 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 #endif
         ;
       if (ccsid == 0) {
-        streamTextForFile(response->socket, in, ENCODING_SIMPLE, NATIVE_CODEPAGE, webCodePage);
+        streamTextForFile(response->socket, in, ENCODING_SIMPLE, NATIVE_CODEPAGE, webCodePage, asB64);
       } else {
-        streamTextForFile(response->socket, in, ENCODING_SIMPLE, ccsid, webCodePage);
+        streamTextForFile(response->socket, in, ENCODING_SIMPLE, ccsid, webCodePage, asB64);
       }
 
 #ifdef USE_CONTINUE_RESPONSE_HACK
@@ -3745,8 +3754,8 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 }
 
 // Response must ALWAYS be finished on return
-void respondWithUnixFile(HttpResponse* response, char* absolutePath, int jsonMode) {
-  respondWithUnixFile2(NULL, response, absolutePath, jsonMode, 1);
+void respondWithUnixFile(HttpResponse* response, char* absolutePath, int jsonMode, bool asB64) {
+  respondWithUnixFile2(NULL, response, absolutePath, jsonMode, 1, asB64);
   // Response is finished on return
 }
 
@@ -3826,12 +3835,15 @@ void respondWithJsonError(HttpResponse *response, char *error, int statusCode, c
   finishResponse(response);
 }
 
-int streamBinaryForFile(Socket *socket, UnixFile *in){
+#define ENCODE64_SIZE(SZ) (2 + 4 * ((SZ + 2) / 3))
+
+int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
   char buffer[FILE_STREAM_BUFFER_SIZE+4];
+  int encodedLength;
 
-  while (!fileEOF(in)){
+  while (!fileEOF(in)) {
     int bytesRead = fileRead(in,buffer,FILE_STREAM_BUFFER_SIZE,&returnCode,&reasonCode);
     if (bytesRead <= 0) {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2,
@@ -3839,19 +3851,28 @@ int streamBinaryForFile(Socket *socket, UnixFile *in){
               returnCode, reasonCode);
       return 0;
     }
-    writeFully(socket,buffer,bytesRead);
+
+    char *encodedBuffer = NULL;
+    if (asB64) {
+      encodedBuffer = encodeBase64(NULL, buffer, bytesRead, &encodedLength, FALSE);
+    }
+    char *outPtr = asB64 ? encodedBuffer : buffer;
+    int outLen = asB64 ? encodedLength : bytesRead;
+    writeFully(socket, outPtr, outLen);
+    if (NULL != encodedBuffer) safeFree31(encodedBuffer, ENCODE64_SIZE(bytesRead)+1);
   }
 
   return 0;
 }
   
 int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
-                      int sourceCCSID, int targetCCSID){
+                      int sourceCCSID, int targetCCSID, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
   int bytesSent = 0;
   char buffer[FILE_STREAM_BUFFER_SIZE+4];
   char translation[(2*FILE_STREAM_BUFFER_SIZE)+4]; /* UTF inflation tolerance */
+  int encodedLength;
 
 
   /* Q: How do we find character encoding for unix file? 
@@ -3903,11 +3924,11 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
                             &reasonCode);
 
         if (inLen != translationLength) {
-          printf("streamTextForFile(%d (%s), %d (%s), %d, %d, %d): "
+          printf("streamTextForFile(%d (%s), %d (%s), %d, %d, %d, %d): "
                  "after sending %d bytes got translation length error; expected %d, got %d\n",
                  socket->sd, socket->debugName, 
                  in->fd, in->pathname,
-                 encoding, sourceCCSID, targetCCSID, bytesSent, inLen, translationLength);
+                 encoding, sourceCCSID, targetCCSID, asB64, bytesSent, inLen, translationLength);
         }
         if (TRACE_CHARSET_CONVERSION){
           printf("convertCharset transLen=%d\n",translationLength);
@@ -3922,8 +3943,17 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
         outPtr = translation;
         outLen = (unsigned int) translationLength;
       }
+      int allocSize = 0;
+      char *encodedBuffer = NULL;
+      if (asB64) {
+        allocSize = ENCODE64_SIZE(outLen)+1;
+        encodedBuffer = encodeBase64(NULL, outPtr, outLen, &encodedLength, FALSE);
+        outPtr = encodedBuffer;
+        outLen = encodedLength;
+      }
       writeFully(socket,outPtr,(int) outLen);
-      bytesSent += outLen;
+      if (NULL != encodedBuffer) safeFree31(encodedBuffer, allocSize);
+      bytesSent += encodedLength;
     }
     break;
   case ENCODING_CHUNKED:
@@ -3938,10 +3968,10 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
     break;
   }
   if (traceSocket > 0) {
-    printf("streamTextForFile(%d (%s), %d (%s), %d, %d, %d) sent %d bytes\n",
+    printf("streamTextForFile(%d (%s), %d (%s), %d, %d, %d, %d) sent %d bytes\n",
            socket->sd, socket->debugName, 
            in->fd, in->pathname,
-           encoding, sourceCCSID, targetCCSID, bytesSent);
+           encoding, sourceCCSID, targetCCSID, asB64, bytesSent);
   }
   return 1;
 }
