@@ -3840,11 +3840,12 @@ void respondWithJsonError(HttpResponse *response, char *error, int statusCode, c
 int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
-  char buffer[FILE_STREAM_BUFFER_SIZE+4];
+  int bufferSize = 3*FILE_STREAM_BUFFER_SIZE;
+  char buffer[bufferSize+4];
   int encodedLength;
 
   while (!fileEOF(in)) {
-    int bytesRead = fileRead(in,buffer,FILE_STREAM_BUFFER_SIZE,&returnCode,&reasonCode);
+    int bytesRead = fileRead(in,buffer,bufferSize,&returnCode,&reasonCode);
     if (bytesRead <= 0) {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2,
               "Binary streaming has ended. (return = 0x%x, reason = 0x%x)\n",
@@ -3853,12 +3854,16 @@ int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
     }
 
     char *encodedBuffer = NULL;
+#ifdef DEBUG
+    if (bytesRead % 3) printf("buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
+#endif
     if (asB64) {
       encodedBuffer = encodeBase64(NULL, buffer, bytesRead, &encodedLength, FALSE);
     }
     char *outPtr = asB64 ? encodedBuffer : buffer;
     int outLen = asB64 ? encodedLength : bytesRead;
     writeFully(socket, outPtr, outLen);
+
     if (NULL != encodedBuffer) safeFree31(encodedBuffer, ENCODE64_SIZE(bytesRead)+1);
   }
 
@@ -3870,8 +3875,9 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
   int returnCode = 0;
   int reasonCode = 0;
   int bytesSent = 0;
-  char buffer[FILE_STREAM_BUFFER_SIZE+4];
-  char translation[(2*FILE_STREAM_BUFFER_SIZE)+4]; /* UTF inflation tolerance */
+  int bufferSize = 3*FILE_STREAM_BUFFER_SIZE;
+  char buffer[bufferSize+4];
+  char translation[(2*bufferSize)+4]; /* UTF inflation tolerance */
   int encodedLength;
 
 
@@ -3885,7 +3891,7 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
 #ifdef DEBUG
       printf("WARNING: UTF8 might not be aligned properly: preserve 3 bytes for the next read cycle to fix UTF boundaries\n");
 #endif
-      int bytesRead = fileRead(in,buffer,FILE_STREAM_BUFFER_SIZE,&returnCode,&reasonCode);
+      int bytesRead = fileRead(in,buffer,bufferSize,&returnCode,&reasonCode);
 
       unsigned int inLen, outLen;
       int rc;
@@ -3946,6 +3952,9 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
       int allocSize = 0;
       char *encodedBuffer = NULL;
       if (asB64) {
+#ifdef DEBUG
+        if (outLen % 3) printf("buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
+#endif
         allocSize = ENCODE64_SIZE(outLen)+1;
         encodedBuffer = encodeBase64(NULL, outPtr, outLen, &encodedLength, FALSE);
         outPtr = encodedBuffer;
