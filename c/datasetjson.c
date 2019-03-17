@@ -1032,9 +1032,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
 
   jsonPrinter *jPrinter = respondWithJsonPrinter(response);
   setResponseStatus(response, 200, "OK");
-  setContentType(response, "text/json");
-  addStringHeader(response,"Server","jdmfws");
-  addStringHeader(response,"Transfer-Encoding","chunked");
+  setDefaultJSONRESTHeaders(response);
  
   writeHeader(response);
 
@@ -1316,9 +1314,8 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
 
   jsonPrinter *jPrinter = respondWithJsonPrinter(response);
   setResponseStatus(response, 200, "OK");
-  setContentType(response, "text/json");
-  addStringHeader(response,"Server","jdmfws");
-  addStringHeader(response,"Transfer-Encoding","chunked");
+  setDefaultJSONRESTHeaders(response); 
+
   writeHeader(response);
 
   printf("Streaming data for %s\n", absolutePath);
@@ -1482,9 +1479,7 @@ void respondWithDatasetMetadata(HttpResponse *response) {
 
   jsonPrinter *jPrinter = respondWithJsonPrinter(response);
   setResponseStatus(response, 200, "OK");
-  setContentType(response, "text/json");
-  addStringHeader(response, "Server", "jdmfws");
-  addStringHeader(response, "Transfer-Encoding", "chunked");
+  setDefaultJSONRESTHeaders(response);
   writeHeader(response);
   char volser[7];
   memset(volser,0,7);  
@@ -1574,9 +1569,7 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
 #ifdef __ZOWE_OS_ZOS
   HttpRequest *request = response->request;
   setResponseStatus(response, 200, "OK");
-  setContentType(response, "text/json");
-  addStringHeader(response, "Server", "jdmfws");
-  addStringHeader(response, "Transfer-Encoding", "chunked");
+  setDefaultJSONRESTHeaders(response);
   jsonPrinter *jPrinter = respondWithJsonPrinter(response);
   writeHeader(response);
   EntryDataSet *hlqSet;
