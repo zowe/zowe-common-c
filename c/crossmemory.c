@@ -63,6 +63,7 @@ const CrossMemoryServerName CMS_DEFAULT_SERVER_NAME = {CROSS_MEMORY_DEFAULT_SERV
 #define CROSS_MEMORY_SERVER_LOG_SERVICE_ID    1
 #define CROSS_MEMORY_SERVER_DUMP_SERVICE_ID   2
 #define CROSS_MEMORY_SERVER_CONFIG_SERVICE_ID 3
+#define CROSS_MEMORY_SERVER_STATUS_SERVICE_ID 4
 
 #define TOSTR(number) #number
 #define INT_TO_STR(number) TOSTR(number)
@@ -74,7 +75,8 @@ const char *CMS_RC_DESCRIPTION[] = {
   [RC_CMS_SERVER_ABENDED] = "Cross-memory call ABENDed",
   [RC_CMS_WRONG_SERVER_VERSION] = "Wrong server version",
   [RC_CMS_WRONG_CLIENT_VERSION] = "Wrong client version",
-  [RC_CMS_MAX_RC] = NULL
+  [RC_CMS_SERVER_NAME_NULL] = "Server name is NULL",
+  [RC_CMS_MAX_RC + 1] = NULL
 };
 
 #define CMS_DDNAME  "STEPLIB "
@@ -1497,6 +1499,9 @@ static int handleStandardService(CrossMemoryServer *server, CrossMemoryServerPar
   case CROSS_MEMORY_SERVER_CONFIG_SERVICE_ID:
     status = handleConfigService(server, localParmList->callerData);
     break;
+  case CROSS_MEMORY_SERVER_STATUS_SERVICE_ID:
+    status = RC_CMS_OK;
+    break;
   }
 
   return status;
@@ -1806,6 +1811,13 @@ static void initStandardServices(CrossMemoryServer *server) {
   configService->function = NULL;
   configService->flags |= CROSS_MEMORY_SERVICE_FLAG_INITIALIZED;
   configService->flags |= CROSS_MEMORY_SERVICE_FLAG_SPACE_SWITCH;
+
+  /* status service */
+  CrossMemoryService *statusService =
+      &server->serviceTable[CROSS_MEMORY_SERVER_STATUS_SERVICE_ID];
+  statusService->function = NULL;
+  statusService->flags |= CROSS_MEMORY_SERVICE_FLAG_INITIALIZED;
+  statusService->flags |= CROSS_MEMORY_SERVICE_FLAG_SPACE_SWITCH;
 
 }
 
@@ -3922,6 +3934,11 @@ int cmsGetGlobalArea(const CrossMemoryServerName *serverName, CrossMemoryServerG
     if (globalAreaCandidate != NULL) {
       if (memcmp(&globalAreaCandidate->serverName, serverName, sizeof(CrossMemoryServerName)) == 0 &&
           globalAreaCandidate->version == CROSS_MEMORY_SERVER_VERSION) {
+        /* TODO: make a new function that finds a running server by name
+         * The version check should be done when we've found a running instance,
+         * otherwise it is not clear whether global are is NULL because it's
+         * not been allocated or the caller's and server's versions don't
+         * match. */
         globalArea = globalAreaCandidate;
         break;
       }
@@ -3989,6 +4006,10 @@ static int callServiceInternal(CrossMemoryServerGlobalArea *globalArea, int serv
 }
 
 int cmsCallService(const CrossMemoryServerName *serverName, int serviceID, void *parmList, int *serviceRC) {
+
+  if (serverName == NULL) {
+    return RC_CMS_SERVER_NAME_NULL;
+  }
 
   if (serviceID <= 0 || CROSS_MEMORY_SERVER_MAX_SERVICE_ID < serviceID) {
     return RC_CMS_FUNCTION_ID_OUT_OF_RANGE;
@@ -4094,6 +4115,37 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm) {
   memcpy(name.nameSpacePadded, nameNullTerm, copySize);
 
   return name;
+}
+
+static void fillServerStatus(int cmsRC, CrossMemoryServerStatus *status) {
+
+  memset(status, 0, sizeof(CrossMemoryServerStatus));
+
+  const char *description = NULL;
+  if (0 <= cmsRC && cmsRC <= RC_CMS_MAX_RC) {
+    description = CMS_RC_DESCRIPTION[cmsRC];
+  }
+
+  if (description == NULL) {
+    description = "N/A";
+  }
+
+  status->cmsRC = cmsRC;
+  strncpy(status->descriptionNullTerm, description,
+          sizeof(status->descriptionNullTerm) - 1);
+
+}
+
+CrossMemoryServerStatus cmsGetStatus(const CrossMemoryServerName *serverName) {
+
+  CrossMemoryServerStatus status = {0};
+
+  int cmsRC = cmsCallService(serverName, CROSS_MEMORY_SERVER_STATUS_SERVICE_ID,
+                             NULL, NULL);
+
+  fillServerStatus(cmsRC, &status);
+
+  return status;
 }
 
 #if defined(METTLE) && !defined(CMS_CLIENT)

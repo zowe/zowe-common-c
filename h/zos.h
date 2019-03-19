@@ -418,8 +418,20 @@ typedef struct ecvt_tag{
   short ecvtptim;     /* time value for parallel detach (RTM) */
   Addr31 ecvtjcct;     /* JES Communication Control Table */
   /* Offset 0x120 */
-  char junk[0xBC]; 
+  char unmapped1[0x30];
+  char ecvthdnm[8];
+  char ecvtlpnm[8];
+  char ecvtvmnm[8];
+  char unmapped2[0x74];
   int  ecvtpseq;
+  char ecvtpown[16];
+  char ecvtpnam[16];
+  char ecvtpver[2];
+  char ecvtprel[2];
+  char ecvtpmod[2];
+  char ecvtpdvl;
+  char ecvtttfl;     /* transaction trace flags */
+  /* more unmapped fields here */
 } ECVT;
 
 typedef struct gda_tag{

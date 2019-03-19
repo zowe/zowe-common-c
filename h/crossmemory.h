@@ -130,8 +130,9 @@
 #define RC_CMS_NO_STEPLIB                   81
 #define RC_CMS_MODULE_NOT_IN_STEPLIB        82
 #define RC_CMS_ZVT_NOT_ALLOCATED            83
-#define RC_CMS_SERVICE_ENTRY_OCCUPIED       84
-#define RC_CMS_MAX_RC                       84
+#define RC_CMS_SERVER_NAME_NULL             84
+#define RC_CMS_SERVICE_ENTRY_OCCUPIED       85
+#define RC_CMS_MAX_RC                       85
 
 extern const char *CMS_RC_DESCRIPTION[];
 
@@ -334,6 +335,11 @@ typedef struct CrossMemoryServerConfigParm_tag {
   };
 } CrossMemoryServerConfigParm;
 
+typedef struct CrossMemoryServerStatus_tag {
+  int cmsRC;
+  char descriptionNullTerm[64];
+} CrossMemoryServerStatus;
+
 ZOWE_PRAGMA_PACK_RESET
 
 #define LOG_COMP_ID_CMS       0x008F0001000C0001LLU
@@ -354,6 +360,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define cmsPrintf CMCMSPRF
 #define cmsGetConfigParm CMGETPRM
 #define cmsGetPCLogLevel CMGETLOG
+#define cmsGetStatus CMGETSTS
 #define cmsMakeServerName CMMKSNAM
 #define cmsAllocateECSAStorage CMECSAAL
 #define cmsFreeECSAStorage CMECSAFR
@@ -409,6 +416,7 @@ int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString,
 int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,
                      CrossMemoryServerConfigParm *parm);
 int cmsGetPCLogLevel(const CrossMemoryServerName *serverName);
+CrossMemoryServerStatus cmsGetStatus(const CrossMemoryServerName *serverName);
 CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 
 /* default message IDs (users of crossmemory.c can potentially redefine them) */

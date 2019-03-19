@@ -2489,6 +2489,35 @@ static int endImpersonating(HttpService *service, HttpRequest *request) {
 #endif /*__ZOWE_OS_ZOS */
 }
 
+static int isImpersonationValid(HttpService *service, int isImpersonating) {
+
+  if (!isImpersonating != !service->doImpersonation) {
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static void reportImpersonationError(HttpService *service, int isImpersonating) {
+
+  if (!isImpersonating && service->doImpersonation) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
+            "Error: service has no impersonation; make sure process user has "
+            "sufficient authority:\n"
+            "  z/OS: program control flag must be set, UPDATE access to "
+            "BPX.SERVER and BPX.DAEMON SAF resources is required\n"
+            "  Other platforms: impersonation is not supported\n");
+    return;
+  }
+
+  if (isImpersonating && !service->doImpersonation) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
+            "Error: service runs with impersonation when none is required\n");
+    return;
+  }
+
+}
+
 int extractBasicAuth(HttpRequest *request, HttpHeader *authHeader){
   ShortLivedHeap *slh = request->slh;
   char *asciiHeader = authHeader->value;
@@ -2894,6 +2923,31 @@ static void serializeConsiderCloseEnqueue(HttpConversation *conversation, int su
   return;
 }
 
+static void serveRequest(HttpService* service, HttpResponse* response,
+                         HttpRequest* request) {
+
+  if ((SERVICE_TYPE_FILES == service->serviceType) ||
+      (SERVICE_TYPE_FILES_SECURE == service->serviceType)) {
+    serveFile(service, response);
+  } else if (service->serviceType == SERVICE_TYPE_PROXY) {
+    proxyServe(service, request, response);
+  } else {
+    char* serviceArgProblem = NULL;
+    if (serviceArgProblem = processServiceRequestParams(service, response)) {
+      respondWithError(response, 404, serviceArgProblem);
+      // Response is finished on return
+    } else {
+      if (service->serviceType == SERVICE_TYPE_SIMPLE_TEMPLATE) {
+        serveSimpleTemplate(service, response);
+        // Response is finished on return
+      } else {
+        service->serviceFunction(service, response);
+      }
+    }
+  }
+
+}
+
 static int handleHttpService(HttpServer *server,
                              HttpService *service,
                              HttpRequest *request,
@@ -2991,29 +3045,21 @@ static int handleHttpService(HttpServer *server,
     respondWithError(response,401,"Not Authorized");
     // Response is finished on return
   } else {
+
     int impersonating = startImpersonating(service, request);
-    if ((SERVICE_TYPE_FILES == service->serviceType) ||
-            (SERVICE_TYPE_FILES_SECURE == service->serviceType)) {
-      serveFile(service, response);
-    } else if (service->serviceType == SERVICE_TYPE_PROXY) {
-      proxyServe(service, request, response);
+
+    if (isImpersonationValid(service, impersonating)) {
+      serveRequest(service, response, request);
     } else {
-      char *serviceArgProblem = NULL;
-      if (serviceArgProblem = processServiceRequestParams(service, response)) {
-        respondWithError(response, 404, serviceArgProblem);
-        // Response is finished on return
-      } else {
-        if (service->serviceType == SERVICE_TYPE_SIMPLE_TEMPLATE) {
-          serveSimpleTemplate(service, response);
-          // Response is finished on return
-        } else {
-          service->serviceFunction(service, response);
-        }
-      }
+      reportImpersonationError(service, impersonating);
+      respondWithError(response, HTTP_STATUS_FORBIDDEN,
+                       "Impersonation error");
     }
+
     if (impersonating) {
       endImpersonating(service, request);
     }
+
   }
 #ifdef DEBUG
   printf("service=%s auth succeeded\n",service->name);
@@ -3589,6 +3635,8 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 
     if (!modified) {
       setResponseStatus(response, 304, "Not modified");
+      addStringHeader(response, "Cache-control", "no-store");
+      addStringHeader(response, "Pragma", "no-cache");
       addStringHeader(response, "Server", "jdmfws");
       addCacheRelatedHeaders(response, mtime, etag);
       writeHeader(response);
@@ -3624,6 +3672,8 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 
     setResponseStatus(response,200,"OK");
     addStringHeader(response,"Server","jdmfws");
+    addStringHeader(response, "Cache-control", "no-store");
+    addStringHeader(response, "Pragma", "no-cache");
     addIntHeader(response,"Content-Length",fileSize); /* Is this safe post-conversion??? */
     setContentType(response, mimeType);
     addCacheRelatedHeaders(response, mtime, etag);
@@ -3707,6 +3757,8 @@ void respondWithUnixDirectory(HttpResponse *response, char* absolutePath, int js
   fflush(stdout);
 #endif
   setResponseStatus(response,200,"OK");
+  addStringHeader(response, "Cache-control", "no-store");
+  addStringHeader(response, "Pragma", "no-cache");  
   addStringHeader(response,"Server","jdmfws");
   addStringHeader(response,"Transfer-Encoding","chunked");
   if (jsonMode == 0) {
@@ -3736,6 +3788,8 @@ void respondWithUnixFileNotFound(HttpResponse* response, int jsonMode) {
     addStringHeader(response,"Server","jdmfws");
     setContentType(response,"text/plain");
     setResponseStatus(response,404,"Not Found");
+    addStringHeader(response, "Cache-control", "no-store");
+    addStringHeader(response, "Pragma", "no-cache");
     addIntHeader(response,"Content-Length",len);
     writeHeader(response);
 
@@ -3750,15 +3804,19 @@ void respondWithUnixFileNotFound(HttpResponse* response, int jsonMode) {
   }
 }
 
+void setDefaultJSONRESTHeaders(HttpResponse *response) {
+  setContentType(response, "application/json");
+  addStringHeader(response, "Server", "jdmfws");
+  addStringHeader(response, "Transfer-Encoding", "chunked");
+  addStringHeader(response, "Cache-control", "no-store");
+  addStringHeader(response, "Pragma", "no-cache");
+}
 
 // Response must ALWAYS be finished on return
 void respondWithJsonError(HttpResponse *response, char *error, int statusCode, char *statusMessage) {
   jsonPrinter *out = respondWithJsonPrinter(response);
-
-  setContentType(response, "text/json");
   setResponseStatus(response,statusCode,statusMessage);
-  addStringHeader(response, "Server", "jdmfws");
-  addStringHeader(response, "Transfer-Encoding", "chunked");
+  setDefaultJSONRESTHeaders(response);
   writeHeader(response);
 
   jsonStart(out);
