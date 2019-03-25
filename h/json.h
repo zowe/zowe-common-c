@@ -13,7 +13,12 @@
 #ifndef __JSON__
 #define	__JSON__ 1
 
-#include <stdlib.h>
+#ifdef METTLE
+#  include <metal/metal.h>
+#  include <metal/stdlib.h>
+#else
+#  include <stdlib.h>
+#endif /* METTLE */
 #include "zowetypes.h"
 #include "utils.h"
 
