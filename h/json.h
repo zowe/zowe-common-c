@@ -15,9 +15,9 @@
 
 #ifdef METTLE
 #  include <metal/metal.h>
-#  include <metal/stdlib.h>
+#  include <metal/stddef.h>
 #else
-#  include <stdlib.h>
+#  include <stddef.h>
 #endif /* METTLE */
 #include "zowetypes.h"
 #include "utils.h"
