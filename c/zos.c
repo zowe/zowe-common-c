@@ -65,7 +65,7 @@ int testAuth(void)
 
 #define PROBLEM_STATE 0x00010000
 
-int extractPSW(){
+int extractPSW(void) {
   int highWord;
   __asm(ASM_PREFIX
         " EPSW 0,0 \n"
@@ -120,7 +120,7 @@ int setKey(int key){
   return oldKey;
 }
 
-int64 getR12(){
+int64 getR12(void) {
   int64 value;
   __asm(ASM_PREFIX
 #ifdef _LP64
@@ -135,7 +135,7 @@ int64 getR12(){
   return value;
 }
 
-int64 getR13(){
+int64 getR13(void) {
   int64 value;
   __asm(ASM_PREFIX
 #ifdef _LP64
@@ -199,64 +199,64 @@ int ddnameExists(char *ddname){
 
 /* CVT Stuff */
 
-CVT *getCVT(){
+CVT *getCVT(void) {
   int * __ptr32 mem = (int * __ptr32) 0;
   int * __ptr32 theCVT = (int * __ptr32)(*(mem+(0x10/4)));
   return (CVT*)theCVT;
 }
 
-Addr31 getATCVT(){
+Addr31 getATCVT(void) {
   int * __ptr32 mem = (int * __ptr32) 0;
   int * __ptr32 theATCVT = (int * __ptr32)(*(mem+(ATCVT_ADDRESS/4)));
   return theATCVT;
 }
 
-void *getIEACSTBL(){
+void *getIEACSTBL(void) {
   CVT *cvt = getCVT();
   return cvt->cvtcsrt;
 }
 
-cvtfix *getCVTPrefix(){
+cvtfix *getCVTPrefix(void) {
   char *theCVT = (char*)getCVT();
   return (cvtfix*)(theCVT-256);
 }
 
-ECVT *getECVT(){
+ECVT *getECVT(void) {
   CVT *cvt = getCVT();
   return (ECVT*)(cvt->cvtecvt);
 }
 
-char *getSysplexName (){
+char *getSysplexName (void) {
   ECVT *ecvt = getECVT();
   return ecvt->ecvtsplx;
 }
 
-char *getSystemName (){
+char *getSystemName (void) {
   char *ecvt = (char*)getECVT();
   return ecvt+0x158;
 }
 
-TCB *getTCB(){
+TCB *getTCB(void) {
   int *mem = (int*)0;
   return (TCB*)mem[CURRENT_TCB/sizeof(int)];
 }
 
-STCB *getSTCB(){
+STCB *getSTCB(void) {
   TCB *tcb = getTCB();
   return (STCB*)(tcb->tcbstcb);
 }
 
-OTCB *getOTCB(){
+OTCB *getOTCB(void) {
   STCB *stcb = getSTCB();
   return (OTCB*)(stcb->stcbotcb);
 }
 
-ASCB *getASCB(){
+ASCB *getASCB(void) {
   int *mem = (int*)0;
   return (ASCB*)(mem[CURRENT_ASCB/sizeof(int)]&0x7FFFFFFF);
 }
 
-ASXB *getASXB(){
+ASXB *getASXB(void) {
   ASCB *ascb = getASCB();
   return (ASXB*)ascb->ascbasxb;
 }
@@ -272,7 +272,7 @@ JSAB *getJSAB(ASCB *ascb){
   return jsab;
 }
 
-ACEE *getCurrentACEE(){
+ACEE *getCurrentACEE(void) {
   TCB *tcb = getTCB();
   ASXB *asxb = getASXB();
 
