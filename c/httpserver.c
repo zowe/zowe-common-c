@@ -3684,7 +3684,8 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
       service->customHeadersFunction(service, response);
     }
 
-    if (isBinary || ccsid == -1){
+    /* If Binary, tagged as Binary, or untagged */
+    if (isBinary || ccsid == -1 || ccsid == 0){
       writeHeader(response);
 #ifdef DEBUG
       printf("Streaming binary for %s\n", absolutePath);
@@ -3719,11 +3720,8 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 #error Unknown OS
 #endif
         ;
-      if (ccsid == 0) {
-        streamTextForFile(response->socket, in, ENCODING_SIMPLE, NATIVE_CODEPAGE, webCodePage);
-      } else {
-        streamTextForFile(response->socket, in, ENCODING_SIMPLE, ccsid, webCodePage);
-      }
+      /* Only stream text if we know the ccsid and its not binary */
+      streamTextForFile(response->socket, in, ENCODING_SIMPLE, ccsid, webCodePage);
 
 #ifdef USE_CONTINUE_RESPONSE_HACK
       /* See comments above */
