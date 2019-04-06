@@ -470,6 +470,20 @@ static void *cellpoolGet(CPID cellpoolID, bool conditional) {
 
   void * __ptr32 cell = NULL;
 
+  /*
+   * Notes about the use of callerGPRs:
+   *
+   * - The registers must be saved before switching to AMODE 31 and restored
+   *   after switching back to AMODE 64, because the stack storage containing
+   *   the callerGPRs may be above 2G.
+   *
+   * - Register 13 is being saved in callerGPRs, changed to point to callerGPRs,
+   *   and then restored back to its original value when the registers are
+   *   restored. All parameters must be passed in registers on the CPOOL request
+   *   because of R13 being changed.
+   *
+   */
+
   if (conditional) {
     __asm(
 
@@ -488,7 +502,7 @@ static void *cellpoolGet(CPID cellpoolID, bool conditional) {
         "         LMG   2,13,0(13)                                               \n"
 
         : [cell]"=NR:r1"(cell)
-        : [gprs]"m"(callerGPRs), [cpid]"r"(cellpoolID)
+        : [gprs]"m"(callerGPRs), [cpid]"NR:r1"(cellpoolID)
         : "r0", "r1", "r14", "r15"
     );
   } else {
@@ -509,7 +523,7 @@ static void *cellpoolGet(CPID cellpoolID, bool conditional) {
         "         LMG   2,13,0(13)                                               \n"
 
         : [cell]"=NR:r1"(cell)
-        : [gprs]"m"(callerGPRs), [cpid]"r"(cellpoolID)
+        : [gprs]"m"(callerGPRs), [cpid]"NR:r1"(cellpoolID)
         : "r0", "r1", "r14", "r15"
     );
   }
@@ -520,6 +534,20 @@ static void *cellpoolGet(CPID cellpoolID, bool conditional) {
 static void cellpoolFree(CPID cellpoolID, void *cell) {
 
   uint64 callerGPRs[12] = {0};
+
+  /*
+   * Notes about the use of callerGPRs:
+   *
+   * - The registers must be saved before switching to AMODE 31 and restored
+   *   after switching back to AMODE 64, because the stack storage containing
+   *   the callerGPRs may be above 2G.
+   *
+   * - Register 13 is being saved in callerGPRs, changed to point to callerGPRs,
+   *   and then restored back to its original value when the registers are
+   *   restored. All parameters must be passed in registers on the CPOOL request
+   *   because of R13 being changed.
+   *
+   */
 
   __asm(
 
@@ -538,7 +566,7 @@ static void cellpoolFree(CPID cellpoolID, void *cell) {
       "         LMG   2,13,0(13)                                               \n"
 
       :
-      : [gprs]"m"(callerGPRs), [cpid]"r"(cellpoolID), [cell]"=NR:r1"(cell)
+      : [gprs]"m"(callerGPRs), [cpid]"NR:r1"(cellpoolID), [cell]"NR:r0"(cell)
       : "r0", "r1", "r14", "r15"
   );
 
@@ -567,8 +595,13 @@ typedef struct CrossMemoryMap_tag {
 
 ZOWE_PRAGMA_PACK_RESET
 
+#ifndef CMUTILS_TEST
 #define CM_MAP_SUBPOOL  228
 #define CM_MAP_KEY      4
+#else
+#define CM_MAP_SUBPOOL  132
+#define CM_MAP_KEY      8
+#endif
 
 #define CM_MAP_MAX_KEY_SIZE 64
 #define CM_MAP_BUCKET_COUNT 29
@@ -587,8 +620,12 @@ CrossMemoryMap *makeCrossMemoryMap(unsigned int keySize) {
   unsigned int mapSize = sizeof(CrossMemoryMap) +
       sizeof(CrossMemoryMapEntry * __ptr32) * CM_MAP_BUCKET_COUNT;
 
+#ifndef CMUTILS_TEST
   CrossMemoryMap *map =
       cmAlloc(mapSize, CM_MAP_SUBPOOL, CM_MAP_KEY);
+#else
+  CrossMemoryMap *map = (CrossMemoryMap *)safeMalloc(mapSize, "CM MAP");
+#endif
   if (map == NULL) {
     return NULL;
   }
@@ -602,8 +639,8 @@ CrossMemoryMap *makeCrossMemoryMap(unsigned int keySize) {
       .text = CM_MAP_HEADER,
   };
 
-  if (keySize & 0x00000003) {
-    keySize += (4 - (keySize % 4));
+  if (keySize & 0x00000007) {
+    keySize += (8 - (keySize % 8));
   }
 
   map->entrySize = sizeof(CrossMemoryMapEntry) + keySize;
@@ -624,7 +661,11 @@ void removeCrossMemoryMap(CrossMemoryMap **mapAddr) {
   if (cellpoolToDelete != -1) {
     cellpoolDelete(cellpoolToDelete);
   }
+#ifndef CMUTILS_TEST
   cmFree2((void **)mapAddr, map->size, CM_MAP_SUBPOOL, CM_MAP_KEY);
+#else
+  safeFree((char *)map, map->size);
+#endif
 }
 
 static unsigned int calculateKeyHash(const void *key, unsigned int size) {
@@ -685,9 +726,9 @@ int crossMemoryMapPut(CrossMemoryMap *map, const void *key, void *value) {
   unsigned int hash = calculateKeyHash(key, keySize);
   unsigned int bucketID = hash % map->bucketCount;
 
-  CrossMemoryMapEntry *chain = map->buckets[bucketID];
-  CrossMemoryMapEntry *existingEntry = findEntry(chain, key, keySize);
-  CrossMemoryMapEntry *newEntry = NULL;
+  CrossMemoryMapEntry * __ptr32 chain = map->buckets[bucketID];
+  CrossMemoryMapEntry * __ptr32 existingEntry = findEntry(chain, key, keySize);
+  CrossMemoryMapEntry * __ptr32 newEntry = NULL;
 
   if (existingEntry == NULL) {
     newEntry = makeEntry(map, key, value);
@@ -759,6 +800,342 @@ void crossMemoryMapIterate(CrossMemoryMap *map,
 
 }
 
+/* Tests (TODO move to a designated place)
+
+LE:
+
+xlc "-Wa,goff" \
+"-Wc,LANGLVL(EXTC99),FLOAT(HEX),agg,exp,list(),so(),goff,xref,gonum,roconst,gonum,ASM,ASMLIB('SYS1.MACLIB'),LP64,XPLINK" \
+-DCMUTILS_TEST -I ../h -o cmutils \
+alloc.c \
+cmutils.c \
+
+Metal:
+
+CFLAGS=(-S -M -qmetal -q64 -DSUBPOOL=132 -DMETTLE=1 -DMSGPREFIX='"IDX"'
+-qreserved_reg=r12
+-Wc,"arch(8),agg,exp,list(),so(),off,xref,roconst,longname,lp64"
+-I ../h )
+
+ASFLAGS=(-mgoff -mobject -mflag=nocont --TERM --RENT)
+
+LDFLAGS=(-V -b ac=1 -b rent -b case=mixed -b map -b xref -b reus)
+
+xlc "${CFLAGS[@]}" -DCMUTILS_TEST \
+alloc.c \
+cmutils.c \
+metalio.c \
+qsam.c \
+timeutls.c \
+utils.c \
+zos.c \
+
+as "${ASFLAGS[@]}" -aegimrsx=alloc.asm alloc.s
+as "${ASFLAGS[@]}" -aegimrsx=cmutils.asm cmutils.s
+as "${ASFLAGS[@]}" -aegimrsx=metalio.asm metalio.s
+as "${ASFLAGS[@]}" -aegimrsx=qsam.asm qsam.s
+as "${ASFLAGS[@]}" -aegimrsx=timeutls.asm timeutls.s
+as "${ASFLAGS[@]}" -aegimrsx=utils.asm utils.s
+as "${ASFLAGS[@]}" -aegimrsx=zos.asm zos.s
+
+ld "${LDFLAGS[@]}" -e main \
+-o "//'$USER.DEV.LOADLIB(CMUTILS)'" \
+alloc.o \
+cmutils.o \
+metalio.o \
+qsam.o \
+timeutls.o \
+utils.o \
+zos.o \
+> CMUTILS.link
+
+*/
+
+#define CMUTILS_TEST_STATUS_OK        0
+#define CMUTILS_TEST_STATUS_FAILURE   8
+
+static int testUnconditionalCellPoolGet(void) {
+
+  unsigned psize = 10;
+  unsigned ssize = 2;
+  unsigned cellSize = 512;
+  int sp = 132, key = 8;
+  CPHeader header = {"TEST-CP-HEADER"};
+  bool isConditional = false;
+
+  CPID id = cellpoolBuild(psize, ssize, cellSize, sp, key, &header);
+  if (id == -1) {
+    printf("error: cellpoolBuild failed\n");
+    return CMUTILS_TEST_STATUS_FAILURE;
+  }
+
+  int status = CMUTILS_TEST_STATUS_OK;
+
+  for (int i = 0; i < 100; i++) {
+    void *cell = cellpoolGet(id, isConditional);
+    if (cell == NULL) {
+      printf("error: cellpoolGet(unconditional) test failed, cell #%d\n", i);
+      status = CMUTILS_TEST_STATUS_FAILURE;
+      break;
+    }
+  }
+
+  cellpoolDelete(id);
+
+  return status;
+}
+
+static int testConditionalCellPoolGet(void) {
+
+  unsigned psize = 10;
+  unsigned ssize = 2;
+  unsigned cellSize = 512;
+  int sp = 132, key = 8;
+  CPHeader header = {"TEST-CP-HEADER"};
+  bool isConditional = true;
+
+  CPID id = cellpoolBuild(psize, ssize, cellSize, sp, key, &header);
+  if (id == -1) {
+    printf("error: cellpoolBuild failed\n");
+    return CMUTILS_TEST_STATUS_FAILURE;
+  }
+
+  int status = CMUTILS_TEST_STATUS_FAILURE;
+
+  for (int i = 0; i < psize + 1; i++) {
+    void *cell = cellpoolGet(id, isConditional);
+    if (cell == NULL && i == psize) {
+        status = CMUTILS_TEST_STATUS_OK;
+        break;
+    }
+  }
+
+  if (status != CMUTILS_TEST_STATUS_OK) {
+    printf("error: cellpoolGet(conditional) test failed\n");
+  }
+
+  cellpoolDelete(id);
+
+  return status;
+}
+
+static int testCellPoolFree(void) {
+
+  unsigned psize = 10;
+  unsigned ssize = 2;
+  unsigned cellSize = 512;
+  int sp = 132, key = 8;
+  CPHeader header = {"TEST-CP-HEADER"};
+  bool isConditional = true;
+
+  void *cells[10] = {0};
+
+  CPID id = cellpoolBuild(psize, ssize, cellSize, sp, key, &header);
+  if (id == -1) {
+    printf("error: cellpoolBuild failed\n");
+    return CMUTILS_TEST_STATUS_FAILURE;
+  }
+
+  int status = CMUTILS_TEST_STATUS_OK;
+
+  for (int i = 0; i < sizeof(cells) / sizeof(cells[0]); i++) {
+    cells[i] = cellpoolGet(id, isConditional);
+    if (cells[i] == NULL) {
+      printf("error: cellpoolFree test failed (alloc 1), cell #%d\n", i);
+      status = CMUTILS_TEST_STATUS_FAILURE;
+      break;
+    }
+  }
+
+  if (status == CMUTILS_TEST_STATUS_OK) {
+
+    for (int i = 0; i < sizeof(cells) / sizeof(cells[0]); i++) {
+      cellpoolFree(id, cells[i]);
+      cells[i] = NULL;
+    }
+
+    for (int i = 0; i < sizeof(cells) / sizeof(cells[0]); i++) {
+      cells[i] = cellpoolGet(id, isConditional);
+      if (cells[i] == NULL) {
+        printf("error: cellpoolFree test failed (alloc 2), cell #%d\n", i);
+        status = CMUTILS_TEST_STATUS_FAILURE;
+        break;
+      }
+    }
+
+  }
+
+  cellpoolDelete(id);
+
+  return status;
+}
+
+static int testCMMap(void) {
+
+  typedef struct KeyValuePair_tag {
+    char key[20];
+    char value[6];
+  } KeyValuePair;
+
+  const KeyValuePair pairs[28] = {
+      {"key-number-1-0000001", "val-01",},
+      {"key-number-2-0000002", "val-02",},
+      {"key-number-3-0000003", "val-03",},
+      {"key-number-4-0000004", "val-04",},
+      {"key-number-5-0000005", "val-05",},
+      {"key-number-6-0000006", "val-06",},
+      {"key-number-7-0000007", "val-07",},
+      {"key-number-8-0000008", "val-08",},
+      {"key-number-9-0000009", "val-09",},
+      {"key-number-a-0000010", "val-10",},
+      {"key-number-b-0000011", "val-11",},
+      {"key-number-c-0000012", "val-12",},
+      {"key-number-d-0000013", "val-13",},
+      {"key-number-e-0000014", "val-14",},
+      {"key-number-f-0000015", "val-15",},
+      {"key-number-g-0000016", "val-16",},
+      {"key-number-h-0000017", "val-17",},
+      {"key-number-i-0000018", "val-18",},
+      {"key-number-j-0000019", "val-19",},
+      {"key-number-k-0000020", "val-21",},
+      {"key-number-l-0000021", "val-22",},
+      {"key-number-m-0000022", "val-22",},
+      {"key-number-o-0000023", "val-23",},
+      {"key-number-p-0000024", "val-24",},
+      {"key-number-q-0000025", "val-25",},
+      {"key-number-r-0000026", "val-26",},
+      {"key-number-s-0000027", "val-27",},
+      {"key-number-t-0000028", "val-28",},
+  };
+
+  const KeyValuePair missingPairs[2] = {
+      {"key-number-u-0000039", "val-29",},
+      {"key-number-v-0000030", "val-30",},
+  };
+
+  CrossMemoryMap *map = makeCrossMemoryMap(sizeof(pairs[0].key));
+  if (map == NULL) {
+    printf("error: map not created\n");
+    return CMUTILS_TEST_STATUS_FAILURE;
+  }
+
+  int status = CMUTILS_TEST_STATUS_OK;
+
+  for (int i = 0; i < sizeof(pairs) / sizeof(pairs[0]); i++) {
+    int rc = crossMemoryMapPut(map, &pairs[i].key, &pairs[i].value);
+    if (rc != 0) {
+      status = CMUTILS_TEST_STATUS_FAILURE;
+      printf("error: cm map put (1) failed, rc = %d, key = %s\n",
+             rc, pairs[i].key);
+      break;
+    }
+  }
+
+  if (status == CMUTILS_TEST_STATUS_OK) {
+    for (int i = 0; i < sizeof(pairs) / sizeof(pairs[0]); i++) {
+      int rc = crossMemoryMapPut(map, &pairs[i].key, &pairs[i].value);
+      if (rc != 1) {
+        status = CMUTILS_TEST_STATUS_FAILURE;
+        printf("error: cm map put (2) failed, rc = %d, key = %s\n",
+               rc, pairs[i].key);
+        break;
+      }
+    }
+  }
+
+  if (status == CMUTILS_TEST_STATUS_OK) {
+    for (int i = 0; i < sizeof(pairs) / sizeof(pairs[0]); i++) {
+      char *value = crossMemoryMapGet(map, &pairs[i].key);
+      if (value == NULL) {
+        status = CMUTILS_TEST_STATUS_FAILURE;
+        printf("error: cm map get (1) failed, value not found for key = %s\n",
+               pairs[i].key);
+        break;
+      }
+      if (strcmp(value, pairs[i].value)) {
+        status = CMUTILS_TEST_STATUS_FAILURE;
+        printf("error: cm map get (1) failed, bad value found %s, expected %s\n",
+               value, pairs[i].value);
+      }
+    }
+  }
+
+  if (status == CMUTILS_TEST_STATUS_OK) {
+    for (int i = 0; i < sizeof(missingPairs) / sizeof(missingPairs[0]); i++) {
+      char *value = crossMemoryMapGet(map, &missingPairs[i].key);
+      if (value != NULL) {
+        status = CMUTILS_TEST_STATUS_FAILURE;
+        printf("error: cm map get (2) failed, key = %s, value = %s\n",
+               missingPairs[i].key, value);
+        break;
+      }
+    }
+  }
+
+  if (status == CMUTILS_TEST_STATUS_OK) {
+    for (int i = 0; i < sizeof(pairs) / sizeof(pairs[0]); i++) {
+      void **valueHandle = crossMemoryMapGetHandle(map, &pairs[i].key);
+      if (valueHandle == NULL) {
+        status = CMUTILS_TEST_STATUS_FAILURE;
+        printf("error: cm map get (3) failed, handle not found for key = %s\n",
+               pairs[i].key);
+        break;
+      }
+    }
+  }
+
+  removeCrossMemoryMap(&map);
+  map = NULL;
+
+  return status;
+
+}
+
+
+static int testCellPool(void) {
+
+  int status = CMUTILS_TEST_STATUS_OK;
+
+  if (status == CMUTILS_TEST_STATUS_OK) {
+    status = testUnconditionalCellPoolGet();
+  }
+
+  if (status == CMUTILS_TEST_STATUS_OK) {
+    status = testConditionalCellPoolGet();
+  }
+
+  if (status == CMUTILS_TEST_STATUS_OK) {
+    status = testCellPoolFree();
+  }
+
+  if (status == CMUTILS_TEST_STATUS_OK) {
+    status = testCMMap();
+  }
+
+  return status;
+}
+
+
+#ifdef CMUTILS_TEST
+int main() {
+#else
+static int notMain() {
+#endif
+
+  printf("info: starting cmutils test\n");
+
+  int status = CMUTILS_TEST_STATUS_OK;
+
+  status = testCellPool();
+
+  if (status == CMUTILS_TEST_STATUS_OK) {
+    printf("info: SUCCESS, tests have passed\n");
+  } else {
+    printf("error: FAILURE, some tests have failed\n");
+  }
+
+  return status;
+}
 
 /*
   This program and the accompanying materials are
