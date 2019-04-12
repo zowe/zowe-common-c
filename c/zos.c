@@ -1295,11 +1295,14 @@ typedef struct LOADARGS_tag{
   char parameterListFormatNumber;
   char reserved;
   char options1;
+#define LOADARGS_OPTION1_LSEARCH_YES 0x40
   char options2;
   int  moreOptions;         /* EXPLICIT LOAD, LOADPT, EXTINFO */
 } LOADARGS;
 
-void *loadByName(char *moduleName, int *statusPtr){
+static void *loadByNameInternal(char *moduleName, int *statusPtr,
+                                char options1) {
+
   int  entryPoint;
   int  status;
 
@@ -1311,6 +1314,7 @@ void *loadByName(char *moduleName, int *statusPtr){
   );
 
   below2G->loadargs.epname = moduleName;
+  below2G->loadargs.options1 |= options1;
 
   __asm(ASM_PREFIX
         " LOAD SF=(E,%2) \n"
@@ -1332,7 +1336,14 @@ void *loadByName(char *moduleName, int *statusPtr){
 
 }
 
+void *loadByName(char *moduleName, int *statusPtr) {
+  return loadByNameInternal(moduleName, statusPtr, 0);
+}
 
+void *loadByNameLocally(char *moduleName, int *statusPtr) {
+  return loadByNameInternal(moduleName, statusPtr,
+                            LOADARGS_OPTION1_LSEARCH_YES);
+}
 
 /* DSAB Stuff
 

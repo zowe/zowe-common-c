@@ -29,7 +29,9 @@
 
 #include "zowetypes.h"
 #include "alloc.h"
+#include "cmutils.h"
 #include "crossmemory.h"
+#include "lpa.h"
 #include "nametoken.h"
 #include "zos.h"
 #include "printables_for_dump.h"
@@ -41,10 +43,6 @@
 
 #define CROSS_MEMORY_SERVER_MIN_NAME_LENGTH   4
 #define CROSS_MEMORY_SERVER_MAX_NAME_LENGTH   16
-
-#ifndef CROSS_MEMORY_SERVER_KEY
-#define CROSS_MEMORY_SERVER_KEY 4
-#endif
 
 #ifndef CROSS_MEMORY_SERVER_RACF_PROFILE
 #define CROSS_MEMORY_SERVER_RACF_PROFILE CMS_PROD_ID".IS"
@@ -93,19 +91,6 @@ static void eightCharStringInit(EightCharString *string, char *cstring, char pad
   memcpy(string->text, cstring, copyLength);
 }
 
-ZOWE_PRAGMA_PACK
-
-typedef struct QName_tag {
-  char value[8];
-} QName;
-
-typedef struct RName_tag {
-  unsigned char length;
-  char value[255];
-} RName;
-
-ZOWE_PRAGMA_PACK_RESET
-
 /* This is the QNAME used for all product enqueues. It must NEVER change. */
 static const QName PRODUCT_QNAME   = {CMS_PROD_ID"    "};
 /* These QNAME and RNAME must NEVER change and be the same across all
@@ -115,7 +100,7 @@ static const RName ZVTE_RNAME  = {8, "ISZVTE  "};
 
 #define CMS_MAX_ZVTE_CHAIN_LENGTH   128
 
-#ifdef METTLE
+#if defined(METTLE) && !defined(CMS_CLIENT)
 
 ZOWE_PRAGMA_PACK
 
@@ -308,7 +293,7 @@ void cmsInitializeLogging() {
 
 }
 
-#endif /* METTLE */
+#endif /* defined(METTLE) && !defined(CMS_CLIENT) */
 
 ZOWE_PRAGMA_PACK
 
@@ -583,211 +568,6 @@ static char *dumpWithEmptyMessageID(char *workBuffer, int workBufferSize, void *
   return NULL;
 }
 
-/* scope values can be found in SYS1.MACLIB(ISGYENQ) */
-#define ISGENQ_SCOPE_STEP     1
-#define ISGENQ_SCOPE_SYSTEM   2
-#define ISGENQ_SCOPE_SYSTEMS  3
-#define ISGENQ_SCOPE_SYSPLEX  4
-
-#ifdef METTLE
-__asm("GLBENQPL    ISGENQ MF=(L,GLBENQPL)" : "DS"(GLBENQPL));
-#endif
-
-static int isgenqGetExclusiveLockOrFail(const QName *qname, const RName *rname, uint8_t scope, ENQToken *token, int *reasonCode) {
-
-  QName localQName = *qname;
-  RName localRName = *rname;
-
-#ifdef METTLE
-  __asm(" ISGENQ MF=L" : "DS"(isgenqParmList));
-  isgenqParmList = GLBENQPL;
-#else
-  char isgenqParmList[512];
-#endif
-
-  int rc = 0, rsn = 0;
-  __asm(
-      ASM_PREFIX
-      "         PUSH USING                                                     \n"
-      "         DROP                                                           \n"
-      "ENQOBTX  LARL  2,ENQOBTX                                                \n"
-      "         USING ENQOBTX,2                                                \n"
-      "         ISGENQ   REQUEST=OBTAIN"
-      ",TEST=NO"
-      ",CONTENTIONACT=FAIL"
-      ",USERDATA=NO_USERDATA"
-      ",RESLIST=NO"
-      ",QNAME=(%2)"
-      ",RNAME=(%3)"
-      ",RNAMELEN=(%4)"
-      ",CONTROL=EXCLUSIVE"
-      ",RESERVEVOLUME=NO"
-      ",SCOPE=VALUE"
-      ",SCOPEVAL=(%5)"
-      ",RNL=YES"
-      ",ENQTOKEN=(%6)"
-      ",COND=YES"
-      ",RETCODE=%0"
-      ",RSNCODE=%1"
-      ",PLISTVER=IMPLIED_VERSION"
-      ",MF=(E,(%7),COMPLETE)"
-      "                                                                        \n"
-      "         DROP                                                           \n"
-      "         POP USING                                                      \n"
-      : "=m"(rc), "=m"(rsn)
-      : "r"(&localQName.value), "r"(&localRName.value), "r"(&localRName.length), "r"(&scope), "r"(token), "r"(&isgenqParmList)
-      : "r0", "r1", "r2", "r14", "r15"
-  );
-
-  if (reasonCode != NULL) {
-    *reasonCode = rsn;
-  }
-  return rc;
-}
-
-static int isgenqGetExclusiveLock(const QName *qname, const RName *rname, uint8_t scope, ENQToken *token, int *reasonCode) {
-
-  QName localQName = *qname;
-  RName localRName = *rname;
-
-#ifdef METTLE
-  __asm(" ISGENQ MF=L" : "DS"(isgenqParmList));
-  isgenqParmList = GLBENQPL;
-#else
-  char isgenqParmList[512];
-#endif
-
-  int rc = 0, rsn = 0;
-  __asm(
-      ASM_PREFIX
-      "         PUSH USING                                                     \n"
-      "         DROP                                                           \n"
-      "ENQOBTXW LARL  2,ENQOBTXW                                               \n"
-      "         USING ENQOBTXW,2                                               \n"
-      "         ISGENQ   REQUEST=OBTAIN"
-      ",TEST=NO"
-      ",CONTENTIONACT=WAIT"
-      ",USERDATA=NO_USERDATA"
-      ",RESLIST=NO"
-      ",QNAME=(%2)"
-      ",RNAME=(%3)"
-      ",RNAMELEN=(%4)"
-      ",CONTROL=EXCLUSIVE"
-      ",RESERVEVOLUME=NO"
-      ",SCOPE=VALUE"
-      ",SCOPEVAL=(%5)"
-      ",RNL=YES"
-      ",ENQTOKEN=(%6)"
-      ",COND=YES"
-      ",RETCODE=%0"
-      ",RSNCODE=%1"
-      ",PLISTVER=IMPLIED_VERSION"
-      ",MF=(E,(%7),COMPLETE)"
-      "                                                                        \n"
-      "         DROP                                                           \n"
-      "         POP USING                                                      \n"
-      : "=m"(rc), "=m"(rsn)
-      : "r"(&localQName.value), "r"(&localRName.value), "r"(&localRName.length), "r"(&scope), "r"(token), "r"(&isgenqParmList)
-      : "r0", "r1", "r2", "r14", "r15"
-  );
-
-  if (reasonCode != NULL) {
-    *reasonCode = rsn;
-  }
-  return rc;
-}
-
-static int isgenqTestLock(const QName *qname, const RName *rname, uint8_t scope, int *reasonCode) {
-
-  QName localQName = *qname;
-  RName localRName = *rname;
-
-#ifdef METTLE
-  __asm(" ISGENQ MF=L" : "DS"(isgenqParmList));
-  isgenqParmList = GLBENQPL;
-#else
-  char isgenqParmList[512];
-#endif
-
-  ENQToken localToken;
-
-  int rc = 0, rsn = 0;
-  __asm(
-      ASM_PREFIX
-      "         PUSH USING                                                     \n"
-      "         DROP                                                           \n"
-      "ENQOBTXT LARL  2,ENQOBTXT                                               \n"
-      "         USING ENQOBTXT,2                                               \n"
-      "         ISGENQ   REQUEST=OBTAIN"
-      ",TEST=YES"
-      ",RESLIST=NO"
-      ",QNAME=(%2)"
-      ",RNAME=(%3)"
-      ",RNAMELEN=(%4)"
-      ",CONTROL=EXCLUSIVE"
-      ",RESERVEVOLUME=NO"
-      ",SCOPE=VALUE"
-      ",SCOPEVAL=(%5)"
-      ",RNL=YES"
-      ",ENQTOKEN=(%6)"
-      ",COND=YES"
-      ",RETCODE=%0"
-      ",RSNCODE=%1"
-      ",PLISTVER=IMPLIED_VERSION"
-      ",MF=(E,(%7),COMPLETE)"
-      "                                                                        \n"
-      "         DROP                                                           \n"
-      "         POP USING                                                      \n"
-      : "=m"(rc), "=m"(rsn)
-      : "r"(&localQName.value), "r"(&localRName.value), "r"(&localRName.length), "r"(&scope), "r"(&localToken), "r"(&isgenqParmList)
-      : "r0", "r1", "r2", "r14", "r15"
-  );
-
-  if (reasonCode != NULL) {
-    *reasonCode = rsn;
-  }
-  return rc;
-}
-
-static int isgenqReleaseLock(ENQToken *token, int *reasonCode) {
-
-#ifdef METTLE
-  __asm(" ISGENQ MF=L" : "DS"(isgenqParmList));
-  isgenqParmList = GLBENQPL;
-#else
-  char isgenqParmList[512];
-#endif
-
-  int rc = 0, rsn = 0;
-  __asm(
-      ASM_PREFIX
-      "         PUSH USING                                                     \n"
-      "         DROP                                                           \n"
-      "ENQREL   LARL  2,ENQREL                                                 \n"
-      "         USING ENQREL,2                                                 \n"
-      "         ISGENQ   REQUEST=RELEASE"
-      ",RESLIST=NO"
-      ",ENQTOKEN=(%2)"
-      ",OWNINGTTOKEN=CURRENT_TASK"
-      ",COND=YES"
-      ",RETCODE=%0"
-      ",RSNCODE=%1"
-      ",PLISTVER=IMPLIED_VERSION"
-      ",MF=(E,(%3),COMPLETE)"
-      "                                                                        \n"
-      "         DROP                                                           \n"
-      "         POP USING                                                      \n"
-      : "=m"(rc), "=m"(rsn)
-      : "r"(token), "r"(&isgenqParmList)
-      : "r0", "r1", "r2", "r14", "r15"
-  );
-
-  if (reasonCode != NULL) {
-    *reasonCode = rsn;
-  }
-  return rc;
-}
-
 static int callPCRoutine(int pcNumber, int sequenceNumber, void *parmBlock) {
 
   int returnCode = 0;
@@ -807,7 +587,7 @@ static int callPCRoutine(int pcNumber, int sequenceNumber, void *parmBlock) {
   return returnCode;
 }
 
-#ifdef METTLE
+#if defined(METTLE) && !defined(CMS_CLIENT)
 
 static int axset() {
 
@@ -1066,183 +846,6 @@ static void wait(ECB * __ptr32 ecb) {
   );
 }
 
-static int getCallersKey() {
-
-  int key = 0;
-  __asm(
-      ASM_PREFIX
-      "         LA    7,1                                                      \n"
-      "         ESTA  6,7                                                      \n"
-      "         SRL   6,20                                                     \n"
-      "         N     6,=X'0000000F'                                           \n"
-      "         ST    6,%0                                                     \n"
-      : "=m"(key)
-      :
-      : "r6", "r7"
-  );
-
-  return key;
-}
-
-#define CROSS_MEMORY_ALET_PASN  0
-#define CROSS_MEMORY_ALET_SASN  1
-#define CROSS_MEMORY_ALET_HASN  2
-
-static void copyWithDestinationKey(void *dest,
-                                   unsigned int destKey,
-                                   unsigned int destALET,
-                                   const void *src,
-                                   size_t size) {
-
-  __asm(
-      ASM_PREFIX
-      /* input parameters */
-      "         LA    2,0(,%0)            destination address                  \n"
-      "         LA    4,0(,%1)            source address                       \n"
-      "         LA    1,0(,%2)            destination key                      \n"
-      "         SLL   1,4                 shift key to bits 24-27              \n"
-      "         LA    5,0                 use r5 for 0 value                   \n"
-      "         SAR   4,5                 source is primary (0)                \n"
-      "         SAR   2,%3                destination address space type       \n"
-      "         LA    5,0(,%4)            size                                 \n"
-      /* establish addressability */
-      "         PUSH  USING                                                    \n"
-      "         DROP                                                           \n"
-      "LCMCTBGN DS    0H                                                       \n"
-      "         LARL  10,LCMCTBGN                                              \n"
-      "         USING LCMCTBGN,10                                              \n"
-      /* enable AR mode for MVCDK */
-      "         SAC   512                 AR mode                              \n"
-      /* copy data in a loop */
-      "LCMTCPY1 DS    0H                                                       \n"
-#ifdef _LP64
-      "         LTGR  5,5                 size > 0?                            \n"
-#else
-      "         LTR   5,5                                                      \n"
-#endif
-      "         BNP   LCMTEXIT            no, leave                            \n"
-      "         LA    0,256                                                    \n"
-#ifdef _LP64
-      "         CGR   5,0                 size left > 256?                     \n"
-#else
-      "         CR    5,0                                                      \n"
-#endif
-      "         BH    LCMTCPY2            yes, go subtract 256                 \n"
-#ifdef _LP64
-      "         LGR   0,5                 no, load bytes left to r0            \n"
-#else
-      "         LR    0,5                                                      \n"
-#endif
-      "LCMTCPY2 DS    0H                                                       \n"
-#ifdef _LP64
-      "         SGR   5,0                 subtract 256                         \n"
-#else
-      "         SR    5,0                                                      \n"
-#endif
-      "         BCTR  0,0                 bytes to copy - 1                    \n"
-      "         MVCDK 0(2),0(4)           copy                                 \n"
-      "         LA    2,256(,2)           bump destination address             \n"
-      "         LA    4,256(,4)           bump source address                  \n"
-      "         B     LCMTCPY1            repeat                               \n"
-      /* go back into primary mode and leave */
-      "LCMTEXIT DS    0H                                                       \n"
-      "         SAC   0                   go back to primary mode              \n"
-      "         POP   USING                                                    \n"
-      :
-      : "r"(dest), "r"(src), "r"(destKey), "r"(destALET), "r"(size)
-      : "r0", "r1", "r2", "r4", "r5", "r10"
-  );
-
-}
-
-static void copyWithSourceKey(void *dest,
-                              const void *src,
-                              unsigned int srcKey,
-                              unsigned int srcALET,
-                              size_t size) {
-
-  __asm(
-      ASM_PREFIX
-      /* input parameters */
-      "         LA    2,0(,%0)            destination address                  \n"
-      "         LA    4,0(,%1)            source address                       \n"
-      "         LA    1,0(,%2)            source key                           \n"
-      "         SLL   1,4                 shift key to bits 24-27              \n"
-      "         LA    5,0                 use r5 for 0 value                   \n"
-      "         SAR   2,5                 destination is primary (0)           \n"
-      "         SAR   4,%3                source address ALET                  \n"
-      "         LA    5,0(,%4)            size                                 \n"
-      /* establish addressability */
-      "         PUSH  USING                                                    \n"
-      "         DROP                                                           \n"
-      "LCMCFBGN DS    0H                                                       \n"
-      "         LARL  10,LCMCFBGN                                              \n"
-      "         USING LCMCFBGN,10                                              \n"
-      /* enable AR mode for MVCDK */
-      "         SAC   512                 AR mode                              \n"
-      /* copy data in a loop */
-      "LCMFCPY1 DS    0H                                                       \n"
-#ifdef _LP64
-      "         LTGR  5,5                 size > 0?                            \n"
-#else
-      "         LTR   5,5                                                      \n"
-#endif
-      "         BNP   LCMFEXIT            no, leave                            \n"
-      "         LA    0,256                                                    \n"
-#ifdef _LP64
-      "         CGR   5,0                 size left > 256?                     \n"
-#else
-      "         CR    5,0                                                      \n"
-#endif
-      "         BH    LCMFCPY2            yes, go subtract 256                 \n"
-#ifdef _LP64
-      "         LGR   0,5                 no, load bytes left to r0            \n"
-#else
-      "         LR    0,5                                                      \n"
-#endif
-      "LCMFCPY2 DS    0H                                                       \n"
-#ifdef _LP64
-      "         SGR   5,0                 subtract 256                         \n"
-#else
-      "         SR    5,0                                                      \n"
-#endif
-      "         BCTR  0,0                 bytes to copy - 1                    \n"
-      "         MVCSK 0(2),0(4)           copy                                 \n"
-      "         LA    2,256(,2)           bump destination address             \n"
-      "         LA    4,256(,4)           bump source address                  \n"
-      "         B     LCMFCPY1            repeat                               \n"
-      /* go back into primary mode and leave */
-      "LCMFEXIT DS    0H                                                       \n"
-      "         SAC   0                   go back to primary mode              \n"
-      "         POP   USING                                                    \n"
-      :
-      : "r"(dest), "r"(src), "r"(srcKey), "r"(srcALET), "r"(size)
-      : "r0", "r1", "r2", "r4", "r5", "r10"
-  );
-
-}
-
-void cmCopyToSecondaryWithCallerKey(void *dest, const void *src, size_t size) {
-  copyWithDestinationKey(dest, getCallersKey(), CROSS_MEMORY_ALET_SASN, src, size);
-}
-
-void cmCopyFromSecondaryWithCallerKey(void *dest, const void *src, size_t size) {
-  copyWithSourceKey(dest, src, getCallersKey(), CROSS_MEMORY_ALET_SASN, size);
-}
-
-void cmCopyToPrimaryWithCallerKey(void *dest, const void *src, size_t size) {
-  copyWithDestinationKey(dest, getCallersKey(), CROSS_MEMORY_ALET_PASN, src, size);
-}
-
-void cmCopyFromPrimaryWithCallerKey(void *dest, const void *src, size_t size) {
-  copyWithSourceKey(dest, src, getCallersKey(), CROSS_MEMORY_ALET_PASN, size);
-}
-
-void cmCopyWithSourceKeyAndALET(void *dest, const void *src, unsigned int key,
-                                unsigned int alet, size_t size) {
-  copyWithSourceKey(dest, src, key, alet, size);
-}
-
 int cmsAddConfigParm(CrossMemoryServer *server,
                      const char *name, const void *value,
                      CrossMemoryServerParmType type) {
@@ -1323,7 +926,8 @@ static void racfEntityNameInit(RACFEnityName *string, char *cstring, char padCha
 
 static bool isSRBCaller() {
   PSA callerPSA;
-  copyWithSourceKey(&callerPSA, 0x00, 0, CROSS_MEMORY_ALET_HASN, sizeof(PSA));
+  cmCopyWithSourceKeyAndALET(&callerPSA, 0x00, 0, CROSS_MEMORY_ALET_HASN,
+                             sizeof(PSA));
   return callerPSA.psatold != NULL ? FALSE : TRUE;
 }
 
@@ -1403,109 +1007,6 @@ static int getTCBKey() {
   TCB *tcb = getTCB();
   int key = ((int)tcb->tcbpkf >> 4) & 0x0000000F;
   return key;
-}
-
-static void getCallerTCB(TCB *content, TCB **address) {
-
-  TCB * __ptr32 callerTCBAddr = NULL;
-  copyWithSourceKey(&callerTCBAddr, (void *)CURRENT_TCB, 0, CROSS_MEMORY_ALET_HASN, 4);
-  copyWithSourceKey(content, callerTCBAddr, 0, CROSS_MEMORY_ALET_HASN, sizeof(TCB));
-
-  if (address != NULL) {
-    *address = callerTCBAddr;
-  }
-
-}
-
-static void getCallerASCB(ASCB *content, ASCB **address) {
-
-  ASCB * __ptr32 callerASCBAddr = NULL;
-  copyWithSourceKey(&callerASCBAddr, (void *)CURRENT_ASCB, 0, CROSS_MEMORY_ALET_HASN, 4);
-  copyWithSourceKey(content, callerASCBAddr, 0, CROSS_MEMORY_ALET_HASN, sizeof(ASCB));
-
-  if (address != NULL) {
-    *address = callerASCBAddr;
-  }
-
-}
-
-static void getCallerASXB(ASXB *content, ASXB **address) {
-
-  ASCB callerASCB;
-  getCallerASCB(&callerASCB, NULL);
-
-  ASXB * __ptr32 callerASXBAddr = callerASCB.ascbasxb;
-  copyWithSourceKey(content, callerASXBAddr, 0, CROSS_MEMORY_ALET_HASN, sizeof(ASXB));
-
-  if (address != NULL) {
-    *address = callerASXBAddr;
-  }
-
-}
-
-static void getCallerACEE(ACEE *content, ACEE **address) {
-
-  TCB callerTCB;
-  getCallerTCB(&callerTCB, NULL);
-
-  ACEE * __ptr32 callerACEEAddr = callerTCB.tcbsenv;
-
-  if (callerACEEAddr != NULL) {
-
-    copyWithSourceKey(content, callerACEEAddr, 0, CROSS_MEMORY_ALET_HASN, sizeof(ACEE));
-
-  } else {
-
-    ASXB callerASXB;
-    getCallerASXB(&callerASXB, NULL);
-
-    callerACEEAddr = callerASXB.asxbsenv;
-
-    copyWithSourceKey(content, callerACEEAddr, 0, CROSS_MEMORY_ALET_HASN, sizeof(ACEE));
-
-  }
-
-  if (address != NULL) {
-    *address = callerACEEAddr;
-  }
-
-}
-
-static void getCallerAddressSpaceACEE(ACEE *content, ACEE **address) {
-
-  ASXB callerASXB;
-  getCallerASXB(&callerASXB, NULL);
-
-  ACEE *callerACEEAddr = callerASXB.asxbsenv;
-
-  copyWithSourceKey(content, callerACEEAddr, 0, CROSS_MEMORY_ALET_HASN, sizeof(ACEE));
-
-  if (address != NULL) {
-    *address = callerACEEAddr;
-  }
-
-}
-
-void cmGetCallerTaskACEE(ACEE *content, ACEE **address) {
-
-  TCB callerTCB;
-  TCB *callerTCBAddress = NULL;
-  getCallerTCB(&callerTCB, &callerTCBAddress);
-
-  ACEE * __ptr32 callerACEEAddr = NULL;
-  if (callerTCBAddress != NULL) {
-      callerACEEAddr = callerTCB.tcbsenv;
-  }
-
-  if (callerACEEAddr != NULL) {
-    copyWithSourceKey(content, callerACEEAddr, 0, CROSS_MEMORY_ALET_HASN,
-                      sizeof(ACEE));
-  }
-
-  if (address != NULL) {
-    *address = callerACEEAddr;
-  }
-
 }
 
 __asm("GLBRLSTP RACROUTE REQUEST=LIST,MF=L" : "DS"(GLBRLSTP));
@@ -1618,7 +1119,7 @@ static bool isCallerAuthorized(CrossMemoryServerGlobalArea *globalArea) {
 
   ACEE callerACEE;
   ACEE *callerACEEAddr = NULL;
-  getCallerAddressSpaceACEE(&callerACEE, &callerACEEAddr);
+  cmGetCallerAddressSpaceACEE(&callerACEE, &callerACEEAddr);
   if (callerACEEAddr == NULL) {
     return FALSE;
   }
@@ -2126,90 +1627,24 @@ static int handlePCCP() {
 }
 
 static void *allocateECSAStorage(unsigned int size) {
-  char *data = NULL;
-  __asm(
-      ASM_PREFIX
-      "         STORAGE OBTAIN"
-      ",COND=YES"
-      ",LENGTH=(%1)"
-      ",SP=228"
-      ",LOC=31"
-      ",OWNER=SYSTEM"
-      ",CALLRKY=YES"
-      ",LINKAGE=SYSTEM                                                         \n"
-      "         LGR   %0,1                                                     \n"
-      : "=r"(data)
-      : "r"(size)
-      : "r0", "r1", "r14", "r15"
-  );
-  return data;
+  return cmAlloc(size, CROSS_MEMORY_SERVER_SUBPOOL, CROSS_MEMORY_SERVER_KEY);
 }
 
 static void freeECSAStorage(void *data, unsigned int size) {
-  __asm(
-      ASM_PREFIX
-      "         STORAGE RELEASE"
-      ",COND=NO"
-      ",LENGTH=(%0)"
-      ",SP=228"
-      ",ADDR=(%1)"
-      ",CALLRKY=YES"
-      ",LINKAGE=SYSTEM                                                         \n"
-      :
-      : "r"(size), "r"(data)
-      : "r0", "r1", "r14", "r15"
-  );
+  cmFree(data, size, CROSS_MEMORY_SERVER_SUBPOOL, CROSS_MEMORY_SERVER_KEY);
 }
 
 static void allocateECSAStorage2(unsigned int size,
                                  void **resultPtr) {
 
-  // Note: Used ADDR= option so STORAGE macro stores the address (for use by
-  // recovery) a few instructions sooner than the compiler would.
-#ifndef _LP64
-#define ROFF 0
-#else
-#define ROFF 4
-#endif
-
-  __asm(
-      ASM_PREFIX
-      "         STORAGE OBTAIN"
-      ",COND=YES"
-      ",LENGTH=(%[size])"
-      ",ADDR="INT_TO_STR(ROFF)"(,%[resultPtr])"
-      ",SP=228"
-      ",LOC=31"
-      ",OWNER=SYSTEM"
-      ",CALLRKY=YES"
-      ",LINKAGE=SYSTEM                                                         \n"
-      : [result]"=m"(*resultPtr)
-      : [size]"NR:r0"(size), [resultPtr]"r"(resultPtr)
-      : "r0", "r1", "r14", "r15"
-  );
+  cmAlloc2(size, CROSS_MEMORY_SERVER_SUBPOOL, CROSS_MEMORY_SERVER_KEY,
+           resultPtr);
 
 }
 
 static void freeECSAStorage2(void **dataPtr, unsigned int size) {
 
-  void *localData = *dataPtr;
-  *dataPtr = NULL;
-
-  __asm(
-      ASM_PREFIX
-      "         STORAGE RELEASE"
-      ",COND=NO"
-      ",LENGTH=(%[size])"
-      ",SP=228"
-      ",ADDR=(%[storageAddr])"
-      ",CALLRKY=YES"
-      ",LINKAGE=SYSTEM                                                         \n"
-      :
-      : [size]"NR:r0"(size), [storageAddr]"r"(localData)
-      : "r0", "r1", "r14", "r15"
-  );
-
-  localData = NULL;
+  cmFree2(dataPtr, size, CROSS_MEMORY_SERVER_SUBPOOL, CROSS_MEMORY_SERVER_KEY);
 
 }
 
@@ -2392,7 +1827,26 @@ static void termStandardServices(CrossMemoryServer *server) {
 
 }
 
-CrossMemoryServer *makeCrossMemoryServer(STCBase *base, const CrossMemoryServerName *name, unsigned int flags, int *reasonCode) {
+CrossMemoryServer *makeCrossMemoryServer(STCBase *base,
+                                         const CrossMemoryServerName *name,
+                                         unsigned int flags, int *reasonCode) {
+
+  return makeCrossMemoryServer2(base, name, flags, NULL, NULL, NULL, NULL,
+                                reasonCode);
+
+}
+
+CrossMemoryServer *makeCrossMemoryServer2(
+    STCBase *base,
+    const CrossMemoryServerName *name,
+    unsigned int flags,
+    CMSStarCallback *startCallback,
+    CMSStopCallback *stopCallback,
+    CMSModifyCommandCallback *commandCallback,
+    void *callbackData,
+    int *reasonCode
+) {
+
 
   int envCheckRC = isEnvironmentReady();
   if (envCheckRC != RC_CMS_OK) {
@@ -2408,6 +1862,11 @@ CrossMemoryServer *makeCrossMemoryServer(STCBase *base, const CrossMemoryServerN
   server->name = name ? *name : CMS_DEFAULT_SERVER_NAME;
   memcpy(server->ddname.text, CMS_DDNAME, sizeof(server->ddname.text));
   memcpy(server->dsname.text, CMS_MODULE, sizeof(server->dsname.text));
+
+  server->startCallback = startCallback;
+  server->stopCallback = stopCallback;
+  server->commandCallback = commandCallback;
+  server->callbackData = callbackData;
 
   if (flags & CMS_SERVER_FLAG_DEBUG) {
     logSetLevel(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG);
@@ -2445,11 +1904,24 @@ void removeCrossMemoryServer(CrossMemoryServer *server) {
 
 }
 
+static bool isServiceEntryAvailable(const CrossMemoryService *entry) {
+  if (entry->function == NULL) {
+    return true;
+  }
+  return false;
+}
+
 int cmsRegisterService(CrossMemoryServer *server, int id, CrossMemoryServiceFunction *serviceFunction, void *serviceData, int flags) {
 
   if (id < CROSS_MEMORY_SERVER_MIN_SERVICE_ID || CROSS_MEMORY_SERVER_MAX_SERVICE_ID < id) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_BAD_SERVICE_ID_MSG, id);
     return RC_CMS_FUNCTION_ID_OUT_OF_RANGE;
+  }
+
+  if (!isServiceEntryAvailable(&server->serviceTable[id])) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+            CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG, id);
+    return RC_CMS_SERVICE_ENTRY_OCCUPIED;
   }
 
   bool isSpaceSwitch = flags & CMS_SERVICE_FLAG_SPACE_SWITCH ? true : false;
@@ -2460,10 +1932,13 @@ int cmsRegisterService(CrossMemoryServer *server, int id, CrossMemoryServiceFunc
   bool relocationRequired = (isSpaceSwitch && relocateToCommon && !codeInCommon) || (isCurrentPrimary && !codeInCommon);
 
   if (relocationRequired) {
-    char *moduleAddressLocal = server->moduleAddressLocal;
-    char *moduleAddressLPA = server->moduleAddressLPA;
+    char *moduleAddressLocalStart = server->moduleAddressLocal;
+    char *moduleAddressLocalEnd = moduleAddressLocalStart + server->moduleSize;
     char *serviceFunctionLocal = (char *)serviceFunction;
-    if (serviceFunctionLocal < moduleAddressLocal || moduleAddressLocal + server->moduleSize < serviceFunctionLocal) {
+    if (serviceFunctionLocal < moduleAddressLocalStart || moduleAddressLocalEnd < serviceFunctionLocal) {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+              CMS_LOG_BAD_SERVICE_ADDR_ID_MSG, id, serviceFunction,
+              moduleAddressLocalStart, moduleAddressLocalEnd);
       return RC_CMS_SERVICE_NOT_RELOCATABLE;
     }
   }
@@ -2481,116 +1956,6 @@ int cmsRegisterService(CrossMemoryServer *server, int id, CrossMemoryServiceFunc
   zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" function %d - 0x%p\n", id, serviceFunction);
 
   return RC_CMS_OK;
-}
-
-__asm("GLBDYLPA    CSVDYLPA MF=(L,GLBDYLPA)" : "DS"(GLBDYLPA));
-
-static int csvdylpaAdd(LPMEA * __ptr32 lpmea, EightCharString  * __ptr32 ddname, EightCharString  * __ptr32 dsname, int *reasonCode) {
-
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" about to add %8.8s - %8.8s to LPA\n", ddname->text, dsname->text);
-
-  __asm(" CSVDYLPA MF=L" : "DS"(csvdylpaParmList));
-  csvdylpaParmList = GLBDYLPA;
-
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" csvdylpaParmList @ 0x%p, size=%zu\n", &csvdylpaParmList, sizeof(csvdylpaParmList));
-  zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, (char *)&csvdylpaParmList, sizeof(csvdylpaParmList));
-
-  memset(lpmea, 0, sizeof(LPMEA));
-  memcpy(lpmea->inputInfo.name, dsname->text, 8);
-  lpmea->inputInfo.inputFlags0 |= LPMEA_INPUT_FLAGS0_FIXED;
-
-  char requestor[16];
-  memset(requestor, ' ', sizeof(requestor));
-  memcpy(requestor, "ZSS CM SERVER   ", sizeof(requestor));
-
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" lpmea @ 0x%p, size=%zu\n", lpmea, sizeof(LPMEA));
-  zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, (char *)lpmea, sizeof(LPMEA));
-
-  int moduleCount = 1;
-
-  int rc = 0, rsn = 0;
-  __asm(
-      ASM_PREFIX
-
-#ifdef _LP64
-      "         SAM31                                                          \n"
-      "         SYSSTATE AMODE64=NO                                            \n"
-#endif
-
-      "         CSVDYLPA REQUEST=ADD,MODINFOTYPE=MEMBERLIST,"
-      "MODINFO=(%2),NUMMOD=(%3),"
-      "DDNAME=(%4),"
-      "SECMODCHECK=NO,"
-      "REQUESTOR=(%5),"
-      "RETCODE=%0,RSNCODE=%1,"
-      "MF=(E,(%6))\n"
-
-#ifdef _LP64
-      "         SAM64                                                          \n"
-      "         SYSSTATE AMODE64=YES                                           \n"
-#endif
-
-      : "=m"(rc), "=m"(rsn)
-      : "r"(lpmea), "r"(&moduleCount), "r"(&ddname->text), "r"(&requestor), "r"(&csvdylpaParmList)
-      : "r0", "r1", "r14", "r15"
-  );
-
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" lpmea rc=%d, rsn=%d\n", rc, rsn);
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" lpmea @ 0x%p, size=%zu\n", lpmea, sizeof(LPMEA));
-  zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, (char *)lpmea, sizeof(LPMEA));
-
-  *reasonCode = rsn;
-  return rc;
-}
-
-static int csvdylpaDelete(LPMEA * __ptr32 lpmea, int *reasonCode) {
-
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" about to delete using LPMEA @ 0x%p\n", lpmea);
-  zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, (char *)lpmea, sizeof(LPMEA));
-
-  __asm(" CSVDYLPA MF=L" : "DS"(csvdylpaParmList));
-  csvdylpaParmList = GLBDYLPA;
-
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" csvdylpaParmList @ 0x%p, size=%zu\n", &csvdylpaParmList, sizeof(csvdylpaParmList));
-  zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, (char *)&csvdylpaParmList, sizeof(csvdylpaParmList));
-
-  LPMED lpmed;
-  memset(&lpmed, 0, sizeof(LPMED));
-  memcpy(lpmed.inputInfo.name, lpmea->inputInfo.name, sizeof(lpmed.inputInfo.name));
-  memcpy(lpmed.inputInfo.deleteToken, lpmea->outputInfo.stuff.successInfo.deleteToken, sizeof(lpmed.inputInfo.deleteToken));
-
-  int moduleCount = 1;
-
-  int rc = 0, rsn = 0;
-  __asm(
-      ASM_PREFIX
-
-#ifdef _LP64
-      "         SAM31                                                          \n"
-      "         SYSSTATE AMODE64=NO                                            \n"
-#endif
-
-      "         CSVDYLPA REQUEST=DELETE,"
-      "MODINFO=(%2),NUMMOD=(%3),SECMODCHECK=NO,"
-      "RETCODE=%0,RSNCODE=%1,"
-      "MF=(E,(%4))\n"
-
-#ifdef _LP64
-      "         SAM64                                                          \n"
-      "         SYSSTATE AMODE64=YES                                           \n"
-#endif
-
-      : "=m"(rc), "=m"(rsn)
-      : "r"(&lpmed), "r"(&moduleCount), "r"(&csvdylpaParmList)
-      : "r0", "r1", "r14", "r15"
-  );
-
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" lpmed rc=%d, rsn=%d\n", rc, rsn);
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" lpmed @ 0x%p, size=%zu\n", &lpmed, sizeof(LPMED));
-  zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, (char *)&lpmed, sizeof(LPMED));
-
-  *reasonCode = rsn;
-  return rc;
 }
 
 static int loadServer(CrossMemoryServer *server) {
@@ -2862,7 +2227,7 @@ static int addGlobalArea(const CrossMemoryServerName *serverName, CrossMemorySer
 
   int unlockRC = 0, unlockRSN = 0;
   unlockRC = isgenqReleaseLock(&lockToken, &unlockRSN);
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" RTVE ISGENQ RELEASE RC = %d, RSN = 0x%08X:\n", unlockRC, unlockRSN);
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" ZVTE ISGENQ RELEASE RC = %d, RSN = 0x%08X:\n", unlockRC, unlockRSN);
   if (unlockRC > 4) {
     status = (status != RC_CMS_OK) ? status : RC_CMS_ZVTE_CHAIN_NOT_RELEASED;
   }
@@ -2935,8 +2300,8 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
     memset(globalArea, 0, sizeof(CrossMemoryServerGlobalArea));
     memcpy(globalArea->eyecatcher, CMS_GLOBAL_AREA_EYECATCHER, sizeof(globalArea->eyecatcher));
     globalArea->version = CROSS_MEMORY_SERVER_VERSION;
-    globalArea->key = 4;
-    globalArea->subpool = 228;
+    globalArea->key = CROSS_MEMORY_SERVER_KEY;
+    globalArea->subpool = CROSS_MEMORY_SERVER_SUBPOOL;
     globalArea->size = sizeof(CrossMemoryServerGlobalArea);
 
     int setRC = addGlobalArea(&server->name, globalArea);
@@ -2983,8 +2348,8 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
         zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
                 " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
         int lpaDeleteRSN = 0;
-        int lpaDeleteRC = csvdylpaDelete(&globalArea->lpaModuleInfo,
-                                         &lpaDeleteRSN);
+        int lpaDeleteRC = lpaDelete(&globalArea->lpaModuleInfo,
+                                    &lpaDeleteRSN);
         if (lpaDeleteRC != 0) {
           zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
                   CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
@@ -3016,7 +2381,8 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
   if (moduleAddressLPA == NULL) {
 
     int lpaAddRSN = 0;
-    int lpaAddRC = csvdylpaAdd(&server->lpaCodeInfo, &server->ddname, &server->dsname, &lpaAddRSN);
+    int lpaAddRC = lpaAdd(&server->lpaCodeInfo, &server->ddname, &server->dsname,
+                          &lpaAddRSN);
     if (lpaAddRC != 0) {
       zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_LPA_LOAD_FAILURE_MSG, lpaAddRC, lpaAddRSN);
       return RC_CMS_LPA_ADD_FAILED;
@@ -3136,7 +2502,12 @@ static void flushDebugMessages(CrossMemoryServer *server) {
 
 }
 
-static void handleCommandVerbFlush(CrossMemoryServer *server, char **args, unsigned int argCount, CMSWTORouteInfo *routeInfo) {
+static CMSModifyCommandStatus handleCommandVerbFlush(
+    CrossMemoryServer *server,
+    char **args,
+    unsigned int argCount,
+    CMSWTORouteInfo *routeInfo
+) {
 
   CART cart = routeInfo->cart;
   int consoleID = routeInfo->consoleID;
@@ -3145,20 +2516,18 @@ static void handleCommandVerbFlush(CrossMemoryServer *server, char **args, unsig
   if (argCount != expectedArgCount) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_INVALID_CMD_ARGS_MSG, "FLUSH", expectedArgCount, argCount);
     wtoPrintf2(consoleID, cart, CMS_LOG_INVALID_CMD_ARGS_MSG, "FLUSH", expectedArgCount, argCount);
-    return;
+    return CMS_MODIFY_COMMAND_STATUS_REJECTED;
   }
-
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_CMD_RECEIVED_MSG, "FLUSH", "-", "-", "-");
 
   if ((server->flags & CROSS_MEMORY_SERVER_FLAG_READY) == 0) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_NOT_READY_FOR_CMD_MSG, "FLUSH");
     wtoPrintf2(consoleID, cart, CMS_LOG_NOT_READY_FOR_CMD_MSG, "FLUSH");
-    return;
+    return CMS_MODIFY_COMMAND_STATUS_REJECTED;
   }
 
   flushDebugMessages(server);
 
-  wtoPrintf2(consoleID, cart, CMS_LOG_CMD_ACCEPTED_MSG, "FLUSH");
+  return CMS_MODIFY_COMMAND_STATUS_CONSUMED;
 }
 
 static void printDisplayConfigCommandResponse(CrossMemoryServer *server, CMSWTORouteInfo *routeInfo) {
@@ -3240,7 +2609,12 @@ static void printDisplayConfigCommandResponse(CrossMemoryServer *server, CMSWTOR
 
 #define CMS_COMMAND_VERB_DISAPLY_DEFAULT_OPTION "CONFIG"
 
-static void handleCommandVerbDisplay(CrossMemoryServer *server, char **args, unsigned int argCount, CMSWTORouteInfo *routeInfo) {
+static CMSModifyCommandStatus handleCommandVerbDisplay(
+    CrossMemoryServer *server,
+    char **args,
+    unsigned int argCount,
+    CMSWTORouteInfo *routeInfo
+) {
 
   CART cart = routeInfo->cart;
   int consoleID = routeInfo->consoleID;
@@ -3257,15 +2631,13 @@ static void handleCommandVerbDisplay(CrossMemoryServer *server, char **args, uns
   if (argCount != expectedArgCount) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_INVALID_CMD_ARGS_MSG, "DISPLAY", expectedArgCount, argCount);
     wtoPrintf2(consoleID, cart, CMS_LOG_INVALID_CMD_ARGS_MSG, "DISPLAY", expectedArgCount, argCount);
-    return;
+    return CMS_MODIFY_COMMAND_STATUS_REJECTED;
   }
-
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_CMD_RECEIVED_MSG, "DISPLAY", option, "-", "-");
 
   if ((server->flags & CROSS_MEMORY_SERVER_FLAG_READY) == 0) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_NOT_READY_FOR_CMD_MSG, "DISPLAY");
     wtoPrintf2(consoleID, cart, CMS_LOG_NOT_READY_FOR_CMD_MSG, "DISPLAY");
-    return;
+    return CMS_MODIFY_COMMAND_STATUS_REJECTED;
   }
 
   if (strcmp(option, "CONFIG") == 0) {
@@ -3273,30 +2645,36 @@ static void handleCommandVerbDisplay(CrossMemoryServer *server, char **args, uns
   } else {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_BAD_DISPLAY_OPTION_MSG, option);
     wtoPrintf2(consoleID, cart, CMS_LOG_BAD_DISPLAY_OPTION_MSG, option);
-    return;
+    return CMS_MODIFY_COMMAND_STATUS_REJECTED;
   }
 
-  wtoPrintf2(consoleID, cart, CMS_LOG_CMD_ACCEPTED_MSG, "DISPLAY");
+  return CMS_MODIFY_COMMAND_STATUS_CONSUMED;
 }
 
-static void handleCommandVerbLog(CrossMemoryServer *server, char **args, unsigned int argCount, CMSWTORouteInfo *routeInfo) {
+static CMSModifyCommandStatus handleCommandVerbLog(
+    CrossMemoryServer *server,
+    char **args,
+    unsigned int argCount,
+    CMSWTORouteInfo *routeInfo
+) {
 
   CART cart = routeInfo->cart;
   int consoleID = routeInfo->consoleID;
 
   unsigned int expectedArgCount = 2;
   if (argCount != expectedArgCount) {
-    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_INVALID_CMD_ARGS_MSG, "LOG", expectedArgCount, argCount);
-    wtoPrintf2(consoleID, cart, CMS_LOG_INVALID_CMD_ARGS_MSG, "LOG", expectedArgCount, argCount);
-    return;
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+            CMS_LOG_INVALID_CMD_ARGS_MSG, "LOG", expectedArgCount, argCount);
+    wtoPrintf2(consoleID, cart, CMS_LOG_INVALID_CMD_ARGS_MSG, "LOG",
+               expectedArgCount, argCount);
+    return CMS_MODIFY_COMMAND_STATUS_REJECTED;
   }
 
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_CMD_RECEIVED_MSG, "LOG", args[0], args[1], "-");
-
   if ((server->flags & CROSS_MEMORY_SERVER_FLAG_READY) == 0) {
-    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_NOT_READY_FOR_CMD_MSG, "LOG");
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+            CMS_LOG_NOT_READY_FOR_CMD_MSG, "LOG");
     wtoPrintf2(consoleID, cart, CMS_LOG_NOT_READY_FOR_CMD_MSG, "LOG");
-    return;
+    return CMS_MODIFY_COMMAND_STATUS_REJECTED;
   }
 
   char *component = args[0];
@@ -3308,9 +2686,10 @@ static void handleCommandVerbLog(CrossMemoryServer *server, char **args, unsigne
   } else if (strcmp(component, "CMSPC") == 0) {
     logCompID = LOG_COMP_ID_CMSPC;
   } else {
-    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_BAD_LOG_COMP_MSG, component);
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_BAD_LOG_COMP_MSG,
+            component);
     wtoPrintf2(consoleID, cart, CMS_LOG_BAD_LOG_COMP_MSG, component);
-    return;
+    return CMS_MODIFY_COMMAND_STATUS_REJECTED;
   }
 
   char *level = args[1];
@@ -3328,9 +2707,10 @@ static void handleCommandVerbLog(CrossMemoryServer *server, char **args, unsigne
   } else if (strcmp(level, "DEBUG3") == 0) {
     logLevel = ZOWE_LOG_DEBUG3;
   } else {
-    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_BAD_LOG_LEVEL_MSG, level);
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_BAD_LOG_LEVEL_MSG,
+            level);
     wtoPrintf2(consoleID, cart, CMS_LOG_BAD_LOG_LEVEL_MSG, level);
-    return;
+    return CMS_MODIFY_COMMAND_STATUS_REJECTED;
   }
 
   logSetLevel(NULL, logCompID, logLevel);
@@ -3338,7 +2718,7 @@ static void handleCommandVerbLog(CrossMemoryServer *server, char **args, unsigne
     server->globalArea->pcLogLevel = logLevel;
   }
 
-  wtoPrintf2(consoleID, cart, CMS_LOG_CMD_ACCEPTED_MSG, "LOG");
+  return CMS_MODIFY_COMMAND_STATUS_CONSUMED;
 }
 
 static int workElementHandler(STCBase *base, STCModule *module, WorkElementPrefix *prefix) {
@@ -3359,6 +2739,7 @@ int backgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
 #define CMS_COMMAND_VERB_LOG            "LOG"
 #define CMS_COMMAND_VERB_FLUSH          "FLUSH"
 #define CMS_COMMAND_VERB_DISPLAY        "DISPLAY"
+#define CMS_COMMAND_VERB_DISPLAY_SHORT  "DIS"
 #define CMS_COMMAND_VERB_DISPLAY_ABBRV  "D"
 #define CMS_COMMAND_VERB_COLD           "COLD"
 
@@ -3416,6 +2797,391 @@ static char **tokenizeModifyCommand(ShortLivedHeap *slh, const char *command, un
   return tokens;
 }
 
+typedef struct CommandTaskContext_tag {
+  char eyecatcher[8];
+#define COMMAND_TASK_CONTEXT_EYECATCHER "CMSCTEYE"
+  CrossMemoryServer *server;
+  CMSWTORouteInfo routeInfo;
+  char *command;
+  unsigned short commandLength;
+} CommandTaskContext;
+
+static CommandTaskContext *makeCommandTaskContext(
+    CrossMemoryServer *server,
+    const char *command,
+    unsigned short commandLength,
+    const CMSWTORouteInfo *routeInfo
+) {
+
+  CommandTaskContext *context =
+      (CommandTaskContext *)safeMalloc(sizeof(CommandTaskContext),
+                                       "CommandTaskContext");
+  if (context == NULL) {
+    return NULL;
+  }
+  memset(context, 0, sizeof(CommandTaskContext));
+  memcpy(context->eyecatcher, COMMAND_TASK_CONTEXT_EYECATCHER,
+         sizeof(context->eyecatcher));
+  context->server = server;
+  context->routeInfo = *routeInfo;
+
+  context->command = safeMalloc(commandLength, "async modify command");
+  if (context->command != NULL) {
+    memcpy(context->command, command, commandLength);
+    context->commandLength = commandLength;
+  } else {
+    safeFree((char *)context, sizeof(CommandTaskContext));
+    context = NULL;
+  }
+
+  return context;
+}
+
+static void destroyCommandTaskContext(CommandTaskContext *context) {
+  safeFree(context->command, context->commandLength);
+  context->command = NULL;
+  safeFree((char *)context, sizeof(CommandTaskContext));
+  context = NULL;
+}
+
+static void reportCommandRetrieval(char *commandVerb,
+                                   char *target,
+                                   char **args,
+                                   unsigned int argCount,
+                                   CMSWTORouteInfo *routeInfo) {
+
+  unsigned int consoleID = routeInfo->consoleID;
+  CART cart = routeInfo->cart;
+
+  char *message;
+  if (target != NULL) {
+    message = CMS_LOG_CMD_RECEIVED_MSG" (target = %s)";
+  } else {
+    message = CMS_LOG_CMD_RECEIVED_MSG"%s";
+    target = "";
+  }
+
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, message, commandVerb, target);
+  wtoPrintf2(consoleID, cart, message, commandVerb, target);
+
+}
+
+static void reportCommandStatus(char *commandVerb,
+                                char *target,
+                                char **args,
+                                unsigned int argCount,
+                                CMSWTORouteInfo *routeInfo,
+                                CMSModifyCommandStatus status) {
+
+  unsigned int consoleID = routeInfo->consoleID;
+  CART cart = routeInfo->cart;
+
+  char *badCmdMsg;
+  char *rejectMsg;
+  if (target != NULL) {
+    badCmdMsg = CMS_LOG_BAD_CMD_MSG" (target = %s)";
+    rejectMsg = CMS_LOG_CMD_REJECTED_MSG" (target = %s)";
+  } else {
+    badCmdMsg = CMS_LOG_BAD_CMD_MSG"%s";
+    rejectMsg = CMS_LOG_CMD_REJECTED_MSG"%s";
+    target = "";
+  }
+
+  if (status == CMS_MODIFY_COMMAND_STATUS_UNKNOWN) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, badCmdMsg, commandVerb,
+            target);
+    wtoPrintf2(consoleID, cart, badCmdMsg, commandVerb, target);
+  } else if (status != CMS_MODIFY_COMMAND_STATUS_CONSUMED &&
+             status != CMS_MODIFY_COMMAND_STATUS_PROCESSED) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, rejectMsg, commandVerb, target);
+    wtoPrintf2(consoleID, cart, rejectMsg, commandVerb, target);
+  }
+
+}
+
+typedef struct ABENDInfo_tag {
+  char eyecatcher[8];
+#define ABEND_INFO_EYECATCHER "CMSABEDI"
+  int completionCode;
+  int reasonCode;
+} ABENDInfo;
+
+static void extractABENDInfo(RecoveryContext * __ptr32 context,
+                             SDWA * __ptr32 sdwa,
+                             void * __ptr32 userData) {
+  ABENDInfo *info = (ABENDInfo *)userData;
+  recoveryGetABENDCode(sdwa, &info->completionCode, &info->reasonCode);
+}
+
+static void passCommandToUserCallback(
+    CrossMemoryServer *server,
+    char *commandVerb,
+    char *target,
+    char **args, unsigned int argCount,
+    CMSWTORouteInfo *routeInfo
+) {
+
+  const CMSModifyCommand command = {
+       .routeInfo = *routeInfo,
+       .commandVerb = commandVerb,
+       .target = target,
+       .args = (const char* const*)args,
+       .argCount = argCount,
+   };
+
+
+  reportCommandRetrieval(commandVerb, target, args, argCount, routeInfo);
+
+  if (server->commandTaskCount >= CROSS_MEMORY_SERVER_MAX_CMD_TASK_NUM) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_CMD_REJECTED_BUSY_MSG,
+            commandVerb, target);
+    wtoPrintf2(routeInfo->consoleID, routeInfo->cart,
+               CMS_LOG_CMD_REJECTED_BUSY_MSG, commandVerb, target);
+    return;
+  }
+
+  CMSModifyCommandStatus status = CMS_MODIFY_COMMAND_STATUS_UNKNOWN;
+  CMSModifyCommandCallback *userCallback = server->commandCallback;
+  if (userCallback != NULL) {
+
+    ABENDInfo abendInfo = {ABEND_INFO_EYECATCHER};
+    int recoveryRC = recoveryPush(
+        "plugin command handler",
+        RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY | RCVR_FLAG_PRODUCE_DUMP,
+        "plugin command handler",
+        extractABENDInfo, &abendInfo,
+        NULL, NULL
+    );
+
+    if (recoveryRC == RC_RCV_OK) {
+
+      userCallback(server->globalArea, &command, &status, server->callbackData);
+
+    } else {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_STEP_ABEND_MSG,
+              abendInfo.completionCode, abendInfo.reasonCode,
+              "user command handler", recoveryRC);
+      status = CMS_MODIFY_COMMAND_STATUS_REJECTED;
+    }
+
+    if (recoveryRC == RC_RCV_OK) {
+      recoveryPop();
+    }
+
+  }
+
+  reportCommandStatus(commandVerb, target, args, argCount, routeInfo, status);
+
+}
+
+static void passCommandToCMSCommandHandlers(
+    CrossMemoryServer *server,
+    char *commandVerb,
+    char *target,
+    char **args, unsigned int argCount,
+    CMSWTORouteInfo *routeInfo
+) {
+
+  reportCommandRetrieval(commandVerb, target, args, argCount, routeInfo);
+
+  CMSModifyCommandStatus status = CMS_MODIFY_COMMAND_STATUS_UNKNOWN;
+
+  if (strcmp(commandVerb, CMS_COMMAND_VERB_LOG) == 0) {
+    status = handleCommandVerbLog(server, args, argCount, routeInfo);
+  } else if (strcmp(commandVerb, CMS_COMMAND_VERB_FLUSH) == 0) {
+    status = handleCommandVerbFlush(server, args, argCount, routeInfo);
+  } else if (strcmp(commandVerb, CMS_COMMAND_VERB_DISPLAY_ABBRV) == 0 ||
+             strcmp(commandVerb, CMS_COMMAND_VERB_DISPLAY_SHORT) == 0 ||
+             strcmp(commandVerb, CMS_COMMAND_VERB_DISPLAY) == 0) {
+    status = handleCommandVerbDisplay(server, args, argCount, routeInfo);
+  } else {
+    status = CMS_MODIFY_COMMAND_STATUS_UNKNOWN;
+  }
+
+  reportCommandStatus(commandVerb, target, args, argCount, routeInfo, status);
+
+}
+
+static void splitVerbAndTarget(char **verb, char **target) {
+
+  char *v = *verb;
+
+  size_t verbLength = strlen(v);
+
+  char *openParen = strchr(v, '(');
+  char *closeParen = strchr(v, ')');
+
+  if (openParen == NULL || closeParen == NULL) {
+    return;
+  }
+
+  if (closeParen != (v + verbLength - 1)) {
+    return;
+  }
+
+  *openParen = '\0';
+  *closeParen = '\0';
+
+  *verb = v;
+  *target = openParen + 1;
+
+}
+
+static void handleAsyncModifyCommand(CrossMemoryServer *server,
+                                     const char *command,
+                                     unsigned short commandLength,
+                                     CMSWTORouteInfo routeInfo) {
+
+  int consoleID = routeInfo.consoleID;
+  CART cart = routeInfo.cart;
+
+  int slhBlockSize = 4096;
+  int slhMaxBlockNumber = 4;
+  ShortLivedHeap *slh = makeShortLivedHeap(slhBlockSize, slhMaxBlockNumber);
+  if (slh == NULL) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_ALLOC_FAILURE_MSG,
+            "SLH", slhBlockSize);
+    wtoPrintf2(consoleID, cart, CMS_LOG_ALLOC_FAILURE_MSG,
+               "SLH", slhBlockSize);
+    return;
+  }
+
+  unsigned int commandTokenCount = 0;
+  char **commandTokens = tokenizeModifyCommand(slh, command, commandLength,
+                                               &commandTokenCount);
+
+   if (commandTokens != NULL) {
+
+     if (commandTokenCount > 0) {
+
+       char *commandVerb = commandTokens[0];
+       char **args = commandTokens + 1;
+       unsigned int argCount = commandTokenCount - 1;
+       char *target = NULL;
+       splitVerbAndTarget(&commandVerb, &target);
+
+       if (target == NULL) {
+         passCommandToCMSCommandHandlers(server, commandVerb,
+                                         target,
+                                         args, argCount,
+                                         &routeInfo);
+       } else {
+         passCommandToUserCallback(server, commandVerb,
+                                   target,
+                                   args, argCount,
+                                   &routeInfo);
+       }
+
+     } else {
+       zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_EMPTY_CMD_MSG);
+       wtoPrintf2(consoleID, cart, CMS_LOG_EMPTY_CMD_MSG);
+     }
+
+   } else {
+     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+             CMS_LOG_CMD_TKNZ_FAILURE_MSG);
+     zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+              (void *)command, commandLength);
+     wtoPrintf2(consoleID, cart, CMS_LOG_CMD_TKNZ_FAILURE_MSG);
+   }
+
+}
+
+static int commandTaskHandler(RLETask *rleTask) {
+
+  CommandTaskContext *context = rleTask->userPointer;
+  CrossMemoryServer *server = context->server;
+  atomicIncrement(&server->commandTaskCount, 1);
+
+  char *command = context->command;
+  unsigned short commandLength = context->commandLength;
+  CMSWTORouteInfo routeInfo = context->routeInfo;
+
+  CMSModifyCommandStatus status = CMS_MODIFY_COMMAND_STATUS_UNKNOWN;
+  CMSModifyCommandCallback *userCallback = server->commandCallback;
+  if (userCallback != NULL) {
+
+    ABENDInfo abendInfo = {ABEND_INFO_EYECATCHER};
+    int recoveryRC = recoveryPush(
+        "async command handler",
+        RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY | RCVR_FLAG_PRODUCE_DUMP,
+        "async command handler",
+        extractABENDInfo, &abendInfo,
+        NULL, NULL
+    );
+
+    if (recoveryRC == RC_RCV_OK) {
+
+      handleAsyncModifyCommand(server, command, commandLength, routeInfo);
+
+    } else {
+
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_STEP_ABEND_MSG,
+              abendInfo.completionCode, abendInfo.reasonCode,
+              "async command handler", recoveryRC);
+      status = CMS_MODIFY_COMMAND_STATUS_REJECTED;
+
+    }
+
+    if (recoveryRC == RC_RCV_OK) {
+      recoveryPop();
+    }
+
+  }
+
+  destroyCommandTaskContext(context);
+  context = NULL;
+
+  atomicIncrement(&server->commandTaskCount, -1);
+  return 0;
+}
+
+static void handleCommandAsynchronously(CrossMemoryServer *server,
+                                        const char *command,
+                                        unsigned short commandLength,
+                                        const CMSWTORouteInfo *routeInfo) {
+
+  if (server->commandTaskCount >= CROSS_MEMORY_SERVER_MAX_CMD_TASK_NUM) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+            CMS_LOG_CMD_REJECTED_BUSY_MSG);
+    wtoPrintf2(routeInfo->consoleID, routeInfo->cart,
+               CMS_LOG_CMD_REJECTED_BUSY_MSG);
+    return;
+  }
+
+  CommandTaskContext *taskContext = makeCommandTaskContext(server,
+                                                           command,
+                                                           commandLength,
+                                                           routeInfo);
+  if (taskContext == NULL) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_RES_NOT_CREATED_MSG,
+            "command task context", 0);
+    return;
+  }
+
+  RLETask *task = makeRLETask(
+      server->base->rleAnchor,
+      RLE_TASK_TCB_CAPABLE | RLE_TASK_RECOVERABLE | RLE_TASK_DISPOSABLE,
+      commandTaskHandler
+  );
+
+  if (task == NULL) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_RES_NOT_CREATED_MSG,
+            "RLE task", 0);
+    destroyCommandTaskContext(taskContext);
+    taskContext = NULL;
+    return;
+  }
+
+  task->userPointer = taskContext;
+
+  startRLETask(task, NULL);
+
+  task = NULL;
+  taskContext = NULL;
+
+}
+
 static int handleModifyCommand(STCBase *base, CIB *cib, STCConsoleCommandType commandType, const char *command, unsigned short commandLength, void *userData) {
 
   CrossMemoryServer *server = userData;
@@ -3449,38 +3215,7 @@ static int handleModifyCommand(STCBase *base, CIB *cib, STCConsoleCommandType co
 
   if (commandType == STC_COMMAND_MODIFY) {
 
-    unsigned int commandTokenCount = 0;
-    char **commandTokens = tokenizeModifyCommand(slh, command, commandLength, &commandTokenCount);
-    if (commandTokens != NULL) {
-
-      if (commandTokenCount > 0) {
-
-        char *commandVerb = commandTokens[0];
-        char **args = commandTokens + 1;
-        unsigned int argCount = commandTokenCount - 1;
-
-        if (strcmp(commandVerb, CMS_COMMAND_VERB_LOG) == 0) {
-          handleCommandVerbLog(server, args, argCount, &routeInfo);
-        } else if (strcmp(commandVerb, CMS_COMMAND_VERB_FLUSH) == 0) {
-          handleCommandVerbFlush(server, args, argCount, &routeInfo);
-        } else if (strcmp(commandVerb, CMS_COMMAND_VERB_DISPLAY) == 0 ||
-                   strcmp(commandVerb, CMS_COMMAND_VERB_DISPLAY_ABBRV) == 0) {
-          handleCommandVerbDisplay(server, args, argCount, &routeInfo);
-        } else {
-          zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_BAD_CMD_MSG, commandVerb);
-          wtoPrintf2(consoleID, cart, CMS_LOG_BAD_CMD_MSG, commandVerb);
-        }
-
-      } else {
-        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_EMPTY_CMD_MSG);
-        wtoPrintf2(consoleID, cart, CMS_LOG_EMPTY_CMD_MSG);
-      }
-
-    } else {
-      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_CMD_TKNZ_FAILURE_MSG);
-      zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, (void *)command, commandLength);
-      wtoPrintf2(consoleID, cart, CMS_LOG_CMD_TKNZ_FAILURE_MSG);
-    }
+    handleCommandAsynchronously(server, command, commandLength, &routeInfo);
 
   } else if (commandType == STC_COMMAND_START) {
 
@@ -3525,7 +3260,6 @@ static int handleModifyCommand(STCBase *base, CIB *cib, STCConsoleCommandType co
       globalArea->serverFlags |= CROSS_MEMORY_SERVER_FLAG_TERM_STARTED;
     }
 
-    wtoPrintf2(consoleID, cart, CMS_LOG_CMD_ACCEPTED_MSG, "Termination");
   }
 
   SLHFree(slh);
@@ -3963,6 +3697,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
 
   int status = RC_CMS_OK;
   bool serverStarted = false;
+  bool startCallbackSuccess = true;
   bool resourceManagerInstalled = false;
 
   if (status == RC_CMS_OK) {
@@ -4050,6 +3785,21 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   }
 
   if (status == RC_CMS_OK) {
+    if (srv->startCallback != NULL) {
+      int callbackRC = srv->startCallback(srv->globalArea, srv->callbackData);
+      if (callbackRC != 0) {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+                CMS_LOG_INIT_STEP_FAILURE_MSG, "start callback", callbackRC);
+        status = RC_CMS_ERROR;
+        startCallbackSuccess = false;
+      } else {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+                CMS_LOG_INIT_STEP_SUCCESS_MSG, "start callback");
+      }
+    }
+  }
+
+  if (status == RC_CMS_OK) {
     int startRC = startServer(srv);
     if (startRC != RC_CMS_OK) {
       zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_INIT_STEP_FAILURE_MSG, "start server", startRC);
@@ -4105,6 +3855,20 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
     }
   }
 
+  if (startCallbackSuccess) {
+    if (srv->stopCallback != NULL) {
+      int callbackRC = srv->stopCallback(srv->globalArea, srv->callbackData);
+      if (callbackRC != 0) {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+                CMS_LOG_TERM_STEP_FAILURE_MSG, "stop callback", callbackRC);
+        status = RC_CMS_ERROR;
+      } else {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+                CMS_LOG_TERM_STEP_SUCCESS_MSG, "stop callback");
+      }
+    }
+  }
+
   if (resourceManagerInstalled) {
     int rmDeleteRC = removeResourceManager(&rmHandle);
     if (rmDeleteRC != RC_RESMGR_OK) {
@@ -4122,7 +3886,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   return status;
 }
 
-#endif /* METTLE */
+#endif /* defined(METTLE) && !defined(CMS_CLIENT) */
 
 int cmsGetGlobalArea(const CrossMemoryServerName *serverName, CrossMemoryServerGlobalArea **globalAreaAddress) {
 
@@ -4264,6 +4028,20 @@ int cmsCallService(const CrossMemoryServerName *serverName, int serviceID, void 
   return callServiceInternal(globalArea, serviceID, parmList, serviceRC);
 }
 
+int cmsCallService2(CrossMemoryServerGlobalArea *cmsGlobalArea,
+                    int serviceID, void *parmList, int *serviceRC) {
+
+  if (serviceID <= 0 || CROSS_MEMORY_SERVER_MAX_SERVICE_ID < serviceID) {
+    return RC_CMS_FUNCTION_ID_OUT_OF_RANGE;
+  }
+
+  if (cmsGlobalArea->version != CROSS_MEMORY_SERVER_VERSION) {
+    return RC_CMS_WRONG_SERVER_VERSION;
+  }
+
+  return callServiceInternal(cmsGlobalArea, serviceID, parmList, serviceRC);
+}
+
 int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, ...) {
 
   CrossMemoryServerLogServiceParm msgParmList;
@@ -4370,7 +4148,7 @@ CrossMemoryServerStatus cmsGetStatus(const CrossMemoryServerName *serverName) {
   return status;
 }
 
-#ifdef METTLE
+#if defined(METTLE) && !defined(CMS_CLIENT)
 
 #define crossmemoryServerDESCTs CMSDSECT
 void crossmemoryServerDESCTs(){
@@ -4457,8 +4235,7 @@ void crossmemoryServerDESCTs(){
 
 }
 
-#endif /* METTLE */
-
+#endif /* defined(METTLE) && !defined(CMS_CLIENT) */
 
 /*
   This program and the accompanying materials are
@@ -4469,4 +4246,3 @@ void crossmemoryServerDESCTs(){
   
   Copyright Contributors to the Zowe Project.
 */
-

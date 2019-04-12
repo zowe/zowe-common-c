@@ -23,6 +23,8 @@
 #include "zowetypes.h"
 #include "utils.h"
 #include "bpxnet.h"
+#include "isgenq.h"
+#include "lpa.h"
 #include "nametoken.h"
 #include "zos.h"
 #include "socketmgmt.h"
@@ -47,6 +49,9 @@
 #ifndef CMS_MSG_PRFX
 #define CMS_MSG_PRFX  CMS_COMP_ID CMS_MSG_SUBCOMP
 #endif
+
+#define CROSS_MEMORY_SERVER_KEY     4
+#define CROSS_MEMORY_SERVER_SUBPOOL 228
 
 #define RC_CMS_OK                           0
 #define RC_CMS_ERROR                        8
@@ -126,7 +131,8 @@
 #define RC_CMS_MODULE_NOT_IN_STEPLIB        82
 #define RC_CMS_ZVT_NOT_ALLOCATED            83
 #define RC_CMS_SERVER_NAME_NULL             84
-#define RC_CMS_MAX_RC                       84
+#define RC_CMS_SERVICE_ENTRY_OCCUPIED       85
+#define RC_CMS_MAX_RC                       85
 
 extern const char *CMS_RC_DESCRIPTION[];
 
@@ -141,66 +147,6 @@ typedef struct CrossMemoryServerName_tag {
 #endif
 
 extern const CrossMemoryServerName CMS_DEFAULT_SERVER_NAME;
-
-typedef struct EightCharString_tag {
-  char text[8];
-} EightCharString;
-
-typedef struct LPMEA_tag {
-  struct {
-    char name[8];
-    char inputFlags0;
-#define LPMEA_INPUT_FLAGS0_FIXED                  0x80
-#define LPMEA_INPUT_FLAGS0_PAGEPROTPAGE           0x40
-#define LPMEA_INPUT_FLAGS0_STORAGEOWNERSYSTEM     0x20
-    char inputFlags1;
-  } inputInfo;
-  struct {
-    char outputFlags0;
-    union {
-      char modProbFunction;
-      char successConcatNum;
-    };
-    union {
-      struct {
-        char deleteToken[8];
-        struct {
-          char entryPointAddrBytes0To2[3];
-          char entryPointAddrByte3;
-        } entryPointAddr;
-        void * __ptr32 loadPointAddr;
-        char modLen[4];
-        char loadPointAddr2[4];
-        char modLen2[4];
-      } successInfo;
-      struct {
-        char retCode[4];
-        char rsnCode[4];
-      } retRsnCodes;
-      struct {
-        char abendCode[4];
-        char abendRsnCode[4];
-      } abendRsnCodes;
-    } stuff; /* name from IBM doc */
-  } outputInfo;
-} LPMEA;
-
-typedef struct LPMED_tag {
-  struct {
-    char name[8];
-    char deleteToken[8];
-    char inputFlags0;
-    char inputFlags1;
-  } inputInfo;
-  struct {
-    char outputFlags0;
-    char modProbFunction;
-  } outputInfo;
-} LPMED;
-
-typedef struct ENQToken_tag {
-  char token[32];
-} ENQToken;
 
 typedef struct ELXLISTEntry_tag {
   int sequenceNumber;
@@ -218,6 +164,8 @@ typedef struct ELXLIST_tag {
 #define CROSS_MEMORY_SERVER_MAX_SERVICE_ID    127
 
 #define CROSS_MEMEORY_SERVER_MAX_SERVICE_COUNT   (CROSS_MEMORY_SERVER_MAX_SERVICE_ID + 1)
+
+#define CROSS_MEMORY_SERVER_MAX_CMD_TASK_NUM  30
 
 typedef struct CrossMemoryServerGlobalArea_tag;
 typedef struct CrossMemoryService_tag;
@@ -249,7 +197,9 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   unsigned char subpool;
   unsigned short size;
   unsigned int flags;
-  char reserved1[60];
+  char reserved1[56];
+
+  void * __ptr32 userServerAnchor;
 
   CrossMemoryServerName serverName;
   struct CrossMemoryServer_tag * __ptr32 localServerAddress;
@@ -301,6 +251,30 @@ typedef struct CMSWTORouteInfo_tag {
   char padding[4];
 } CMSWTORouteInfo;
 
+typedef struct CMSModifyCommand_tag {
+  CMSWTORouteInfo routeInfo;
+  const char *commandVerb;
+  const char *target;
+  const char* const* args;
+  unsigned int argCount;
+} CMSModifyCommand;
+
+typedef enum CMSModifyCommandStatus_tag {
+  CMS_MODIFY_COMMAND_STATUS_UNKNOWN = 1,
+  CMS_MODIFY_COMMAND_STATUS_PROCESSED = 2,
+  CMS_MODIFY_COMMAND_STATUS_CONSUMED = 3,
+  CMS_MODIFY_COMMAND_STATUS_REJECTED = 4,
+} CMSModifyCommandStatus;
+
+typedef int (CMSStarCallback)(CrossMemoryServerGlobalArea *globalArea,
+                              void *userData);
+typedef int (CMSStopCallback)(CrossMemoryServerGlobalArea *globalArea,
+                              void *userData);
+typedef int (CMSModifyCommandCallback)(CrossMemoryServerGlobalArea *globalArea,
+                                       const CMSModifyCommand *command,
+                                       CMSModifyCommandStatus *status,
+                                       void *userData);
+
 typedef struct CrossMemoryServer_tag {
   char eyecatcher[8];
 #define CMS_EYECATCHER "RSCMSRV1"
@@ -309,8 +283,13 @@ typedef struct CrossMemoryServer_tag {
 #define CROSS_MEMORY_SERVER_FLAG_READY        0x00000002
 #define CROSS_MEMORY_SERVER_FLAG_TERM_STARTED 0x00000004
 #define CROSS_MEMORY_SERVER_FLAG_TERM_ENDED   0x00000008
-  CrossMemoryServerGlobalArea * __ptr32 globalArea;
   STCBase * __ptr32 base;
+  CMSStarCallback * __ptr32 startCallback;
+  CMSStopCallback * __ptr32 stopCallback;
+  CMSModifyCommandCallback * __ptr32 commandCallback;
+  int commandTaskCount;
+  PAD_LONG(0, void *callbackData);
+  CrossMemoryServerGlobalArea * __ptr32 globalArea;
   CMSWTORouteInfo startCommandInfo;
   CMSWTORouteInfo termCommandInfo;
   void * __ptr32 moduleAddressLocal;
@@ -363,25 +342,21 @@ typedef struct CrossMemoryServerStatus_tag {
 
 ZOWE_PRAGMA_PACK_RESET
 
-#define LOG_COMP_ID_CMS       0x008F000400010000LLU
-#define LOG_COMP_ID_CMSPC     0x008F000400020000LLU
+#define LOG_COMP_ID_CMS       0x008F0001000C0001LLU
+#define LOG_COMP_ID_CMSPC     0x008F0001000C0002LLU
 
 #ifndef __LONGNAME__
 
 #define cmsInitializeLogging CMINILOG
 #define makeCrossMemoryServer CMMCMSRV
+#define makeCrossMemoryServer2 CMMCMSR2
 #define removeCrossMemoryServer CMMCRSRV
 #define cmsRegisterService CMCMSRSR
 #define cmsStartMainLoop CMCMAINL
 #define cmsGetGlobalArea CMGETGA
-#define cmCopyToSecondaryWithCallerKey CMCPTSSK
-#define cmCopyFromSecondaryWithCallerKey CMCPFSSK
-#define cmCopyToPrimaryWithCallerKey CMCPTPSK
-#define cmCopyFromPrimaryWithCallerKey CMCFPFSK
-#define cmCopyWithSourceKeyAndALET CMCPYSKA
-#define cmGetCallerTaskACEE CMGTACEE
 #define cmsAddConfigParm CMADDPRM
 #define cmsCallService CMCMSRCS
+#define cmsCallService2 CMCALLS2
 #define cmsPrintf CMCMSPRF
 #define cmsGetConfigParm CMGETPRM
 #define cmsGetPCLogLevel CMGETLOG
@@ -406,17 +381,20 @@ ZOWE_PRAGMA_PACK_RESET
 /* server side functions (must be authorized and in supervisor mode) */
 void cmsInitializeLogging();
 CrossMemoryServer *makeCrossMemoryServer(STCBase *base, const CrossMemoryServerName *serverName, unsigned int flags, int *reasonCode);
+CrossMemoryServer *makeCrossMemoryServer2(
+    STCBase *base,
+    const CrossMemoryServerName *serverName,
+    unsigned int flags,
+    CMSStarCallback *startCallback,
+    CMSStopCallback *stopCallback,
+    CMSModifyCommandCallback *commandCallback,
+    void *callbackData,
+    int *reasonCode
+);
 void removeCrossMemoryServer(CrossMemoryServer *server);
 int cmsRegisterService(CrossMemoryServer *server, int id, CrossMemoryServiceFunction *serviceFunction, void *serviceData, int flags);
 int cmsStartMainLoop(CrossMemoryServer *server);
 int cmsGetGlobalArea(const CrossMemoryServerName *serverName, CrossMemoryServerGlobalArea **globalAreaAddress);
-void cmCopyToSecondaryWithCallerKey(void *dest, const void *src, size_t size);
-void cmCopyFromSecondaryWithCallerKey(void *dest, const void *src, size_t size);
-void cmCopyToPrimaryWithCallerKey(void *dest, const void *src, size_t size);
-void cmCopyFromPrimaryWithCallerKey(void *dest, const void *src, size_t size);
-void cmCopyWithSourceKeyAndALET(void *dest, const void *src, unsigned int key,
-                                unsigned int alet, size_t size);
-void cmGetCallerTaskACEE(ACEE *content, ACEE **address);
 int cmsAddConfigParm(CrossMemoryServer *server,
                      const char *name, const void *value,
                      CrossMemoryServerParmType type);
@@ -432,6 +410,8 @@ void cmsFreeECSAStorage2(CrossMemoryServerGlobalArea *globalArea,
 
 /* client side functions */
 int cmsCallService(const CrossMemoryServerName *serverName, int functionID, void *parmList, int *serviceRC);
+int cmsCallService2(CrossMemoryServerGlobalArea *cmsGlobalArea,
+                    int serviceID, void *parmList, int *serviceRC);
 int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, ...);
 int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,
                      CrossMemoryServerConfigParm *parm);
@@ -680,13 +660,13 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 #ifndef CMS_LOG_CMD_RECEIVED_MSG_ID
 #define CMS_LOG_CMD_RECEIVED_MSG_ID             CMS_MSG_PRFX"0220I"
 #endif
-#define CMS_LOG_CMD_RECEIVED_MSG_TEXT           "%s command received (\'%s\', \'%s\', \'%s\')"
+#define CMS_LOG_CMD_RECEIVED_MSG_TEXT           "Modify %s command received"
 #define CMS_LOG_CMD_RECEIVED_MSG                CMS_LOG_CMD_RECEIVED_MSG_ID" "CMS_LOG_CMD_RECEIVED_MSG_TEXT
 
 #ifndef CMS_LOG_CMD_ACCEPTED_MSG_ID
 #define CMS_LOG_CMD_ACCEPTED_MSG_ID             CMS_MSG_PRFX"0221I"
 #endif
-#define CMS_LOG_CMD_ACCEPTED_MSG_TEXT           "%s command accepted"
+#define CMS_LOG_CMD_ACCEPTED_MSG_TEXT           "Modify %s command accepted"
 #define CMS_LOG_CMD_ACCEPTED_MSG                CMS_LOG_CMD_ACCEPTED_MSG_ID" "CMS_LOG_CMD_ACCEPTED_MSG_TEXT
 
 #ifndef CMS_LOG_DISP_CMD_RESULT_MSG_ID
@@ -722,7 +702,7 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 #ifndef CMS_LOG_BAD_CMD_MSG_ID
 #define CMS_LOG_BAD_CMD_MSG_ID                  CMS_MSG_PRFX"0227W"
 #endif
-#define CMS_LOG_BAD_CMD_MSG_TEXT                "Command verb \'%s\' not recognized, command ignored"
+#define CMS_LOG_BAD_CMD_MSG_TEXT                "Modify %s command not recognized"
 #define CMS_LOG_BAD_CMD_MSG                     CMS_LOG_BAD_CMD_MSG_ID" "CMS_LOG_BAD_CMD_MSG_TEXT
 
 #ifndef CMS_LOG_EMPTY_CMD_MSG_ID
@@ -802,6 +782,42 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 #endif
 #define CMS_LOG_BUILD_TIME_MISMATCH_MSG_TEXT    "Discarding outdated LPA module at %p (%26.26s - %26.26s)"
 #define CMS_LOG_BUILD_TIME_MISMATCH_MSG          CMS_LOG_BUILD_TIME_MISMATCH_MSG_ID" "CMS_LOG_BUILD_TIME_MISMATCH_MSG_TEXT
+
+#ifndef CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_ID
+#define CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_ID      CMS_MSG_PRFX"0241E"
+#endif
+#define CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_TEXT    "Service with ID %d not relocated, 0x%p not in range [0x%p, 0x%p]"
+#define CMS_LOG_BAD_SERVICE_ADDR_ID_MSG         CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_ID" "CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_TEXT
+
+#ifndef CMS_LOG_CMD_REJECTED_MSG_ID
+#define CMS_LOG_CMD_REJECTED_MSG_ID             CMS_MSG_PRFX"0242W"
+#endif
+#define CMS_LOG_CMD_REJECTED_MSG_TEXT           "Modify %s command rejected"
+#define CMS_LOG_CMD_REJECTED_MSG                CMS_LOG_CMD_REJECTED_MSG_ID" "CMS_LOG_CMD_REJECTED_MSG_TEXT
+
+#ifndef CMS_LOG_CMD_REJECTED_BUSY_MSG_ID
+#define CMS_LOG_CMD_REJECTED_BUSY_MSG_ID        CMS_MSG_PRFX"0243W"
+#endif
+#define CMS_LOG_CMD_REJECTED_BUSY_MSG_TEXT      "server busy, modify commands are rejected"
+#define CMS_LOG_CMD_REJECTED_BUSY_MSG           CMS_LOG_CMD_REJECTED_BUSY_MSG_ID" "CMS_LOG_CMD_REJECTED_BUSY_MSG_TEXT
+
+#ifndef CMS_LOG_RES_NOT_CREATED_MSG_ID
+#define CMS_LOG_RES_NOT_CREATED_MSG_ID          CMS_MSG_PRFX"0244E"
+#endif
+#define CMS_LOG_RES_NOT_CREATED_MSG_TEXT        "Resource '%s' not created, RC = %d"
+#define CMS_LOG_RES_NOT_CREATED_MSG             CMS_LOG_RES_NOT_CREATED_MSG_ID" "CMS_LOG_RES_NOT_CREATED_MSG_TEXT
+
+#ifndef CMS_LOG_STEP_ABEND_MSG_ID
+#define CMS_LOG_STEP_ABEND_MSG_ID               CMS_MSG_PRFX"0245E"
+#endif
+#define CMS_LOG_STEP_ABEND_MSG_TEXT             "ABEND S%03X-%02X averted in step '%s' (recovery RC = %d)"
+#define CMS_LOG_STEP_ABEND_MSG                  CMS_LOG_STEP_ABEND_MSG_ID" "CMS_LOG_STEP_ABEND_MSG_TEXT
+
+#ifndef CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_ID
+#define CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_ID      CMS_MSG_PRFX"0246E"
+#endif
+#define CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_TEXT    "Service entry %d is occupied"
+#define CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG         CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_ID" "CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_TEXT
 
 #endif /* H_CROSSMEMORY_H_ */
 
