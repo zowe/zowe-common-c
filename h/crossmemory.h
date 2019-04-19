@@ -15,6 +15,7 @@
 
 #ifdef METTLE
 #include <metal/metal.h>
+#include <metal/stddef.h>
 #include <metal/stdlib.h>
 #else
 #include <stdlib.h>

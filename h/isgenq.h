@@ -63,6 +63,9 @@ int isgenqTestLock(const QName *qname,
 
 int isgenqReleaseLock(ENQToken *token, int *reasonCode);
 
+#define IS_ISGENQ_LOCK_OBTAINED($isgenqRC, $isgenqRSN) \
+    ($isgenqRC <= 4 && ((unsigned)$isgenqRSN & 0xFFFF) != 0x0404)
+
 #endif /* H_ISGENQ_H_ */
 
 
