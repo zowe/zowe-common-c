@@ -50,6 +50,7 @@
 #include "le.h"
 #include "scheduling.h"
 #include "socketmgmt.h"
+#include "fdpoll.h"
 
 #include "http.h"
 
@@ -179,6 +180,8 @@ char *toASCIIUTF8(char *buffer, int len) {
 static int WRITE_FORCE = TRUE;
 
 int writeFully(Socket *socket, char *buffer, int len){
+#define POLL_TIME 200
+
   int returnCode = 0;
   int reasonCode = 0;
   int bytesWritten = 0;
@@ -200,11 +203,32 @@ int writeFully(Socket *socket, char *buffer, int len){
       if (WRITE_FORCE && returnCode == EAGAIN) {
 #else
       if (WRITE_FORCE && returnCode == 1102) {
-#endif
+        PollItem item = {0};
+        item.fd = socket->sd;
+        item.events = POLLEWRNORM;
+        returnCode = 0;
+        reasonCode = 0;
+        int status = fdPoll(&item, 0, 1, POLL_TIME, &returnCode, &reasonCode);
 #ifdef DEBUG
-        printf("try again because write would block!\n");
+        printf("BPXPOL: status = %d, ret: %d, rsn: %d\n", status, returnCode, reasonCode);
 #endif
-        continue;
+        if (status == -1) {
+#ifdef DEBUG
+          printf("Waited out full duration. Trying again.\n");
+#endif
+          continue; /* For some reason, 200 milliseconds wasn't long enough...
+                     * so just continue anyways.
+                     */
+        }
+        if (item.revents & POLLRWRNORM) {
+#ifdef DEBUG
+          printf("Socket polled. OK to write.\n");
+#endif
+          continue; /* The socket is writable again before the 200 milliseconds
+                     * timeout. Continue streaming.
+                     */
+        }
+#endif
       } else {
         printf("IO error while writing, errno=%d reason=%x\n",returnCode,reasonCode);
         return 0;
