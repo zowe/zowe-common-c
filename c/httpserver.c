@@ -3506,7 +3506,7 @@ void respondWithUnixFileContentsWithAutocvtMode (HttpService* service, HttpRespo
     // Response is finished on return
   } else {
     bool asB64 = TRUE;
-    char *base64Param = getQueryParam(response->request, "responsetype");
+    char *base64Param = getQueryParam(response->request, "responseType");
 
     if (NULL != base64Param) {
       if (!strcmp(strupcase(base64Param), "RAW")) {
