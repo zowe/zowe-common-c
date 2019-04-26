@@ -184,7 +184,8 @@ int writeFully(Socket *socket, char *buffer, int len){
 #define POLL_TIME 200
 
 #ifdef METTLE
-#define EAGAIN 1102
+#define EAGAIN      112
+#define EWOULDBLOCK 1102
 #endif
 
   int returnCode = 0;
@@ -204,7 +205,10 @@ int writeFully(Socket *socket, char *buffer, int len){
     if (status >= 0){
       bytesWritten += status;
     } else {
-      if (WRITE_FORCE && returnCode == EAGAIN) {
+      /* Check for both EAGAIN and EWOULDBLOCK on "older" unix systems
+       * for portability.
+       */
+      if (WRITE_FORCE && returnCode == EAGAIN || returnCode == EWOULDBLOCK) {
         PollItem item = {0};
         item.fd = socket->sd;
         item.events = POLLEWRNORM;
@@ -225,7 +229,8 @@ int writeFully(Socket *socket, char *buffer, int len){
                      */
         }
       } else {
-        printf("IO error while writing, errno=%d reason=%x\n",returnCode,reasonCode);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "IO error while writing, errno=%d reason=%x\n \
+               Aborting...\n", returnCode,reasonCode);
         return 0;
       }
     }
