@@ -83,11 +83,7 @@ void getSTCK(int64 *stckPtr){
 
   __asm(ASM_PREFIX
         " STCK %0 "
-        :
-        :
-        "m"(stck)
-        :
-        "r15");
+        :"=m"(stck));
   *stckPtr = stck;
 }
 
@@ -96,11 +92,7 @@ void getSTCKU(uint64 *stckPtr){
 
   __asm(ASM_PREFIX
         " STCK %0 "
-        :
-        :
-        "m"(stck)
-        :
-        "r15");
+        :"=m"(stck));
   *stckPtr = stck;
 }
 
