@@ -616,9 +616,8 @@ int streamFileToCaller(HttpResponse *response, char *absolutePath) {
   addStringHeader(response, "Transfer-Encoding", "chunked");
   addStringHeader(response, "Content-Disposition", "attachment");
   addStringHeader(response, "Connection", "close");
-	writeHeader(response);
-
-	short ccsid = info.ccsid;
+  
+  short ccsid = info.ccsid;
 
   /* Default to sending binary if we don't know. The only case,
    * this would be bad is if the file is stored as IBM-1047.
