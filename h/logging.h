@@ -237,14 +237,14 @@ extern LoggingContext *theLoggingContext;
    safely assumed to exist in all program execution contexts.   Very little of the COMMON
    library uses globals.
 */
-LoggingContext *makeLoggingContext();
-void removeLoggingContext();
+LoggingContext *makeLoggingContext(void);
+void removeLoggingContext(void);
 
 /* create and remove the logging context but do not call the setter and getter function */
-LoggingContext *makeLocalLoggingContext();
+LoggingContext *makeLocalLoggingContext(void);
 void removeLocalLoggingContext(LoggingContext *context);
 
-LoggingContext *getLoggingContext();
+LoggingContext *getLoggingContext(void);
 int setLoggingContext(LoggingContext *context);
 
 /* should trace macro, it will be a function call if the compiler doensn't support statement expressions  */
@@ -327,7 +327,7 @@ int logGetLevel(LoggingContext *context, uint64 compID);
 
 /* custom setter and getter functions for logging context */
 extern int logSetExternalContext(LoggingContext *context);
-extern LoggingContext *logGetExternalContext();
+extern LoggingContext *logGetExternalContext(void);
 
 void printStdout(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList);
 void printStderr(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList);

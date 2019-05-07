@@ -31,7 +31,7 @@ typedef struct IDCAMSCommandOutput_tag IDCAMSCommandOutput;
 #pragma map(idcamsPrintCommandOutput, "RSIDCPCO")
 #pragma map(idcamsDeleteCommandOutput, "RSIDCDCO")
 
-IDCAMSCommand *idcamsCreateCommand();
+IDCAMSCommand *idcamsCreateCommand(void);
 int idcamsAddLineToCommand(IDCAMSCommand *cmd, const char *line);
 int idcamsExecuteCommand(const IDCAMSCommand *cmd,
                          IDCAMSCommandOutput **output,

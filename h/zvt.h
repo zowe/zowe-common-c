@@ -108,9 +108,9 @@ ZOWE_PRAGMA_PACK_RESET
 #pragma map(zvtAllocEntry, "ZVTAENTR")
 #pragma map(zvtFreeEntry, "ZVTFENTR")
 
-void zvtInit();
-ZVT *zvtGet();
-ZVTEntry *zvtAllocEntry();
+void zvtInit(void);
+ZVT *zvtGet(void);
+ZVTEntry *zvtAllocEntry(void);
 void zvtFreeEntry(ZVTEntry *entry);
 
 #endif /* H_ZVT_H_ */

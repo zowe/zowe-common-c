@@ -360,7 +360,7 @@ int recoveryEstablishRouter(int flags);
 * Return value:
 *   Always RC_RCV_OK
 *****************************************************************************/
-int recoveryRemoveRouter();
+int recoveryRemoveRouter(void);
 
 /*****************************************************************************
 * Check if there is a router.
@@ -371,7 +371,7 @@ int recoveryRemoveRouter();
 * Return value:
 *   Return true if a router has been established.
 *****************************************************************************/
-bool recoveryIsRouterEstablished();
+bool recoveryIsRouterEstablished(void);
 
 /*****************************************************************************
 * Push a new recovery state.
@@ -420,7 +420,7 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
 * Return value:
 *   N/A
 *****************************************************************************/
-void recoveryPop();
+void recoveryPop(void);
 
 /*****************************************************************************
 * Set the new dump title
@@ -457,7 +457,7 @@ void recoverySetFlagValue(int flag, bool value);
 * Return value:
 *   N/A
 *****************************************************************************/
-void recoveryEnableCurrentState();
+void recoveryEnableCurrentState(void);
 
 /*****************************************************************************
 * Disable the current (latest) state.
@@ -468,7 +468,7 @@ void recoveryEnableCurrentState();
 * Return value:
 *   N/A
 *****************************************************************************/
-void recoveryDisableCurrentState();
+void recoveryDisableCurrentState(void);
 
 /*****************************************************************************
 * Update router service information.
@@ -573,7 +573,7 @@ int recoveryEstablishRouter(int flags);
 *   RC_RCV_OK if the router has been successfully removed, otherwise one of the
 *   RC_RCV_xxxx error codes is returned and errno is set to indicate the error.
 *****************************************************************************/
-int recoveryRemoveRouter();
+int recoveryRemoveRouter(void);
 
 /*****************************************************************************
 * Check if there is a router.
@@ -584,7 +584,7 @@ int recoveryRemoveRouter();
 * Return value:
 *   Return true if a router has been established.
 *****************************************************************************/
-bool recoveryIsRouterEstablished();
+bool recoveryIsRouterEstablished(void);
 
 /*****************************************************************************
 * The following function declarations should not be used directly,
@@ -593,7 +593,7 @@ bool recoveryIsRouterEstablished();
 RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char *name, int flags, char *dumpTitle,
                                           AnalysisFunction *userAnalysisFunction, void *analysisFunctionUserData,
                                           CleanupFunction *userCleanupFunction, void *cleanupFunctionUserData);
-RecoveryContext *getRecoveryContext();
+RecoveryContext *getRecoveryContext(void);
 
 /*****************************************************************************
 * Push a new recovery state.
@@ -670,7 +670,7 @@ RecoveryContext *getRecoveryContext();
 * Return value:
 *   N/A
 *****************************************************************************/
-void recoveryPop();
+void recoveryPop(void);
 
 /*****************************************************************************
 * TODO needs to be research, we might not be able to affect the core dump in any way
@@ -709,7 +709,7 @@ void recoverySetFlagValue(int flag, bool value);
 * Return value:
 *   N/A
 *****************************************************************************/
-void recoveryEnableCurrentState();
+void recoveryEnableCurrentState(void);
 
 /*****************************************************************************
 * Disable the current (latest) state.
@@ -720,7 +720,7 @@ void recoveryEnableCurrentState();
 * Return value:
 *   N/A
 *****************************************************************************/
-void recoveryDisableCurrentState();
+void recoveryDisableCurrentState(void);
 
 #endif /* __ZOWE_OS_ZOS */
 
@@ -746,7 +746,7 @@ extern int rcvrscxt(RecoveryContext *context);
 *   Recovery context is returned in a case of success. NULL is returned if
 *   the function failed.
 *****************************************************************************/
-extern RecoveryContext *rcvrgcxt();
+extern RecoveryContext *rcvrgcxt(void);
 
 #endif 
 

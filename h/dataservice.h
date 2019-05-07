@@ -20,7 +20,7 @@
  */
 
 
-typedef int ExternalAPI();
+typedef int ExternalAPI(void);
 
 struct JsonObject_tag;
 struct HttpServer_tag;

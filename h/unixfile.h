@@ -483,7 +483,7 @@ int directoryRead(UnixFile *directory, char *entryBuffer, int entryBufferLength,
 int directoryClose(UnixFile *directory, int *returnCode, int *reasonCode);
 
 int setUmask(int mask);
-int getUmask();
+int getUmask(void);
 
 /* Utility functions that are used in zosfile.c
  * and httpfileservice.c. Makes and deletes temporary

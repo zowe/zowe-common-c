@@ -316,9 +316,9 @@ int socketSetRemove(SocketSet *set, Socket *socket);
   with select. Yea!
  */
 #ifdef __ZOWE_OS_AIX
-Socket** makeEventSockets();
+Socket** makeEventSockets(void);
 #else
-Socket* makeEventSocket();
+Socket* makeEventSocket(void);
 #endif
 
 /*
