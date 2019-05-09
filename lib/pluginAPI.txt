@@ -16,6 +16,9 @@ recoveryPush
 recoveryPop
 getTranslationTable
 translate
+a2e
+e2a
+destructivelyUnasciify
 convertCharset
 firstStringListElt
 makeStringList
@@ -37,6 +40,10 @@ htCreate
 htDestroy
 htPut
 htGet
+makeQueue
+destroyQueue
+qRemove
+qInsert
 makeShortLivedHeap
 stringHash
 stringCompare
@@ -44,6 +51,7 @@ SLHAlloc
 SLHFree
 setDefaultJSONRESTHeaders
 respondWithJsonError
+respondWithError
 makeCustomJsonPrinter
 makeJsonPrinter
 freeJsonPrinter
@@ -77,7 +85,6 @@ jsonObjectGetString
 jsonObjectGetObject
 jsonObjectGetBoolean
 jsonObjectGetArray
-jsonObjectGetPropertyValue
 jsonAsBoolean
 jsonAsNumber
 jsonAsString
@@ -89,6 +96,13 @@ jsonIsNull
 jsonIsNumber
 jsonIsObject
 jsonIsString
+jsonObjectProperty
+jsonArrayProperty
+jsonIntProperty
+jsonStringProperty
+jsonPrintArray
+reportJSONDataProblem
+jsonParseFile
 jsonParseUnterminatedString
 jsonParseString
 copyStringToNative
