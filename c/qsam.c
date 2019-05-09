@@ -40,7 +40,7 @@ char *malloc24(int size){
   return data;
 }
 
-static char *malloc31(int size){
+static void *malloc31(size_t size){
   char *data;
   __asm(ASM_PREFIX
         " STORAGE OBTAIN,LENGTH=(%[length]),LOC=31\n"
@@ -61,7 +61,7 @@ char *free24(char *data, int size){
   return NULL;
 }
 
-static void free31(void *data, int size){
+static void free31(void *data, size_t size){
   /* printf("attempting to free, size: %d\n", size);*/
   __asm(ASM_PREFIX
         " STORAGE RELEASE,LENGTH=(%[length]),ADDR=(%[address]),CALLRKY=YES\n"  /* ,KEY=8 */
