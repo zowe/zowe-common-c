@@ -34,12 +34,14 @@ extern "C" {
 #define indexOfStringInsensitive IDXSTRNS
 #endif
 
-char * strcopy_safe(char * dest, const char * source, int dest_size);
+char *strcopy_safe(char *dest, const char *source, int dest_size);
 
-int indexOf(char *str, int len, char c, int startPos);
+int indexOf(const char *str, int len, char c, int startPos);
 int lastIndexOf(const char *str, int len, char c);
-int indexOfString(char *str, int len, char *searchString, int startPos);
-int indexOfStringInsensitive(char *str, int len, char *searchString, int startPos);
+int indexOfString(const char *str, int len, const char *searchString,
+                  int startPos);
+int indexOfStringInsensitive(const char *str, int len, const char *searchString,
+                             int startPos);
 
 /* max() is not a standard macro.  Windows introduces this and they are wrong */
 
@@ -56,11 +58,11 @@ typedef struct token_struct{
   int end;   /* exclusive */
 } token;
 
-int isZeros(char *data, int offset, int length);
+int isZeros(const char *data, int offset, int length);
 
-int isBlanks(char *data, int offset, int length);
+int isBlanks(const char *data, int offset, int length);
 
-int hasText(char* data, int offset, int length);
+int hasText(const char *data, int offset, int length);
 
 int parseInt(const char *str, int start, int end);
 
@@ -86,24 +88,25 @@ int nullTerminate(char *str, int len);
    Doesn't care about any fancy languages */
 int isCharAN(char c);
 
-token* tknGetDecimal(char *str, int len, int start);
-token* tknGetQuoted(char *str, int len, int start, char quote, char escape);
+token *tknGetDecimal(const char *str, int len, int start);
+token *tknGetQuoted(const char *str, int len, int start, char quote,
+                    char escape);
                                                            
-token* tknGetAlphanumeric(char *str, int len, int start);
+token *tknGetAlphanumeric(const char *str, int len, int start);
 
 /* alphanumeric plus hash dollar and at sign */
-token* tknGetStandard(char *str, int len, int start);
+token *tknGetStandard(const char *str, int len, int start);
 
-token* tknGetNonWhitespace(char *str, int len, int start);
+token *tknGetNonWhitespace(const char *str, int len, int start);
 
-token*  tknGetTerminating(char *str, int len,
-                          char *match, int start);
+token *tknGetTerminating(const char *str, int len,
+                         const char *match, int start);
 
-int tknTextEquals(token *t, char *str, char *match);
+int tknTextEquals(token *t, const char *str, const char *match);
 
 void freeToken(token *t);
-char *tknText(token *t, char *str);               
-int tknInt(token *t, char *str); 
+char *tknText(token *t, const char *str);
+int tknInt(token *t, const char *str);
 int tknLength(token *t);
 
 #ifndef __LONGNAME__
@@ -122,21 +125,22 @@ int tknLength(token *t);
  * A utility to dump hex data to stdout 
  */
 
-void dumpbuffer(const char *buffer, int length);
+void dumpbuffer(const void *buffer, int length);
 
 /** 
  * A utility to dump data to a FILE* pointer 
  */
 
-void dumpBufferToStream(const char *buffer, int length, /* FILE* */void *traceOut);
+void dumpBufferToStream(const void *buffer, int length, /* FILE* */void *traceOut);
 
 /**
  *   A utility to generate precisely formatted hex strings.
  */
 
-void dumpbufferA(const char *buffer, int length);
+void dumpbufferA(const void *buffer, int length);
 
-int hexFill(char *buffer, int offset, int prePad, int formatWidth, int postPad, int value);
+int hexFill(char *buffer, int offset, int prePad, int formatWidth,
+            int postPad, int value);
 
 /**
  *   A utility that is a convenience function to format a hex strings from integers.
@@ -145,11 +149,12 @@ int hexFill(char *buffer, int offset, int prePad, int formatWidth, int postPad, 
  */
 
 char *simpleHexFill(char *buffer, int formatWidth, int value);
-char *simpleHexPrint(char *buffer, char *data, int len);
-char *simpleHexPrintLower(char *buffer, char *data, int len);
-void hexdump(char *buffer, int length, int nominalStartAddress, int formatWidth, char *pad1, char *pad2);
-void dumpbuffer2(char *buffer, int length);
-int compareIgnoringCase(char *s1, char *s2, int len);
+char *simpleHexPrint(char *buffer, const char *data, int len);
+char *simpleHexPrintLower(char *buffer, const char *data, int len);
+void hexdump(const void *buffer, int length, int nominalStartAddress,
+             int formatWidth, const char *pad1, const char *pad2);
+void dumpbuffer2(const void *buffer, int length);
+int compareIgnoringCase(const char *s1, const char *s2, int len);
 char *strupcase(char *s);
 
 typedef struct ListElt_tag {
@@ -207,7 +212,7 @@ ShortLivedHeap *makeShortLivedHeap64(int blockSize, int maxBlocks);
  *    with exactly this size.  
  */
 
-char *SLHAlloc(ShortLivedHeap *slh, int size);
+void *SLHAlloc(ShortLivedHeap *slh, int size);
 
 /**
  *    \brief   This will reclaim the whole heap.
@@ -217,20 +222,21 @@ char *SLHAlloc(ShortLivedHeap *slh, int size);
 
 void SLHFree(ShortLivedHeap *slh);
 
-char *cleanURLParamValue(ShortLivedHeap *slh, char *value);
-int percentEncode(char *value, char *buffer, int len);
+char *cleanURLParamValue(ShortLivedHeap *slh, const char *value);
+int percentEncode(const char *value, char *buffer, int len);
 
-int decodeBase64(char *s, char *result);
-char *encodeBase64(ShortLivedHeap *slh, char *buf, int size, int *resultSize, int useEbcdic);
+int decodeBase64(const char *s, char *result);
+char *encodeBase64(ShortLivedHeap *slh, const char *buf, int size,
+                   int *resultSize, int useEbcdic);
 char *destructivelyUnasciify(char *s);
 
 int base32Decode (int alphabet,
-                  char *input,
+                  const char *input,
                   char *output,
                   int *outputLength,
                   int useEBCDIC);
 int base32Encode (int alphabet,
-                  char *input,
+                  const char *input,
                   int inputLength,
                   char *output,
                   int *outputLength,
@@ -244,7 +250,7 @@ int base32Encode (int alphabet,
 #define INVALID_ENCODE_LENGTH    2
 #define ENCODE_LENGTH_TOO_SMALL  3
 
-char *noisyMalloc(int size);
+void *noisyMalloc(int size);
 
 typedef struct StringListElt_tag{
   char *string;
@@ -287,11 +293,12 @@ StringList *makeStringList(ShortLivedHeap *slh);
 /**   \brief  Current member count of string list */
 
 int stringListLength(StringList *list);
-char *stringListPrint(StringList *list, int start, int max, char *separator, char quoteChar);
+char *stringListPrint(StringList *list, int start, int max,
+                      const char *separator, char quoteChar);
 
 /**   \brief  Membership test for string in a String in a String List */
 
-int stringListContains(StringList *list, char *s);
+int stringListContains(StringList *list, const char *s);
 char *stringListLast(StringList *list);
 int addToStringListUnique(StringList *list, char *s);
 
@@ -307,7 +314,7 @@ void addToStringList(StringList *list, char *s);
  */
 
 StringListElt *firstStringListElt(StringList *list);
-char *stringConcatenate(ShortLivedHeap *slh, char *s1, char *s2);
+char *stringConcatenate(ShortLivedHeap *slh, const char *s1, const char *s2);
 
 typedef struct CharStream_tag{
   void *internalStream;
@@ -378,8 +385,8 @@ void convertUnixToISO(int unixTime, ISOTime *timeStamp); /* Converts output of f
 #define STRLIKE_UTF8_PATTERN     0x04
 #define STRLIKE_MIMIC_SQL        0x08
 
-int matchWithWildcards(char *pattern, int patternLen,
-                       char *s, int len, int flags);
+int matchWithWildcards(const char *pattern, int patternLen,
+                       const char *s, int len, unsigned int flags);
 
 #if defined(__cplusplus)                                                        
 }           /* end of extern "C" */
