@@ -3,22 +3,16 @@
 # to plugins.  Run this through make_side_file.sh to get a
 # usable "side file" for use with the binder:
 #
-# ./make_side_file.sh mvdserver  <pluginAPI.txt  >pluginAPI.x
+# ./make_side_file.sh zssServer  <pluginAPI.txt  >pluginAPI.x
 
 makeHttpDataService
 makeWebSocketService
 makeWSEndpoint
-hexFill
+makeWSMessageHandler
 zowelog
 zowedump
-simpleHexFill
 recoveryPush
 recoveryPop
-getTranslationTable
-translate
-a2e
-e2a
-destructivelyUnasciify
 convertCharset
 firstStringListElt
 makeStringList
@@ -30,6 +24,9 @@ stringListLast
 addToStringListUnique
 stringConcatenate
 nullTerminate
+indexOf
+lastIndexOf
+indexOfString
 safeMalloc
 safeMalloc31
 safeMalloc64
@@ -45,6 +42,7 @@ destroyQueue
 qRemove
 qInsert
 makeShortLivedHeap
+makeShortLivedHeap64
 stringHash
 stringCompare
 SLHAlloc
@@ -60,7 +58,11 @@ respondWithJsonPrinter
 setResponseStatus
 setContentType
 addStringHeader
+addIntHeader
+addHeader
 writeHeader
+getHeader
+getQueryParam
 getCheckedParam
 makeIntParamSpec
 makeInt64ParamSpec
@@ -80,11 +82,26 @@ jsonStartArray
 jsonEndArray
 jsonEnablePrettyPrint
 finishResponse
+jsonObjectGetFirstProperty
+jsonObjectGetNextProperty
+jsonPropertyGetValue
+jsonPropertyGetKey
+jsonObjectGetPropertyValue
+jsonObjectHasKey
 jsonObjectGetNumber
 jsonObjectGetString
 jsonObjectGetObject
 jsonObjectGetBoolean
 jsonObjectGetArray
+jsonArrayGetCount
+jsonArrayGetItem
+jsonArrayGetArray
+jsonArrayGetBoolean
+jsonArrayGetNumber
+jsonArrayGetObject
+jsonArrayGetString
+jsonVerifyHomogeneity
+jsonArrayContainsString
 jsonAsBoolean
 jsonAsNumber
 jsonAsString
@@ -100,7 +117,10 @@ jsonObjectProperty
 jsonArrayProperty
 jsonIntProperty
 jsonStringProperty
+jsonPrint
 jsonPrintArray
+jsonPrintObject
+jsonPrintProperty
 reportJSONDataProblem
 jsonParseFile
 jsonParseUnterminatedString
@@ -116,3 +136,8 @@ xmlAddTextElement
 xmlAddCData
 xmlAddBooleanElement
 xmlAddIntElement
+xmlPrintInt
+xmlPrintBoolean
+xmlPrint
+xmlPrintln
+xmlPrintPartial
