@@ -127,9 +127,10 @@
 
 static int socketTrace = 0;
 
-void sleep(int seconds){
+unsigned int sleep(unsigned int seconds){
   int waitValue = seconds * 100; 
   __asm(" STIMER WAIT,BINTVL=%0\n" : : "m"(waitValue)); 
+  return 0;
 }
 
 void bpxSleep(int seconds)

@@ -221,7 +221,7 @@ typedef struct hostent_tag{
 
 /* sleep(int seconds) is standard in linux */
 #if !defined(__ZOWE_OS_LINUX) && !defined(__ZOWE_OS_AIX)
-void sleep(int secs);
+unsigned int sleep(unsigned int);
 #endif 
 
 /* Set socket tracing; returns prior value */

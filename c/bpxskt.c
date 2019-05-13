@@ -129,16 +129,17 @@ int setSocketTrace(int toWhat) {
   return was;
 }
 
-void sleep(int seconds){
-  int returnValue;
-  int *returnValuePtr;
+unsigned int sleep(unsigned int seconds){
+  unsigned int returnValue;
+  unsigned int *returnValuePtr;
   
 #ifndef _LP64
-  returnValuePtr = (int*) (0x80000000 | ((int)&returnValue));
+  returnValuePtr = (unsigned int*) (0x80000000 | ((int)&returnValue));
 #else
   returnValuePtr = &returnValue;
 #endif
   BPXSLP(seconds,returnValuePtr); 
+  return returnValue;
 }
 
 void bpxSleep(int seconds)

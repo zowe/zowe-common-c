@@ -119,7 +119,7 @@ typedef struct WPLFlags_tag{
 } WPLFlags;
 
 
-typedef int ntFunction(void);
+typedef int ntFunction(int *, ...);
 
 #define NT_CREATE   1
 #define NT_RETRIEVE 2

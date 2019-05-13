@@ -445,13 +445,13 @@ typedef struct F_CVT_tag {
 /* Length Values */
 #define F_WHENCE_TO_END  0            /* Locked file is from whence to end of the file */
 
-typedef struct F_LOCK_TAG {
+typedef struct BpxFLock_Tag {
   short l_type;
   short l_whence;
   int64 l_start;
   int64 l_len;
   unsigned int l_pid;
-} F_LOCK;
+} BpxFLock;
 
 int fileDisableConversion(UnixFile *file, int *returnCode, int *reasonCode);
 int fileSetLock(UnixFile *file, int *returnCode, int *reasonCode);

@@ -3268,9 +3268,10 @@ static int handleModifyCommand(STCBase *base, CIB *cib, STCConsoleCommandType co
   return 0;
 }
 
-static void sleep(int seconds){
+static unsigned int sleep(unsigned int seconds){
   int waitValue = seconds * 100;
   __asm(" STIMER WAIT,BINTVL=%0\n" : : "m"(waitValue));
+  return 0;
 }
 
 static int isEnvironmentReady() {
