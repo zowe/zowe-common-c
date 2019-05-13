@@ -761,7 +761,7 @@ int fileCopy(const char *existingFile, const char *newFile, int forceCopy){
     printf("Failed to disable automatic conversion. Unexpected results may occur.\n");
   }
 
-  while (bytesRead = fileRead(fileCheckFrom, buffer, FILE_BUFFER_SIZE, &returnCode, &reasonCode)){
+  while (0 != (bytesRead = fileRead(fileCheckFrom, buffer, FILE_BUFFER_SIZE, &returnCode, &reasonCode))){
     if (bytesRead == -1) {
 #ifdef DEBUG
       printf("Failed to read file %s: (return = 0x%x, reason = 0x%x)\n", existingFile, returnCode, reasonCode);
@@ -1589,7 +1589,7 @@ int setUmask(int mask) {
   return returnValue;
 }
 
-int getUmask() {
+int getUmask(void) {
   printf("UMASK: This is a dirty hack.\n");
 
   int previous = setUmask(0000);

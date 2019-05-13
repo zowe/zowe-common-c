@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>  
+#include <strings.h>
 #include <ctype.h>  
 #endif
 
@@ -1885,6 +1886,9 @@ int decimalToOctal(int decimal) {
 #else
 #define debugPrintf(formatString, ...)
 #endif
+
+static int incrementPlaceValues(int *placeValues,
+                                int lim, int digits);
 
 int matchWithWildcards(const char *pattern, int patternLen,
                        const char *s, int len, unsigned int flags) {

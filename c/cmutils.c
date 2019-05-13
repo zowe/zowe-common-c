@@ -15,10 +15,12 @@
 #include <metal/stddef.h>
 #include <metal/stdlib.h>
 #include <metal/string.h>
+#include <metal/stdio.h>
 #else
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #endif
 
 #include "zowetypes.h"
@@ -26,7 +28,7 @@
 #include "cmutils.h"
 #include "zos.h"
 
-static int getCallersKey() {
+static int getCallersKey(void) {
 
   int key = 0;
   __asm(
@@ -1117,9 +1119,9 @@ static int testCellPool(void) {
 
 
 #ifdef CMUTILS_TEST
-int main() {
+int main(void) {
 #else
-static int notMain() {
+static int notMain(void) {
 #endif
 
   printf("info: starting cmutils test\n");

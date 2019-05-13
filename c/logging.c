@@ -102,7 +102,7 @@ static void logHTDestroy(LoggingHashTable *logHT) {
 }
 
 static void *logHTGet(LoggingHashTable *logHT, int64 key) {
-  int place = key % (logHT->backboneSize);
+  int place = (int) (key % (logHT->backboneSize));
   LoggingHashEntry *prev = NULL;
   LoggingHashEntry *hashentry = logHT->backbone[place];
   int loopCount = 0;
@@ -201,7 +201,7 @@ static void removeComponentTable(LoggingComponentTable *table) {
 
 }
 
-static LoggingZoweAnchor *makeZoweAnchor() {
+static LoggingZoweAnchor *makeZoweAnchor(void) {
 
   LoggingZoweAnchor *anchor = (LoggingZoweAnchor *)safeMalloc(sizeof(LoggingZoweAnchor), "LoggingZoweAnchor");
   memset(anchor, 0, sizeof(LoggingZoweAnchor));
@@ -250,7 +250,7 @@ static void cleanLoggingComponentInLogHT(void *component) {
   memset(comp, 0, sizeof(LoggingComponent));
 }
 
-LoggingContext *makeLocalLoggingContext() {
+LoggingContext *makeLocalLoggingContext(void) {
 
   LoggingContext *context = (LoggingContext *)safeMalloc(sizeof(LoggingContext),"LoggingContext");
   memcpy(context->eyecatcher, "RSLOGCTX", sizeof(context->eyecatcher));
@@ -260,7 +260,7 @@ LoggingContext *makeLocalLoggingContext() {
   return context;
 }
 
-LoggingContext *makeLoggingContext() {
+LoggingContext *makeLoggingContext(void) {
 
   LoggingContext *existingContext = getLoggingContext();
   if (existingContext == NULL) {
@@ -298,7 +298,7 @@ void removeLocalLoggingContext(LoggingContext *context) {
 
 }
 
-void removeLoggingContext() {
+void removeLoggingContext(void) {
 
   LoggingContext *context = getLoggingContext();
   removeLocalLoggingContext(context);
@@ -362,7 +362,7 @@ LoggingContext *theLoggingContext = NULL;    /* this is a writable static, which
                                              */
 #endif
 
-LoggingContext *getLoggingContext() {
+LoggingContext *getLoggingContext(void) {
 #ifdef LOGGING_CUSTOM_CONTEXT_GETTER
   return logGetExternalContext();
 #else /* LOGGING_CUSTOM_CONTEXT_GETTER */

@@ -384,7 +384,7 @@ int setSocketBlockingMode(Socket *socket, int isNonBlocking,
 int setSocketOption(Socket *socket, int level, int optionName, int optionDataLength, char *optionData,
                     int *returnCode, int *reasonCode);
 
-int socketSend(Socket *s, char *buffer, int len, int *errno);
+int socketSend(Socket *s, char *buffer, int len, int *_errno_);
 
 Socket *socketAccept(Socket *serverSocket, int *returnCode, int *reasonCode);
 

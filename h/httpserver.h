@@ -464,6 +464,7 @@ jsonPrinter *initWSJsonPrinting(WSSession *session, int maxFrameSize);
 void flushWSJsonPrinting(WSSession *session);
 
 void respondWithUnixFileContents(HttpResponse* response, char *absolutePath, int jsonMode);
+void respondWithUnixFileNotFound(HttpResponse* response, int jsonMode);
 void respondWithUnixFileContents2(HttpService* service, HttpResponse* response, char *absolutePath, int jsonMode);
 void respondWithUnixFileContentsWithAutocvtMode(HttpService* service, HttpResponse* response, char *absolutePath, int jsonMode, int convert);
 
@@ -537,7 +538,7 @@ int setHttpCloseConversationTrace(int toWhat);
 int setHttpAuthTrace(int toWhat);
 #endif
 
-
+void respondWithJsonError(HttpResponse *response, char *error, int statusCode, char *statusMessage);
 
 /*
   This program and the accompanying materials are

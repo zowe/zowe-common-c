@@ -80,7 +80,7 @@ static void freeECSAStorage(void *data,
 
 }
 
-static ZVT * __ptr32 * getZVTHandle() {
+static ZVT * __ptr32 * getZVTHandle(void) {
 
   CVT *cvt = *(CVT * __ptr32 *)0x10;
   ECVT *ecvt = cvt->cvtecvt;
@@ -95,7 +95,7 @@ static void getSTCK(uint64_t *stckValue) {
 
 }
 
-void zvtInit() {
+void zvtInit(void) {
 
   ZVT * __ptr32 * currentZVTHandle = getZVTHandle();
   ZVT * __ptr32 oldZVT = NULL;
@@ -146,13 +146,13 @@ void zvtInit() {
 
 }
 
-ZVT *zvtGet() {
+ZVT *zvtGet(void) {
 
   return *getZVTHandle();
 
 }
 
-ZVTEntry *zvtAllocEntry() {
+ZVTEntry *zvtAllocEntry(void) {
 
   ZVTEntry * __ptr32 zvte =
       allocateECSAStorage(sizeof(ZVTEntry), ZVTE_KEY, ZVTE_SUBPOOL);

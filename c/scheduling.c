@@ -35,6 +35,7 @@
 #include "recovery.h"
 #include "scheduling.h"
 #include "openprims.h"
+#include "logging.h"
 
 #ifndef __ZOWE_OS_ZOS
 #error non-z/OS environments are not supported
@@ -509,7 +510,7 @@ int zosPost(void *ecb, int completionCode){
 }
 
 #define schedulingDSECTs SKDDSECT
-void schedulingDSECTs(){
+void schedulingDSECTs(void){
 
   __asm(
 

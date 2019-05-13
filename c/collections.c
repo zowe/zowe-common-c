@@ -180,7 +180,7 @@ void *htGet(hashtable *ht, void *key){
   int loopCount = 0;
 
   if (hashentry != NULL){
-    int (*compare)() = ht->comparator;
+    int (*compare)(void *, void *) = ht->comparator;
     while (hashentry != NULL){
       if (compare?
           (compare)(hashentry->key,key) :
@@ -297,7 +297,7 @@ static int htPut2(hashtable *ht, void *key, void *value){
   hashentry *entry = entry = ht->backbone[place];
   hashentry *tail = NULL;
   hashentry *newEntry = NULL;
-  int (*compare)() = ht->comparator;
+  int (*compare)(void *, void *) = ht->comparator;
 
   if (entry != NULL){
     while (entry != NULL){
@@ -479,7 +479,7 @@ int htRemove(hashtable *ht, void *key){
   hashentry *prev = NULL;
   int place = hashcode%(ht->backboneSize);
   hashentry *entry = ht->backbone[place];
-  int (*compare)() = ht->comparator;
+  int (*compare)(void *, void *) = ht->comparator;
   if (entry != NULL){
     while (entry != NULL){
       if (compare ? (compare)(entry->key,key) : (entry->key == key)){
@@ -677,7 +677,7 @@ void lhtDestroy(LongHashtable *lht){
 }
 
 void *lhtGet(LongHashtable *lht, int64 key){
-  int place = key%(lht->backboneSize);
+  int place = (int) (key%(lht->backboneSize));
   LongHashEntry *prev = NULL;
   LongHashEntry* hashentry = lht->backbone[place];
   int loopCount = 0;
@@ -708,7 +708,7 @@ void *lhtGet(LongHashtable *lht, int64 key){
 
 /* returns whether replaced */
 int lhtPut(LongHashtable *ht, int64 key, void *value){
-  int place = key%(ht->backboneSize);
+  int place = (int) (key%(ht->backboneSize));
   LongHashEntry *entry = entry = ht->backbone[place];
   LongHashEntry *tail = NULL;
   LongHashEntry *newEntry = NULL;
@@ -742,7 +742,7 @@ int lhtPut(LongHashtable *ht, int64 key, void *value){
 /* remove returns non-zero if it really removes anything
  */
 int lhtRemove(LongHashtable *ht, int64 key){
-  int place = key%(ht->backboneSize);
+  int place = (int) (key%(ht->backboneSize));
   LongHashEntry *prev = NULL;
   LongHashEntry *entry = entry = ht->backbone[place];
   if (entry != NULL){

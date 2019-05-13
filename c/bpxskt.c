@@ -204,7 +204,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
   int returnValue = 0;
   *returnCode = *reasonCode = 0;
   int *reasonCodePtr;
-  int status;
+  int status = 0;
 
 #ifndef _LP64
   reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
@@ -1627,7 +1627,7 @@ int not_main(int argc, char **argv){
   int port = argc >= 3 ? atoi(argv[2]) : 80;
   InetAddr *inetAddr = NULL;
   char readBuffer[1024];
-  int errno;
+  int __errno;
   int retcode;
 
   inetAddr = getAddressByName(addressString);
@@ -1635,12 +1635,12 @@ int not_main(int argc, char **argv){
   if (inetAddr){
     SocketAddress *socketAddress 
       = makeSocketAddr(inetAddr,(unsigned short)port);
-    Socket *socket = tcpClient(socketAddress,&errno,&retcode);
+    Socket *socket = tcpClient(socketAddress,&__errno,&retcode);
     int i;
     int bytesRead;
 
     fflush(stdout);
-    bytesRead = socketRead(socket,readBuffer,200,&errno,&retcode);
+    bytesRead = socketRead(socket,readBuffer,200,&__errno,&retcode);
     dumpbuffer(readBuffer,bytesRead);
     for (i=0; i<5; i++){
       printf("SLEEP %d\n",i+1);fflush(stdout);
