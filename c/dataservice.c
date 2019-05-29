@@ -165,7 +165,7 @@ static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonOb
     printf("*** PANIC ***  service loading in METTLE not implemented\n");
 #else
     char dllLocation[1023] = {0}; /* USS max path length */
-    snprintf(dllLocation, sizeof(dllLocation), "%s/%s", plugin->pluginLocation, libraryName);
+    snprintf(dllLocation, sizeof(dllLocation), "%s/lib/%s", plugin->pluginLocation, libraryName);
     printf("going for DLL EP lib=%s epName=%s\n",dllLocation,initializerName);
     service->initializer = (InitializerAPI*) lookupDLLEntryPoint(dllLocation,initializerName);
     printf("DLL EP = 0x%x\n",service->initializer);
