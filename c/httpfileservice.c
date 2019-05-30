@@ -105,7 +105,7 @@ static int createUnixDirectory(char *absolutePath, int forceCreate) {
   }
 
   status = directoryMake(absolutePath,
-                         0,
+                         0700,
                          &returnCode,
                          &reasonCode);
 
@@ -506,7 +506,7 @@ static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
   setUmask(DEFAULT_UMASK);
   UnixFile *dest = fileOpen(absolutePath,
                             FILE_OPTION_CREATE | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY,
-                            0,
+                            0700,
                             0,
                             &returnCode,
                             &reasonCode);
