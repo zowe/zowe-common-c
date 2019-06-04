@@ -1507,7 +1507,8 @@ static int handleStandardService(CrossMemoryServer *server, CrossMemoryServerPar
   return status;
 }
 
-static int handleProgramCall(PCHandlerParmList *parmList, bool isSpaceSwitchPC) {
+static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
+                                   bool isSpaceSwitchPC) {
 
   if (parmList == NULL) {
     return RC_CMS_PARM_NULL;
@@ -1581,15 +1582,11 @@ static int handleProgramCall(PCHandlerParmList *parmList, bool isSpaceSwitchPC) 
     return RC_CMS_FUNCTION_NULL;
   }
 
-  PCRoutineEnvironment env;
-  int envRC = INIT_PC_ENVIRONMENT(&env);
-  if (envRC != RC_CMS_OK) {
-    return RC_CMS_PC_ENV_NOT_ESTABLISHED;
-  }
-
   int returnCode = RC_CMS_OK;
 
-  int pushRC = recoveryPush("CMS service function call", RCVR_FLAG_RETRY | RCVR_FLAG_PRODUCE_DUMP, "RCMS", NULL, NULL, NULL, NULL);
+  int pushRC = recoveryPush("CMS service function call",
+                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY | RCVR_FLAG_PRODUCE_DUMP,
+                            "RCMS", NULL, NULL, NULL, NULL);
 
   if (pushRC == RC_RCV_OK) {
 
@@ -1600,13 +1597,42 @@ static int handleProgramCall(PCHandlerParmList *parmList, bool isSpaceSwitchPC) 
       cmCopyToPrimaryWithCallerKey(&userParmList->serviceRC, &serviceRC, sizeof(userParmList->serviceRC));
     }
 
+    recoveryPop();
+
   } else if (pushRC == RC_RCV_ABENDED) {
     returnCode = RC_CMS_PC_SERVICE_ABEND_DETECTED;
   } else {
     returnCode = RC_CMS_PC_RECOVERY_ENV_FAILED;
   }
 
-  recoveryPop();
+  return returnCode;
+}
+
+static int handleProgramCall(PCHandlerParmList *parmList, bool isSpaceSwitchPC) {
+
+  PCRoutineEnvironment env;
+  int envRC = INIT_PC_ENVIRONMENT(&env);
+  if (envRC != RC_CMS_OK) {
+    return RC_CMS_PC_ENV_NOT_ESTABLISHED;
+  }
+
+  int returnCode = RC_CMS_OK;
+
+  int pushRC = recoveryPush("CMS PC handler",
+                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY,
+                            "RCMS", NULL, NULL, NULL, NULL);
+
+  if (pushRC == RC_RCV_OK) {
+
+    returnCode = handleUnsafeProgramCall(parmList, isSpaceSwitchPC);
+
+    recoveryPop();
+
+  } else if (pushRC == RC_RCV_ABENDED) {
+    returnCode = RC_CMS_PC_SERVICE_ABEND_DETECTED;
+  } else {
+    returnCode = RC_CMS_PC_RECOVERY_ENV_FAILED;
+  }
 
   envRC = TERMINATE_PC_ENVIRONMENT(&env);
   if (envRC != RC_CMS_OK) {
