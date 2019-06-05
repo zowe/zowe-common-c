@@ -82,23 +82,23 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
   int contentLength = 0;
   int bytesRead = 0;
   if (in) {
-      while (!feof(in)){
-        bytesRead = fread(buffer,1,recordLength,in);
-		if (bytesRead > 0){
-          memset(buffer+bytesRead,0,recordLength-bytesRead);
-          jsonAddString(jPrinter, NULL, buffer);
-          contentLength = contentLength + bytesRead;
-		}
-		else if (bytesRead == 0){
-          printf("Reached end of dataset\n");
-          break;
-		}
-		else {
-          printf("Error reading DSN=%s, rc=%d\n",filename,bytesRead);
-		  break;
-        }
+    while (!feof(in)){
+      bytesRead = fread(buffer,1,recordLength,in);
+      if (bytesRead > 0){
+        memset(buffer+bytesRead,0,recordLength-bytesRead);
+        jsonAddString(jPrinter, NULL, buffer);
+        contentLength = contentLength + bytesRead;
       }
-      fclose(in);
+      else if (bytesRead == 0){
+        printf("Reached end of dataset\n");
+        break;
+      }
+      else {
+        printf("Error reading DSN=%s, rc=%d\n",filename,bytesRead);
+        break;
+      }
+    }
+    fclose(in);
   }
   else {
       printf("FAILED TO OPEN FILE\n");
