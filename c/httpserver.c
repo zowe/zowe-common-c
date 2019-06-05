@@ -4124,7 +4124,7 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
           strncat(path, name, nameLength);
 
           FileInfo info = {0};
-          fileInfo(path, &info, &returnCode, &reasonCode);
+          symbolicFileInfo(path, &info, &returnCode, &reasonCode);
           int decimalMode = fileUnixMode(&info);
           int octalMode = decimalToOctal(decimalMode);
 
