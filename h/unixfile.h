@@ -411,6 +411,9 @@ int fileDelete(const char *fileName, int *returnCode, int *reasonCode);
 
 int fileInfo(const char *filename, FileInfo *fileInfo, int *returnCode, int *reasonCode);
 
+/* Same as fileInfo but does not follow symbolic link */
+int symbolicFileInfo(const char *filename, FileInfo *fileInfo, int *returnCode, int *reasonCode);
+
 #ifdef __ZOWE_OS_ZOS
 int fileChangeTag(const char *fileName, int *returnCode, int *reasonCode, int ccsid);
 
