@@ -99,6 +99,9 @@
 #define BPXFCT BPX1FCT
 #endif
 
+#define MAX_ENTRY_BUFFER_SIZE 2550
+#define MAX_NUM_ENTRIES       1000
+
 static int fileTrace = FALSE;
 
 static const char* fileTypeString(char fileType) {
@@ -272,7 +275,8 @@ int tmpDirDelete(const char *dirName) {
   strcpy(tempBuffer, dirName);
   strcat(tempBuffer, ".tmp");
 
-  status = directoryDeleteRecursive(tempBuffer);
+  int retCode;
+  status = directoryDeleteRecursive(tempBuffer, &retCode);
   if (status == -1) {
 #ifdef DEBUG
     printf("Could not delete directory %s\n", tempBuffer);
@@ -734,6 +738,7 @@ int fileCopy(const char *existingFile, const char *newFile, int forceCopy){
   /* If the file is not untagged.
    */
   if (ccsid != 0) {
+    int pureText;
     status = fileChangeTag(newFile, &returnCode, &reasonCode, ccsid);
     if (status == -1) {
 #ifdef DEBUG
@@ -1265,18 +1270,22 @@ int directoryDelete(const char *pathName, int *returnCode, int *reasonCode){
   return returnValue;
 }
 
-int directoryDeleteRecursive(const char *pathName){
-#define ENTRY_BUFFER_SIZE 1000
-#define PATH_BUFFER_SIZE 1000
-
-  /* Abort mission */
-  if (!strcmp(pathName, "") || !strcmp(pathName, NULL)) {
-#ifdef DEBUG
-    printf("pathName is null or empty\n");
-#endif
-  }
-
-  FileInfo info;
+static int getValidDirectoryEntries(int entries, char *entryBuffer, const char **entryArray) {
+  int entryOffset = 0;
+  int validEntries = 0;
+  for (int i = 0; i < entries; i++) {
+    const DirectoryEntry *de = (const DirectoryEntry *) (entryBuffer + entryOffset);
+    if (strcmp(".", de->name) && strcmp("..", de->name) && strcmp("", de->name)) {
+      entryArray[validEntries] = de->name;
+      validEntries++;
+    }
+    entryOffset += de->entryLength;
+  }  
+  return validEntries;
+}
+  
+int directoryDeleteRecursive(const char *pathName, int *retCode){
+  FileInfo info = {0};
   int returnCode = 0;
   int reasonCode = 0;
   int status = 0;
@@ -1284,103 +1293,61 @@ int directoryDeleteRecursive(const char *pathName){
 
   status = fileInfo(pathName, &info, &returnCode, &reasonCode);
   if (status == -1){
+    *retCode = returnCode;
     return -1;
   }
 
   UnixFile *dir = directoryOpen(pathName, &returnCode, &reasonCode);
   if (dir == NULL) {
+    *retCode = returnCode;
     return -1;
   }
 
-  char entryBuffer[ENTRY_BUFFER_SIZE];
-  int entries = directoryRead(dir, entryBuffer, ENTRY_BUFFER_SIZE, &returnCode, &reasonCode);
-  if (entries < 0) {
+  char entryBuffer[MAX_ENTRY_BUFFER_SIZE] = {0};
+  int entries = directoryRead(dir, entryBuffer, sizeof(entryBuffer), &returnCode, &reasonCode);
+  if (entries == -1) {
+    *retCode = returnCode;
     return -1;
   }
-
-  /* directoryRead returns:
-   * "."
-   * ".."
-   * "NULL"
-   *
-   * To the entryBuffer.
-   *
-   * So, if it has three entries,
-   * we can be sure that the directory
-   * is empty.
-   */
-  if (entries == 3) {
-#ifdef DEBUG
-    printf("Deleting empty directory: %s\n", pathName);
-#endif
+  
+  const char *entryArray[MAX_NUM_ENTRIES] = {0};
+  int validEntries = getValidDirectoryEntries(entries, entryBuffer, entryArray);
+  if (validEntries <  1) {
     status = directoryDelete(pathName, &returnCode, &reasonCode);
     if (status == -1) {
-#ifdef DEBUG
-      printf("Failed to delete directory: %s\n", pathName);
-#endif
+      *retCode = returnCode;
       return -1;
     }
     return 0;
   }
 
-  /* The last entry is always a null. Disregard it to prevent issues. */
-  int entryOffset = 0;
-  const char *entryArray[entries - 1];
-  for (int i = 0; i < entries - 1; i++) {
-    const DirectoryEntry *de = (const DirectoryEntry*) (entryBuffer + entryOffset);
-    entryArray[i] = de->name;
-#ifdef DEBUG
-    printf("%s in %s\n", entryArray[i], pathName);
-#endif
-    entryOffset += de->entryLength;
-  }
+  for (int i = 0; i < validEntries; i++) {
+    char pathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
+    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entryArray[i]);
 
-  /* The first two entries of directoryRead are the current directory
-   * and previous directory as stated above .*/
-  char pathBuffer[PATH_BUFFER_SIZE];
-  for (int i = 0; i < entries - 1; i++) {
-    if ((!strcmp(entryArray[i], ".")) || (!strcmp(entryArray[i], ".."))) {
-      continue;
+    status = fileInfo(pathBuffer, &info, &returnCode, &reasonCode);
+    if (status == -1){
+      *retCode = returnCode;
+      return -1;
     }
-    else {
-      strcpy(pathBuffer, pathName);
-      strcat(pathBuffer, "/");
-      strcat(pathBuffer, entryArray[i]);
 
-      status = fileInfo(pathBuffer, &info, &returnCode, &reasonCode);
-      if (status == -1){
+    if (fileInfoIsDirectory(&info)) {
+      status = directoryDeleteRecursive(pathBuffer, retCode);
+      if (status == -1) {
         return -1;
       }
-
-      if (fileInfoIsDirectory(&info)) {
-#ifdef DEBUG
-        printf("Deleting directory: %s\n", pathBuffer);
-#endif
-        directoryDeleteRecursive(pathBuffer);
+    }
+    else {
+      status = fileDelete(pathBuffer, &returnCode, &reasonCode);
+      if (status == -1) {
+        *retCode = returnCode;
+        return -1;
       }
-      else {
-#ifdef DEBUG
-        printf("Deleting file: %s\n", pathBuffer);
-#endif
-        status = fileDelete(pathBuffer, &returnCode, &reasonCode);
-        if (status == -1) {
-#ifdef DEBUG
-        printf("Failed to delete file: %s\n", pathBuffer);
-#endif
-        }
-      }
-      memset(pathBuffer, 0, PATH_BUFFER_SIZE);
     }
   }
 
-  /* Now we need to delete all the empty directories! */
-  directoryDeleteRecursive(pathName);
-
-  directoryClose(dir, &returnCode, &reasonCode);
+  directoryDeleteRecursive(pathName, retCode);
   if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to close file %s: (return = 0x%x, reason = 0x%x)\n", pathName, returnCode, reasonCode);
-#endif
     return -1;
   }
 

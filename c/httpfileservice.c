@@ -21,6 +21,7 @@
 #else
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 
 #endif
 
@@ -44,6 +45,76 @@
 #warning ISO-8859-1 is not necessarily the default codepage on Linux
 #define DEFAULT_UMASK 0022
 #endif
+
+static void mapErrorAndRespond(HttpResponse *response, int retCode) {
+  switch(retCode) {
+    case EACCES:        respondWithJsonError(response, "Permission denied", 403, "Forbidden");
+                        break;
+    case EEXIST:        respondWithJsonError(response, "File exists", 500, "Internal Server Error");
+                        break;
+    case EFBIG:         respondWithJsonError(response, "File too large", 500, "Internal Server Error");
+                        break;
+    case ELOOP:         respondWithJsonError(response, "Too many levels of symbolic links", 500, "Internal Server Error");
+                        break;
+    case EMLINK:        respondWithJsonError(response, "Too many links", 500, "Internal Server Error");
+                        break;
+    case ENOENT:        respondWithJsonError(response, "No such file or directory", 404, "Not Found");
+                        break;
+    case ENOSPC:        respondWithJsonError(response, "No space left on device", 500, "Internal Server Error");
+                        break;
+    case ENOTDIR:       respondWithJsonError(response, "Not a directory", 500, "Internal Server Error");
+                        break;
+    case EROFS:         respondWithJsonError(response, "Read-only file system", 500, "Internal Server Error");
+                        break;
+    case EAGAIN:        respondWithJsonError(response, "Resource temporarily unavailable", 500, "Internal Server Error");
+                        break;
+    case EBADF:         respondWithJsonError(response, "Bad file descriptor", 500, "Internal Server Error");
+                        break;
+    case ECONNRESET:    respondWithJsonError(response, "Connection reset", 500, "Internal Server Error");
+                        break;
+    case EINTR:         respondWithJsonError(response, "Interrupted function call", 500, "Internal Server Error");
+                        break;
+    case EINVAL:        respondWithJsonError(response, "Invalid argument", 500, "Internal Server Error");
+                        break;
+    case EIO:           respondWithJsonError(response, "Input/output error", 500, "Internal Server Error");
+                        break;
+    case EMSGSIZE:      respondWithJsonError(response, "Message too long", 500, "Internal Server Error");
+                        break;
+    case ENOBUFS:       respondWithJsonError(response, "No buffer space available", 500, "Internal Server Error");
+                        break;
+    case ENOTCONN:      respondWithJsonError(response, "The socket is not connected", 500, "Internal Server Error");
+                        break;
+    case EPIPE:         respondWithJsonError(response, "Broken pipe", 500, "Internal Server Error");
+                        break;
+    case EWOULDBLOCK:   respondWithJsonError(response, "Operation would block", 500, "Internal Server Error");
+                        break;
+    case ENAMETOOLONG:  respondWithJsonError(response, "File name too long", 500, "Internal Server Error");
+                        break;
+    case ENOTSOCK:      respondWithJsonError(response, "Not a socket", 500, "Internal Server Error");
+                        break;
+    case EBUSY:         respondWithJsonError(response, "Device or resource busy", 500, "Internal Server Error");
+                        break;
+    case EPERM:         respondWithJsonError(response, "Operation not permitted", 403, "Forbidden");
+                        break;
+    case EXDEV:         respondWithJsonError(response, "Improper link", 500, "Internal Server Error");
+                        break;
+    case ENOTEMPTY:     respondWithJsonError(response, "Directory not empty", 500, "Internal Server Error");
+                        break;
+    case EISDIR:        respondWithJsonError(response, "Is a directory", 500, "Internal Server Error");
+                        break;
+    case ENXIO:         respondWithJsonError(response, "No such device or address", 500, "Internal Server Error");
+                        break;
+    case ENODEV:        respondWithJsonError(response, "No such device", 500, "Internal Server Error");
+                        break;
+    case EMFILE:        respondWithJsonError(response, "Too many open files", 500, "Internal Server Error");
+                        break;
+    case ENFILE:        respondWithJsonError(response, "Too many open files in system", 500, "Internal Server Error");
+                        break;
+    case ENOSYS:        respondWithJsonError(response, "Function not implemented", 500, "Internal Server Error");
+                        break;
+    default:            respondWithJsonError(response, "Unknown error", 500, "Internal Server Error");
+  }
+}
 
 void response200WithMessage(HttpResponse *response, char *msg) {
   setResponseStatus(response,200,"OK");
@@ -85,7 +156,7 @@ int doesItExist(char *absolutePath) {
   return TRUE;
 }
 
-static int createUnixDirectory(char *absolutePath, int forceCreate) {
+static int createUnixDirectory(char *absolutePath, int forceCreate, int *retCode) {
   int status = 0;
   int returnCode = 0;
   int reasonCode = 0;
@@ -103,6 +174,10 @@ static int createUnixDirectory(char *absolutePath, int forceCreate) {
       return -1;
     }
   }
+  else {
+    *retCode = returnCode;
+    return -1;
+  }
 
   status = directoryMake(absolutePath,
                          0700,
@@ -110,12 +185,14 @@ static int createUnixDirectory(char *absolutePath, int forceCreate) {
                          &reasonCode);
 
   if (status == -1) {
+    *retCode = returnCode;
 #ifdef DEBUG
     printf("Failed to create directory %s: (return = 0x%x, reason = 0x%x)\n", absolutePath, returnCode, reasonCode);
 #endif
     if (dirExists) {
       tmpDirCleanup(absolutePath);
     }
+    *retCode = returnCode;
     return -1;
   }
 
@@ -124,15 +201,16 @@ static int createUnixDirectory(char *absolutePath, int forceCreate) {
 }
 
 void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, int forceCreate) {
-  if (!createUnixDirectory(absolutePath, forceCreate)) {
+  int retCode = 0;
+  if (!createUnixDirectory(absolutePath, forceCreate, &retCode)) {
     response200WithMessage(response, "Successfully created a directory");
   }
   else {
-    respondWithJsonError(response, "Failed to create a directory", 500, "Internal Server Error");
+    mapErrorAndRespond(response, retCode);
   }
 }
 
-static int deleteUnixDirectory(char *absolutePath) {
+static int deleteUnixDirectory(char *absolutePath, int *retCode) {
   int status = 0;
   int returnCode = 0;
   int reasonCode = 0;
@@ -140,10 +218,11 @@ static int deleteUnixDirectory(char *absolutePath) {
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
+    *retCode = returnCode;
     return -1;
   }
 
-  status = directoryDeleteRecursive(absolutePath);
+  status = directoryDeleteRecursive(absolutePath, retCode);
   if (status == -1) {
 #ifdef DEBUG
     printf("Failed to delete directory %s\n", absolutePath);
@@ -155,15 +234,16 @@ static int deleteUnixDirectory(char *absolutePath) {
 }
 
 void deleteUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
-  if (!deleteUnixDirectory(absolutePath)) {
+  int retCode = 0;
+  if (!deleteUnixDirectory(absolutePath, &retCode)) {
     response200WithMessage(response, "Successfully deleted a directory");
   }
   else {
-    respondWithJsonError(response, "Failed to delete a directory", 500, "Internal Server Error");
+    mapErrorAndRespond(response, retCode);
   }
 }
 
-static int deleteUnixFile(char *absolutePath) {
+static int deleteUnixFile(char *absolutePath, int *retCode) {
   int status = 0;
   int returnCode = 0;
   int reasonCode = 0;
@@ -171,11 +251,13 @@ static int deleteUnixFile(char *absolutePath) {
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
+    *retCode = returnCode;
     return -1;
   }
 
   status = fileDelete(absolutePath, &returnCode, &reasonCode);
   if (status == -1) {
+    *retCode = returnCode;
 #ifdef DEBUG
     printf("Failed to delete file %s: (return = 0x%x, reason = 0x%x)\n", absolutePath, returnCode, reasonCode);
 #endif
@@ -186,15 +268,16 @@ static int deleteUnixFile(char *absolutePath) {
 }
 
 void deleteUnixFileAndRespond(HttpResponse *response, char *absolutePath) {
-  if (!deleteUnixFile(absolutePath)) {
+  int retCode = 0;
+  if (!deleteUnixFile(absolutePath, &retCode)) {
     response200WithMessage(response, "Successfully deleted a file");
   }
   else {
-    respondWithJsonError(response, "Failed to delete a file", 500, "Internal Server Error");
+    mapErrorAndRespond(response, retCode);
   }
 }
 
-static int renameUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int forceRename) {
+static int renameUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int forceRename, int *retCode) {
   int status = 0;
   int returnCode = 0;
   int reasonCode = 0;
@@ -202,16 +285,19 @@ static int renameUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int
 
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
+    *retCode = returnCode;
     return -1;
   }
 
   status = fileInfo(newAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == 0 && !forceRename) {
+    *retCode = returnCode;
     return -1;
   }
 
   status = directoryRename(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
   if (status == -1) {
+    *retCode = returnCode;
 #ifdef DEBUG
     printf("Failed to rename directory %s: (return = 0x%x, reason = 0x%x)\n", oldAbsolutePath, returnCode, reasonCode);
 #endif
@@ -222,15 +308,16 @@ static int renameUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int
 }
 
 void renameUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceRename) {
-  if (!renameUnixDirectory(oldAbsolutePath, newAbsolutePath, forceRename)) {
+  int retCode = 0;
+  if (!renameUnixDirectory(oldAbsolutePath, newAbsolutePath, forceRename, &retCode)) {
     response200WithMessage(response, "Successfully renamed a directory");
   }
   else {
-    respondWithJsonError(response, "Failed to rename a directory", 500, "Internal Server Error");
+    mapErrorAndRespond(response, retCode);
   }
 }
 
-static int renameUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceRename) {
+static int renameUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceRename, int *retCode) {
   int status = 0;
   int returnCode = 0;
   int reasonCode = 0;
@@ -238,16 +325,19 @@ static int renameUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forc
 
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
+    *retCode = returnCode;
     return -1;
   }
 
   status = fileInfo(newAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == 0 && !forceRename) {
+    *retCode = returnCode;
     return -1;
   }
 
   status = fileRename(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
   if (status == -1) {
+    *retCode = returnCode;
 #ifdef DEBUG
     printf("Failed to rename file %s: (return = 0x%x, reason = 0x%x)\n", oldAbsolutePath, returnCode, reasonCode);
 #endif
@@ -258,15 +348,16 @@ static int renameUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forc
 }
 
 void renameUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceRename) {
-  if (!renameUnixFile(oldAbsolutePath, newAbsolutePath, forceRename)) {
+  int retCode = 0;
+  if (!renameUnixFile(oldAbsolutePath, newAbsolutePath, forceRename, &retCode)) {
   response200WithMessage(response, "Successfully renamed a file");
   }
   else {
-  respondWithJsonError(response, "Failed to rename a file", 500, "Internal Server Error");
+    mapErrorAndRespond(response, retCode);
   }
 }
 
-static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int forceCopy) {
+static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int forceCopy, int *retCode) {
   int status = 0;
   int returnCode = 0;
   int reasonCode = 0;
@@ -274,11 +365,13 @@ static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int f
 
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
+    *retCode = returnCode;
     return -1;
   }
 
   status = directoryCopy(oldAbsolutePath, newAbsolutePath, forceCopy);
   if (status == -1) {
+    *retCode = returnCode;
 #ifdef DEBUG
     printf("Failed to copy directory %s\n", oldAbsolutePath);
 #endif
@@ -289,15 +382,16 @@ static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int f
 }
 
 void copyUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceCopy) {
-  if (!copyUnixDirectory(oldAbsolutePath, newAbsolutePath, forceCopy)) {
+  int retCode = 0;
+  if (!copyUnixDirectory(oldAbsolutePath, newAbsolutePath, forceCopy, &retCode)) {
     response200WithMessage(response, "Successfully copied a directory");
   }
   else {
-    respondWithJsonError(response, "Failed to copy a directory", 500, "Internal Server Error");
+    mapErrorAndRespond(response, retCode);
   }
 }
 
-static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceCopy) {
+static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceCopy, int *retCode) {
   int status = 0;
   int returnCode = 0;
   int reasonCode = 0;
@@ -305,11 +399,13 @@ static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceC
 
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
+    *retCode = returnCode;
     return -1;
   }
 
   status = fileCopy(oldAbsolutePath, newAbsolutePath, forceCopy);
   if (status == -1) {
+    *retCode = returnCode;
 #ifdef DEBUG
     printf("Failed to copy file %s\n", oldAbsolutePath);
 #endif
@@ -320,12 +416,128 @@ static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceC
 }
 
 void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceCopy) {
-  if (!copyUnixFile(oldAbsolutePath, newAbsolutePath, forceCopy)) {
+  int retCode = 0;
+  if (!copyUnixFile(oldAbsolutePath, newAbsolutePath, forceCopy, &retCode)) {
     response200WithMessage(response, "Successfully copied a file");
   }
   else {
-    respondWithJsonError(response, "Failed to copy a file", 500, "Internal Server Error");
+    mapErrorAndRespond(response, retCode);
   }
+}
+
+static int writeEmptyUnixFile(char *absolutePath, int forceWrite, int *retCode) {
+  int status = 0;
+  int returnCode = 0;
+  int reasonCode = 0;
+  FileInfo info;
+  int fileExists = FALSE;
+
+  status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  if (status == 0) {
+    if (!forceWrite) {
+#ifdef DEBUG
+      printf("Writing has stopped because the file already exists and the force flag is off\n");
+#endif
+      return -1;
+    }
+    fileExists = TRUE;
+    status = tmpFileMake(absolutePath);
+    if (status == -1) {
+#ifdef DEBUG
+      printf("Error occurred while creating tmp file: %s.tmp\n", absolutePath);
+#endif
+      return -1;
+    }
+  }
+  else {
+    *retCode = returnCode;
+    return -1;
+  }
+
+  setUmask(DEFAULT_UMASK);
+  UnixFile *dest = fileOpen(absolutePath,
+                            FILE_OPTION_CREATE | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY,
+                            0700,
+                            0,
+                            &returnCode,
+                            &reasonCode);
+
+  if (dest == NULL) {
+    *retCode = returnCode;
+#ifdef DEBUG
+    printf("Failed to open file %s: (return = 0x%x, reason = 0x%x)\n", absolutePath, returnCode, reasonCode);
+#endif
+    if (fileExists) {
+      tmpFileCleanup(absolutePath);
+    }
+    return -1;
+  }
+
+  status = fileClose(dest, &returnCode, &reasonCode);
+  if (status == -1) {
+    *retCode = returnCode;
+#ifdef DEBUG
+    printf("Failed to close file %s: (return = 0x%x, reason = 0x%x)\n", absolutePath, returnCode, reasonCode);
+#endif
+    if (fileExists) {
+      tmpFileCleanup(absolutePath);
+    }
+    else {
+      fileDelete(absolutePath, &returnCode, &reasonCode);
+    }
+    return -1;
+  }
+
+  tmpFileDelete(absolutePath);
+  return 0;
+}
+
+void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite) {
+  int retCode = 0;
+  if (!writeEmptyUnixFile(absolutePath, forceWrite, &retCode)) {
+    response200WithMessage(response, "Successfully wrote a file");
+  }
+  else {
+    mapErrorAndRespond(response, retCode);
+  }
+}
+
+void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
+  FileInfo info;
+  int returnCode;
+  int reasonCode;
+  
+  int status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  if (status == -1) {
+    mapErrorAndRespond(response, returnCode);
+    return;
+  }
+
+  jsonPrinter *out = respondWithJsonPrinter(response);
+
+  setResponseStatus(response, 200, "OK");
+  setDefaultJSONRESTHeaders(response);
+  writeHeader(response);
+
+  int decimalMode = fileUnixMode(&info);
+  int octalMode = decimalToOctal(decimalMode);
+
+  ISOTime timeStamp;
+  int unixTime = fileInfoUnixCreationTime(&info);
+  convertUnixToISO(unixTime, &timeStamp);
+
+  jsonStart(out);
+  {
+    jsonAddString(out, "path", absolutePath);
+    jsonAddBoolean(out, "directory", fileInfoIsDirectory(&info));
+    jsonAddInt64(out, "size", fileInfoSize(&info));
+    jsonAddInt(out, "ccsid", fileInfoCCSID(&info));
+    jsonAddString(out, "createdAt", timeStamp.data);
+    jsonAddInt(out, "mode", octalMode);
+  }
+  jsonEnd(out);
+
+  finishResponse(response);
 }
 
 int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLength) {
@@ -477,115 +689,6 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
   safeFree(dataToWrite, dataToWriteSize);
   return 0;
 }
-
-static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
-  int status = 0;
-  int returnCode = 0;
-  int reasonCode = 0;
-  FileInfo info;
-  int fileExists = FALSE;
-
-  status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
-  if (status == 0) {
-    if (!forceWrite) {
-#ifdef DEBUG
-      printf("Writing has stopped because the file already exists and the force flag is off\n");
-#endif
-      return -1;
-    }
-    fileExists = TRUE;
-    status = tmpFileMake(absolutePath);
-    if (status == -1) {
-#ifdef DEBUG
-      printf("Error occurred while creating tmp file: %s.tmp\n", absolutePath);
-#endif
-      return -1;
-    }
-  }
-
-  setUmask(DEFAULT_UMASK);
-  UnixFile *dest = fileOpen(absolutePath,
-                            FILE_OPTION_CREATE | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY,
-                            0700,
-                            0,
-                            &returnCode,
-                            &reasonCode);
-
-  if (dest == NULL) {
-#ifdef DEBUG
-    printf("Failed to open file %s: (return = 0x%x, reason = 0x%x)\n", absolutePath, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      tmpFileCleanup(absolutePath);
-    }
-    return -1;
-  }
-
-  status = fileClose(dest, &returnCode, &reasonCode);
-  if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to close file %s: (return = 0x%x, reason = 0x%x)\n", absolutePath, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      tmpFileCleanup(absolutePath);
-    }
-    else {
-      fileDelete(absolutePath, &returnCode, &reasonCode);
-    }
-    return -1;
-  }
-
-  tmpFileDelete(absolutePath);
-  return 0;
-}
-
-void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite) {
-  if (!writeEmptyUnixFile(absolutePath, forceWrite)) {
-    response200WithMessage(response, "Successfully wrote a file");
-  }
-  else {
-    respondWithJsonError(response, "Failed to write a file", 500, "Internal Server Error");
-  }
-}
-
-void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
-  FileInfo info;
-  int returnCode;
-  int reasonCode;
-  int status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
-
-  if (status == 0) {
-    jsonPrinter *out = respondWithJsonPrinter(response);
-
-    setResponseStatus(response, 200, "OK");
-    setDefaultJSONRESTHeaders(response);
-    writeHeader(response);
-
-    int decimalMode = fileUnixMode(&info);
-    int octalMode = decimalToOctal(decimalMode);
-
-    ISOTime timeStamp;
-    int unixTime = fileInfoUnixCreationTime(&info);
-    convertUnixToISO(unixTime, &timeStamp);
-
-    jsonStart(out);
-    {
-      jsonAddString(out, "path", absolutePath);
-      jsonAddBoolean(out, "directory", fileInfoIsDirectory(&info));
-      jsonAddInt64(out, "size", fileInfoSize(&info));
-      jsonAddInt(out, "ccsid", fileInfoCCSID(&info));
-      jsonAddString(out, "createdAt", timeStamp.data);
-      jsonAddInt(out, "mode", octalMode);
-    }
-    jsonEnd(out);
-
-    finishResponse(response);
-  }
-  else {
-    respondWithUnixFileNotFound(response, TRUE);
-  }
-}
-
 
 /*
   This program and the accompanying materials are

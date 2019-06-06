@@ -458,6 +458,9 @@ int fileSetLock(UnixFile *file, int *returnCode, int *reasonCode);
 int fileGetLock(UnixFile *file, int *returnCode, int *reasonCode, int *isLocked);
 int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode);
 
+#define USS_MAX_PATH_LENGTH 1023
+#define USS_MAX_FILE_NAME   255
+
 #endif
 
 int fileInfoIsDirectory(const FileInfo *info);
@@ -475,7 +478,7 @@ int fileClose(UnixFile *file, int *returnCode, int *reasonCode);
 
 int directoryMake(const char *pathName, int mode, int *returnCode, int *reasonCode);
 int directoryDelete(const char *pathName, int *returnCode, int *reasonCode);
-int directoryDeleteRecursive(const char *pathName);
+int directoryDeleteRecursive(const char *pathName, int *retCode);
 int directoryCopy(const char *existingPathName, const char *newPathName, int forceCopy);
 int directoryRename(const char *oldDirName, const char *newDirName, int *returnCode, int *reasonCode);
 UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonCode);
