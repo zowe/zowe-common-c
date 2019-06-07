@@ -3761,30 +3761,43 @@ void respondWithUnixFile(HttpResponse* response, char* absolutePath, int jsonMod
 
 // Response must ALWAYS be finished on return
 void respondWithUnixDirectory(HttpResponse *response, char* absolutePath, int jsonMode) {
+  int returnCode;
+  int reasonCode;
+    UnixFile *directory = NULL;
+
+  
 #ifdef DEBUG
   printf("Directory case: %s\n",absolutePath);
   fflush(stdout);
 #endif
-  setResponseStatus(response,200,"OK");
-  addStringHeader(response, "Cache-control", "no-store");
-  addStringHeader(response, "Pragma", "no-cache");  
-  addStringHeader(response,"Server","jdmfws");
-  addStringHeader(response,"Transfer-Encoding","chunked");
-  if (jsonMode == 0) {
-    setContentType(response,"text/html");
-    writeHeader(response);
-    StringListElt *parsedFileTail = firstStringListElt(response->request->parsedFile);
-    while (parsedFileTail->next){
-      parsedFileTail = parsedFileTail->next;
-    }
-    makeHTMLForDirectory(response, absolutePath, parsedFileTail->string,TRUE);
+  
+ if (directory = (directoryOpen(absolutePath,&returnCode,&reasonCode)) == NULL){
+    respondWithJsonError(response, "Permission denied", 403, "Forbidden");
     // Response is finished on return
   }
   else {
-    setContentType(response,"application/x.directory");
-    writeHeader(response);
-    makeJSONForDirectory(response,absolutePath,TRUE);
-    // Response is finished on return
+    directoryClose(directory,&returnCode,&reasonCode);
+    setResponseStatus(response,200,"OK");
+    addStringHeader(response, "Cache-control", "no-store");
+    addStringHeader(response, "Pragma", "no-cache");  
+    addStringHeader(response,"Server","jdmfws");
+    addStringHeader(response,"Transfer-Encoding","chunked");
+    if (jsonMode == 0) {
+      setContentType(response,"text/html");
+      writeHeader(response);
+      StringListElt *parsedFileTail = firstStringListElt(response->request->parsedFile);
+      while (parsedFileTail->next){
+        parsedFileTail = parsedFileTail->next;
+      }
+      makeHTMLForDirectory(response, absolutePath, parsedFileTail->string,TRUE);
+      // Response is finished on return
+    }
+    else {
+      setContentType(response,"application/json");
+      writeHeader(response);
+      makeJSONForDirectory(response,absolutePath,TRUE);
+      // Response is finished on return
+    }
   }
 }
 
