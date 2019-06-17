@@ -37,10 +37,13 @@
 
 #define getASCBJobname GETASCBJ
 
+#define loadByName LOADBYNAM
+#define loadByNameLocally LOADBNML
+
 #endif
 
 
-int extractPSW();
+int extractPSW(void);
 int supervisorMode(int enable);
 int setKey(int key);
 int ddnameExists(char *ddname);
@@ -415,8 +418,20 @@ typedef struct ecvt_tag{
   short ecvtptim;     /* time value for parallel detach (RTM) */
   Addr31 ecvtjcct;     /* JES Communication Control Table */
   /* Offset 0x120 */
-  char junk[0xBC]; 
+  char unmapped1[0x30];
+  char ecvthdnm[8];
+  char ecvtlpnm[8];
+  char ecvtvmnm[8];
+  char unmapped2[0x74];
   int  ecvtpseq;
+  char ecvtpown[16];
+  char ecvtpnam[16];
+  char ecvtpver[2];
+  char ecvtprel[2];
+  char ecvtpmod[2];
+  char ecvtpdvl;
+  char ecvtttfl;     /* transaction trace flags */
+  /* more unmapped fields here */
 } ECVT;
 
 typedef struct gda_tag{
@@ -472,11 +487,11 @@ typedef struct rcvt_tag {
   char   unmapped27A[0x904-0x27A];
 } RCVT;
 
-CVT *getCVT();
-Addr31 getATCVT();
-void *getIEACSTBL();
-cvtfix *getCVTPrefix();
-ECVT *getECVT();
+CVT *getCVT(void);
+Addr31 getATCVT(void);
+void *getIEACSTBL(void);
+cvtfix *getCVTPrefix(void);
+ECVT *getECVT(void);
 
 typedef struct ocvt_tag{  /* see SYS1.MACLIB(BPXZOCVT) */
   char eyecatcher[4]; /* "OCVT" */
@@ -965,22 +980,22 @@ typedef struct JESCT_tag{
   Addr31 jesxb603; /* pointer to restart component message module (iefxb603) */
 } JESCT;
 
-TCB *getTCB();
-STCB *getSTCB();
-OTCB *getOTCB();
-ASCB *getASCB();
-ASXB *getASXB();
+TCB *getTCB(void);
+STCB *getSTCB(void);
+OTCB *getOTCB(void);
+ASCB *getASCB(void);
+ASXB *getASXB(void);
 ASSB *getASSB(ASCB *ascb);
 JSAB *getJSAB(ASCB *ascb);
 
 
-char *getSystemName ();
-char *getSysplexName();
+char *getSystemName (void);
+char *getSysplexName(void);
 
-ACEE *getCurrentACEE();
+ACEE *getCurrentACEE(void);
 TCB *getFirstChildTCB(TCB *tcb);
-TCB *getParentTCB();
-TCB *getNextSiblingTCB();
+TCB *getParentTCB(TCB *tcb);
+TCB *getNextSiblingTCB(TCB *tcb);
 
 /* TCB Tree
 
@@ -1183,10 +1198,11 @@ int safStat(int options, char *safClass, char *copy, int copyLen, int *racfStatu
 
 int getSafProfileMaxLen(char *safClass, int trace);
 
-int64 getR12();
-int64 getR13();
+int64 getR12(void);
+int64 getR13(void);
 
 void *loadByName(char *moduleName, int *statusPtr);
+void *loadByNameLocally(char *moduleName, int *statusPtr);
 
 char *getASCBJobname(ASCB *ascb);
 

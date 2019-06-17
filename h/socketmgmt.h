@@ -13,6 +13,8 @@
 #ifndef __SOCKETMGMT__
 #define __SOCKETMGMT__ 1
 
+#include "bpxnet.h"
+#include "utils.h"
 
 typedef struct SXChainElement_tag{
   char *data;

@@ -13,6 +13,15 @@
 #ifndef __JSON__
 #define	__JSON__ 1
 
+#ifdef METTLE
+#  include <metal/metal.h>
+#  include <metal/stddef.h>
+#else
+#  include <stddef.h>
+#endif /* METTLE */
+#include "zowetypes.h"
+#include "utils.h"
+
 /** \file
  *  \brief json.h is an implementation of an efficient low-level JSON writer and parser.
  *

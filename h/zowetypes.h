@@ -356,6 +356,10 @@ typedef unsigned long long uint64;
 #define PAD_LONG(x,y) int filler##x; y
 #endif
 
+typedef struct EightCharString_tag {
+  char text[8];
+} EightCharString;
+
 #endif
 
 
