@@ -90,7 +90,6 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
         contentLength = contentLength + bytesRead;
       }
       else if (bytesRead == 0){
-        printf("Reached end of dataset\n");
         break;
       }
       else {
