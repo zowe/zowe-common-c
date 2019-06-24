@@ -13,7 +13,9 @@
 #ifdef METTLE
 /* HAS NOT BEEN COMPILED WITH METTLE BEFORE */
 #else
+#include <stdbool.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -402,6 +404,118 @@ static int obtainDSCB1(const char *dsname, unsigned int dsnameLength,
   return rc;
 }
 
+/* See z/OS MVS Data Areas Volume 4 (SCF - XTL) for details */
+typedef struct UCBCommon_tag {
+  uint8_t flags1;
+  uint8_t flags2;
+  uint8_t id;
+  uint8_t status;
+  /* UCBSTAT values */
+#define UCB_COMMON_STATUS_ONLI        0x80
+#define UCB_COMMON_STATUS_CHGS        0x40
+#define UCB_COMMON_STATUS_RESV        0x20
+#define UCB_COMMON_STATUS_UNLD        0x10
+#define UCB_COMMON_STATUS_ALOC        0x08
+#define UCB_COMMON_STATUS_PRES        0x04
+#define UCB_COMMON_STATUS_SYSR        0x02
+#define UCB_COMMON_STATUS_DADI        0x01
+  int16_t deviceNumber;
+  uint8_t ioFlagA;
+  uint8_t ioFlagB;
+  void * __ptr32 nextUCB;
+  uint8_t flags3;
+  char deviceNumberString[3];
+  uint8_t modelBits;
+  uint8_t optionFlags;
+  uint8_t classBits;
+  char deviceCode;
+  uint8_t ioFlagC;
+  uint32_t extensionAddress : 24;
+} UCBCommon;
+
+static int getUCBCommonCopy(Volser volser, UCBCommon *result, int *reasonCode) {
+
+#define UCBSCAN_WORKAREA_SIZE     100 /* from the doc */
+#define UCBSCAN_PARM_LIST_SIZE    116 /* from UCBSCAN */
+#define UCBSCAN_DEV_SEGMENT_SIZE  24  /* from the doc */
+
+  typedef struct UCBArea_tag {
+    UCBCommon ucbCommon;
+    char ucbDeviceArea[UCBSCAN_DEV_SEGMENT_SIZE];
+  } UCBArea;
+
+  ALLOC_STRUCT31(
+    STRUCT31_NAME(below2G),
+    STRUCT31_FIELDS(
+      unsigned char workArea[UCBSCAN_WORKAREA_SIZE];
+      UCBArea ucb;
+      Volser volser;
+      unsigned char parmList[UCBSCAN_PARM_LIST_SIZE];
+      int32_t rc;
+      int32_t rsn;
+    )
+  );
+
+#undef UCBSCAN_WORKAREA_SIZE
+#undef UCBSCAN_PARM_LIST_SIZE
+#undef UCBSCAN_DEV_SEGMENT_SIZE
+
+  below2G->volser = volser;
+
+  __asm(
+      ASM_PREFIX
+#ifdef _LP64
+      "         SAM31                                                          \n"
+      "         SYSSTATE AMODE64=NO                                            \n"
+#endif
+      "         UCBSCAN COPY,WORKAREA=%[wka],UCBAREA=%[ucb]"
+      ",CMXTAREA=NONE"
+      ",UCBPAREA=NONE"
+      ",DCEAREA=NONE"
+      ",DCELEN=0"
+      ",VOLSER=%[volser]"
+      ",DYNAMIC=YES"
+      ",RANGE=ALL"
+      ",DEVCLASS=DASD"
+      ",PLISTVER=1"
+      ",MF=(E,%[plist],COMPLETE)"
+      ",RETCODE=%[rc]"
+      ",RSNCODE=%[rsn]                                                         \n"
+#ifdef _LP64
+      "         SAM64                                                          \n"
+      "         SYSSTATE AMODE64=YES                                           \n"
+#endif
+      : [ucb]"=m"(below2G->ucb), [rc]"=m"(below2G->rc), [rsn]"=m"(below2G->rsn)
+      : [wka]"m"(below2G->workArea), [volser]"m"(below2G->volser),
+        [plist]"m"(below2G->parmList)
+      : "r0", "r1", "r14", "r15"
+  );
+
+  *result = below2G->ucb.ucbCommon;
+  *reasonCode = below2G->rsn;
+  int rc = below2G->rc;
+
+  FREE_STRUCT31(
+    STRUCT31_NAME(below2G)
+  );
+
+  return rc;
+}
+
+static bool isVolumeAvailable(Volser volser) {
+
+  int ucbScanRC = 0, ucbScanRSN = 0;
+  UCBCommon ucb = {0};
+  ucbScanRC = getUCBCommonCopy(volser, &ucb, &ucbScanRSN);
+
+  if (ucbScanRC == 0 && (ucb.status & UCB_COMMON_STATUS_ONLI)
+      && !(ucb.status & UCB_COMMON_STATUS_CHGS)) {
+    return true;
+  }
+
+  return false;
+}
+
 #ifdef __ZOWE_OS_ZOS
 void addDetailedDatasetMetadata(char *datasetName, int nameLength,
                                 char *volser, int volserLength,
@@ -516,12 +630,9 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
   JsonArray *recordArray = jsonObjectGetArray(json,"records");
   int recordCount = jsonArrayGetCount(recordArray);
   int maxRecordLength = 80;
-  FILE *outDataset = fopen(datasetPath, "wb, recfm=*, type=record");
-  if (outDataset == NULL) {
-    respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
-    return;
-  }  
+
   int isFixed = FALSE;
+  int handledThroughDSCB = FALSE;
 
   Volser volser = {.value = ' '};
   DatasetName dsn = {.value = ' '};
@@ -551,26 +662,44 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
       if (recordType == 'F'){
         isFixed = TRUE;
       }
+      handledThroughDSCB = TRUE;
     }
+  } else {
+    respondWithError(response, HTTP_STATUS_NOT_FOUND,
+                     "Dataset not found");
+    return;
   }
-  else{
+
+  if (!isVolumeAvailable(volser)) {
+    respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                     "Volume not available");
+    return;
+  }
+
+  FILE *outDataset = fopen(datasetPath, "wb, recfm=*, type=record");
+  if (outDataset == NULL) {
+    respondWithError(response, HTTP_STATUS_NOT_FOUND,
+                     "File could not be opened or does not exist");
+    return;
+  }
+
+  if (!handledThroughDSCB) {
     printf("Warning: fallback for record length discovery\n");
-    fldata_t *fileinfo = (fldata_t*)safeMalloc(sizeof(fldata_t),"fileData");
-    memset(fileinfo,0,sizeof(fldata_t));
+    fldata_t fileinfo = {0};
     char filenameOutput[100];
-    int returnCode = fldata(outDataset,filenameOutput,fileinfo);
+    int returnCode = fldata(outDataset,filenameOutput,&fileinfo);
     printf("FLData request rc=0x%x\n",returnCode);
     fflush(stdout);
     if (!returnCode) {
-      if (fileinfo->__maxreclen){
-        maxRecordLength = fileinfo->__maxreclen;
+      if (fileinfo.__maxreclen){
+        maxRecordLength = fileinfo.__maxreclen;
       }
       else {
         respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"Could not discover record length");
         fclose(outDataset);
         return;
       }
-      if (fileinfo->__recfmF) {
+      if (fileinfo.__recfmF) {
         isFixed = TRUE;
       }
     }
@@ -579,7 +708,6 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
       fclose(outDataset);
       return;    
     }
-    safeFree((char*)fileinfo,sizeof(fldata_t));
   }
 
   for ( int i = 0; i < recordCount; i++) {
@@ -969,15 +1097,6 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
 #ifdef __ZOWE_OS_ZOS
   HttpRequest *request = response->request;
 
-  FileInfo info;
-  int returnCode;
-  int reasonCode;
-  FILE *in = fopen(absolutePath, "r");
-  if (in == NULL) {
-    respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
-    return;
-  }
-
   Volser volser = {.value = ' '};
   DatasetName dsn = {.value = ' '};
   int absolutePathLen = strlen(absolutePath);
@@ -1006,30 +1125,50 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
       lrecl = getMaxRecordLength(dscb);
       char recordType = getRecordLengthType(dscb);
       if (recordType == 'U'){
-        fclose(in);
         respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Undefined-length dataset");
         return;
       }
       handledThroughDSCB = TRUE;
     }
+  } else {
+    respondWithError(response, HTTP_STATUS_NOT_FOUND,
+                     "Dataset not found");
+    return;
   }
+
+  if (!isVolumeAvailable(volser)) {
+    respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                     "Volume not available");
+    return;
+  }
+
+  FILE *in = fopen(absolutePath, "r");
+  if (in == NULL) {
+    respondWithError(response,HTTP_STATUS_NOT_FOUND,
+                     "File could not be opened or does not exist");
+    return;
+  }
+
   if (!handledThroughDSCB){
-    fldata_t *fileinfo = (fldata_t*)safeMalloc(sizeof(fldata_t),"fileData");
-    memset(fileinfo,0,sizeof(fldata_t));
+    FileInfo info;
+    fldata_t fileinfo = {0};
     char filenameOutput[100];
-    returnCode = fldata(in,filenameOutput,fileinfo);
+    int returnCode = fldata(in,filenameOutput,&fileinfo);
     printf("FLData request rc=0x%x\n",returnCode);
-    fflush(stdout);
-    safeFree(filenameOutput,100);
-    
-    
-    if (fileinfo->__recfmU){
+    if (!returnCode) {
+      if (fileinfo.__recfmU) {
+        fclose(in);
+        respondWithError(response,  HTTP_STATUS_BAD_REQUEST,
+                         "Undefined-length dataset");
+        return;
+      }
+      lrecl = fileinfo.__maxreclen;
+    } else {
       fclose(in);
-      respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Undefined-length dataset");
+      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                       "Could not read dataset information");
       return;
     }
-    lrecl = fileinfo->__maxreclen;
-    safeFree((char*)fileinfo, sizeof(fldata_t));
   }
   fclose(in);
 
