@@ -24,6 +24,7 @@
 #include "json.h"
 #include "bpxnet.h"
 #include "unixfile.h"
+#include "errno.h"
 #ifdef __ZOWE_OS_ZOS
 #include "zos.h"
 #endif 
@@ -53,9 +54,17 @@ static int defaultVSAMCSIFieldCount = 4;
 
 static char getRecordLengthType(char *dscb);
 static int getMaxRecordLength(char *dscb);
+static int updateInputParmsProperty(JsonObject *object, int *configsCount, DynallocNewTextUnit *textUnit);
+static void setTextUnitString(int size, char* data, int *configsCount, int key, DynallocNewTextUnit *textUnit);
+static void setTextUnitCharOrInt(int size, int data, int *configsCount, int key, DynallocNewTextUnit *textUnit);
+static void setTextUnitBool(int *configsCount, int key, DynallocNewTextUnit *textUnit);
+static void respondWithNonVSAMDataset(HttpResponse* response, char* absolutePath, int jsonMode);
+static void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode);
+static void updateNonVSAMDataset(HttpResponse* response, char* absolutePath, int jsonMode);
+static void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode);
 
 typedef struct DatasetName_tag {
-  char value[44]; /* space-padded */
+  char value[DATASET_NAME_LEN]; /* space-padded */
 } DatasetName;
 
 typedef struct Volser_tag {
@@ -331,6 +340,27 @@ static int isPartionedDataset(char *dscb) {
   return FALSE;
 }
 #endif
+
+static bool isVSAM(char* dsPath) {
+  char dscb[INDEXED_DSCB] = {0};
+  Volser volser = {0};
+  DatasetName dsn = {0};
+  memcpy(dsn.value,dsPath+3,strlen(dsPath)-4);
+  padWithSpaces(dsn.value, sizeof(dsn.value), 0, 0);
+  
+  int volserSuccess = getVolserForDataset(&dsn, &volser);
+  if(!volserSuccess){
+    obtainDSCB1(dsn.value, sizeof(dsn.value),
+                           volser.value, sizeof(volser.value),
+                           dscb);
+    int posOffset = 44;
+    int dsorgLow = dscb[83-posOffset];
+    if (dsorgLow & 0x08){
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
 
 static int obtainDSCB1(const char *dsname, unsigned int dsnameLength,
                        const char *volser, unsigned int volserLength,
@@ -829,7 +859,7 @@ static int getMaxRecordLength(char *dscb){
   return lrecl;
 }
 
-void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
+static void updateNonVSAMDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
   if (jsonMode != TRUE) { /*TODO add support for updating files with raw bytes instead of JSON*/
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Cannot update file without JSON formatted record request");
@@ -894,7 +924,7 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
 }
 
 
-void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode) {
+static void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
   if (jsonMode != TRUE) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Cannot update file without JSON formatted record request");
@@ -961,8 +991,30 @@ void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *ac
   read = openSAM(name,OPEN_CLOSE_INPUT,TRUE,recfm,lrecl,blksize);
 
  */
+void respondWithDataset(HttpResponse* response, char* dsName, int jsonMode, HttpService* service){
+  char *datasetp1 = stringConcatenate(response->slh, "//'", dsName);
+  char *fullPath = stringConcatenate(response->slh, datasetp1, "'");
+  if (isVSAM(fullPath)){
+    serveVSAMCache *cache = (serveVSAMCache *)service->userPointer;
+    respondWithVSAMDataset(response, dsName, cache->acbTable, TRUE);
+  }
+  else {
+    respondWithNonVSAMDataset(response, fullPath, jsonMode);
+  }
+}
 
-void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
+void updateDataset(HttpResponse* response, char* dsName, int jsonMode, HttpService* service) {
+  char *datasetp1 = stringConcatenate(response->slh, "//'", dsName);
+  char *fullPath = stringConcatenate(response->slh, datasetp1, "'");
+  if (isVSAM(fullPath)){
+    serveVSAMCache *cache = (serveVSAMCache *)service->userPointer;
+    updateVSAMDataset(response, dsName, cache->acbTable, TRUE);
+  }
+  else {
+    updateNonVSAMDataset(response, fullPath, jsonMode);
+  }
+}
+static void respondWithNonVSAMDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
   HttpRequest *request = response->request;
 
@@ -1054,7 +1106,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
 #define CSI_VSAMTYPE_CLOER 0x0020 /* Error on last close - stats may be inaccurate */
 
 /* In development - this is hardcoded for now */
-void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode) {
+static void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
   printf("begin %s\n", __FUNCTION__);
   HttpRequest *request = response->request;
@@ -1367,7 +1419,7 @@ int decodePercentByte(char *inString, int inLength, char *outString, int *outStr
 void respondWithDatasetMetadata(HttpResponse *response) {
 #ifdef __ZOWE_OS_ZOS
   HttpRequest *request = response->request;
-  char *datasetOrMember = stringListPrint(request->parsedFile, 2, 2, "?", 0); /*get search term*/
+  char *datasetOrMember = stringListPrint(request->parsedFile, 3, 2, "?", 0); /*get search term*/
   if (datasetOrMember == NULL || strlen(datasetOrMember) < 1){
     respondWithError(response,HTTP_STATUS_BAD_REQUEST,"No dataset name given");
     return;
@@ -1669,6 +1721,354 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
 #endif /* __ZOWE_OS_ZOS */
 }
 
+static int updateInputParmsProperty(JsonObject *object, int *configsCount, DynallocNewTextUnit *textUnit) {
+  Json* value = jsonObjectGetPropertyValue(object, "dsorg");
+  if (jsonIsString(value)){
+    if (!strcmp(value->data.string, "PS")) {
+      setTextUnitCharOrInt(sizeof(short), DALDSORG_PS, configsCount, DALDSORG, textUnit);
+    }
+    else if (!strcmp(value->data.string, "PO")) {
+      setTextUnitCharOrInt(sizeof(short), DALDSORG_PO, configsCount, DALDSORG, textUnit);
+    }
+  }
+  
+  errno = 0;
+  value = jsonObjectGetPropertyValue(object, "blksz");
+  if (jsonIsString(value)){
+    long toi = strtol(value->data.string, NULL, 0);
+    if(errno != ERANGE){
+      if (toi <= 0x7FF8 && toi >= 0) { //<-- If DASD, if tape, it can be 80000000
+        setTextUnitCharOrInt(sizeof(short), toi, configsCount, DALBLKSZ, textUnit);
+      }
+      else if (toi <= 0x80000000){
+        setTextUnitCharOrInt(sizeof(long long), toi, configsCount, DALBLKSZ, textUnit);
+      }
+    }
+  }
+  
+  errno = 0;
+  value = jsonObjectGetPropertyValue(object, "lrecl");
+  if (jsonIsString(value)){
+    long toi = strtol(value->data.string, NULL, 0);
+    if (errno != ERANGE){
+      if (toi == 0x8000) {
+        setTextUnitCharOrInt(sizeof(short), toi, configsCount, DALLRECL, textUnit);
+      }
+      else if (toi <= 0x7FF8 && toi >= 0) {
+        setTextUnitCharOrInt(sizeof(short), toi, configsCount, DALLRECL, textUnit);
+      }
+    }
+  }
+  value = jsonObjectGetPropertyValue(object, "volser");
+  if (jsonIsString(value)){
+    if (strlen(value->data.string) <= VOLSER_SIZE){
+      setTextUnitString(VOLSER_SIZE, &(value->data.string)[0], configsCount, DALVLSER, textUnit);
+    }
+  }
+  
+  value = jsonObjectGetPropertyValue(object, "recfm");
+  if (jsonIsString(value)){
+    int setRECFM = 0;
+    if (indexOf(value->data.string, strlen(value->data.string), 'A', 0) != -1){
+      setRECFM = setRECFM | DALRECFM_A;
+    }
+    if (indexOf(value->data.string, strlen(value->data.string), 'B', 0) != -1){
+      setRECFM = setRECFM | DALRECFM_B;
+    }
+    if (indexOf(value->data.string, strlen(value->data.string), 'V', 0) != -1){
+      setRECFM = setRECFM | DALRECFM_V;
+    }
+    if (indexOf(value->data.string, strlen(value->data.string), 'F', 0) != -1){
+      setRECFM = setRECFM | DALRECFM_F;
+    }
+    if (indexOf(value->data.string, strlen(value->data.string), 'U', 0) != -1){
+      setRECFM = setRECFM | DALRECFM_U;
+    }
+    setTextUnitCharOrInt(sizeof(char), setRECFM, configsCount, DALRECFM, textUnit);
+  }
+  
+  errno = 0;
+  value = jsonObjectGetPropertyValue(object, "prime");
+  if (jsonIsString(value)){
+    long toi = strtol(value->data.string, NULL, 0);
+    if (toi <= 0xFFFFFF || toi >= 0) {
+      if (errno != ERANGE){
+        setTextUnitCharOrInt(INT24_SIZE, toi, configsCount, DALPRIME, textUnit);
+      }
+    }
+  }
+  
+  errno = 0;
+  value = jsonObjectGetPropertyValue(object, "second");
+  if (jsonIsString(value)){
+    long toi = strtol(value->data.string, NULL, 0);
+    if (toi <= 0xFFFFFF || toi >= 0) {
+      if (errno != ERANGE){
+        setTextUnitCharOrInt(INT24_SIZE, toi, configsCount, DALSECND, textUnit);
+      }
+    }
+  }
+
+  value = jsonObjectGetPropertyValue(object, "space");
+  if (jsonIsString(value)){
+    if (!strcmp(value->data.string, "cyl")){
+      setTextUnitBool(configsCount, DALCYL, textUnit);
+    }
+    if (!strcmp(value->data.string, "trk")){
+      setTextUnitBool(configsCount, DALCYL, textUnit);
+    }
+  }
+  
+  errno = 0;
+  value = jsonObjectGetPropertyValue(object, "blkln");
+  if (jsonIsString(value)){
+    long toi = strtol(value->data.string, NULL, 0);
+    if (toi <= 0xFFFF || toi >= 0) {
+      if (errno != ERANGE){
+        setTextUnitCharOrInt(INT24_SIZE, toi, configsCount, DALBLKLN, textUnit);
+      }
+    }
+  }
+
+  value = jsonObjectGetPropertyValue(object, "status");
+  if (jsonIsString(value)){
+    if (!strcmp(value->data.string, "OLD")){
+      setTextUnitCharOrInt(sizeof(char), DISP_OLD, configsCount, DALSTATS, textUnit);
+    }
+    else if (!strcmp(value->data.string, "MOD")){
+      setTextUnitCharOrInt(sizeof(char), DISP_MOD, configsCount, DALSTATS, textUnit);
+    }
+    else if (!strcmp(value->data.string, "SHARE")){
+      setTextUnitCharOrInt(sizeof(char), DISP_SHARE, configsCount, DALSTATS, textUnit);
+    }
+    else {
+      setTextUnitCharOrInt(sizeof(char), DISP_NEW, configsCount, DALSTATS, textUnit);
+    }
+  }
+  else {
+    setTextUnitCharOrInt(sizeof(char), DISP_NEW, configsCount, DALSTATS, textUnit);
+  }
+  
+  value = jsonObjectGetPropertyValue(object, "ndisp");
+  if (jsonIsString(value)){
+    if (!strcmp(value->data.string, "UNCATLG")){
+      setTextUnitCharOrInt(sizeof(char), DISP_UNCATLG, configsCount, DALNDISP, textUnit);
+    }
+    else if (!strcmp(value->data.string, "DELETE")){
+      setTextUnitCharOrInt(sizeof(char), DISP_DELETE, configsCount, DALNDISP, textUnit);
+    }
+    else if (!strcmp(value->data.string, "KEEP")){
+      setTextUnitCharOrInt(sizeof(char), DISP_KEEP, configsCount, DALNDISP, textUnit);
+    }
+    else {
+      setTextUnitCharOrInt(sizeof(char), DISP_CATLG, configsCount, DALNDISP, textUnit);
+    }
+  }
+  else {
+    setTextUnitCharOrInt(sizeof(char), DISP_CATLG, configsCount, DALNDISP, textUnit);
+  }
+
+  value = jsonObjectGetPropertyValue(object, "unit");
+  if (jsonIsString(value)){
+    setTextUnitString(strlen(value->data.string), &(value->data.string)[0], configsCount, DALUNIT, textUnit);
+  }
+  
+  value = jsonObjectGetPropertyValue(object, "sysout");
+  if (jsonIsString(value)){
+    if (!strcmp(value->data.string, "default")){
+      for(int i = 0; i < *configsCount; i++) {
+        if (textUnit[i].key == DALSTATS || textUnit[i].key == DALNDISP) {
+          textUnit[i].type = TEXT_UNIT_NULL;
+        }
+      }
+      setTextUnitBool(configsCount, DALSYSOU, textUnit);
+    }
+    else if (isalnum(value->data.string[0])) {
+      for(int i = 0; i < *configsCount; i++) {
+        if (textUnit[i].key == DALSTATS || textUnit[i].key == DALNDISP) {
+          textUnit[i].type == TEXT_UNIT_NULL;
+        }
+      }
+      setTextUnitCharOrInt(1, value->data.string[0], configsCount, DALSYSOU, textUnit);
+    } 
+  }
+  
+  value = jsonObjectGetPropertyValue(object, "spgnm");
+  if (jsonIsString(value)){
+    if (strlen(value->data.string) <= CLASS_WRITER_SIZE){
+      setTextUnitString(strlen(value->data.string), &(value->data.string)[0], configsCount, DALSPGNM, textUnit);
+    }
+  }
+  
+  value = jsonObjectGetPropertyValue(object, "close");
+  if (jsonIsString(value)){
+    if (!strcmp(value->data.string, "true")){
+      setTextUnitBool(configsCount, DALCLOSE, textUnit);
+    }
+  }
+
+  value = jsonObjectGetPropertyValue(object, "dummy");
+  if (jsonIsString(value)){
+    if (!strcmp(value->data.string, "true")){
+      setTextUnitBool(configsCount, DALDUMMY, textUnit);
+    }
+  }
+  
+  value = jsonObjectGetPropertyValue(object, "dcbdd");
+  if (jsonIsString(value)){
+    if (strlen(value->data.string) <= DD_NAME_LEN){
+      setTextUnitString(DD_NAME_LEN, &(value->data.string)[0], configsCount, DALDCBDD, textUnit);
+    }
+  }
+  
+  value = jsonObjectGetPropertyValue(object, "retdd");
+  if (jsonIsString(value)){
+    if (strlen(value->data.string) <= DD_NAME_LEN){
+      setTextUnitString(DD_NAME_LEN, &(value->data.string)[0], configsCount, DALRTDDN, textUnit);
+    }
+  }
+  
+  value = jsonObjectGetPropertyValue(object, "spin");
+  if (jsonIsString(value)){
+    if (!strcmp(value->data.string, "UNALLOC")){
+      setTextUnitCharOrInt(1, SPIN_UNALLOC, configsCount, DALSPIN, textUnit);
+    }
+    else if (!strcmp(value->data.string, "ENDJOB")){
+      setTextUnitCharOrInt(1, SPIN_ENDJOB, configsCount, DALSPIN, textUnit);
+    }
+  }
+  
+  value = jsonObjectGetPropertyValue(object, "strcls");
+  if (jsonIsString(value)){
+    if (strlen(value->data.string) <= CLASS_WRITER_SIZE){
+      setTextUnitString(8, &(value->data.string)[0], configsCount, DALSTCL, textUnit);
+    }
+  }
+  
+  value = jsonObjectGetPropertyValue(object, "mngcls");
+  if (jsonIsString(value)){
+    if (strlen(value->data.string) <= CLASS_WRITER_SIZE){
+     setTextUnitString(CLASS_WRITER_SIZE, &(value->data.string)[0], configsCount, DALMGCL, textUnit);
+    }
+  }
+  
+  value = jsonObjectGetPropertyValue(object, "datacls");
+  if (jsonIsString(value)){
+    if (strlen(value->data.string) <= CLASS_WRITER_SIZE){
+      setTextUnitString(CLASS_WRITER_SIZE, &(value->data.string)[0], configsCount, DALDACL, textUnit);
+    }
+  }
+}
+
+static void setTextUnitString(int size, char* data, int *configsCount, int key, DynallocNewTextUnit *textUnit) {
+  textUnit[*configsCount].size = size;
+  textUnit[*configsCount].type = TEXT_UNIT_STRING;
+  textUnit[*configsCount].key = key;
+  textUnit[*configsCount].data.string = data;
+  (*configsCount)++;
+}  
+
+static void setTextUnitCharOrInt(int size, int data, int *configsCount, int key, DynallocNewTextUnit *textUnit) {
+  textUnit[*configsCount].size = size;
+  textUnit[*configsCount].type = TEXT_UNIT_CHARINT;
+  textUnit[*configsCount].key = key;
+  textUnit[*configsCount].data.number = data;
+  (*configsCount)++;
+}  
+
+static void setTextUnitBool(int *configsCount, int key, DynallocNewTextUnit *textUnit) {
+  textUnit[*configsCount].type = TEXT_UNIT_BOOLEAN;
+  textUnit[*configsCount].key = key;
+  (*configsCount)++;
+}
+
+void newDataset(HttpResponse* response, char* datasetName, int jsonMode){
+  #ifdef __ZOWE_OS_ZOS
+  
+  DatasetName dsn = {0};
+  memset(dsn.value, ' ', DATASET_NAME_LEN);
+  
+  int lParenIndex = indexOf(datasetName, strlen(datasetName),'(',0);
+  
+  //String parsing operation, gets rid of of 3 initial unnecessary characters-> //'
+  if (lParenIndex > 0){
+    memcpy(dsn.value,datasetName+3,lParenIndex-3);
+  }
+  //String parsing operation, gets rid of of 3 initial unnecessary characters-> //'
+  else{
+    memcpy(dsn.value,datasetName+3,strlen(datasetName)-4);
+  }
+    
+  int configsCount = 0;
+  DynallocNewTextUnit textUnits[TOTAL_TEXT_UNITS];
+  setTextUnitString(DATASET_NAME_LEN, &dsn.value[0], &configsCount, DALDSNAM, &textUnits[0]);
+  setTextUnitString(DD_NAME_LEN, "MVD00000", &configsCount, DALDDNAM, &textUnits[0]);
+
+  if (jsonMode != TRUE) { /*TODO add support for updating files with raw bytes instead of JSON*/
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Cannot update file without JSON formatted record request");
+    return;
+  }
+
+  HttpRequest *request = response->request;
+
+  FileInfo info;
+
+  char *contentBody = request->contentBody;
+  int bodyLength = strlen(contentBody);
+  
+  char *convertedBody = safeMalloc(bodyLength*4,"writeDatasetConvert");
+  int conversionBufferLength = bodyLength*4;
+  int translationLength;
+  int outCCSID = NATIVE_CODEPAGE;
+  int reasonCode;
+
+  int returnCode = convertCharset(contentBody,
+                              bodyLength,
+                              CCSID_UTF_8,
+                              CHARSET_OUTPUT_USE_BUFFER,
+                              &convertedBody,
+                              conversionBufferLength,
+                              outCCSID,
+                              NULL,
+                              &translationLength,
+                              &reasonCode);
+
+  if(returnCode == 0) {  
+
+    ShortLivedHeap *slh = makeShortLivedHeap(0x10000,0x10);
+    char errorBuffer[2048];
+    Json *json = jsonParseUnterminatedString(slh,
+                                             convertedBody, translationLength,
+                                             errorBuffer, sizeof(errorBuffer));
+    if (json) {
+      if (jsonIsObject(json)){
+        JsonObject * jsonObject = jsonAsObject(json);
+        updateInputParmsProperty(jsonObject, &configsCount, &textUnits[0]);
+      }     
+    }
+  }
+  
+  returnCode = dynallocNewDataset(&reasonCode, &textUnits[0], configsCount);
+  int ddNumber = 1;
+  char buffer[DD_NAME_LEN + 1];
+  while (reasonCode==0x4100000 && ddNumber < 100000) {
+    sprintf(buffer, "MVD%05d", ddNumber);
+    int ddconfig = 1;
+    setTextUnitString(DD_NAME_LEN, buffer, &ddconfig, DALDDNAM, &textUnits[0]);
+    returnCode = dynallocNewDataset(&reasonCode, &textUnits[0], configsCount);
+    ddNumber++;
+  }
+  if (returnCode) {
+    printf("Dynalloc RC = %d, reasonCode = %x\n", returnCode, reasonCode);
+    respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to allocate a DD for ACB");
+    return;
+  }
+  else {
+    printf("Dynalloc RC = %d, reasonCode = %x\n", returnCode, reasonCode);
+    response200WithMessage(response, "Successfully created dataset");
+  }
+  #endif
+}
 
 #endif /* not METTLE - the whole module */
 
