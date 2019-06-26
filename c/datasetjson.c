@@ -326,7 +326,6 @@ static void addDetailsFromDSCB(char *dscb, jsonPrinter *jPrinter, int *isPDS) {
 static int isPartionedDataset(char *dscb) {
   int posOffset = 44;
   int dsorgHigh = dscb[82-posOffset];
-
   if (dsorgHigh & 0x02) {
     return TRUE;
   }
@@ -367,21 +366,20 @@ static int obtainDSCB1(const char *dsname, unsigned int dsnameLength,
       } parmList;
     )
   );
-
+  
+  
   memset(mem31->dsnameSpacePadded, ' ', sizeof(mem31->dsnameSpacePadded));
   memcpy(mem31->dsnameSpacePadded, dsname, dsnameLength);
   memset(mem31->volserSpacePadded, ' ', sizeof(mem31->volserSpacePadded));
   memcpy(mem31->volserSpacePadded, volser, volserLength);
 
   memset(mem31->workArea, 0, sizeof(mem31->workArea));
-
   mem31->parmList.operationCode = SVC27_OPCODE_SEARCH;
   mem31->parmList.option = SVC27_OPTION_EADSCB_OK;
   mem31->parmList.dscbNumber = 0;
   mem31->parmList.dsname = mem31->dsnameSpacePadded;
   mem31->parmList.volser =  mem31->volserSpacePadded;
   mem31->parmList.workArea = mem31->workArea;
-
   int rc = 0;
 
   __asm(
@@ -434,7 +432,7 @@ void addMemberedDatasetMetadata(char *datasetName, int nameLength,
                                 char *memberQuery, int memberLength,
                                 jsonPrinter *jPrinter,
                                 int includeUnprintable) {
-
+                                    
   int isPDS = FALSE;
   char dscb[INDEXED_DSCB] = {0};
   int rc = obtainDSCB1(datasetName, nameLength,
@@ -453,7 +451,6 @@ void addMemberedDatasetMetadata(char *datasetName, int nameLength,
    * memory.
    */
   isPDS = isPartionedDataset(dscb);
-
   /* If it's not a PDS, we exit. */
   if (!isPDS) {
     printf("Cannot print members. Selected dataset is not a PDS.");
@@ -513,6 +510,7 @@ void addMemberedDatasetMetadata(char *datasetName, int nameLength,
 
 #ifdef __ZOWE_OS_ZOS
 static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char *datasetPath) {
+
   JsonArray *recordArray = jsonObjectGetArray(json,"records");
   int recordCount = jsonArrayGetCount(recordArray);
   int maxRecordLength = 80;
@@ -533,13 +531,15 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
   else{
     memcpy(dsn.value,datasetPath+3,datasetPathLen-4);
   }
+  
   int volserSuccess = getVolserForDataset(&dsn, &volser);
   if (!volserSuccess){
-    
+        
     char dscb[INDEXED_DSCB] = {0};
     int rc = obtainDSCB1(dsn.value, sizeof(dsn.value),
                          volser.value, sizeof(volser.value),
                          dscb);
+                         
     if (rc == 0){
       if (DSCB_TRACE){
         printf("DSCB for %.*s found\n", sizeof(dsn.value), dsn.value);
@@ -768,7 +768,6 @@ static int getVolserForDataset(const DatasetName *dataset, Volser *volser) {
     return -1;
   }
   int length = sizeof(dataset->value);
-
   char dsnNullTerm[45] = {0};
   memcpy(dsnNullTerm, dataset->value, sizeof(dataset->value));
 
@@ -790,6 +789,7 @@ static int getVolserForDataset(const DatasetName *dataset, Volser *volser) {
     for (int j=0; j<defaultCSIFieldCount; j++){
       if (!strcmp(defaultCSIFields[j],"VOLSER  ") && fieldLengthArray[j]){
         memcpy(volser->value,fieldValueStart,6);
+        volser->value[6] = '\0';
         rc = 0;
         break;
       }
@@ -977,7 +977,6 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
     respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
     return;
   }
-
   Volser volser = {.value = ' '};
   DatasetName dsn = {.value = ' '};
   int absolutePathLen = strlen(absolutePath);
@@ -992,7 +991,6 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
   int handledThroughDSCB = FALSE;
   int lrecl;
   if (!volserSuccess){
-    
     char dscb[INDEXED_DSCB] = {0};
     int rc = obtainDSCB1(dsn.value, sizeof(dsn.value),
                          volser.value, sizeof(volser.value),
@@ -1225,7 +1223,6 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
     }
     safeFree(dsnUidPair, 44+8+1);
   } else { /* need to open an ACB */
-    printf("about to dynalloc a DD to %s\n", dsn);
     DynallocInputParms inputParms;
     memcpy(inputParms.dsName, dsn, DATASET_NAME_LEN);
     memcpy(inputParms.ddName, "MVD00000", DD_NAME_LEN);
@@ -1672,6 +1669,101 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
 #endif /* __ZOWE_OS_ZOS */
 }
 
+void newDatasetMember(HttpResponse* response, char* datasetName, char* memberName) {
+
+  Volser volser = {.value = ' '};
+  DatasetName dsn;
+  memset(dsn.value, ' ', 44);
+  
+  int lParenIndex = indexOf(datasetName, strlen(datasetName),'(',0);
+  if (lParenIndex > 0){
+    memcpy(dsn.value,datasetName+3,lParenIndex-3);
+  }
+  else{
+    memcpy(dsn.value,datasetName+3,strlen(datasetName)-4);
+  }
+    
+  int volserSuccess = getVolserForDataset(&dsn, &volser);
+  
+  if(!volserSuccess){        
+    char dscb[INDEXED_DSCB] = {0};
+    
+    int rc = obtainDSCB1(dsn.value, sizeof(dsn.value),
+                           volser.value, sizeof(volser.value),
+                           dscb);
+
+    if (rc == 0){
+      if (DSCB_TRACE){
+        printf("DSCB for %.*s found\n", sizeof(dsn.value), dsn.value);
+        dumpbuffer(dscb,INDEXED_DSCB);
+      }
+    }
+
+    if (isPartionedDataset(dscb)) {
+      char *deleteParam = getQueryParam(response->request,"delete");
+      int delete = !strcmp(deleteParam, "true") ? TRUE : FALSE;
+      char fullPath[100];
+      datasetName[strlen(datasetName)-1] = 0;
+      int cx = snprintf(fullPath, 100, "%s(%s)'", datasetName, memberName);
+      if (delete == TRUE){
+        if (remove(fullPath) == 0) {
+          response200WithMessage(response, "Successfully deleted");
+          return;
+        }
+        else {
+          respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Could not delete");
+          return;
+        }
+      }
+      FILE* file_ptr = fopen(fullPath, "w");
+      if (!file_ptr){
+        respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Bad file name");
+        return;
+      }
+      fclose(file_ptr);
+      response200WithMessage(response, "Successfully created member");
+      /*
+      int reasonCode;
+      
+      if (strlen(memberName) > 8) {
+        respondWithError(response, HTTP_STATUS_BAD_REQUEST, "member must be less than or equal to 8 characters");
+      }
+      for (int i = 0; i < strlen(memberName); i++){
+        memberName[i] = toupper(memberName[i]);
+      }
+      
+      DynallocInputParms inputParms;
+      memcpy(inputParms.dsName, dsn.value, DATASET_NAME_LEN);
+      memcpy(inputParms.ddName, "MVD00000", DD_NAME_LEN);
+      inputParms.disposition = DISP_SHARE;
+      char ddname[9] = "MVD00000";
+      int returnCode = dynallocDatasetMember(&inputParms, &reasonCode, memberName);
+
+      int ddNumber = 1;
+      while (reasonCode==0x4100000 && ddNumber < 100000) {
+        sprintf(inputParms.ddName, "MVD%05d", ddNumber);
+        sprintf(ddname, "MVD%05d", ddNumber);
+        returnCode = dynallocDatasetMember(&inputParms, &reasonCode, memberName);
+        ddNumber++;
+      }
+      if (returnCode) {
+        printf("Dynalloc RC = %d, reasonCode = %x\n", returnCode, reasonCode);
+        respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to allocate a DD for ACB");
+        return;
+      }
+      else {
+        response200WithMessage(response, "Successfully created member");
+      }
+      */
+    }
+    else {
+      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Dataset must be PDS/E");
+    }
+  }
+  else {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Error decoding dataset");
+  }
+}
 
 #endif /* not METTLE - the whole module */
 
