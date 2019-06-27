@@ -3771,7 +3771,7 @@ void respondWithUnixDirectory(HttpResponse *response, char* absolutePath, int js
   fflush(stdout);
 #endif
   
- if (directory = (directoryOpen(absolutePath,&returnCode,&reasonCode)) == NULL){
+ if ((directory = directoryOpen(absolutePath,&returnCode,&reasonCode)) == NULL){
     respondWithJsonError(response, "Permission denied", 403, "Forbidden");
     // Response is finished on return
   }
