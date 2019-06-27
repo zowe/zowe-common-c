@@ -1722,13 +1722,15 @@ void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberNam
       datasetPath[apostrophePos] = 0; // remove last apostrophe by null termination
       //concatenates dataset name with member name
       snprintf(fullPath, DATASET_MEMBER_MAXLEN + 1, "%s(%s)'", datasetPath, memberName);
-      FILE* datasetExists;
-      if ((datasetExists = fopen(fullPath,"r")) && overwrite != TRUE) {//Member already exists and overwrite wasn't specified
+      FILE* datasetExists = fopen(fullPath,"r");
+      if (datasetExists && overwrite != TRUE) {//Member already exists and overwrite wasn't specified
         fclose(datasetExists);
         respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Member already exists and overwrite wasn't specified");
       }
       else { // Member doesn't exist
-        fclose(datasetExists);
+        if (datasetExists) {
+          fclose(datasetExists);
+        }
         FILE* newMember = fopen(fullPath, "w");
         if (!newMember){
           respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Bad dataset name");
@@ -1766,7 +1768,7 @@ void removeDatasetMember(HttpResponse* response, char* datasetPath, char* member
         return;
       }
       else {
-        respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Could not delete");
+        respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Could not delete, member likely does not exist");
         return;
       }
     }
