@@ -1671,7 +1671,7 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
 }
 //new function
 
-static int prepareDatasetMember(HttpResponse* response, char* datasetName){
+static int getDSCB(char* datasetName, char* dscb, int* dscbLength){
   Volser volser = {0};
   DatasetName dsn = {0};
   memset(dsn.value, ' ', 44);
@@ -1689,12 +1689,13 @@ static int prepareDatasetMember(HttpResponse* response, char* datasetName){
     
   int volserSuccess = getVolserForDataset(&dsn, &volser);
   
-  if(!volserSuccess){        
-    char dscb[INDEXED_DSCB] = {0};
+  if(!volserSuccess){
     
     int rc = obtainDSCB1(dsn.value, sizeof(dsn.value),
                            volser.value, sizeof(volser.value),
                            dscb);
+                           
+    *dscbLength = sizeof(dscb);
 
     if (rc == 0){
       if (DSCB_TRACE){
@@ -1702,54 +1703,79 @@ static int prepareDatasetMember(HttpResponse* response, char* datasetName){
         dumpbuffer(dscb,INDEXED_DSCB);
       }
     }
-    return (isPartionedDataset(dscb));
+    return 0;
   }
   else {
-    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Error decoding dataset");
-    return 0;
+    return 1;
   }
 }
 
 void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
-  if (prepareDatasetMember(response, datasetPath)) {
-    char fullPath[58]; //Max dataset path length
-    int apostrophePos = lastIndexOf(datasetPath, DATASET_PATH_MAX, '\''); //index of apostrophe
-    datasetPath[apostrophePos] = 0; // remove last apostrophe by null termination
-    snprintf(fullPath, 100, "%s(%s)'", datasetPath, memberName); //concatenates dataset name with member name
-    FILE* newMember = fopen(fullPath, "w");
-    if (!newMember){
-      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Bad dataset name");
-      return;
-    }
-    if (fclose(newMember) == 0){
-      response200WithMessage(response, "Successfully created member");
+  char dscb[INDEXED_DSCB] = {0};
+  int dscbLength = 0;
+  if (getDSCB(datasetPath, dscb, &dscbLength) == 0) {
+    if (isPartionedDataset(dscb)) {
+      char *overwriteParam = getQueryParam(response->request,"overwrite");
+      int overwrite = !strcmp(overwriteParam, "true") ? TRUE : FALSE;
+      char fullPath[DATASET_MEMBER_MAXLEN]; //Max dataset path length #define them
+      int apostrophePos = lastIndexOf(datasetPath, DATASET_PATH_MAX, '\''); //index of apostrophe
+      datasetPath[apostrophePos] = 0; // remove last apostrophe by null termination
+      //concatenates dataset name with member name
+      snprintf(fullPath, DATASET_MEMBER_MAXLEN + 1, "%s(%s)'", datasetPath, memberName);
+      FILE* datasetExists;
+      if ((datasetExists = fopen(fullPath,"r")) && overwrite != TRUE) {//Member already exists and overwrite wasn't specified
+        fclose(datasetExists);
+        respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Member already exists and overwrite wasn't specified");
+      }
+      else { // Member doesn't exist
+        fclose(datasetExists);
+        FILE* newMember = fopen(fullPath, "w");
+        if (!newMember){
+          respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Bad dataset name");
+          return;
+        }
+        if (fclose(newMember) == 0){
+          response200WithMessage(response, "Successfully created member");
+        }
+        else {
+          respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Could not close dataset");
+        }
+      }
     }
     else {
-      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Could not close dataset");
+      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Dataset must be PDS/E");
     }
   }
   else {
-    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Dataset must be PDS/E");
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Error decoding dataset");
   }
 }
 
 void removeDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
-  if (prepareDatasetMember(response, datasetPath)) {
-    char fullPath[58]; //Max dataset path length
-    int apostrophePos = lastIndexOf(datasetPath, DATASET_PATH_MAX, '\''); //index of apostrophe
-    datasetPath[apostrophePos] = 0; // remove last apostrophe by null termination
-    snprintf(fullPath, 59, "%s(%s)'", datasetPath, memberName);  //concatenates dataset name with member name
-    if (remove(fullPath) == 0) {
-      response200WithMessage(response, "Successfully deleted");
-      return;
+  char dscb[INDEXED_DSCB] = {0};
+  int dscbLength = 0;
+  if (getDSCB(datasetPath, dscb, &dscbLength) == 0) {
+    if (isPartionedDataset(dscb)) {
+      char fullPath[DATASET_MEMBER_MAXLEN];
+      int apostrophePos = lastIndexOf(datasetPath, DATASET_PATH_MAX, '\''); //index of apostrophe
+      datasetPath[apostrophePos] = 0; // remove last apostrophe by null termination
+      //concatenates dataset name with member name
+      snprintf(fullPath, DATASET_MEMBER_MAXLEN + 1, "%s(%s)'", datasetPath, memberName);
+      if (remove(fullPath) == 0) {
+        response200WithMessage(response, "Successfully deleted");
+        return;
+      }
+      else {
+        respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Could not delete");
+        return;
+      }
     }
     else {
-      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Could not delete");
-      return;
+      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Dataset must be PDS/E");
     }
   }
   else {
-    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Dataset must be PDS/E");
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Error decoding dataset");
   }
 }
 
