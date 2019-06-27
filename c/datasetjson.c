@@ -53,6 +53,7 @@ static int defaultVSAMCSIFieldCount = 4;
 
 static char getRecordLengthType(char *dscb);
 static int getMaxRecordLength(char *dscb);
+static int prepareDatasetMember(HttpResponse* response, char* datasetName);
 
 typedef struct DatasetName_tag {
   char value[44]; /* space-padded */
@@ -1668,17 +1669,20 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
   finishResponse(response);     
 #endif /* __ZOWE_OS_ZOS */
 }
+//new function
 
-void newDatasetMember(HttpResponse* response, char* datasetName, char* memberName) {
-
-  Volser volser = {.value = ' '};
-  DatasetName dsn;
+static int prepareDatasetMember(HttpResponse* response, char* datasetName){
+  Volser volser = {0};
+  DatasetName dsn = {0};
   memset(dsn.value, ' ', 44);
   
   int lParenIndex = indexOf(datasetName, strlen(datasetName),'(',0);
+  
+  //String parsing operation, gets rid of of 3 initial unnecessary characters-> //'
   if (lParenIndex > 0){
     memcpy(dsn.value,datasetName+3,lParenIndex-3);
   }
+  //String parsing operation, gets rid of of 3 initial unnecessary characters-> //'
   else{
     memcpy(dsn.value,datasetName+3,strlen(datasetName)-4);
   }
@@ -1694,74 +1698,58 @@ void newDatasetMember(HttpResponse* response, char* datasetName, char* memberNam
 
     if (rc == 0){
       if (DSCB_TRACE){
-        printf("DSCB for %.*s found\n", sizeof(dsn.value), dsn.value);
+        zowelog(NULL, LOG_COMP_ID_MVD_SERVER, ZOWE_LOG_WARNING, "DSCB for %.*s found\n", sizeof(dsn.value), dsn.value);
         dumpbuffer(dscb,INDEXED_DSCB);
       }
     }
-
-    if (isPartionedDataset(dscb)) {
-      char *deleteParam = getQueryParam(response->request,"delete");
-      int delete = !strcmp(deleteParam, "true") ? TRUE : FALSE;
-      char fullPath[100];
-      datasetName[strlen(datasetName)-1] = 0;
-      int cx = snprintf(fullPath, 100, "%s(%s)'", datasetName, memberName);
-      if (delete == TRUE){
-        if (remove(fullPath) == 0) {
-          response200WithMessage(response, "Successfully deleted");
-          return;
-        }
-        else {
-          respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Could not delete");
-          return;
-        }
-      }
-      FILE* file_ptr = fopen(fullPath, "w");
-      if (!file_ptr){
-        respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Bad file name");
-        return;
-      }
-      fclose(file_ptr);
-      response200WithMessage(response, "Successfully created member");
-      /*
-      int reasonCode;
-      
-      if (strlen(memberName) > 8) {
-        respondWithError(response, HTTP_STATUS_BAD_REQUEST, "member must be less than or equal to 8 characters");
-      }
-      for (int i = 0; i < strlen(memberName); i++){
-        memberName[i] = toupper(memberName[i]);
-      }
-      
-      DynallocInputParms inputParms;
-      memcpy(inputParms.dsName, dsn.value, DATASET_NAME_LEN);
-      memcpy(inputParms.ddName, "MVD00000", DD_NAME_LEN);
-      inputParms.disposition = DISP_SHARE;
-      char ddname[9] = "MVD00000";
-      int returnCode = dynallocDatasetMember(&inputParms, &reasonCode, memberName);
-
-      int ddNumber = 1;
-      while (reasonCode==0x4100000 && ddNumber < 100000) {
-        sprintf(inputParms.ddName, "MVD%05d", ddNumber);
-        sprintf(ddname, "MVD%05d", ddNumber);
-        returnCode = dynallocDatasetMember(&inputParms, &reasonCode, memberName);
-        ddNumber++;
-      }
-      if (returnCode) {
-        printf("Dynalloc RC = %d, reasonCode = %x\n", returnCode, reasonCode);
-        respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to allocate a DD for ACB");
-        return;
-      }
-      else {
-        response200WithMessage(response, "Successfully created member");
-      }
-      */
-    }
-    else {
-      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Dataset must be PDS/E");
-    }
+    return (isPartionedDataset(dscb));
   }
   else {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Error decoding dataset");
+    return 0;
+  }
+}
+
+void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
+  if (prepareDatasetMember(response, datasetPath)) {
+    char fullPath[58]; //Max dataset path length
+    int apostrophePos = lastIndexOf(datasetPath, DATASET_PATH_MAX, '\''); //index of apostrophe
+    datasetPath[apostrophePos] = 0; // remove last apostrophe by null termination
+    snprintf(fullPath, 100, "%s(%s)'", datasetPath, memberName); //concatenates dataset name with member name
+    FILE* newMember = fopen(fullPath, "w");
+    if (!newMember){
+      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Bad dataset name");
+      return;
+    }
+    if (fclose(newMember) == 0){
+      response200WithMessage(response, "Successfully created member");
+    }
+    else {
+      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Could not close dataset");
+    }
+  }
+  else {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Dataset must be PDS/E");
+  }
+}
+
+void removeDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
+  if (prepareDatasetMember(response, datasetPath)) {
+    char fullPath[58]; //Max dataset path length
+    int apostrophePos = lastIndexOf(datasetPath, DATASET_PATH_MAX, '\''); //index of apostrophe
+    datasetPath[apostrophePos] = 0; // remove last apostrophe by null termination
+    snprintf(fullPath, 59, "%s(%s)'", datasetPath, memberName);  //concatenates dataset name with member name
+    if (remove(fullPath) == 0) {
+      response200WithMessage(response, "Successfully deleted");
+      return;
+    }
+    else {
+      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Could not delete");
+      return;
+    }
+  }
+  else {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Dataset must be PDS/E");
   }
 }
 
