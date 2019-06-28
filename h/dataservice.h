@@ -19,7 +19,12 @@
  *
  */
 
-
+//hash stuff
+ typedef struct loggingData_t {
+    int level;
+    uint64 id;
+ } loggingData;
+ 
 typedef int ExternalAPI();
 
 struct JsonObject_tag;
