@@ -53,7 +53,7 @@ static int defaultVSAMCSIFieldCount = 4;
 
 static char getRecordLengthType(char *dscb);
 static int getMaxRecordLength(char *dscb);
-static int getDSCB(char* datasetName, char* dscb);
+static int getDSCB(char* datasetName, char* dscb, int bufferSize);
 
 typedef struct DatasetName_tag {
   char value[44]; /* space-padded */
@@ -1670,8 +1670,8 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
 }
 //new function
 
-static int getDSCB(char* datasetName, char* dscb, int* dscbLength){
-  if (*dscbLength < INDEXED_DSCB){
+static int getDSCB(char* datasetName, char* dscb, int bufferSize){
+  if (bufferSize < INDEXED_DSCB){
     zowelog(NULL, LOG_COMP_ID_MVD_SERVER, ZOWE_LOG_WARNING, 
             "DSCB of size %d is too small, must be at least %d", *dscbLength, INDEXED_DSCB);
     respondWithJsonError(response, "DSCB space allocation error", 500, "Internal Server Error");
@@ -1715,8 +1715,8 @@ static int getDSCB(char* datasetName, char* dscb, int* dscbLength){
 
 void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
   char dscb[INDEXED_DSCB] = {0};
-  int dscbLength = sizeof(dscb);
-  if (getDSCB(datasetPath, dscb, &dscbLength) != 0) {
+  int bufferSize = sizeof(dscb);
+  if (getDSCB(datasetPath, dscb, bufferSize) != 0) {
     respondWithJsonError(response, "Error decoding dataset", 400, "Bad Request");
   }
   else {
@@ -1768,8 +1768,8 @@ void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberNam
 
 void removeDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
   char dscb[INDEXED_DSCB] = {0};
-  int dscbLength = 0;
-  if (getDSCB(datasetPath, dscb) != 0) {
+  int bufferSize = sizeof(dscb);
+  if (getDSCB(datasetPath, dscb, bufferSize) != 0) {
     respondWithJsonError(response, "Error decoding dataset", 400, "Bad Request");  
   }
   else {
