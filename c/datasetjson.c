@@ -53,7 +53,7 @@ static int defaultVSAMCSIFieldCount = 4;
 
 static char getRecordLengthType(char *dscb);
 static int getMaxRecordLength(char *dscb);
-static int prepareDatasetMember(HttpResponse* response, char* datasetName);
+static int getDSCB(char* datasetName, char* dscb);
 
 typedef struct DatasetName_tag {
   char value[44]; /* space-padded */
@@ -367,7 +367,6 @@ static int obtainDSCB1(const char *dsname, unsigned int dsnameLength,
       } parmList;
     )
   );
-  
   
   memset(mem31->dsnameSpacePadded, ' ', sizeof(mem31->dsnameSpacePadded));
   memcpy(mem31->dsnameSpacePadded, dsname, dsnameLength);
@@ -1671,10 +1670,10 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
 }
 //new function
 
-static int getDSCB(char* datasetName, char* dscb, int* dscbLength){
+static int getDSCB(char* datasetName, char* dscb
   Volser volser = {0};
   DatasetName dsn = {0};
-  memset(dsn.value, ' ', 44);
+  memset(dsn.value, ' ', DATASET_PATH_MAX);
   
   int lParenIndex = indexOf(datasetName, strlen(datasetName),'(',0);
   
@@ -1694,8 +1693,6 @@ static int getDSCB(char* datasetName, char* dscb, int* dscbLength){
     int rc = obtainDSCB1(dsn.value, sizeof(dsn.value),
                            volser.value, sizeof(volser.value),
                            dscb);
-                           
-    *dscbLength = sizeof(dscb);
 
     if (rc == 0){
       if (DSCB_TRACE){
@@ -1712,52 +1709,67 @@ static int getDSCB(char* datasetName, char* dscb, int* dscbLength){
 
 void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
   char dscb[INDEXED_DSCB] = {0};
-  int dscbLength = 0;
-  if (getDSCB(datasetPath, dscb, &dscbLength) == 0) {
-    if (isPartionedDataset(dscb)) {
+  if (getDSCB(datasetPath, dscb) != 0) {
+    respondWithJsonError(response, "Error decoding dataset", 400, "Bad Request");
+  }
+  else {
+    if (!isPartionedDataset(dscb)) {
+      respondWithJsonError(response, "Dataset must be PDS/E", 400, "Bad Request");
+    }
+    else {
       char *overwriteParam = getQueryParam(response->request,"overwrite");
       int overwrite = !strcmp(overwriteParam, "true") ? TRUE : FALSE;
-      char fullPath[DATASET_MEMBER_MAXLEN]; //Max dataset path length #define them
+      char fullPath[DATASET_MEMBER_MAXLEN + 1]; //Max dataset path length
       int apostrophePos = lastIndexOf(datasetPath, DATASET_PATH_MAX, '\''); //index of apostrophe
-      datasetPath[apostrophePos] = 0; // remove last apostrophe by null termination
+      nullTerminate(datasetPath, apostrophePos); // remove last apostrophe by null termination
       //concatenates dataset name with member name
       snprintf(fullPath, DATASET_MEMBER_MAXLEN + 1, "%s(%s)'", datasetPath, memberName);
       FILE* datasetExists = fopen(fullPath,"r");
       if (datasetExists && overwrite != TRUE) {//Member already exists and overwrite wasn't specified
-        fclose(datasetExists);
-        respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Member already exists and overwrite wasn't specified");
+        if (fclose(datasetExists) != 0) {
+            zowelog(NULL, LOG_COMP_ID_MVD_SERVER, ZOWE_LOG_WARNING, "ERROR CLOSING FILE");
+            respondWithJsonError(response, "Could not close dataset", 500, "Internal Server Error");
+        }
+        else {
+          respondWithJsonError(response, "Member already exists and overwrite not specified", 400, "Bad Request");
+        }
       }
       else { // Member doesn't exist
         if (datasetExists) {
-          fclose(datasetExists);
+          if (fclose(datasetExists) != 0) {
+            zowelog(NULL, LOG_COMP_ID_MVD_SERVER, ZOWE_LOG_WARNING, "ERROR CLOSING FILE");
+            respondWithJsonError(response, "Could not close dataset", 500, "Internal Server Error");
+            return;
+          }
         }
         FILE* newMember = fopen(fullPath, "w");
         if (!newMember){
-          respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Bad dataset name");
+          respondWithJsonError(response, "Bad dataset name", 400, "Bad Request");
           return;
         }
         if (fclose(newMember) == 0){
           response200WithMessage(response, "Successfully created member");
         }
         else {
-          respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Could not close dataset");
+          zowelog(NULL, LOG_COMP_ID_MVD_SERVER, ZOWE_LOG_WARNING, "ERROR CLOSING FILE");
+          respondWithJsonError(response, "Could not close dataset", 500, "Internal Server Error");
         }
       }
     }
-    else {
-      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Dataset must be PDS/E");
-    }
-  }
-  else {
-    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Error decoding dataset");
   }
 }
 
 void removeDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
   char dscb[INDEXED_DSCB] = {0};
   int dscbLength = 0;
-  if (getDSCB(datasetPath, dscb, &dscbLength) == 0) {
-    if (isPartionedDataset(dscb)) {
+  if (getDSCB(datasetPath, dscb, &dscbLength) != 0) {
+    respondWithJsonError(response, "Error decoding dataset", 400, "Bad Request");  
+  }
+  else {
+    if (!isPartionedDataset(dscb)) {
+      respondWithJsonError(response, "Dataset must be PDS/E", 400, "Bad Request");
+    }
+    else {
       char fullPath[DATASET_MEMBER_MAXLEN];
       int apostrophePos = lastIndexOf(datasetPath, DATASET_PATH_MAX, '\''); //index of apostrophe
       datasetPath[apostrophePos] = 0; // remove last apostrophe by null termination
@@ -1768,16 +1780,10 @@ void removeDatasetMember(HttpResponse* response, char* datasetPath, char* member
         return;
       }
       else {
-        respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Could not delete, member likely does not exist");
+        respondWithJsonError(response, "Could not delete, member likely does not exist", 400, "Bad Request");
         return;
       }
     }
-    else {
-      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Dataset must be PDS/E");
-    }
-  }
-  else {
-    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Error decoding dataset");
   }
 }
 
