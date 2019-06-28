@@ -1670,7 +1670,13 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
 }
 //new function
 
-static int getDSCB(char* datasetName, char* dscb){
+static int getDSCB(char* datasetName, char* dscb, int* dscbLength){
+  if (*dscbLength < INDEXED_DSCB){
+    zowelog(NULL, LOG_COMP_ID_MVD_SERVER, ZOWE_LOG_WARNING, 
+            "DSCB of size %d is too small, must be at least %d", *dscbLength, INDEXED_DSCB);
+    respondWithJsonError(response, "DSCB space allocation error", 500, "Internal Server Error");
+    return 1;
+  }
   Volser volser = {0};
   DatasetName dsn = {0};
   memset(dsn.value, ' ', DATASET_PATH_MAX);
@@ -1709,7 +1715,8 @@ static int getDSCB(char* datasetName, char* dscb){
 
 void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
   char dscb[INDEXED_DSCB] = {0};
-  if (getDSCB(datasetPath, dscb) != 0) {
+  int dscbLength = sizeof(dscb);
+  if (getDSCB(datasetPath, dscb, &dscbLength) != 0) {
     respondWithJsonError(response, "Error decoding dataset", 400, "Bad Request");
   }
   else {
