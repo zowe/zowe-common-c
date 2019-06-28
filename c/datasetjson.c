@@ -1670,7 +1670,7 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
 }
 //new function
 
-static int getDSCB(char* datasetName, char* dscb
+static int getDSCB(char* datasetName, char* dscb){
   Volser volser = {0};
   DatasetName dsn = {0};
   memset(dsn.value, ' ', DATASET_PATH_MAX);
@@ -1723,7 +1723,7 @@ void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberNam
       int apostrophePos = lastIndexOf(datasetPath, DATASET_PATH_MAX, '\''); //index of apostrophe
       nullTerminate(datasetPath, apostrophePos); // remove last apostrophe by null termination
       //concatenates dataset name with member name
-      snprintf(fullPath, DATASET_MEMBER_MAXLEN + 1, "%s(%s)'", datasetPath, memberName);
+      snprintf(fullPath, DATASET_MEMBER_MAXLEN, "%s(%s)'", datasetPath, memberName);
       FILE* datasetExists = fopen(fullPath,"r");
       if (datasetExists && overwrite != TRUE) {//Member already exists and overwrite wasn't specified
         if (fclose(datasetExists) != 0) {
@@ -1762,7 +1762,7 @@ void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberNam
 void removeDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
   char dscb[INDEXED_DSCB] = {0};
   int dscbLength = 0;
-  if (getDSCB(datasetPath, dscb, &dscbLength) != 0) {
+  if (getDSCB(datasetPath, dscb) != 0) {
     respondWithJsonError(response, "Error decoding dataset", 400, "Bad Request");  
   }
   else {
@@ -1770,7 +1770,7 @@ void removeDatasetMember(HttpResponse* response, char* datasetPath, char* member
       respondWithJsonError(response, "Dataset must be PDS/E", 400, "Bad Request");
     }
     else {
-      char fullPath[DATASET_MEMBER_MAXLEN];
+      char fullPath[DATASET_MEMBER_MAXLEN + 1];
       int apostrophePos = lastIndexOf(datasetPath, DATASET_PATH_MAX, '\''); //index of apostrophe
       datasetPath[apostrophePos] = 0; // remove last apostrophe by null termination
       //concatenates dataset name with member name
