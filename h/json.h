@@ -134,9 +134,36 @@ void jsonEndArray(jsonPrinter *p);
 void jsonAddString(jsonPrinter *p, char *keyOrNull, char *value);
 
 /** 
- * \brief allows the caller to place well-formed JSON in the output stream into an enclosing object or array 
+ * \brief Allows the caller to place a string representing well-formed JSON
+ * content in the output stream into an enclosing object or array
  *
- *  keyOrValue should be NULL when adding to an array
+ * You can use the function to inject a piece of pre-existing JSON (that you've
+ * obtained using other means) into the output JSON structure.
+ *
+ * For example, the following code:
+ * \code{.c}
+ * jsonPrinter *p = makeJsonPrinter(STDOUT_FILENO);
+ * char *validJsonString = "74, 4, 12, 99";
+ *
+ * jsonStart(p);
+ * jsonAddInt(p, "foo", 5);
+ * jsonStartArray(p, "bar");
+ * jsonAddJSONString(p, NULL, validJsonString);
+ * jsonEndArray(p);
+ * jsonEnd(p);
+ * \endcode
+ *
+ * will produce:
+ * \code
+ * {
+ *   "foo": 5,
+ *   "bar": [74, 4, 12, 99]
+ * }
+ * \endcode
+ *
+ * \param p printer used to produce the result JSON
+ * \param keyOrValue key string (should be NULL when adding to an array)
+ * \param validJsonValue string representing valid JSON
  */
 void jsonAddJSONString(jsonPrinter *p, char *keyOrNull, char *validJsonValue);
 
@@ -178,6 +205,44 @@ void jsonAppendUnterminatedStringPart(jsonPrinter *p, char *value,
 void jsonEndMultipartString(jsonPrinter *p);
 
 /** 
+ * \brief Allows the caller to place an unterminated string representing
+ * well-formed JSON content in the output stream into an enclosing object or
+ * array
+ *
+ * You can use the function to inject a piece of pre-existing JSON (that you've
+ * obtained using other means) into the output JSON structure.
+ *
+ * For example, the following code:
+ * \code{.c}
+ * jsonPrinter *p = makeJsonPrinter(STDOUT_FILENO);
+ * char validJsonString[5] = "4,2,1";
+ *
+ * jsonStart(p);
+ * jsonAddInt(p, "foo", 5);
+ * jsonStartArray(p, "bar");
+ * jsonAddUnterminatedJSONString(p, NULL, validJsonString,
+ *                               sizeof(validJsonString));
+ * jsonEndArray(p);
+ * jsonEnd(p);
+ * \endcode
+ *
+ * will produce:
+ * \code
+ * {
+ *   "foo": 5,
+ *   "bar": [4, 2, 1]
+ * }
+ * \endcode
+ *
+ * \param p printer used to produce the result JSON
+ * \param keyOrValue key string (should be NULL when adding to an array)
+ * \param validJsonValue unterminated string representing valid JSON
+ * \param jsonLength the length of the string representing the new JSON content
+ */
+void jsonAddUnterminatedJSONString(jsonPrinter *p, char *keyOrNull,
+                                   char *validJsonValue, int jsonLength);
+
+/**
  * \brief This adds a string to a streaming JSON object or array from a string that is not terminated.
  *
  * Many data structures have fixed length strings that need to be exported to JSON.  Use this function for those

@@ -639,6 +639,20 @@ void jsonEndMultipartString(jsonPrinter *p) {
   p->isInMultipartString = 0;
 }
 
+void jsonAddUnterminatedJSONString(jsonPrinter *p, char *keyOrNull,
+                                   char *validJsonValue, int jsonLength) {
+  if (jsonShouldStopWriting(p)) {
+    return;
+  }
+  if (p->isFirstLine) {
+    p->isFirstLine = FALSE;
+  } else {
+    jsonNewLine(p);
+  }
+  jsonWriteKeyAndSemicolon(p, keyOrNull);
+  jsonConvertAndWriteBuffer(p, validJsonValue, jsonLength, false, p->inputCCSID);
+}
+
 void jsonAddUnterminatedString(jsonPrinter *p, char *keyOrNull, char *value, int valueLength) {
   if (jsonShouldStopWriting(p)) {
     return;
