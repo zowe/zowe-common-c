@@ -35,6 +35,10 @@
 #define safeFree64ByToken SFFRE64T
 #define safeMalloc64 SAFMLC64
 #define safeMalloc64ByToken SFMLC64T
+#define safeFree64v2 SAFRE642
+#define safeMalloc64v2 SAMLC642
+#define safeFree64v3 SAFRE643
+#define safeMalloc64v3 SAMLC643
 #endif
 
 char *malloc31(int size);
@@ -65,6 +69,25 @@ char *safeMalloc64ByToken(int size, char *site, long long token);
 
 void safeFree64(char *data, int size);
 void safeFree64ByToken(char *data, int size, long long token);
+
+#if defined(__ZOWE_OS_ZOS)
+/* 64-bit allocator and de-allocator v2. */
+char *safeMalloc64v2(unsigned long long size, int zeroOut, char *site,
+                     int *returnCode, int *sysRC, int *sysRSN);
+int safeFree64v2(void *data, unsigned long long size, int *sysRC, int *sysRSN);
+/* 64-bit allocator and de-allocator v3, it is the same as v2 but allocates storage for a single owner */
+#ifdef METTLE
+char *safeMalloc64v3(unsigned long long size, int zeroOut, char *site,
+                     int *returnCode, int *sysRC, int *sysRSN);
+int safeFree64v3(void *data, unsigned long long size, int *sysRC, int *sysRSN);
+#endif
+
+#define ALLOC64V2_RC_TCBTOKEN_FAILURE 2
+#define ALLOC64V2_RC_IARV64_FAILURE   4
+#define ALLOC64V2_RC_IARST64_FAILURE  8
+#define FREE64V2_RC_TCBTOKEN_FAILURE  2
+#define FREE64V2_RC_IARV64_FAILURE    4
+#endif
 
 #ifdef __ZOWE_OS_ZOS
 char *allocECSA(int size, int key);
