@@ -53,9 +53,14 @@ static int defaultVSAMCSIFieldCount = 4;
 
 static char getRecordLengthType(char *dscb);
 static int getMaxRecordLength(char *dscb);
+static int getDSCB(char* datasetName, char* dscb, int bufferSize);
+static void respondWithNonVSAMDataset(HttpResponse* response, char* absolutePath, int jsonMode);
+static void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode);
+static void updateNonVSAMDataset(HttpResponse* response, char* absolutePath, int jsonMode);
+static void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode);
 
 typedef struct DatasetName_tag {
-  char value[44]; /* space-padded */
+  char value[DATASET_NAME_LEN]; /* space-padded */
 } DatasetName;
 
 typedef struct Volser_tag {
@@ -334,6 +339,27 @@ static int isPartionedDataset(char *dscb) {
   return FALSE;
 }
 #endif
+
+static bool isVSAM(char* dsPath) {
+  char dscb[INDEXED_DSCB] = {0};
+  Volser volser = {0};
+  DatasetName dsn = {0};
+  memcpy(dsn.value,dsPath+3,strlen(dsPath)-4);
+  padWithSpaces(dsn.value, sizeof(dsn.value), 0, 0);
+  
+  int volserSuccess = getVolserForDataset(&dsn, &volser);
+  if(!volserSuccess){
+    obtainDSCB1(dsn.value, sizeof(dsn.value),
+                           volser.value, sizeof(volser.value),
+                           dscb);
+    int posOffset = 44;
+    int dsorgLow = dscb[83-posOffset];
+    if (dsorgLow & 0x08){
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
 
 static int obtainDSCB1(const char *dsname, unsigned int dsnameLength,
                        const char *volser, unsigned int volserLength,
@@ -832,7 +858,7 @@ static int getMaxRecordLength(char *dscb){
   return lrecl;
 }
 
-void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
+static void updateNonVSAMDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
   if (jsonMode != TRUE) { /*TODO add support for updating files with raw bytes instead of JSON*/
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Cannot update file without JSON formatted record request");
@@ -897,7 +923,7 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
 }
 
 
-void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode) {
+static void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
   if (jsonMode != TRUE) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Cannot update file without JSON formatted record request");
@@ -964,8 +990,30 @@ void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *ac
   read = openSAM(name,OPEN_CLOSE_INPUT,TRUE,recfm,lrecl,blksize);
 
  */
+void respondWithDataset(HttpResponse* response, char* dsName, int jsonMode, HttpService* service){
+  char *datasetp1 = stringConcatenate(response->slh, "//'", dsName);
+  char *fullPath = stringConcatenate(response->slh, datasetp1, "'");
+  if (isVSAM(fullPath)){
+    serveVSAMCache *cache = (serveVSAMCache *)service->userPointer;
+    respondWithVSAMDataset(response, dsName, cache->acbTable, TRUE);
+  }
+  else {
+    respondWithNonVSAMDataset(response, fullPath, jsonMode);
+  }
+}
 
-void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
+void updateDataset(HttpResponse* response, char* dsName, int jsonMode, HttpService* service) {
+  char *datasetp1 = stringConcatenate(response->slh, "//'", dsName);
+  char *fullPath = stringConcatenate(response->slh, datasetp1, "'");
+  if (isVSAM(fullPath)){
+    serveVSAMCache *cache = (serveVSAMCache *)service->userPointer;
+    updateVSAMDataset(response, dsName, cache->acbTable, TRUE);
+  }
+  else {
+    updateNonVSAMDataset(response, fullPath, jsonMode);
+  }
+}
+static void respondWithNonVSAMDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
   HttpRequest *request = response->request;
 
@@ -1057,7 +1105,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
 #define CSI_VSAMTYPE_CLOER 0x0020 /* Error on last close - stats may be inaccurate */
 
 /* In development - this is hardcoded for now */
-void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode) {
+static void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
   printf("begin %s\n", __FUNCTION__);
   HttpRequest *request = response->request;
@@ -1370,7 +1418,7 @@ int decodePercentByte(char *inString, int inLength, char *outString, int *outStr
 void respondWithDatasetMetadata(HttpResponse *response) {
 #ifdef __ZOWE_OS_ZOS
   HttpRequest *request = response->request;
-  char *datasetOrMember = stringListPrint(request->parsedFile, 2, 2, "?", 0); /*get search term*/
+  char *datasetOrMember = stringListPrint(request->parsedFile, 3, 2, "?", 0); /*get search term*/
   if (datasetOrMember == NULL || strlen(datasetOrMember) < 1){
     respondWithError(response,HTTP_STATUS_BAD_REQUEST,"No dataset name given");
     return;
@@ -1672,6 +1720,115 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
 #endif /* __ZOWE_OS_ZOS */
 }
 
+static int getDSCB(char* datasetName, char* dscb, int bufferSize){
+  if (bufferSize < INDEXED_DSCB){
+    zowelog(NULL, LOG_COMP_ID_MVD_SERVER, ZOWE_LOG_WARNING, 
+            "DSCB of size %d is too small, must be at least %d", bufferSize, INDEXED_DSCB);
+    return 1;
+  }
+  Volser volser = {0};
+  
+  DatasetName dsn = {0};
+  memcpy(dsn.value, datasetName, DATASET_PATH_MAX);
+  
+  int volserSuccess = getVolserForDataset(&dsn, &volser);
+  if(!volserSuccess){
+    int rc = obtainDSCB1(dsn.value, sizeof(dsn.value),
+                           volser.value, sizeof(volser.value),
+                           dscb);
+    if (rc == 0){
+      if (DSCB_TRACE){
+        zowelog(NULL, LOG_COMP_ID_MVD_SERVER, ZOWE_LOG_WARNING, "DSCB for %.*s found\n", sizeof(dsn.value), dsn.value);
+        dumpbuffer(dscb,INDEXED_DSCB);
+      }
+    }
+    return 0;
+  }
+  else {
+    return 1;
+  }
+}
+
+void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
+  char dscb[INDEXED_DSCB] = {0};
+  int bufferSize = sizeof(dscb);
+  if (getDSCB(datasetPath, dscb, bufferSize) != 0) {
+    respondWithJsonError(response, "Error decoding dataset", 400, "Bad Request");
+  }
+  else {
+    if (!isPartionedDataset(dscb)) {
+      respondWithJsonError(response, "Dataset must be PDS/E", 400, "Bad Request");
+    }
+    else {
+      char *overwriteParam = getQueryParam(response->request,"overwrite");
+      int overwrite = !strcmp(overwriteParam, "true") ? TRUE : FALSE;
+      char fullPath[DATASET_MEMBER_MAXLEN + 1] = {0};
+      //concatenates dataset name with member name
+      char *dsName = strtok(datasetPath, " ");
+      char *memName = strtok(memberName, " ");
+      snprintf(fullPath, DATASET_MEMBER_MAXLEN + 1, "//'%s(%s)'", dsName, memName);
+      FILE* memberExists = fopen(fullPath,"r");
+      if (memberExists && overwrite != TRUE) {//Member already exists and overwrite wasn't specified
+        if (fclose(memberExists) != 0) {
+            zowelog(NULL, LOG_COMP_ID_MVD_SERVER, ZOWE_LOG_WARNING, "ERROR CLOSING FILE");
+            respondWithJsonError(response, "Could not close dataset", 500, "Internal Server Error");
+        }
+        else {
+          respondWithJsonError(response, "Member already exists and overwrite not specified", 400, "Bad Request");
+        }
+      }
+      else { // Member doesn't exist
+        if (memberExists) {
+          if (fclose(memberExists) != 0) {
+            zowelog(NULL, LOG_COMP_ID_MVD_SERVER, ZOWE_LOG_WARNING, "ERROR CLOSING FILE");
+            respondWithJsonError(response, "Could not close dataset", 500, "Internal Server Error");
+            return;
+          }
+        }
+        FILE* newMember = fopen(fullPath, "w");
+        if (!newMember){
+          respondWithJsonError(response, "Bad dataset name", 400, "Bad Request");
+          return;
+        }
+        if (fclose(newMember) == 0){
+          response200WithMessage(response, "Successfully created member");
+        }
+        else {
+          zowelog(NULL, LOG_COMP_ID_MVD_SERVER, ZOWE_LOG_WARNING, "ERROR CLOSING FILE");
+          respondWithJsonError(response, "Could not close dataset", 500, "Internal Server Error");
+        }
+      }
+    }
+  }
+}
+
+void removeDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
+  char dscb[INDEXED_DSCB] = {0};
+  int bufferSize = sizeof(dscb);
+  if (getDSCB(datasetPath, dscb, bufferSize) != 0) {
+    respondWithJsonError(response, "Error decoding dataset", 400, "Bad Request");  
+  }
+  else {
+    if (!isPartionedDataset(dscb)) {
+      respondWithJsonError(response, "Dataset must be PDS/E", 400, "Bad Request");
+    }
+    else {
+      char fullPath[DATASET_MEMBER_MAXLEN + 1] = {0};
+      //concatenates dataset name with member name
+      char *dsName = strtok(datasetPath, " ");
+      char *memName = strtok(memberName, " ");
+      snprintf(fullPath, DATASET_MEMBER_MAXLEN + 1, "//'%s(%s)'", dsName, memName);
+      if (remove(fullPath) == 0) {
+        response200WithMessage(response, "Successfully deleted");
+        return;
+      }
+      else {
+        respondWithJsonError(response, "Could not delete, member likely does not exist", 400, "Bad Request");
+        return;
+      }
+    }
+  }
+}
 
 #endif /* not METTLE - the whole module */
 
