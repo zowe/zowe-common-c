@@ -20,10 +20,10 @@
  */
 
 //hash stuff
- typedef struct loggingData_t {
+ typedef struct PluginLoggingData_t {
     int level;
     uint64 id;
- } loggingData;
+ } PluginLoggingData;
  
 typedef int ExternalAPI();
 
