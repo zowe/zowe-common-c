@@ -58,9 +58,13 @@ static char vsamCSITypes[5] = {'R', 'D', 'G', 'I', 'C'};
 
 static char getRecordLengthType(char *dscb);
 static int getMaxRecordLength(char *dscb);
+static void respondWithNonVSAMDataset(HttpResponse* response, char* absolutePath, int jsonMode);
+static void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode);
+static void updateNonVSAMDataset(HttpResponse* response, char* absolutePath, int jsonMode);
+static void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode);
 
 typedef struct DatasetName_tag {
-  char value[44]; /* space-padded */
+  char value[DATASET_NAME_LEN]; /* space-padded */
 } DatasetName;
 
 typedef struct DatasetMemberName_tag {
@@ -346,6 +350,27 @@ static int isPartionedDataset(char *dscb) {
   return FALSE;
 }
 #endif
+
+static bool isVSAM(char* dsPath) {
+  char dscb[INDEXED_DSCB] = {0};
+  Volser volser = {0};
+  DatasetName dsn = {0};
+  memcpy(dsn.value,dsPath+3,strlen(dsPath)-4);
+  padWithSpaces(dsn.value, sizeof(dsn.value), 0, 0);
+  
+  int volserSuccess = getVolserForDataset(&dsn, &volser);
+  if(!volserSuccess){
+    obtainDSCB1(dsn.value, sizeof(dsn.value),
+                           volser.value, sizeof(volser.value),
+                           dscb);
+    int posOffset = 44;
+    int dsorgLow = dscb[83-posOffset];
+    if (dsorgLow & 0x08){
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
 
 static int obtainDSCB1(const char *dsname, unsigned int dsnameLength,
                        const char *volser, unsigned int volserLength,
@@ -1062,7 +1087,7 @@ static int getMaxRecordLength(char *dscb){
   return lrecl;
 }
 
-void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
+static void updateNonVSAMDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
   if (jsonMode != TRUE) { /*TODO add support for updating files with raw bytes instead of JSON*/
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Cannot update file without JSON formatted record request");
@@ -1420,7 +1445,7 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
 }
 
 
-void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode) {
+static void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
   if (jsonMode != TRUE) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Cannot update file without JSON formatted record request");
@@ -1483,12 +1508,30 @@ void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *ac
   read = openSAM(name,OPEN_CLOSE_INPUT,TRUE,recfm,lrecl,blksize);
 
  */
+void respondWithDataset(HttpResponse* response, char* dsName, int jsonMode, HttpService* service){
+  char *datasetp1 = stringConcatenate(response->slh, "//'", dsName);
+  char *fullPath = stringConcatenate(response->slh, datasetp1, "'");
+  if (isVSAM(fullPath)){
+    serveVSAMCache *cache = (serveVSAMCache *)service->userPointer;
+    respondWithVSAMDataset(response, dsName, cache->acbTable, TRUE);
+  }
+  else {
+    respondWithNonVSAMDataset(response, fullPath, jsonMode);
+  }
+}
 
-static void respondWithDatasetInternal(HttpResponse* response,
-                                       const char *datasetPath,
-                                       const DatasetName *dsn,
-                                       const DDName *ddName,
-                                       int jsonMode) {
+void updateDataset(HttpResponse* response, char* dsName, int jsonMode, HttpService* service) {
+  char *datasetp1 = stringConcatenate(response->slh, "//'", dsName);
+  char *fullPath = stringConcatenate(response->slh, datasetp1, "'");
+  if (isVSAM(fullPath)){
+    serveVSAMCache *cache = (serveVSAMCache *)service->userPointer;
+    updateVSAMDataset(response, dsName, cache->acbTable, TRUE);
+  }
+  else {
+    updateNonVSAMDataset(response, fullPath, jsonMode);
+  }
+}
+static void respondWithNonVSAMDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
   HttpRequest *request = response->request;
 
@@ -1637,7 +1680,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
 #define CSI_VSAMTYPE_CLOER 0x0020 /* Error on last close - stats may be inaccurate */
 
 /* In development - this is hardcoded for now */
-void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode) {
+static void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "begin %s\n", __FUNCTION__);
   HttpRequest *request = response->request;
@@ -1950,13 +1993,7 @@ int decodePercentByte(char *inString, int inLength, char *outString, int *outStr
 void respondWithDatasetMetadata(HttpResponse *response) {
 #ifdef __ZOWE_OS_ZOS
   HttpRequest *request = response->request;
-  char *datasetOrMember = stringListPrint(request->parsedFile, 2, 2, "?", 0); /*get search term*/
-
-  if (datasetOrMember == NULL || strlen(datasetOrMember) < 1){
-    respondWithError(response,HTTP_STATUS_BAD_REQUEST,"No dataset name given");
-    return;
   }
-  char *username = response->request->username;
   int dsnLen = strlen(datasetOrMember);
   char *percentDecoded = cleanURLParamValue(response->slh, datasetOrMember);
   char *absDsPathTemp = stringConcatenate(response->slh, "//'", percentDecoded);
