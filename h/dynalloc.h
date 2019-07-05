@@ -703,6 +703,83 @@ int dynallocDatasetMember(DynallocInputParms *inputParms, int *reasonCode,
                           char *member);
 int unallocDataset(DynallocInputParms *inputParms, int *reasonCode);
 
+typedef struct DynallocDatasetName_tag {
+  char name[44]; /* space-padded */
+} DynallocDatasetName;
+
+typedef struct DynallocMemberName_tag {
+  char name[8]; /* space-padded */
+} DynallocMemberName;
+
+typedef struct DynallocDDName_tag {
+  char name[8]; /* space-padded */
+} DynallocDDName;
+
+typedef enum DynallocAllocFags_tag {
+  DYNALLOC_ALLOC_FLAG_NONE            = 0x00000000,
+  DYNALLOC_ALLOC_FLAG_NO_CONVERSION   = 0x00000001,
+  DYNALLOC_ALLOC_FLAG_NO_MOUNT        = 0x00000002,
+} DynallocAllocFlags;
+
+typedef enum DynallocUnallocFags_tag {
+  DYNALLOC_UNALLOC_FLAG_NONE          = 0x00000000,
+} DynallocUnallocFlags;
+
+typedef enum DynallocDisposition_tag {
+  DYNALLOC_DISP_OLD   = 0x00000001,
+  DYNALLOC_DISP_MOD   = 0x00000002,
+  DYNALLOC_DISP_SHR   = 0x00000008,
+} DynallocDisposition;
+
+#ifndef __LONGNAME__
+#pragma map(dynallocAllocDataset, "DYNALAD2")
+#pragma map(dynallocUnallocDatasetByDDName, "DYNALUD2")
+#endif
+
+/**
+ * @brief The function dynamically allocates a dataset using SVC99.
+ *
+ * @param dsn Space-padded dataset name. The value must be non-NULL.
+ * @param member Space-padded dataset member name. Pass NULL if no specific
+ * member needs to be allocated.
+ * @param ddName Space-padded DD name used for the allocation. Pass "????????"
+ * to let the system generate a name. The value must be non-NULL.
+ * @param disp Dataset disposition. See the DYNALLOC_DISP_xxxx flags (mutually
+ * exclusive values).
+ * @param flags Control flags. See the DYNALLOC_ALLOC_FLAG_xxxx flags (values
+ * can be ORed).
+ * @param sysRC SVC99 return codes. The value must be non-NULL.
+ * @param sysRSN SVC99 reason codes. The value must be non-NULL.
+ *
+ * @return One of the RC_DYNALLOC_xx return codes.
+ */
+int dynallocAllocDataset(const DynallocDatasetName *dsn,
+                         const DynallocMemberName *member,
+                         DynallocDDName *ddName,
+                         DynallocDisposition disp,
+                         DynallocAllocFlags flags,
+                         int *sysRC, int *sysRSN);
+
+/**
+ * @brief The function unallocates a previously allocated dataset.
+ *
+ * @param ddName The space-padded DD name of the dataset being unallocated.
+ * The value must be non-NULL.
+ * @param flags Control flags. See the DYNALLOC_UNALLOC_FLAG_xxxx flags (values
+ * can be ORed).
+ * @param sysRC SVC99 return codes. The value must be non-NULL.
+ * @param sysRSN SVC99 reason codes. The value must be non-NULL.
+ *
+ * @return One of the RC_DYNALLOC_xx return codes.
+ */
+int dynallocUnallocDatasetByDDName(const DynallocDDName *ddName,
+                                   DynallocUnallocFlags flags,
+                                   int *sysRC, int *sysRSN);
+
+#define RC_DYNALLOC_OK                0
+#define RC_DYNALLOC_TU_ALLOC_FAILED   8
+#define RC_DYNALLOC_SVC99_FAILED      9
+
 #endif
 
 

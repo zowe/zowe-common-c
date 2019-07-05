@@ -14,8 +14,8 @@
 /* HAS NOT BEEN COMPILED WITH METTLE BEFORE */
 #else
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -25,6 +25,7 @@
 #include "utils.h"
 #include "json.h"
 #include "bpxnet.h"
+#include "logging.h"
 #include "unixfile.h"
 #ifdef __ZOWE_OS_ZOS
 #include "zos.h"
@@ -59,6 +60,14 @@ static int getMaxRecordLength(char *dscb);
 typedef struct DatasetName_tag {
   char value[44]; /* space-padded */
 } DatasetName;
+
+typedef struct DatasetMemberName_tag {
+  char value[8]; /* space-padded */
+} DatasetMemberName;
+
+typedef struct DDName_tag {
+  char value[8]; /* space-padded */
+} DDName;
 
 typedef struct Volser_tag {
   char value[6]; /* space-padded */
@@ -404,118 +413,6 @@ static int obtainDSCB1(const char *dsname, unsigned int dsnameLength,
   return rc;
 }
 
-/* See z/OS MVS Data Areas Volume 4 (SCF - XTL) for details */
-typedef struct UCBCommon_tag {
-  uint8_t flags1;
-  uint8_t flags2;
-  uint8_t id;
-  uint8_t status;
-  /* UCBSTAT values */
-#define UCB_COMMON_STATUS_ONLI        0x80
-#define UCB_COMMON_STATUS_CHGS        0x40
-#define UCB_COMMON_STATUS_RESV        0x20
-#define UCB_COMMON_STATUS_UNLD        0x10
-#define UCB_COMMON_STATUS_ALOC        0x08
-#define UCB_COMMON_STATUS_PRES        0x04
-#define UCB_COMMON_STATUS_SYSR        0x02
-#define UCB_COMMON_STATUS_DADI        0x01
-  int16_t deviceNumber;
-  uint8_t ioFlagA;
-  uint8_t ioFlagB;
-  void * __ptr32 nextUCB;
-  uint8_t flags3;
-  char deviceNumberString[3];
-  uint8_t modelBits;
-  uint8_t optionFlags;
-  uint8_t classBits;
-  char deviceCode;
-  uint8_t ioFlagC;
-  uint32_t extensionAddress : 24;
-} UCBCommon;
-
-static int getUCBCommonCopy(Volser volser, UCBCommon *result, int *reasonCode) {
-
-#define UCBSCAN_WORKAREA_SIZE     100 /* from the doc */
-#define UCBSCAN_PARM_LIST_SIZE    116 /* from UCBSCAN */
-#define UCBSCAN_DEV_SEGMENT_SIZE  24  /* from the doc */
-
-  typedef struct UCBArea_tag {
-    UCBCommon ucbCommon;
-    char ucbDeviceArea[UCBSCAN_DEV_SEGMENT_SIZE];
-  } UCBArea;
-
-  ALLOC_STRUCT31(
-    STRUCT31_NAME(below2G),
-    STRUCT31_FIELDS(
-      unsigned char workArea[UCBSCAN_WORKAREA_SIZE];
-      UCBArea ucb;
-      Volser volser;
-      unsigned char parmList[UCBSCAN_PARM_LIST_SIZE];
-      int32_t rc;
-      int32_t rsn;
-    )
-  );
-
-#undef UCBSCAN_WORKAREA_SIZE
-#undef UCBSCAN_PARM_LIST_SIZE
-#undef UCBSCAN_DEV_SEGMENT_SIZE
-
-  below2G->volser = volser;
-
-  __asm(
-      ASM_PREFIX
-#ifdef _LP64
-      "         SAM31                                                          \n"
-      "         SYSSTATE AMODE64=NO                                            \n"
-#endif
-      "         UCBSCAN COPY,WORKAREA=%[wka],UCBAREA=%[ucb]"
-      ",CMXTAREA=NONE"
-      ",UCBPAREA=NONE"
-      ",DCEAREA=NONE"
-      ",DCELEN=0"
-      ",VOLSER=%[volser]"
-      ",DYNAMIC=YES"
-      ",RANGE=ALL"
-      ",DEVCLASS=DASD"
-      ",PLISTVER=1"
-      ",MF=(E,%[plist],COMPLETE)"
-      ",RETCODE=%[rc]"
-      ",RSNCODE=%[rsn]                                                         \n"
-#ifdef _LP64
-      "         SAM64                                                          \n"
-      "         SYSSTATE AMODE64=YES                                           \n"
-#endif
-      : [ucb]"=m"(below2G->ucb), [rc]"=m"(below2G->rc), [rsn]"=m"(below2G->rsn)
-      : [wka]"m"(below2G->workArea), [volser]"m"(below2G->volser),
-        [plist]"m"(below2G->parmList)
-      : "r0", "r1", "r14", "r15"
-  );
-
-  *result = below2G->ucb.ucbCommon;
-  *reasonCode = below2G->rsn;
-  int rc = below2G->rc;
-
-  FREE_STRUCT31(
-    STRUCT31_NAME(below2G)
-  );
-
-  return rc;
-}
-
-static bool isVolumeAvailable(Volser volser) {
-
-  int ucbScanRC = 0, ucbScanRSN = 0;
-  UCBCommon ucb = {0};
-  ucbScanRC = getUCBCommonCopy(volser, &ucb, &ucbScanRSN);
-
-  if (ucbScanRC == 0 && (ucb.status & UCB_COMMON_STATUS_ONLI)
-      && !(ucb.status & UCB_COMMON_STATUS_CHGS)) {
-    return true;
-  }
-
-  return false;
-}
-
 #ifdef __ZOWE_OS_ZOS
 void addDetailedDatasetMetadata(char *datasetName, int nameLength,
                                 char *volser, int volserLength,
@@ -626,34 +523,202 @@ void addMemberedDatasetMetadata(char *datasetName, int nameLength,
 #endif /* __ZOWE_OS_ZOS */
 
 #ifdef __ZOWE_OS_ZOS
-static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char *datasetPath) {
+
+#define DSPATH_PREFIX   "//\'"
+#define DSPATH_SUFFIX   "\'"
+
+static bool isDatasetPathValid(const char *path) {
+
+  /* Basic check. The fopen() dataset path format is //'dsn(member)' */
+
+  /* Min dataset file name:
+   * //'              - 3
+   * min ds name      - 1
+   * '                - 1
+   */
+#define PATH_MIN_LENGTH 5
+
+  /* Max dataset file name:
+   * //'              - 3
+   * man ds name      - 44
+   * (                - 1
+   * max member name  - 8
+   * )                - 1
+   * '                - 1
+   */
+#define PATH_MAX_LENGTH 58
+
+#define DSN_MIN_LENGTH      1
+#define DSN_MAX_LENGTH      44
+#define MEMBER_MIN_LENGTH   1
+#define MEMBER_MAX_LENGTH   8
+
+  size_t pathLength = strlen(path);
+
+  if (pathLength < PATH_MIN_LENGTH || PATH_MAX_LENGTH < pathLength) {
+    return false;
+  }
+
+  if (memcmp(path, DSPATH_PREFIX, strlen(DSPATH_PREFIX))) {
+    return false;
+  }
+  if (memcmp(&path[pathLength - 1], DSPATH_SUFFIX, strlen(DSPATH_SUFFIX))) {
+    return false;
+  }
+
+  const char *dsnStart = path + strlen(DSPATH_PREFIX);
+  const char *dsnEnd = path + pathLength - 1 - strlen(DSPATH_SUFFIX);
+
+  const char *leftParen = strchr(dsnStart, '(');
+  const char *rightParen = strchr(dsnStart, ')');
+  if (!leftParen ^ !rightParen) {
+    return false;
+  }
+
+  if (leftParen) {
+
+    ptrdiff_t dsnLength = leftParen - dsnStart;
+    if (dsnLength < DSN_MIN_LENGTH || DSN_MAX_LENGTH < dsnLength) {
+      return false;
+    }
+
+    if (rightParen != dsnEnd) {
+      return false;
+    }
+
+    ptrdiff_t memberNameLength = rightParen - leftParen - 1;
+    if (memberNameLength < MEMBER_MIN_LENGTH || MEMBER_MAX_LENGTH < memberNameLength) {
+      return false;
+    }
+
+  } else {
+
+    ptrdiff_t dsnLength = dsnEnd - dsnStart + 1;
+    if (dsnLength < DSN_MIN_LENGTH || DSN_MAX_LENGTH < dsnLength) {
+      return false;
+    }
+
+  }
+
+#undef PATH_MIN_LENGTH
+#undef PATH_MAX_LENGTH
+
+#undef DSN_MIN_LENGTH
+#undef DSN_MAX_LENGTH
+#undef MEMBER_MIN_LENGTH
+#undef MEMBER_MAX_LENGTH
+
+  return true;
+
+}
+
+static void extractDatasetAndMemberName(const char *datasetPath,
+                                        DatasetName *dsn,
+                                        DatasetMemberName *memberName) {
+
+  memset(&dsn->value, ' ', sizeof(dsn->value));
+  memset(&memberName->value, ' ', sizeof(memberName->value));
+
+  size_t pathLength = strlen(datasetPath);
+
+  const char *dsnStart = datasetPath + strlen(DSPATH_PREFIX);
+  const char *leftParen = strchr(datasetPath, '(');
+
+  if (leftParen) {
+    memcpy(dsn->value, dsnStart, leftParen - dsnStart);
+    const char *rightParen = strchr(datasetPath, ')');
+    memcpy(memberName->value, leftParen + 1, rightParen - leftParen - 1);
+  } else {
+    memcpy(dsn->value, dsnStart,
+           pathLength - strlen(DSPATH_PREFIX""DSPATH_SUFFIX));
+  }
+
+  for (int i = 0; i < sizeof(dsn->value); i++) {
+    dsn->value[i] = toupper(dsn->value[i]);
+  }
+
+  for (int i = 0; i < sizeof(memberName->value); i++) {
+    memberName->value[i] = toupper(memberName->value[i]);
+  }
+
+}
+
+#undef DSPATH_PREFIX
+#undef DSPATH_SUFFIX
+
+static void respondWithDYNALLOCError(HttpResponse *response,
+                                     int rc, int sysRC, int sysRSN,
+                                     const DynallocDatasetName *dsn,
+                                     const DynallocMemberName *member,
+                                     const char *site) {
+
+  if (rc ==  RC_DYNALLOC_SVC99_FAILED && sysRC == 4) {
+
+    if (sysRSN == 0x020C0000 || sysRSN == 0x02100000) {
+      respondWithMessage(response, HTTP_STATUS_FORBIDDEN,
+                        "Dataset \'%44.44s(%8.8s)\' busy (%s)",
+                        dsn->name, member->name, site);
+      return;
+    }
+
+    if (sysRSN == 0x02180000) {
+      respondWithMessage(response, HTTP_STATUS_NOT_FOUND,
+                        "Device not available for dataset \'%44.44s(%8.8s)\' "
+                        "(%s)", dsn->name, member->name, site);
+      return;
+    }
+
+    if (sysRSN == 0x023C0000) {
+      respondWithMessage(response, HTTP_STATUS_NOT_FOUND,
+                        "Catalog not available for dataset \'%44.44s(%8.8s)\' "
+                        "(%s)", dsn->name, member->name, site);
+      return;
+    }
+
+  }
+
+  respondWithMessage(response, HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                    "DYNALLOC failed with RC = %d, DYN RC = %d, RSN = 0x%08X, "
+                    "dsn=\'%44.44s(%8.8s)\', (%s)", rc, sysRC, sysRSN,
+                    dsn->name, member->name, site);
+
+}
+
+#define IS_DAMEMBER_EMPTY($member) \
+  (!memcmp(&($member), &(DynallocMemberName){"        "}, sizeof($member)))
+
+static void updateDatasetWithJSONInternal(HttpResponse* response,
+                                          const char *datasetPath, /* backward compatibility */
+                                          const DatasetName *dsn,
+                                          const DDName *ddName,
+                                          JsonObject *json) {
+
+  char ddPath[16];
+  snprintf(ddPath, sizeof(ddPath), "DD:%8.8s", ddName->value);
+
   JsonArray *recordArray = jsonObjectGetArray(json,"records");
   int recordCount = jsonArrayGetCount(recordArray);
   int maxRecordLength = 80;
-
+  FILE *outDataset = fopen(datasetPath, "wb, recfm=*, type=record");
+  if (outDataset == NULL) {
+    respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
+    return;
+  }  
   int isFixed = FALSE;
-  int handledThroughDSCB = FALSE;
 
-  Volser volser = {.value = ' '};
-  DatasetName dsn = {.value = ' '};
-  int datasetPathLen = strlen(datasetPath);
-  int lParenIndex = indexOf(datasetPath, datasetPathLen,'(',0);
-  if (lParenIndex > 0){
-    memcpy(dsn.value,datasetPath+3,lParenIndex-3);
-  }
-  else{
-    memcpy(dsn.value,datasetPath+3,datasetPathLen-4);
-  }
-  int volserSuccess = getVolserForDataset(&dsn, &volser);
+  Volser volser;
+  memset(&volser.value, ' ', sizeof(volser.value));
+
+  int volserSuccess = getVolserForDataset(dsn, &volser);
   if (!volserSuccess){
     
     char dscb[INDEXED_DSCB] = {0};
-    int rc = obtainDSCB1(dsn.value, sizeof(dsn.value),
+    int rc = obtainDSCB1(dsn->value, sizeof(dsn->value),
                          volser.value, sizeof(volser.value),
                          dscb);
     if (rc == 0){
       if (DSCB_TRACE){
-        printf("DSCB for %.*s found\n", sizeof(dsn.value), dsn.value);
+        printf("DSCB for %.*s found\n", sizeof(dsn->value), dsn->value);
         dumpbuffer(dscb,INDEXED_DSCB);
       }
       
@@ -662,28 +727,9 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
       if (recordType == 'F'){
         isFixed = TRUE;
       }
-      handledThroughDSCB = TRUE;
     }
-  } else {
-    respondWithError(response, HTTP_STATUS_NOT_FOUND,
-                     "Dataset not found");
-    return;
   }
-
-  if (!isVolumeAvailable(volser)) {
-    respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                     "Volume not available");
-    return;
-  }
-
-  FILE *outDataset = fopen(datasetPath, "wb, recfm=*, type=record");
-  if (outDataset == NULL) {
-    respondWithError(response, HTTP_STATUS_NOT_FOUND,
-                     "File could not be opened or does not exist");
-    return;
-  }
-
-  if (!handledThroughDSCB) {
+  else{
     printf("Warning: fallback for record length discovery\n");
     fldata_t fileinfo = {0};
     char filenameOutput[100];
@@ -779,16 +825,70 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
     }
   }
   /*success!*/
-  char successMessage[1024];
-  int datasetNameLength = strlen(datasetPath)-4;
-  char datasetName[datasetNameLength+1];
-  memcpy(datasetName,datasetPath+3,datasetNameLength);
-  datasetName[datasetNameLength] = '\0';
-  int successMessageLength = sprintf(successMessage,"Updated dataset %s with %d records",datasetName,recordsWritten);
-  successMessage[successMessageLength] = '\0';
-  respondWithError(response,HTTP_STATUS_OK,successMessage);/*why do we call it respondWithError if we can use successful messages too*/
+  respondWithMessage(response, HTTP_STATUS_OK,
+                     "Updated dataset %s with %d records",
+                     datasetPath, recordsWritten);
   fclose(outDataset);
 }
+
+static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char *datasetPath) {
+
+  HttpRequest *request = response->request;
+
+  if (!isDatasetPathValid(datasetPath)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
+    return;
+  }
+
+  DatasetName dsn;
+  DatasetMemberName memberName;
+  extractDatasetAndMemberName(datasetPath, &dsn, &memberName);
+
+  DynallocDatasetName daDsn;
+  DynallocMemberName daMember;
+  memcpy(daDsn.name, dsn.value, sizeof(daDsn.name));
+  memcpy(daMember.name, memberName.value, sizeof(daMember.name));
+  DynallocDDName daDDname = {.name = "????????"};
+
+  int daRC = RC_DYNALLOC_OK, daSysRC = 0, daSysRSN = 0;
+  daRC = dynallocAllocDataset(
+      &daDsn,
+      IS_DAMEMBER_EMPTY(daMember) ? NULL : &daMember,
+      &daDDname,
+      DYNALLOC_DISP_SHR,
+      DYNALLOC_ALLOC_FLAG_NO_CONVERSION | DYNALLOC_ALLOC_FLAG_NO_MOUNT,
+      &daSysRC, &daSysRSN
+  );
+
+  if (daRC != RC_DYNALLOC_OK) {
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE,
+            "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+            " rc=%d sysRC=%d, sysRSN=0x%08X (update)\n",
+            daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
+    respondWithDYNALLOCError(response, daRC, daSysRC, daSysRSN,
+                             &daDsn, &daMember, "w");
+    return;
+  }
+
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
+          "debug: updating dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\'\n",
+          daDsn.name, daMember.name, daDDname.name);
+
+  DDName ddName;
+  memcpy(&ddName.value, &daDDname.name, sizeof(ddName.value));
+  updateDatasetWithJSONInternal(response, datasetPath, &dsn, &ddName, json);
+
+  daRC = dynallocUnallocDatasetByDDName(&daDDname, DYNALLOC_UNALLOC_FLAG_NONE,
+                                        &daSysRC, &daSysRSN);
+  if (daRC != RC_DYNALLOC_OK) {
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
+            "error: ds unalloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+            " rc=%d sysRC=%d, sysRSN=0x%08X (update)\n",
+            daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
+  }
+
+}
+
 #endif /* __ZOWE_OS_ZOS */
 
 #ifdef __ZOWE_OS_ZOS
@@ -1093,62 +1193,54 @@ void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *ac
 
  */
 
-void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
+static void respondWithDatasetInternal(HttpResponse* response,
+                                       const char *datasetPath,
+                                       const DatasetName *dsn,
+                                       const DDName *ddName,
+                                       int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
   HttpRequest *request = response->request;
 
-  Volser volser = {.value = ' '};
-  DatasetName dsn = {.value = ' '};
-  int absolutePathLen = strlen(absolutePath);
-  int lParenIndex = indexOf(absolutePath, absolutePathLen,'(',0);
-  if (lParenIndex > 0){
-    memcpy(dsn.value,absolutePath+3,lParenIndex-3);
+  char ddPath[16];
+  snprintf(ddPath, sizeof(ddPath), "DD:%8.8s", ddName->value);
+
+  FileInfo info;
+  int returnCode;
+  int reasonCode;
+  FILE *in = fopen(ddPath, "r");
+  if (in == NULL) {
+    respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
+    return;
   }
-  else{
-    memcpy(dsn.value,absolutePath+3,absolutePathLen-4);
-  }
-  int volserSuccess = getVolserForDataset(&dsn, &volser);
+
+  Volser volser;
+  memset(&volser.value, ' ', sizeof(volser.value));
+
+  int volserSuccess = getVolserForDataset(dsn, &volser);
   int handledThroughDSCB = FALSE;
   int lrecl;
   if (!volserSuccess){
     
     char dscb[INDEXED_DSCB] = {0};
-    int rc = obtainDSCB1(dsn.value, sizeof(dsn.value),
+    int rc = obtainDSCB1(dsn->value, sizeof(dsn->value),
                          volser.value, sizeof(volser.value),
                          dscb);
     if (rc == 0){
       if (DSCB_TRACE){
-        printf("DSCB for %.*s found\n", sizeof(dsn.value), dsn.value);
+        printf("DSCB for %.*s found\n", sizeof(dsn->value), dsn->value);
         dumpbuffer(dscb,INDEXED_DSCB);
       }
 
       lrecl = getMaxRecordLength(dscb);
       char recordType = getRecordLengthType(dscb);
       if (recordType == 'U'){
+        fclose(in);
         respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Undefined-length dataset");
         return;
       }
       handledThroughDSCB = TRUE;
     }
-  } else {
-    respondWithError(response, HTTP_STATUS_NOT_FOUND,
-                     "Dataset not found");
-    return;
   }
-
-  if (!isVolumeAvailable(volser)) {
-    respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                     "Volume not available");
-    return;
-  }
-
-  FILE *in = fopen(absolutePath, "r");
-  if (in == NULL) {
-    respondWithError(response,HTTP_STATUS_NOT_FOUND,
-                     "File could not be opened or does not exist");
-    return;
-  }
-
   if (!handledThroughDSCB){
     FileInfo info;
     fldata_t fileinfo = {0};
@@ -1179,14 +1271,72 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
   writeHeader(response);
 
   if (lrecl){
-    printf("Streaming data for %s\n", absolutePath);
+    printf("Streaming data for %s\n", datasetPath);
     
     jsonStart(jPrinter);
-    int status = streamDataset(response->socket, absolutePath, lrecl, jPrinter);
+    int status = streamDataset(response->socket, ddPath, lrecl, jPrinter);
     jsonEnd(jPrinter);
   }
   finishResponse(response);
 #endif /* __ZOWE_OS_ZOS */
+}
+
+void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
+
+  HttpRequest *request = response->request;
+
+  if (!isDatasetPathValid(absolutePath)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
+    return;
+  }
+
+  DatasetName dsn;
+  DatasetMemberName memberName;
+  extractDatasetAndMemberName(absolutePath, &dsn, &memberName);
+
+  DynallocDatasetName daDsn;
+  DynallocMemberName daMember;
+  memcpy(daDsn.name, dsn.value, sizeof(daDsn.name));
+  memcpy(daMember.name, memberName.value, sizeof(daMember.name));
+  DynallocDDName daDDname = {.name = "????????"};
+
+  int daRC = RC_DYNALLOC_OK, daSysRC = 0, daSysRSN = 0;
+  daRC = dynallocAllocDataset(
+      &daDsn,
+      IS_DAMEMBER_EMPTY(daMember) ? NULL : &daMember,
+      &daDDname,
+      DYNALLOC_DISP_SHR,
+      DYNALLOC_ALLOC_FLAG_NO_CONVERSION | DYNALLOC_ALLOC_FLAG_NO_MOUNT,
+      &daSysRC, &daSysRSN
+  );
+
+  if (daRC != RC_DYNALLOC_OK) {
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE,
+            "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+            " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
+            daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
+    respondWithDYNALLOCError(response, daRC, daSysRC, daSysRSN,
+                             &daDsn, &daMember, "r");
+    return;
+  }
+
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
+          "debug: reading dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\'\n",
+          daDsn.name, daMember.name, daDDname.name);
+
+  DDName ddName;
+  memcpy(&ddName.value, &daDDname.name, sizeof(ddName.value));
+  respondWithDatasetInternal(response, absolutePath, &dsn, &ddName, jsonMode);
+
+  daRC = dynallocUnallocDatasetByDDName(&daDDname, DYNALLOC_UNALLOC_FLAG_NONE,
+                                        &daSysRC, &daSysRSN);
+  if (daRC != RC_DYNALLOC_OK) {
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
+            "error: ds unalloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+            " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
+            daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
+  }
+
 }
 
 #define CSI_VSAMTYPE_KSDS  0x8000

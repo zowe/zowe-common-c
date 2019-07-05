@@ -502,6 +502,8 @@ void setConfiguredProperty(HttpServer *server, char *key, void *value);
  */
 
 void respondWithError(HttpResponse *response, int code, char *message);
+void respondWithMessage(HttpResponse *response, int status,
+                        const char *messageFormatString, ...);
 void setResponseStatus(HttpResponse *response, int status, char *message);
 
 void addHeader(HttpResponse *response, HttpHeader *header);
