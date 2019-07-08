@@ -160,6 +160,22 @@ int indexOfString(char *str, int len, char *searchString, int startPos){
   return -1;
 }
 
+int lastIndexOfString(char *str, int len, char *searchString) {
+  int searchLen = strlen(searchString);
+  int pos = len - searchLen;
+  
+  if (searchLen > len) {
+    return -1;
+  }
+  while (pos >= 0) {
+    if (!memcmp(str+pos,searchString,searchLen)) {
+      return pos;
+    }
+    pos--;
+  } 
+  return -1;
+}
+
 #if defined(__ZOWE_OS_WINDOWS) || defined(__ZOWE_OS_LINUX) || defined(METTLE) || defined(__ZOWE_OS_AIX)
 
 static int cheesyInsensitiveMatch(char *str, int len, char *searchString, int searchLen){
