@@ -19,7 +19,6 @@
  *
  */
 
-//hash stuff
  typedef struct PluginLoggingData_t {
     int level;
     uint64 id;
