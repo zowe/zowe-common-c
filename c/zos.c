@@ -204,7 +204,7 @@ int ddnameExists(char *ddname){
 #define ACF2_EYECATCHER       "ACF2"
 #define RACF_EYECATCHER       "RCVT"
 
-ExternalSecurityManager getExternalSecurityManager() {
+ExternalSecurityManager getExternalSecurityManager(void) {
   CVT *cvt = getCVT();
 
   if (!strncmp(cvt->cvtrac, RACF_EYECATCHER, ESM_EYECATCHER_LENGTH)) {
