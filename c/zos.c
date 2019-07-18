@@ -207,13 +207,13 @@ int ddnameExists(char *ddname){
 ExternalSecurityManager getExternalSecurityManager(void) {
   CVT *cvt = getCVT();
 
-  if (!strncmp(cvt->cvtrac, RACF_EYECATCHER, ESM_EYECATCHER_LENGTH)) {
+  if (!memcmp(cvt->cvtrac, RACF_EYECATCHER, ESM_EYECATCHER_LENGTH)) {
     return ZOS_ESM_RACF;
   }
-  else if (!strncmp(cvt->cvtrac, RTSS_EYECATCHER, ESM_EYECATCHER_LENGTH)) {
+  else if (!memcmp(cvt->cvtrac, RTSS_EYECATCHER, ESM_EYECATCHER_LENGTH)) {
     return ZOS_ESM_RTSS;
   }
-  else if (!strncmp(cvt->cvtrac, ACF2_EYECATCHER, ESM_EYECATCHER_LENGTH)) {
+  else if (!memcmp(cvt->cvtrac, ACF2_EYECATCHER, ESM_EYECATCHER_LENGTH)) {
     return ZOS_ESM_ACF2;
   }
   else {
