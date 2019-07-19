@@ -182,20 +182,6 @@ void jsonWriteBufferInternal(jsonPrinter *p, char *text, int len) {
   }
 }
 
-void *safeRealloc(void *ptr, size_t size, size_t oldSize, char *site) {
-  void *new;
-
-  new = safeMalloc(size, site);
-  if (new == NULL) {
-    return NULL;
-  }
-  if ((ptr != NULL) && (oldSize > 0)) {
-    memmove(new, ptr, oldSize);
-    safeFree(ptr, oldSize);
-  }
-  return new;
-}
-
 #define MAX($a, $b) ((($a) > ($b))? ($a) : ($b))
 
 #define ESCAPE_LEN 6 /* \u0123 */
@@ -769,6 +755,7 @@ struct JsonToken_tag {
 #define JSON_TOKEN_UNTERMINATED_BLOCK_COMMENT 16
 #define JSON_TOKEN_BAD_COMMENT 17
 #define JSON_TOKEN_UNEXPECTED_CHAR 18
+#define JSON_TOKEN_STRING_TOO_LONG 19
 #define JSON_TOKEN_UNMATCHED 666
   int type;
   char *text;
@@ -843,6 +830,8 @@ char *getTokenTypeString(int type) {
       return "unexpected character";
     case JSON_TOKEN_UNMATCHED:
       return "unmatched token";
+    case JSON_TOKEN_STRING_TOO_LONG:
+      return "string too long";
     default:
       return "unknown token";
   }
@@ -1029,6 +1018,7 @@ static
 JsonToken *getStringToken(JsonTokenizer *tokenizer) {
   int pos = 0;
   int badString = FALSE;
+  int stringTooLong = FALSE;
   
   int quote = jsonTokenizerRead(tokenizer);
   while (TRUE) {
@@ -1045,6 +1035,7 @@ JsonToken *getStringToken(JsonTokenizer *tokenizer) {
       if (pos >= tokenizer->bufferSize) {
         int growRc = jsonTokenizerGrowBuffer(tokenizer);
         if (growRc < 0) {
+          stringTooLong = TRUE;
           break;
         }
       }
@@ -1073,6 +1064,7 @@ JsonToken *getStringToken(JsonTokenizer *tokenizer) {
         if (pos >= tokenizer->bufferSize) {
           int growRc = jsonTokenizerGrowBuffer(tokenizer);
           if (growRc < 0) {
+            stringTooLong = TRUE;
             break;
           }
         }
@@ -1084,6 +1076,8 @@ JsonToken *getStringToken(JsonTokenizer *tokenizer) {
   memcpy(text, tokenizer->buffer, pos);
   if (badString) {
     return makeJsonToken(tokenizer, JSON_TOKEN_UNTERMINATED_STRING, text);
+  } else if (stringTooLong) {
+    return makeJsonToken(tokenizer, JSON_TOKEN_STRING_TOO_LONG, text);
   } else {
     return makeJsonToken(tokenizer, JSON_TOKEN_STRING, text);
   }
@@ -1233,6 +1227,10 @@ void jsonValidateToken(JsonParser *parser, JsonToken *token) {
       break;
     case JSON_TOKEN_UNTERMINATED_BLOCK_COMMENT:
       jsonParseFail(parser, "unterminated comment /*%s", token->text);
+      break;
+    case JSON_TOKEN_STRING_TOO_LONG:
+      jsonParseFail(parser, "string length exceeded the limit");
+      break;
   }
 }
 

@@ -622,6 +622,20 @@ void safeFree(char *data, int size){
   safeFree31(data,size);
 }
 
+void *safeRealloc(void *ptr, int32_t size, int32_t oldSize, char *site) {
+  void *new;
+
+  new = safeMalloc(size, site);
+  if (new == NULL) {
+    return NULL;
+  }
+  if ((ptr != NULL) && (oldSize > 0)) {
+    memmove(new, ptr, oldSize);
+    safeFree(ptr, oldSize);
+  }
+  return new;
+}
+
 #ifdef __ZOWE_OS_ZOS
 
 #ifdef METTLE
@@ -1088,7 +1102,6 @@ int safeFree64v3(void *data, unsigned long long size, int *sysRC, int *sysRSN) {
 
 #endif /* END of METTLE */
 #endif /* END of __ZOWE_OS_ZOS */
-
 
 /*
   This program and the accompanying materials are
