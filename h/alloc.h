@@ -70,7 +70,7 @@ char *safeMalloc64ByToken(int size, char *site, long long token);
 void safeFree64(char *data, int size);
 void safeFree64ByToken(char *data, int size, long long token);
 
-void *safeRealloc(void *ptr, int32_t size, int32_t oldSize, char *site);
+void *safeRealloc(void *ptr, int size, int oldSize, char *site);
 
 #if defined(__ZOWE_OS_ZOS)
 /* 64-bit allocator and de-allocator v2. */
