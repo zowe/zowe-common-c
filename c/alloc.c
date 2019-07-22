@@ -622,7 +622,7 @@ void safeFree(char *data, int size){
   safeFree31(data,size);
 }
 
-void *safeRealloc(void *ptr, int32_t size, int32_t oldSize, char *site) {
+void *safeRealloc(void *ptr, int size, int oldSize, char *site) {
   void *new;
 
   new = safeMalloc(size, site);
