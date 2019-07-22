@@ -593,6 +593,52 @@ void jsonAddJSONString(jsonPrinter *p, char *keyOrNull, char *validJsonValue) {
   jsonWrite(p, validJsonValue, false, p->inputCCSID);
 }
 
+void jsonStartMultipartString(jsonPrinter *p, char *keyOrNull) {
+  if (jsonShouldStopWriting(p)) {
+    return;
+  }
+  if (p->isFirstLine) {
+    p->isFirstLine = FALSE;
+  } else {
+    jsonNewLine(p);
+  }
+  jsonWriteKeyAndSemicolon(p, keyOrNull);
+  jsonWrite(p, "\"", false, SOURCE_CODE_CHARSET);
+  p->isInMultipartString = 1;
+}
+
+void jsonAppendStringPart(jsonPrinter *p, char *s) {
+  if (jsonShouldStopWriting(p)) {
+    return;
+  }
+  if (!p->isInMultipartString) {
+    return;
+  }
+  jsonWrite(p, s, true, p->inputCCSID);
+}
+
+void jsonAppendUnterminatedStringPart(jsonPrinter *p, char *value,
+    int valueLength) {
+  if (jsonShouldStopWriting(p)) {
+    return;
+  }
+  if (!p->isInMultipartString) {
+    return;
+  }
+  jsonConvertAndWriteBuffer(p, value, valueLength, true, p->inputCCSID);
+}
+
+void jsonEndMultipartString(jsonPrinter *p) {
+  if (jsonShouldStopWriting(p)) {
+    return;
+  }
+  if (!p->isInMultipartString) {
+    return;
+  }
+  jsonWrite(p, "\"", false, SOURCE_CODE_CHARSET);
+  p->isInMultipartString = 0;
+}
+
 void jsonAddUnterminatedString(jsonPrinter *p, char *keyOrNull, char *value, int valueLength) {
   if (jsonShouldStopWriting(p)) {
     return;
