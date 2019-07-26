@@ -595,7 +595,24 @@ int stringCompare(void *key1, void *key2){
 }
 
 void htDestroy(hashtable *ht){
-  /* printf("htDestroy should apply all key and value reclaimers, if specified\n"); */
+
+  if (ht->keyReclaimer != NULL || ht->valueReclaimer != NULL) {
+
+    for (int i = 0; i < ht->backboneSize; i++) {
+      hashentry *entry = ht->backbone[i];
+      while (entry != NULL) {
+        if (ht->keyReclaimer != NULL) {
+          (ht->keyReclaimer)(entry->key);
+        }
+        if (ht->valueReclaimer != NULL) {
+          (ht->valueReclaimer)(entry->value);
+        }
+        entry = entry->next;
+      }
+    }
+
+  }
+
   fbMgrDestroy(ht->mgr);
   safeFree((char*)ht->backbone,sizeof(hashentry*)*ht->backboneSize);
   safeFree((char*)ht,sizeof(hashtable));
