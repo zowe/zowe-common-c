@@ -3284,7 +3284,37 @@ void respondWithError(HttpResponse *response, int code, char *message){
   finishResponse(response);
 }
 
+void respondWithMessage(HttpResponse *response, int status,
+                        const char *messageFormatString, ...) {
 
+  char errorMessage[512] = { 0 };
+  char errorMessageASCII[512] = { 0 };
+
+  va_list argPointer;
+  va_start(argPointer, messageFormatString);
+  {
+    vsnprintf(errorMessage,
+              sizeof(errorMessage),
+              messageFormatString,
+              argPointer);
+  }
+  va_end(argPointer);
+
+  size_t messageLength = strlen(errorMessage);
+
+  strcpy(errorMessageASCII, errorMessage);
+  toASCIIUTF8(errorMessageASCII, messageLength);
+
+  setResponseStatus(response, status, errorMessage);
+  setContentType(response, "text/plain");
+  addStringHeader(response, "Server", "jdmfws");
+  addIntHeader(response, "Content-Length", messageLength);
+  writeHeader(response);
+  writeFully(response->socket, errorMessageASCII, messageLength);
+
+  finishResponse(response);
+
+}
 
 // Response must ALWAYS be finished on return
 void serveFile(HttpService *service, HttpResponse *response){
