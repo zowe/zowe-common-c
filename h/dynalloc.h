@@ -682,6 +682,8 @@ int DeallocDDName(char *ddname);
 #define DISP_MOD 0x02
 #define DISP_SHARE 0x08
 
+#define DISP_DELETE 0x04
+
 /* Use this structure to pass parameters to DYNALLOC functions.
  * Dsname should be padded by spaces. */
 typedef struct DynallocInputParms_tag {
@@ -702,6 +704,7 @@ int dynallocDataset(DynallocInputParms *inputParms, int *reasonCode);
 int dynallocDatasetMember(DynallocInputParms *inputParms, int *reasonCode,
                           char *member);
 int unallocDataset(DynallocInputParms *inputParms, int *reasonCode);
+int freeDataset(DynallocInputParms *inputParms, int *reasonCode);
 
 #endif
 

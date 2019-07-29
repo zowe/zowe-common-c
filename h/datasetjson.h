@@ -63,6 +63,7 @@ void respondWithDatasetMetadata(HttpResponse *response);
 void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQueryCache);
 void respondWithDataset(HttpResponse* response, char* fullPath, int jsonMode, HttpService* service);
 void updateDataset(HttpResponse* response, char* fullPath, int jsonMode, HttpService* service);
+void removeDataset(HttpResponse* response, char* fullPath);
 #endif
 
 

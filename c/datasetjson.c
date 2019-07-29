@@ -1719,6 +1719,37 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
 #endif /* __ZOWE_OS_ZOS */
 }
 
+void removeDataset(HttpResponse* response, char* dsName){
+  int reasonCode = 0;
+  int returnCode = 0;
+  DynallocInputParms inputParms = {0};
+  strncpy(inputParms.dsName, dsName, DATASET_NAME_LEN);
+  padWithSpaces(inputParms.dsName, sizeof(inputParms.dsName), 1, 0);
+  inputParms.disposition = DISP_OLD;
+  int ddNumber = 1;
+  char ddname[sizeof(inputParms.ddName) + 1];
+  do {
+    snprintf(ddname, sizeof(inputParms.ddName) + 1, "MVD%05d", ddNumber);
+    memcpy(inputParms.ddName, ddname, DD_NAME_LEN);
+    returnCode = dynallocDataset(&inputParms, &reasonCode);
+    ddNumber++;
+  }
+  while (reasonCode==0x4100000 && ddNumber < 100000);
+  if (returnCode) {
+    zowelog(NULL, LOG_COMP_DATASETJSON, ZOWE_LOG_WARNING, "Dynalloc RC = %d, reasonCode = %x\n", returnCode, reasonCode);
+    respondWithJsonError(response, "Unable to allocate a DD for deletion", 500, "Internal Server Error");
+    return;
+  }
+  returnCode = freeDataset(&inputParms, &reasonCode);
+  if (returnCode) {
+    zowelog(NULL, LOG_COMP_DATASETJSON, ZOWE_LOG_WARNING, "Dynalloc RC = %d, reasonCode = %x\n", returnCode, reasonCode);
+    respondWithJsonError(response, "Unable to delete dataset", 500, "Internal Server Error");
+    return;
+  }
+  else {
+    response200WithMessage(response, "Successfully deleted dataset");
+  }
+}
 
 #endif /* not METTLE - the whole module */
 
