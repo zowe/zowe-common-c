@@ -1092,10 +1092,14 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
 
   if(returnCode == 0) {  
     int blockSize = 0x10000;
-    ShortLivedHeap *slh = makeShortLivedHeap(blockSize,(translationLength*2)/blockSize);
+    int maxBlockCount = (translationLength*2)/blockSize;
+    if (!maxBlockCount){
+      maxBlockCount = 0x10;
+    }
+    ShortLivedHeap *slh = makeShortLivedHeap(blockSize,maxBlockCount);
     char errorBuffer[2048];
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: before JSON parse dataLength=0x%x\n",bodyLength);
-     Json *json = jsonParseUnterminatedString(slh, 
+    Json *json = jsonParseUnterminatedString(slh, 
                                              convertedBody, translationLength,
                                              errorBuffer, sizeof(errorBuffer));
     if (json) {
