@@ -1813,7 +1813,7 @@ void respondWithDatasetMetadata(HttpResponse *response) {
               volserLength = 6; /* may contain spaces */
               memcpy(volser,fieldValueStart,volserLength);
               jsonAddString(jPrinter,"volser",volser);
-              if (!strcmp(volser,"MIGRAT") || !strcmp(volser,"ARCHIV")){
+              if (!strcmp(volser,"MIGRAT") || !strcmp(volser,"ARCIVE")){
                 isMigrated = TRUE;
               }
               break;
