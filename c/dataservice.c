@@ -107,18 +107,35 @@ static void *lookupDLLEntryPoint(char *libraryName, char *functionName){
     | RTLD_NOW
 #endif
     ;
-  void *library = dlopen(libraryName,flags);
-  if (library){
-    printf("dll handle for %s = 0x%" PRIxPTR "\n",libraryName, library);
-    ep = dlsym(library,functionName);
-    /* dlclose(library); - this will really close the DLL, like not be able to call */
-    if (ep == NULL){
-      printf("%s.%s could not be found -  dlsym error %s\n", libraryName, functionName, dlerror());
+  FileInfo info;
+  int status = 0;
+  int returnCode = 0;
+  int reasonCode = 0;
+  status = fileInfo(libraryName, &info, &returnCode, &reasonCode);
+  if (status == 0) {
+    if (!(info.attributeFlags & BPXYSTAT_ATTR_PROGCTL)) {
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE, 
+              "FAILURE: Dataservice: %s does not have the Program Control attribute this may cause unexpected errors therefore will not be loaded\n",
+              libraryName);
     } else {
-      printf("%s.%s is at 0x%" PRIxPTR "\n", libraryName, functionName, ep);
-    }
-  } else{
-    printf("dlopen error for %s - %s\n",libraryName, dlerror());
+      void *library = dlopen(libraryName,flags);
+      if (library){
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "dll handle for %s = 0x%" PRIxPTR "\n", libraryName, library);
+        ep = dlsym(library,functionName);
+        /* dlclose(library); - this will really close the DLL, like not be able to call */
+        if (ep == NULL){
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE, "%s.%s could not be found -  dlsym error %s\n", libraryName, functionName, dlerror());
+        } else {
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s.%s is at 0x%" PRIxPTR "\n", libraryName, functionName, ep);
+        }
+      } else {
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE, "dlopen error for %s - %s\n",libraryName, dlerror());
+      }
+    }       
+  } else {
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE, 
+            "FAILURE: Dataservice: %s status not available therefore will not be loaded, please check the provided file name: (return = 0x%x, reason = 0x%x)\n",
+            libraryName, returnCode, reasonCode);
   }
 #endif /* not METTLE */
   return ep;
