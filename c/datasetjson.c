@@ -88,7 +88,6 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
   }
   int bufferSize = recordLength+1;
   char buffer[bufferSize];
-  memset(buffer,0,bufferSize);
   jsonStartArray(jPrinter,"records");
   int contentLength = 0;
   int bytesRead = 0;
@@ -96,22 +95,21 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
     while (!feof(in)){
       bytesRead = fread(buffer,1,recordLength,in);
       if (bytesRead > 0){
-        memset(buffer+bytesRead,0,recordLength-bytesRead);
-        jsonAddString(jPrinter, NULL, buffer);
+        jsonAddUnterminatedString(jPrinter, NULL, buffer, bytesRead);
         contentLength = contentLength + bytesRead;
       }
       else if (bytesRead == 0){
         break;
       }
       else {
-        printf("Error reading DSN=%s, rc=%d\n",filename,bytesRead);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "Error reading DSN=%s, rc=%d\n",filename,bytesRead);
         break;
       }
     }
     fclose(in);
   }
   else {
-      printf("FAILED TO OPEN FILE\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "FAILED TO OPEN FILE\n");
   }
 
   jsonEndArray(jPrinter);
@@ -143,7 +141,7 @@ int streamVSAMDataset(HttpResponse* response, char *acb, int maxRecordLength, in
     rpl = (RPLCommon *)(acb+RPL_COMMON_OFFSET+8);
   } else {
     /* TODO: should never happen, but regardless, close out the JSON before this error so it doesn't look weird? */
-    printf("We were not passed an ACB.\n");
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "We were not passed an ACB.\n");
     /* respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR,"Missing ACB"); should really return this */
     return 8;
   }
@@ -169,7 +167,7 @@ int streamVSAMDataset(HttpResponse* response, char *acb, int maxRecordLength, in
     status = getRecord(acb, buffer, &bytesRead);
     /* TODO: if the user enters a parm to skip the first record, we can call continue in this loop after getRecord, but before JSON gets sent */
     if (bytesRead > bufferSize) {
-      printf("CRITICAL ERROR: Catalog was wrong about maximum record size.\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "CRITICAL ERROR: Catalog was wrong about maximum record size.\n");
       jsonAddString(jPrinter, NULL, "_ERROR: Catalog Error. Record found was too large.");
       jsonEndArray(jPrinter);
     }
@@ -179,14 +177,14 @@ int streamVSAMDataset(HttpResponse* response, char *acb, int maxRecordLength, in
       keyBuffer[keyLen] = 0;
     } else {
       rbaFound = *(int *)((rpl->rba)+4);
-      printf("rbaFound = %d\n", rbaFound);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "rbaFound = %d\n", rbaFound);
       memcpy(keyBuffer, &rbaFound, 4);
     }
     if (!bytesRead && rpl->status) {
-      printf("Read 0 bytes with error: ACB=%08x, rc=%d, rplRC = %0x%06x\n", acb, status, rpl->status, rpl->feedback);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "Read 0 bytes with error: ACB=%08x, rc=%d, rplRC = %0x%06x\n", acb, status, rpl->status, rpl->feedback);
       break;
     } else if (rpl->status && (rpl->feedback & 0xFF) == 0x04) { /* TODO: extra eof info to pass into json? */
-      printf("eof found after RBA %d\n", rbaFound);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "eof found after RBA %d\n", rbaFound);
       /* TODO: I suggest we remove our hashtable entry, close the ACB, and free their relative memories here - but confirm this with team first. */
       break;
     } else {
@@ -205,7 +203,7 @@ int streamVSAMDataset(HttpResponse* response, char *acb, int maxRecordLength, in
       safeFree(encodedRecord, encodedLength);
       safeFree(encodedKey, encodedKeyLength);
     }
-    if (rpl->status) printf("New Error: ACB=%08x, rc=%d, rplRC = %02x%06x\n", acb, status, rpl->status, rpl->feedback);
+    if (rpl->status) zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "New Error: ACB=%08x, rc=%d, rplRC = %02x%06x\n", acb, status, rpl->status, rpl->feedback);
   }
 
   jsonEndArray(jPrinter);
@@ -419,14 +417,14 @@ void addDetailedDatasetMetadata(char *datasetName, int nameLength,
                                 jsonPrinter *jPrinter) {
 
   int isPDS = FALSE;
-  printf("Going to check dataset %s attributes\n",datasetName);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Going to check dataset %s attributes\n",datasetName);
   char dscb[INDEXED_DSCB] = {0};
   int rc = obtainDSCB1(datasetName, nameLength,
                        volser, volserLength,
                        dscb);
   if (rc == 0){
     if (DSCB_TRACE){
-      printf("DSCB for %s found\n",datasetName);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "DSCB for %s found\n",datasetName);
       dumpbuffer(dscb,INDEXED_DSCB);
     }
     addDetailsFromDSCB(dscb,jPrinter,&isPDS);
@@ -467,7 +465,7 @@ void addMemberedDatasetMetadata(char *datasetName, int nameLength,
 
   /* If it's not a PDS, we exit. */
   if (!isPDS) {
-    printf("Cannot print members. Selected dataset is not a PDS.");
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Cannot print members. Selected dataset is not a PDS.");
     return;
   }
 
@@ -475,7 +473,7 @@ void addMemberedDatasetMetadata(char *datasetName, int nameLength,
   if (memberLength < 1){ memberLength = 1;}
   StringList *memberList = getPDSMembers(datasetName);
   int memberCount = stringListLength(memberList);
-  printf("--PDS %s has %d members\n",datasetName,memberCount);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "--PDS %s has %d members\n",datasetName,memberCount);
   if (memberCount > 0){
     jsonStartArray(jPrinter,"members");
     StringListElt *stringElement = firstStringListElt(memberList);
@@ -491,10 +489,10 @@ void addMemberedDatasetMetadata(char *datasetName, int nameLength,
             if (includeUnprintable == FALSE){
               break;
             }
-            printf("Member pos=%d has hex of 0x%x, will change.\n",j,memberName[j]);
-            printf("Member name: %s, percent name:%s\n",memberName,percentName);
+            zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Member pos=%d has hex of 0x%x, will change.\n",j,memberName[j]);
+            zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Member name: %s, percent name:%s\n",memberName,percentName);
             sprintf(&percentName[namePos],"%%%2.2x",memberName[j]);
-            printf("After: percentName: %s\n",percentName);
+            zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "After: percentName: %s\n",percentName);
             namePos = namePos+3;
           }
           else {
@@ -718,7 +716,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
                          dscb);
     if (rc == 0){
       if (DSCB_TRACE){
-        printf("DSCB for %.*s found\n", sizeof(dsn->value), dsn->value);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "DSCB for %.*s found\n", sizeof(dsn->value), dsn->value);
         dumpbuffer(dscb,INDEXED_DSCB);
       }
       
@@ -730,11 +728,11 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
     }
   }
   else{
-    printf("Warning: fallback for record length discovery\n");
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "fallback for record length discovery\n");
     fldata_t fileinfo = {0};
     char filenameOutput[100];
     int returnCode = fldata(outDataset,filenameOutput,&fileinfo);
-    printf("FLData request rc=0x%x\n",returnCode);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "FLData request rc=0x%x\n",returnCode);
     fflush(stdout);
     if (!returnCode) {
       if (fileinfo.__maxreclen){
@@ -764,7 +762,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       if (recordLength > maxRecordLength) {
         for (int j = recordLength; j > maxRecordLength-1; j--){
           if (jsonString[j] > 0x40){
-            printf("Invalid record for dataset, recordLength=%d but max for dataset is %d\n",recordLength,maxRecordLength);
+            zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Invalid record for dataset, recordLength=%d but max for dataset is %d\n",recordLength,maxRecordLength);
             char errorMessage[1024];
             int errorLength = sprintf(errorMessage,"Record #%d with contents \"%s\" is longer than the max record length of %d",i+1,jsonString,maxRecordLength);
             errorMessage[errorLength] = '\0';
@@ -776,7 +774,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
         recordLength = maxRecordLength;
       }
       if (isFixed && (recordLength != 0) && (recordLength != maxRecordLength)) {
-        printf("UPDATE DATASET: record given for fixed datset less than maxLength=%d, len=%d, data:%s\n",maxRecordLength,recordLength,jsonString);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: record given for fixed datset less than maxLength=%d, len=%d, data:%s\n",maxRecordLength,recordLength,jsonString);
         char recordBuffer[maxRecordLength+1];        
         memcpy(recordBuffer,jsonString,recordLength);
         memset(recordBuffer+recordLength,' ',maxRecordLength-recordLength);
@@ -789,11 +787,11 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
         recordArray->elements[i] = largerItem;
         char *updatedRecord = jsonArrayGetString(recordArray,i);
         int updatedLength = strlen(updatedRecord);
-        printf("UPDATE DATASET: record updated to have new length of %d which should match max length of %d, content:%s\n",updatedLength,maxRecordLength,updatedRecord);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: record updated to have new length of %d which should match max length of %d, content:%s\n",updatedLength,maxRecordLength,updatedRecord);
       }
     }
     else {
-      printf("Incorrectly formatted array!\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Incorrectly formatted array!\n");
       char errorMessage[1024];
       int errorLength = sprintf(errorMessage,"Array position %d is not a string, but must be for record updating",i);
       errorMessage[errorLength] = '\0';
@@ -818,7 +816,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
     bytesRead = fwrite(record,1,recordLength,outDataset);
     recordsWritten++;
     if (bytesRead < 0 && ferror(outDataset)){
-      printf("Error writing to dataset, rc=%d\n",bytesRead);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Error writing to dataset, rc=%d\n",bytesRead);
       respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"Error writing to dataset");
       fclose(outDataset);
       break;
@@ -911,7 +909,7 @@ static void updateVSAMDatasetWithJSON(HttpResponse *response, JsonObject *json, 
   memcpy(dsnUidPair+44, username, 8);
   StatefulACB *state = (StatefulACB *)htGet(acbTable, dsnUidPair);
   char *outACB = state ? state->acb : NULL;
-  printf("htGet on \"%s\" returned 0x%0x\n", dsnUidPair, outACB);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "htGet on \"%s\" returned 0x%0x\n", dsnUidPair, outACB);
 
   if (outACB == NULL) { /* TODO: openACB for output */
     /* TODO: open CSI to find relevant fields if ACB needs to be opened. */
@@ -928,7 +926,7 @@ static void updateVSAMDatasetWithJSON(HttpResponse *response, JsonObject *json, 
       char *jsonString = jsonAsString(item); /* TODO: should be looking at a "str:str" or "str: str" value here? */
       int recordLength = strlen(jsonString); /* TODO: more correctly calculate the recordLength AND keyLength */
       if (recordLength > maxRecordLength) { /* TODO: check recordLength AND keyLength (rpl->keyLen for keyLength) */
-        printf("Invalid record for dataset, recordLength=%d but max for dataset is %d\n",recordLength,maxRecordLength);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Invalid record for dataset, recordLength=%d but max for dataset is %d\n",recordLength,maxRecordLength);
         char errorMessage[1024];
         int errorLength = sprintf(errorMessage,"Record #%d with contents \"%s\" is longer than the max record length of %d",i+1,jsonString,maxRecordLength);
         errorMessage[errorLength] = '\0';
@@ -936,7 +934,7 @@ static void updateVSAMDatasetWithJSON(HttpResponse *response, JsonObject *json, 
         return;
       }
     } else {
-      printf("Incorrectly formatted array!\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Incorrectly formatted array!\n");
       char errorMessage[1024];
       int errorLength = sprintf(errorMessage,"Array position %d is not a string, but must be for record updating",i);
       errorMessage[errorLength] = '\0';
@@ -966,7 +964,7 @@ static void updateVSAMDatasetWithJSON(HttpResponse *response, JsonObject *json, 
     }
     putRecord(outACB, record, recordLength);
     if (rpl->status) {
-      printf("Error writing to dataset, rc=%02x%06x\n",rpl->status,rpl->feedback);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Error writing to dataset, rc=%02x%06x\n",rpl->status,rpl->feedback);
       respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"Error writing to dataset");
       break;
     }
@@ -1093,26 +1091,22 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
                               &reasonCode);
 
   if(returnCode == 0) {  
-
-    ShortLivedHeap *slh = makeShortLivedHeap(0x10000,0x10);
+    int blockSize = 0x10000;
+    ShortLivedHeap *slh = makeShortLivedHeap(blockSize,(translationLength*2)/blockSize);
     char errorBuffer[2048];
-    printf("UPDATE DATASET: before JSON parse dataLength=0x%x\n",bodyLength);
-    dumpbuffer(contentBody,bodyLength);
-    Json *json = jsonParseUnterminatedString(slh, 
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: before JSON parse dataLength=0x%x\n",bodyLength);
+     Json *json = jsonParseUnterminatedString(slh, 
                                              convertedBody, translationLength,
                                              errorBuffer, sizeof(errorBuffer));
     if (json) {
-      jsonPrinter *printer = makeJsonPrinter(1); /* STDOUT_FILENO); */
-      jsonPrint(printer, json);
-      freeJsonPrinter(printer);
       if (jsonIsObject(json)){
         updateDatasetWithJSON(response, jsonAsObject(json), absolutePath);
       } else{
-        printf("*** INTERNAL ERROR *** message is JSON, but not an object\n");
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "*** INTERNAL ERROR *** message is JSON, but not an object\n");
       }
     }
     else {
-      printf("UPDATE DATASET: body was not JSON!\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "UPDATE DATASET: body was not JSON!\n");
       respondWithError(response, HTTP_STATUS_BAD_REQUEST,"POST body could not be parsed as JSON format");      
     }
     SLHFree(slh);
@@ -1160,23 +1154,19 @@ void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *ac
 
     ShortLivedHeap *slh = makeShortLivedHeap(0x10000,0x10);
     char errorBuffer[2048];
-    printf("UPDATE DATASET: before JSON parse dataLength=0x%x\n",bodyLength);
-    dumpbuffer(contentBody,bodyLength);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: before JSON parse dataLength=0x%x\n",bodyLength);
     Json *json = jsonParseUnterminatedString(slh,
                                              convertedBody, translationLength,
                                              errorBuffer, sizeof(errorBuffer));
     if (json) {
-      jsonPrinter *printer = makeJsonPrinter(1); /* STDOUT_FILENO); */
-      jsonPrint(printer, json);
-      freeJsonPrinter(printer);
       if (jsonIsObject(json)){
         updateVSAMDatasetWithJSON(response, jsonAsObject(json), absolutePath, acbTable);
       } else{
-        printf("*** INTERNAL ERROR *** message is JSON, but not an object\n");
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "*** INTERNAL ERROR *** message is JSON, but not an object\n");
       }
     }
     else {
-      printf("UPDATE DATASET: body was not JSON!\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "UPDATE DATASET: body was not JSON!\n");
       respondWithError(response, HTTP_STATUS_BAD_REQUEST,"POST body could not be parsed as JSON format");
     }
     SLHFree(slh);
@@ -1227,7 +1217,7 @@ static void respondWithDatasetInternal(HttpResponse* response,
                          dscb);
     if (rc == 0){
       if (DSCB_TRACE){
-        printf("DSCB for %.*s found\n", sizeof(dsn->value), dsn->value);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "DSCB for %.*s found\n", sizeof(dsn->value), dsn->value);
         dumpbuffer(dscb,INDEXED_DSCB);
       }
 
@@ -1246,7 +1236,7 @@ static void respondWithDatasetInternal(HttpResponse* response,
     fldata_t fileinfo = {0};
     char filenameOutput[100];
     int returnCode = fldata(in,filenameOutput,&fileinfo);
-    printf("FLData request rc=0x%x\n",returnCode);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "FLData request rc=0x%x\n",returnCode);
     if (!returnCode) {
       if (fileinfo.__recfmU) {
         fclose(in);
@@ -1271,7 +1261,7 @@ static void respondWithDatasetInternal(HttpResponse* response,
   writeHeader(response);
 
   if (lrecl){
-    printf("Streaming data for %s\n", datasetPath);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Streaming data for %s\n", datasetPath);
     
     jsonStart(jPrinter);
     int status = streamDataset(response->socket, ddPath, lrecl, jPrinter);
@@ -1348,7 +1338,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
 /* In development - this is hardcoded for now */
 void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
-  printf("begin %s\n", __FUNCTION__);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "begin %s\n", __FUNCTION__);
   HttpRequest *request = response->request;
 
   HttpRequestParam *closeParam = getCheckedParam(request,"closeAfter");
@@ -1364,7 +1354,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
     memset(dsn + strlen(absolutePath), ' ', 44 - strlen(absolutePath));
     dsn[44] = 0;
   } else {
-    printf("DSN of size %d is too large.\n", strlen(absolutePath));
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "DSN of size %d is too large.\n", strlen(absolutePath));
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Dataset Name must be 44 bytes of less");
     return;
   }
@@ -1396,9 +1386,9 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
       unsigned short *fieldLengthArray = ((unsigned short *)((char*)entry+sizeof(EntryData)));
       char *fieldValueStart = (char*)entry+sizeof(EntryData)+defaultVSAMCSIFieldCount*sizeof(short);
       for (int j=0; j<defaultVSAMCSIFieldCount; j++){
-        /* printf("j = %d: '%s' (%d)\n", j, defaultVSAMCSIFields[j], fieldLengthArray[j]); */
+        /* zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "j = %d: '%s' (%d)\n", j, defaultVSAMCSIFields[j], fieldLengthArray[j]); */
         if (!strcmp(defaultVSAMCSIFields[j],"ASSOC   ") && fieldLengthArray[j]){
-          printf("DATA     = '%44.44s' [%c]\n", fieldValueStart+1, *fieldValueStart);
+          zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "DATA     = '%44.44s' [%c]\n", fieldValueStart+1, *fieldValueStart);
           memcpy(dsnData,fieldValueStart+1,44);
           /* Is there a use to storing the index component, located here in the case of KSDS? */
           break;
@@ -1439,13 +1429,13 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
       unsigned short *fieldLengthArray = ((unsigned short *)((char*)entry+sizeof(EntryData)));
       char *fieldValueStart = (char*)entry+sizeof(EntryData)+defaultVSAMCSIFieldCount*sizeof(short);
       for (int j=0; j<defaultVSAMCSIFieldCount; j++){
-        printf("j = %d: '%s' (%d)\n", j, defaultVSAMCSIFields[j], fieldLengthArray[j]);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "j = %d: '%s' (%d)\n", j, defaultVSAMCSIFields[j], fieldLengthArray[j]);
         if (!strcmp(defaultVSAMCSIFields[j],"VSAMTYPE") && fieldLengthArray[j]){
           memcpy(&vsamType,fieldValueStart,2);
           vsamType >>= (sizeof(int) * 8 - 16);  /* in case of weird int sizes */
         }
         if (!strcmp(defaultVSAMCSIFields[j],"ASSOC   ") && fieldLengthArray[j]){
-          printf("CLUSTER  = '%44.44s' [%c]\n", fieldValueStart+1, *fieldValueStart);
+          zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "CLUSTER  = '%44.44s' [%c]\n", fieldValueStart+1, *fieldValueStart);
           memcpy(dsnCluster,fieldValueStart+1,44);
         }
         if (!strcmp(defaultVSAMCSIFields[j],"AMDCIREC") && fieldLengthArray[j]){
@@ -1464,18 +1454,18 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
       }
     }
   } else {
-    printf("Catalog Entry not found for \"%s\"\n", dsn);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Catalog Entry not found for \"%s\"\n", dsn);
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Not Found in Catalog");
     return;
   } /* end Catalog Search */
-  printf("vsamType = 0x%0x, ciSize = %d, maxlrecl = %d, keyLoc = %d, keyLen = %d\n", vsamType, ciSize, maxlrecl, keyLoc, keyLen);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "vsamType = 0x%0x, ciSize = %d, maxlrecl = %d, keyLoc = %d, keyLen = %d\n", vsamType, ciSize, maxlrecl, keyLoc, keyLen);
 
   safeFree((char*)returnParms,sizeof(csi_parmblock));
   for (int i = 0; i < entrySet->length; i++){
     EntryData *currentEntry = entrySet->entries[i];
     if (!(entrySet->entries)) break;
     if (currentEntry == (EntryData *)0x000a0000) {
-      printf("... how did this happen:\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "... how did this happen:\n");
       dumpbuffer((char *)entrySet, 1000);
     }
     int fieldDataLength = currentEntry->data.fieldInfoHeader.totalLength;
@@ -1495,7 +1485,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
   void *argPtr = NULL;
 
   if (inACB) { /* an ACB exists */
-    printf("ACB found at 0x%0x\n", inACB);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "ACB found at 0x%0x\n", inACB);
     /* TODO: if opened for output, close and reopen for input by preserving existing macrf, rpl, maxrecl parms. Reset arg. */
     /* TODO: if the user submits a start key parm, this is where it should be entered */
     switch (state->type) {
@@ -1514,7 +1504,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
     }
     safeFree(dsnUidPair, 44+8+1);
   } else { /* need to open an ACB */
-    printf("about to dynalloc a DD to %s\n", dsn);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "about to dynalloc a DD to %s\n", dsn);
     DynallocInputParms inputParms;
     memcpy(inputParms.dsName, dsn, DATASET_NAME_LEN);
     memcpy(inputParms.ddName, "MVD00000", DD_NAME_LEN);
@@ -1530,7 +1520,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
       ddNumber++;
     }
     if (returnCode) {
-      printf("Dynalloc RC = %d, reasonCode = %x\n", returnCode, reasonCode);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Dynalloc RC = %d, reasonCode = %x\n", returnCode, reasonCode);
       respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to allocate a DD for ACB");
       return;
     }
@@ -1563,7 +1553,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
       respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR,"ACB Not Opened");
       return;
     }
-    printf("ACB for %s opened at %08x\n", ddname, inACB);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "ACB for %s opened at %08x\n", ddname, inACB);
     /* TODO: if the user submits a start key parm, enter it in the point function calls below */
     state->acb = inACB;
     switch (state->type) {
@@ -1591,7 +1581,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
     }
 
     if (returnCode) {
-      printf("point failed with RC = %08x\n", returnCode);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "point failed with RC = %08x\n", returnCode);
       /* TODO: free the few things that we created above that will otherwise leak */
       respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Could not POINT to the designated search argument.");
       return;
@@ -1610,11 +1600,11 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
 
   writeHeader(response);
 
-  printf("Streaming data for %s\n", absolutePath);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "Streaming data for %s\n", absolutePath);
   jsonStart(jPrinter);
   /* TODO: if the user submits parms that limit the length of the returned data, modifying the below maxRecords or maxBytes will be needed */
   returnCode = streamVSAMDataset(response, inACB, maxlrecl, maxRecords, maxBytes, keyLoc, keyLen, jPrinter);
-  printf("bytesRead = %d\n", returnCode);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "Dataset bytesRead = %d\n", returnCode);
   jsonEnd(jPrinter);
   dumpbuffer((char *)state, sizeof(StatefulACB));
 
@@ -1634,7 +1624,7 @@ int decodePercentByte(char *inString, int inLength, char *outString, int *outStr
   for (int i = 0; i < inLength; i++) {
     if (inString[i] == '%') {
       if (i >= inLength-2) {
-        printf("Error: Percent seen without following 2 hex characters for '%s'\n",inString);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Error: Percent seen without following 2 hex characters for '%s'\n",inString);
         return 2;
       }
       char hex[3];

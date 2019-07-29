@@ -3883,7 +3883,7 @@ void respondWithJsonError(HttpResponse *response, char *error, int statusCode, c
 int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
-  int bufferSize = 3*FILE_STREAM_BUFFER_SIZE;
+  int bufferSize = FILE_STREAM_BUFFER_SIZE;
   char buffer[bufferSize+4];
   int encodedLength;
 
@@ -3918,7 +3918,7 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
   int returnCode = 0;
   int reasonCode = 0;
   int bytesSent = 0;
-  int bufferSize = 3*FILE_STREAM_BUFFER_SIZE;
+  int bufferSize = FILE_STREAM_BUFFER_SIZE;
   char buffer[bufferSize+4];
   char translation[(2*bufferSize)+4]; /* UTF inflation tolerance */
   int encodedLength;
