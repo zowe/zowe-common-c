@@ -209,6 +209,7 @@ X'40' Data set available for printing at the end of the job.
 #define DALVSER  0x0010
 #define DALVSEQ  0x0012
 #define DALDSORG 0x003C
+#define DALDSORG_PO 0x0200
 #define DALDSORG_PS 0x4000
 #define DALBLKSZ 0x0030
 #define DALLRECL 0x0042 
@@ -250,10 +251,13 @@ typedef struct _text_unit {
 TextUnit *createSimpleTextUnit(int key, char *value);
 TextUnit *createSimpleTextUnit2(int key, char *value, int firstParameterLength);
 TextUnit *createCharTextUnit(int key, char value);
+TextUnit *createCharTextUnit2(int key, short value);
 TextUnit *createCompoundTextUnit(int key, char **values, int valueCount);
 TextUnit *createIntTextUnit(int key, int value);
+TextUnit *createIntTextUnitLength(int key, int value, int length);
 TextUnit *createInt8TextUnit(int key, int8_t value);
 TextUnit *createInt16TextUnit(int key, int16_t value);
+TextUnit *createInt24TextUnit(int key, int value);
 void freeTextUnit(TextUnit * text_unit);
 
 /* open a stream to the internal reader */
@@ -681,8 +685,28 @@ int DeallocDDName(char *ddname);
 // Values for disposition field
 #define DISP_OLD 0x01
 #define DISP_MOD 0x02
+#define DISP_NEW 0x04
 #define DISP_SHARE 0x08
 #define DISP_DELETE 0x04
+
+// Values for normal disposition field
+#define DISP_UNCATLG 0x01
+#define DISP_CATLG 0x02
+#define DISP_DELETE 0x04
+#define DISP_KEEP 0x08
+
+#define DALSYSOU_DEFAULT 0x08
+
+#define SPIN_UNALLOC 0x80
+#define SPIN_ENDJOB 0x40
+
+#define BYTE_LENGTH 8
+#define BYTE_FULL_MASK 0xff
+
+#define INT24_SIZE 3
+#define VOLSER_SIZE 6
+#define CLASS_WRITER_SIZE 8
+#define TOTAL_TEXT_UNITS 23
 
 /* Use this structure to pass parameters to DYNALLOC functions.
  * Dsname should be padded by spaces. */
@@ -696,11 +720,28 @@ typedef struct DynallocInputParms_tag {
   char reserved[3];
 } DynallocInputParms;
 
+typedef struct DynallocNewTextUnit_tag {
+#define TEXT_UNIT_STRING 1
+#define TEXT_UNIT_BOOLEAN 2
+#define TEXT_UNIT_CHARINT 3
+#define TEXT_UNIT_NULL 4
+#define JSON_TYPE_ERROR 666
+  int type;
+  int size;
+  int key;
+  union {
+    int number;
+    char *string;
+    int boolean;
+  } data;
+} DynallocNewTextUnit;
+
 #pragma map(dynallocDataset, "DYNAUALC")
 #pragma map(dynallocDatasetMember, "DYNAUALM")
 #pragma map(unallocDataset, "DYNADALC")
 
 int dynallocDataset(DynallocInputParms *inputParms, int *reasonCode);
+int dynallocNewDataset(int *reasonCode, DynallocNewTextUnit *setTextUnits, int TextUnitsSize);
 int dynallocDatasetMember(DynallocInputParms *inputParms, int *reasonCode,
                           char *member);
 int unallocDataset(DynallocInputParms *inputParms, int *reasonCode);
