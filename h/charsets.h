@@ -18,6 +18,7 @@
  */
 
 #include "zowetypes.h"
+#include "utils.h"
 
 /* debugging switch */
 

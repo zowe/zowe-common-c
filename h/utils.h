@@ -220,8 +220,23 @@ void SLHFree(ShortLivedHeap *slh);
 char *cleanURLParamValue(ShortLivedHeap *slh, char *value);
 int percentEncode(char *value, char *buffer, int len);
 
+#define BASE64_ENCODE_SIZE(SZ) (2 + 4 * ((SZ + 2) / 3))
+
 int decodeBase64(char *s, char *result);
-char *encodeBase64(ShortLivedHeap *slh, char *buf, int size, int *resultSize, int useEbcdic);
+char *encodeBase64(ShortLivedHeap *slh, const char buf[], int size, int *resultSize,
+                   int useEbcdic);
+void encodeBase64NoAlloc(const char buf[], int size, char result[], int *resultSize,
+                         int useEbcdic);
+/*
+ * Assumes "EBCDIC base64" on EBCDIC platforms
+ */
+int base64ToBase64url(char *s);
+
+/*
+ * Assumes "EBCDIC base64" on EBCDIC platforms
+ */
+int base64urlToBase64(char *s, int bufSize);
+
 char *destructivelyUnasciify(char *s);
 
 int base32Decode (int alphabet,
