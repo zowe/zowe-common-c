@@ -22,7 +22,7 @@
 #include "zowetypes.h"
 #include "alloc.h"
 #include "utils.h"
-
+#include "logging.h"
 #include "csi.h"
 #include "jcsi.h"
 #define _EDC_ADD_ERRNO2 1
@@ -67,7 +67,7 @@ csi_parmblock *process_arguments(int argc, char **argv)
     if (0) {
     } else if (0 == strcmp(argv[argindex], "-filter")) {
       if (++argindex >= argc) {
-        printf("missing argument after -filter\n");
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "missing argument after -filter\n");
 	return 0;
       } else {
 	arglen = strlen(argv[argindex]);
@@ -94,13 +94,13 @@ char *csi(csi_parmblock* csi_parms, int *workAreaSize)
   *((int*)work_area) = *workAreaSize;
   IGGCSI00 = (csi_fn *)fetch("IGGCSI00");
   if (0 == IGGCSI00) {
-    printf("could not fetch IGGCSI00\n");
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "could not fetch IGGCSI00\n");
     return 0;
   }
   /* print_buffer((char*)work_area,256); */
   return_code = (*IGGCSI00)(&reason_code,csi_parms,work_area);
   if (return_code != 0) {
-    printf("CSI failed ret=%d, rc=%d rchex=%x\n",return_code,reason_code,reason_code);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "CSI failed ret=%d, rc=%d rchex=%x\n",return_code,reason_code,reason_code);
     free(work_area);
     return 0;
   } else {
@@ -149,46 +149,46 @@ int pseudoLS(char *dsn, int fieldCount, char **fieldNames){
 
       char *entryPointer = workArea+14;
       char *endPointer = workArea+workAreaUsedLength;
-      printf("work area length used %d\n",workAreaUsedLength);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "work area length used %d\n",workAreaUsedLength);
       dumpbuffer(workArea,workAreaUsedLength);
 
       while (entryPointer < endPointer){
         EntryData *entry = (EntryData*)entryPointer;
 
-        printf("entry name %44.44s\n",entry->name);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "entry name %44.44s\n",entry->name);
         dumpbuffer(entryPointer,0x60);        
         if (entry->flags & CSI_ENTRY_ERROR){
-          printf("entry has error\n");
+          zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "entry has error\n");
           entryPointer += sizeof(EntryData);
         } else{
           switch (entry->type){
           case '0':
             {
               CSICatalogData *catalogData = (CSICatalogData*)(entry+14);
-              printf("catalog name %44.44s\n",catalogData->name);
+              zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "catalog name %44.44s\n",catalogData->name);
               entryPointer += sizeof(CSICatalogData);     
             }
             break;
           default:
             {
               int fieldDataLength = entry->data.fieldInfoHeader.totalLength;
-              printf("entry field data length = 0x%x fieldCount=%d\n",fieldDataLength,fieldCount);
+              zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "entry field data length = 0x%x fieldCount=%d\n",fieldDataLength,fieldCount);
               char *fieldData = entryPointer+sizeof(EntryData);
               unsigned short *fieldLengthArray = ((unsigned short *)(entryPointer+sizeof(EntryData)));
               if (entry->type == 'X'){
-                printf("entry is catalog alias\n");
+                zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "entry is catalog alias\n");
               } else if (entry->type == 'U'){
-                printf("entry is user catalog connector\n");
+                zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "entry is user catalog connector\n");
               } else{
                 char *fieldValueStart = entryPointer+sizeof(EntryData)+fieldCount*sizeof(short);
                 for (i=0; i<fieldCount; i++){
-                  printf("field %d: %8.8s, has length %d\n",i,fieldNames[i]);
+                  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "field %d: %8.8s, has length %d\n",i,fieldNames[i]);
                   if (fieldLengthArray[i]){
                     dumpbuffer(fieldValueStart,fieldLengthArray[i]);
                   }
                   fieldValueStart += fieldLengthArray[i];
                 }
-                /* printf("volser = %6.6s\n",fieldData); */
+                /* zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "volser = %6.6s\n",fieldData); */
               }
               int advance = sizeof(EntryData)+fieldDataLength-4; /* -4 for the fact that the length is 4 from end of EntryData */
               entryPointer += advance;
@@ -198,7 +198,7 @@ int pseudoLS(char *dsn, int fieldCount, char **fieldNames){
         }
       }
     } else{
-      printf("no entries, no look up failure either\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "no entries, no look up failure either\n");
     }
     safeFree((char*)workArea,WORK_AREA_SIZE);
     return result;
@@ -233,6 +233,7 @@ static char *myFields[] ={ "NAME    ", "LRECL   ", "TYPE    ","VOLSER  ","VOLFLG
 
 EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int workAreaSize, char **fields, int fieldCount, char *resumeName, char *resumeCatalogName, csi_parmblock *returnParms){
   csi_parmblock* csi_parms = returnParms;
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "csi query for %s\n",dsn);
   int dsnLen = strlen(dsn);
   char *workArea = NULL;
 
@@ -285,14 +286,14 @@ EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int w
         char type = entry->type;
 
         if (entry->flags & CSI_ENTRY_ERROR){
-          printf("entry has error\n");
+	  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "entry has error\n");
           entryPointer += sizeof(EntryData);
         } else{
           switch (entry->type){
           case '0':
             {
               CSICatalogData *catalogData = (CSICatalogData*)(entry+14);
-              printf("catalog name %44.44s\n",catalogData->name);
+              zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "catalog name %44.44s\n",catalogData->name);
               entryPointer += sizeof(CSICatalogData);     
             }
             break;
@@ -332,7 +333,7 @@ EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int w
       safeFree((char*)workArea,workAreaSize);
       return entrySet;
     } else{
-      printf("no entries, no look up failure either\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "no entries, no look up failure either\n");
     }
     safeFree((char*)workArea,workAreaSize);
     return entrySet;

@@ -33,6 +33,7 @@
 #include "zowetypes.h"
 #include "alloc.h"
 #include "utils.h"
+#include "logging.h"
 #include "pdsutil.h"
 
 static char pdsEndName[9] ={ 0xff, 0xff, 0xff, 0xff, 
@@ -149,7 +150,7 @@ void listDirectory(char *pdsName){
 
   sprintf(filenameBuffer,"//'%s'",pdsName);
   in = fopen(filenameBuffer,"rb");
-  printf("fopen in=0x%x errno=%d\n",in,errno);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "fopen in=0x%x errno=%d\n",in,errno);
   while (!feof(in) && !lastBlock){
     /* You should test for the last directory entry (8 bytes of
        X'FF'). Records and blocks after that point are unpredictable. After
@@ -158,7 +159,7 @@ void listDirectory(char *pdsName){
     int res = fread(block,1,256,in);
     int posInBlock = 2;
     blockCount++;
-    printf("PDS BLOCK %d, res=%d\n",blockCount,res);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "PDS BLOCK %d, res=%d\n",blockCount,res);
     /* dumpbuffer(block,256); */
     while (posInBlock < 256){
       int flags = block[posInBlock+11];
@@ -170,7 +171,7 @@ void listDirectory(char *pdsName){
       	lastBlock = 1;
       	break;
       }
-      printf("name='%8s' otherFlags = 0x%x\n",name,flags&0xe0);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "name='%8s' otherFlags = 0x%x\n",name,flags&0xe0);
       dumpbuffer(block+posInBlock,blockLength);
       posInBlock += blockLength;
     }
@@ -201,9 +202,9 @@ StringList *getPDSMembers(char *pdsName){
 
   sprintf(filenameBuffer,"//'%s'",pdsName);
   in = fopen(filenameBuffer,"rb");
-  printf("fopen in=0x%x errno=%d\n",in);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "fopen in=0x%x errno=%d\n",in);
   if (in == 0){
-    printf("Error encountered on reading PDS member, returning empty list\n");
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Error encountered on reading PDS member, returning empty list\n");
     fflush(stdout);
     return list;
   }
@@ -215,9 +216,9 @@ StringList *getPDSMembers(char *pdsName){
     int bytesRead = fread(block,1,256,in);
     int posInBlock = 2;
     blockCount++;
-    printf("PDS BLOCK %d, bytesRead=%d\n",blockCount,bytesRead);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "PDS BLOCK %d, bytesRead=%d\n",blockCount,bytesRead);
     if (bytesRead == 0){
-      printf("Error encountered reading PDS member, returning current list\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Error encountered reading PDS member, returning current list\n");
       fflush(stdout);
       return list;
     }
@@ -307,13 +308,13 @@ int memberExistsInDDName(char *ddname){
 
   memset(plist,0,GETDSAB_PLIST_LENGTH);
 
-  printf("ddname at 0x%x\n",ddname);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "ddname at 0x%x\n",ddname);
   __asm(" GETDSAB DDNAME=(%2),DSABPTR=%1,LOC=ANY,RETCODE=%0,MF=(E,%3) " :
         "=m"(rc), "=m"(dsab) :
         "r"(ddname),  "m"(plist) :
         "r15");
 
-  printf("after GETDSAB rc=%d, dsab at 0x%x\n",
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "after GETDSAB rc=%d, dsab at 0x%x\n",
          rc,dsab);
   printf("plist:\n");
   dumpbuffer(plist,16);
@@ -323,11 +324,11 @@ int memberExistsInDDName(char *ddname){
   int foo = 0;
   dsab = (DSAB*)((int*)dsabHandle)[0];
   char *ddname2 = (char*)((int*)plist)[2];
-  printf("dsabHandle=0x%x ddname2=0x%x foo=0x%x\n",dsabHandle,ddname2,foo);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "dsabHandle=0x%x ddname2=0x%x foo=0x%x\n",dsabHandle,ddname2,foo);
   
   if (rc == 0){
     dumpbuffer((char*)dsabHandle,16);
-    printf("dsab at 0x%x\n",dsab);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "dsab at 0x%x\n",dsab);
     dumpbuffer((char*)dsab,64);
     
 
@@ -342,11 +343,11 @@ int memberExistsInDDName(char *ddname){
          MF=(E,WA_SWAREQ_PLIST)                                    
          */
     
-    printf("TIOT:\n");
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "TIOT:\n");
     dumpbuffer((char*)dsab->dsabtiot,64);
     int tioejfcb = ((int*)dsab->dsabtiot)[3];
     int jfcbSVA = (tioejfcb&0xFFFFFF00)>>8;
-    printf("JFCB SVA = 0x%x\n",jfcbSVA);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "JFCB SVA = 0x%x\n",jfcbSVA);
   }
 
   return FALSE;
