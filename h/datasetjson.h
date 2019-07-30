@@ -23,6 +23,8 @@
 
 #define SAF_AUTHORIZATION_READ 0x04
 #define SAF_AUTHORIZATION_UPDATE 0x08
+#define MEMBER_MAX 8
+#define DATASET_MEMBER_MAXLEN DATASET_NAME_LEN + MEMBER_MAX + 6
 
 typedef struct MetadataQueryCache_tag{
   EntryDataSet *cachedHLQSet;
@@ -63,6 +65,8 @@ void respondWithDatasetMetadata(HttpResponse *response);
 void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQueryCache);
 void respondWithDataset(HttpResponse* response, char* fullPath, int jsonMode, HttpService* service);
 void updateDataset(HttpResponse* response, char* fullPath, int jsonMode, HttpService* service);
+void removeDatasetMember(HttpResponse* response, char* datasetPath, char* memberName);
+void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberName);
 #endif
 
 

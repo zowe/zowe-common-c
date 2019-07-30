@@ -53,6 +53,7 @@ static int defaultVSAMCSIFieldCount = 4;
 
 static char getRecordLengthType(char *dscb);
 static int getMaxRecordLength(char *dscb);
+static int getDSCB(char* datasetName, char* dscb, int bufferSize);
 static void respondWithNonVSAMDataset(HttpResponse* response, char* absolutePath, int jsonMode);
 static void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode);
 static void updateNonVSAMDataset(HttpResponse* response, char* absolutePath, int jsonMode);
@@ -1717,6 +1718,111 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
   metadataQueryCache->cachedCSIParmblocks = returnParmsArray;
   finishResponse(response);     
 #endif /* __ZOWE_OS_ZOS */
+}
+
+static int getDSCB(char* datasetName, char* dscb, int bufferSize){
+  if (bufferSize < INDEXED_DSCB){
+    zowelog(NULL, LOG_COMP_DATASETJSON, ZOWE_LOG_WARNING, 
+            "DSCB of size %d is too small, must be at least %d", bufferSize, INDEXED_DSCB);
+    return 1;
+  }
+  Volser volser = {0};
+
+  DatasetName dsn = {0};
+  memcpy(dsn.value, datasetName, DATASET_NAME_LEN);
+
+  int volserSuccess = getVolserForDataset(&dsn, &volser);
+  if(!volserSuccess){
+    int rc = obtainDSCB1(dsn.value, sizeof(dsn.value),
+                           volser.value, sizeof(volser.value),
+                           dscb);
+    if (rc == 0){
+      if (DSCB_TRACE){
+        zowelog(NULL, LOG_COMP_DATASETJSON, ZOWE_LOG_WARNING, "DSCB for %.*s found\n", sizeof(dsn.value), dsn.value);
+        dumpbuffer(dscb,INDEXED_DSCB);
+      }
+    }
+    return 0;
+  }
+  else {
+    return 1;
+  }
+}
+
+void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
+  char dscb[INDEXED_DSCB] = {0};
+  int bufferSize = sizeof(dscb);
+  if (getDSCB(datasetPath, dscb, bufferSize) != 0) {
+    respondWithJsonError(response, "Error decoding dataset", 400, "Bad Request");
+  }
+  else {
+    if (!isPartionedDataset(dscb)) {
+      respondWithJsonError(response, "Dataset must be PDS/E", 400, "Bad Request");
+    }
+    else {
+      char *overwriteParam = getQueryParam(response->request,"overwrite");
+      int overwrite = !strcmp(overwriteParam, "TRUE") ? TRUE : FALSE;
+      char fullPath[DATASET_MEMBER_MAXLEN + 1] = {0};
+      //concatenates dataset name with member name
+      char *dsName = strtok(datasetPath, " ");
+      char *memName = strtok(memberName, " ");
+      snprintf(fullPath, DATASET_MEMBER_MAXLEN, "//'%s(%s)'", dsName, memName);
+      bool memberExists = FALSE;
+      FILE* memberFP = fopen(fullPath,"r");
+      if (memberFP) {
+        memberExists = TRUE;
+        if (fclose(memberFP)) {
+          zowelog(NULL, LOG_COMP_DATASETJSON, ZOWE_LOG_WARNING, "ERROR CLOSING FILE");
+          respondWithJsonError(response, "Could not close dataset", 500, "Internal Server Error");
+        }
+      }
+      if (memberExists && overwrite != TRUE) {//Member already exists and overwrite wasn't specified
+        respondWithJsonError(response, "Member already exists and overwrite not specified", 400, "Bad Request");
+      }
+      else { // Member doesn't exist
+        FILE* newMember = fopen(fullPath, "w");
+        if (!newMember){
+          respondWithJsonError(response, "Bad dataset name", 400, "Bad Request");
+          return;
+        }
+        if (!fclose(newMember)){
+          response200WithMessage(response, "Successfully created member");
+        }
+        else {
+          zowelog(NULL, LOG_COMP_DATASETJSON, ZOWE_LOG_WARNING, "ERROR CLOSING FILE");
+          respondWithJsonError(response, "Could not close dataset", 500, "Internal Server Error");
+        }
+      }
+    }
+  }
+}
+
+void removeDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
+  char dscb[INDEXED_DSCB] = {0};
+  int bufferSize = sizeof(dscb);
+  if (getDSCB(datasetPath, dscb, bufferSize) != 0) {
+    respondWithJsonError(response, "Error decoding dataset", 400, "Bad Request");  
+  }
+  else {
+    if (!isPartionedDataset(dscb)) {
+      respondWithJsonError(response, "Dataset must be PDS/E", 400, "Bad Request");
+    }
+    else {
+      char fullPath[DATASET_MEMBER_MAXLEN + 1] = {0};
+      //concatenates dataset name with member name
+      char *dsName = strtok(datasetPath, " ");
+      char *memName = strtok(memberName, " ");
+      snprintf(fullPath, DATASET_MEMBER_MAXLEN, "//'%s(%s)'", dsName, memName);
+      if (remove(fullPath) == 0) {
+        response200WithMessage(response, "Successfully deleted");
+        return;
+      }
+      else {
+        respondWithJsonError(response, "Could not delete, member likely does not exist", 400, "Bad Request");
+        return;
+      }
+    }
+  }
 }
 
 
