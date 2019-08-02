@@ -124,7 +124,8 @@ static void *lookupDLLEntryPoint(char *libraryName, char *functionName){
   return ep;
 }
 
-static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonObject, char *subURI, InternalAPIMap *namedAPIMap) {
+static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonObject, char *subURI, InternalAPIMap *namedAPIMap,
+                                    unsigned int *idMultiplier, int pluginLogLevel) {
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s begin data service:\n", __FUNCTION__);
   DataService *service = (DataService*) safeMalloc(sizeof (DataService), "DataService");
   memset(service, 0, sizeof (DataService));
@@ -136,7 +137,7 @@ static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonOb
     service->name = jsonObjectGetString(serviceJsonObject, "subserviceName");
   } else {
     service->name = jsonObjectGetString(serviceJsonObject, "name");
-  }
+  } 
   service->identifier = safeMalloc(strlen(plugin->identifier) + 1
                                    + (service->subURI ? strlen(service->subURI) + 1 : 0)
                                    + (service->name ? strlen(service->name) : 0) + 1, "service identifier name");
@@ -149,7 +150,11 @@ static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonOb
   } else {
     sprintf(service->identifier, "%s", plugin->identifier);
   }
-
+  service->loggingIdentifier = LOG_PROD_PLUGINS + (0x10000 * (*idMultiplier)); // creates unique logging id
+  logConfigureComponent(NULL, service->loggingIdentifier, service->identifier,
+                        LOG_DEST_PRINTF_STDOUT, pluginLogLevel);
+  zowelog(NULL,service->loggingIdentifier,ZOWE_LOG_INFO,"added identifier for %s\n", service->identifier);
+  
   char *initializerLookupMethod = jsonObjectGetString(serviceJsonObject, "initializerLookupMethod");
   char *initializerName = jsonObjectGetString(serviceJsonObject, "initializerName");
   if (!strcmp(initializerLookupMethod, "internal")) {
@@ -235,21 +240,22 @@ static bool isValidServiceDef(JsonObject *serviceDef) {
   return true;
 }
 
-WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, InternalAPIMap *internalAPIMap) {
+WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefinition, InternalAPIMap *internalAPIMap, 
+                         unsigned int *idMultiplier, int pluginLogLevel) {
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s begin\n", __FUNCTION__);
   WebPlugin *plugin = (WebPlugin*)safeMalloc(sizeof(WebPlugin),"WebPlugin");
   memset(plugin, 0, sizeof (WebPlugin));
   plugin->pluginLocation = pluginLocation;
-  plugin->identifier =  jsonObjectGetString(pluginDefintion, "identifier");
-  plugin->baseURI = jsonObjectGetString(pluginDefintion, "baseURI");
-  char *pluginType = jsonObjectGetString(pluginDefintion, "pluginType");
+  plugin->identifier =  jsonObjectGetString(pluginDefinition, "identifier");
+  plugin->baseURI = jsonObjectGetString(pluginDefinition, "baseURI");
+  char *pluginType = jsonObjectGetString(pluginDefinition, "pluginType");
   if (pluginType) {
     plugin->pluginType = pluginTypeFromString(pluginType);
   } else {
     plugin->pluginType = WEB_PLUGIN_TYPE_APPLICATION;
   }
-  plugin->pluginDefinition = pluginDefintion;
-  JsonArray *dataServices = jsonObjectGetArray(pluginDefintion, "dataServices");
+  plugin->pluginDefinition = pluginDefinition;
+  JsonArray *dataServices = jsonObjectGetArray(pluginDefinition, "dataServices");
 
   if (dataServices && jsonArrayGetCount(dataServices) > 0) {
     /* count data services */
@@ -281,13 +287,17 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
       char *type = jsonObjectGetString(serviceDef, "type");
 
       if (!type || !strcmp(type, "service")) {
-        plugin->dataServices[k++] = makeDataService(plugin, jsonArrayGetObject(dataServices, i), NULL, internalAPIMap);
+        plugin->dataServices[k++] = makeDataService(plugin, jsonArrayGetObject(dataServices, i), NULL, internalAPIMap, 
+                                                    idMultiplier,pluginLogLevel);
+        (*idMultiplier++);
       } else if (!strcmp(type, "group")) {
         char *subURI = jsonObjectGetString(serviceDef, "name");
         JsonArray* group = jsonObjectGetArray(serviceDef, "subservices");
         if (group) {
           for (int j = 0; j < jsonArrayGetCount(group); j++) {
-            plugin->dataServices[k++] = makeDataService(plugin, jsonArrayGetObject(group, j), subURI, internalAPIMap);
+            plugin->dataServices[k++] = makeDataService(plugin, jsonArrayGetObject(group, j), subURI, internalAPIMap, 
+                                                        idMultiplier,pluginLogLevel);
+            (*idMultiplier++);
           }
         }
       } else {
