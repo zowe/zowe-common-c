@@ -64,10 +64,12 @@ typedef struct DataService_tag {
   ExternalAPI *externalAPI;  /* a function call to some lower level module to get data */
   void        *extension;    /* another slot to stash things */
   JsonObject *serviceDefinition;
+  uint64 loggingIdentifier;
   WebPlugin *plugin;
 } DataService;
 
-WebPlugin *makeWebPlugin(char *baseDir, struct JsonObject_tag *pluginDefintion, InternalAPIMap *internalAPIMap);
+WebPlugin *makeWebPlugin(char *baseDir, struct JsonObject_tag *pluginDefinition, InternalAPIMap *internalAPIMap,
+                         unsigned int *idMultiplier, int pluginLogLevel);
 void initalizeWebPlugin(WebPlugin *plugin, HttpServer *server);
 
 /**
