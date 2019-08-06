@@ -92,6 +92,40 @@ typedef int time_t;
 #define TEMP_TRACE(...) 3
 #endif
 
+#define AUTH_TRACE(...) do { \
+  if (traceAuth) { \
+    printf(__VA_ARGS__); \
+    fflush(stdout); \
+  } \
+} while (0)
+
+#define AUTH_DUMPBUF($buf, $len) do { \
+  if (traceAuth) { \
+    dumpbuffer((void *)(uintptr_t)$buf, $len); \
+    fflush(stdout); \
+  } \
+} while (0)
+
+#ifdef DEBUG
+#  define DEBUG_TRACE do { \
+    printf(__VA_ARGS__); \
+    fflush(stdout); \
+  } while (0)
+#else
+#  define DEBUG_TRACE(...)  do {} while (0)
+#endif
+
+/* A *very special* ifdef had been chosen so we never accidentally ship an
+ * executable that can be persuaded to print out passwords
+ */
+#ifdef NEVER_DEFINE
+#  define DANGEROUS_TRACE        AUTH_TRACE
+#  define DANGEROUS_DUMPBUF      AUTH_DUMPBUF
+#else
+#  define DANGEROUS_TRACE(...)   do {} while (0)
+#  define DANGEROUS_DUMPBUF(...) do {} while (0)
+#endif
+
 
 
 /***** General Primitives ******************************/
@@ -2524,28 +2558,21 @@ int extractBasicAuth(HttpRequest *request, HttpHeader *authHeader){
   char *ebcdicHeader = authHeader->nativeValue;
   int headerLength = strlen(asciiHeader);
   if (traceAuth){
-    printf("authHeader(A): \n");
-    dumpbuffer(asciiHeader,strlen(asciiHeader));
-    printf("authHeader(E): \n");
-    dumpbuffer(ebcdicHeader,strlen(ebcdicHeader));
-    fflush(stdout);
+    AUTH_TRACE("authHeader(A): \n");
+    AUTH_DUMPBUF(asciiHeader,strlen(asciiHeader));
+    AUTH_TRACE("authHeader(E): \n");
+    AUTH_DUMPBUF(ebcdicHeader,strlen(ebcdicHeader));
   }
-  if (!memcmp(ebcdicHeader+0,"Basic ",6)){
+  if (!strncmp(ebcdicHeader+0,"Basic ",6)){
     int authStart = 6;
     int authEnd = authStart;
     int authLen;
     int decodedLength;
     char *encodedAuthString = NULL;
     char *authString = NULL;
-    if (traceAuth){
-      printf("start authEnd loop\n");
-      fflush(stdout);
-    }
+    AUTH_TRACE("start authEnd loop\n");
     while ((authEnd < headerLength) && (ebcdicHeader[authEnd] > 0x041)){
-#ifdef DEBUG
-      printf("authEnd=%d\n",authEnd);
-      fflush(stdout);
-#endif
+      DEBUG_TRACE("authEnd=%d\n",authEnd);
       authEnd++;
     }
     authLen = authEnd-authStart;
@@ -2553,31 +2580,17 @@ int extractBasicAuth(HttpRequest *request, HttpHeader *authHeader){
     authString = SLHAlloc(slh,authLen+1);
     memcpy(encodedAuthString,ebcdicHeader+authStart,authLen);
     encodedAuthString[authLen] = 0;
-    /* choosing *very special* ifdef so we never accidentally ship an
-     * executable that can be persuaded to print out passwords
-     */
-#ifdef NEVER_DEFINE
-    if (traceAuth){
-      printf("encoded auth string\n");
-      dumpbuffer(encodedAuthString,authLen);
-    }
-#endif
+    DANGEROUS_TRACE("encoded auth string\n");
     decodedLength = decodeBase64(encodedAuthString,authString);
     authString[decodedLength] = 0;
-#ifdef NEVER_DEFINE
     if (FALSE) {
-      printf("decoded base 64, no unascify %s, len=%d\n",authString,strlen(authString));
-      dumpbuffer(authString,strlen(authString));
-      fflush(stdout);
+      DANGEROUS_TRACE("decoded base 64, no unascify %s, len=%d\n",
+          authString,
+          strlen(authString));
+      DANGEROUS_DUMPBUF(authString,strlen(authString));
     }
-#endif
     destructivelyUnasciify(authString); /* don't upfold case */
-#ifdef NEVER_DEFINE
-    if (traceAuth){
-      printf("encoded auth '%s' decoded '%s'\n",encodedAuthString,authString);
-      fflush(stdout);
-    }
-#endif
+    DANGEROUS_TRACE("encoded auth '%s' decoded '%s'\n",encodedAuthString,authString);
     char *password = SLHAlloc(slh,decodedLength);
     int colonPos = indexOf(authString,decodedLength,':',0);
     if (colonPos){
@@ -2587,33 +2600,20 @@ int extractBasicAuth(HttpRequest *request, HttpHeader *authHeader){
       request->password = password;
       strupcase(request->username); /* upfold username */
       if (isLowerCasePasswordAllowed() || isPassPhrase(request->password)) {
-#ifdef DEBUG
-        printf("mixed-case system or a pass phrase, not upfolding password\n");
-#endif
+        DEBUG_TRACE("mixed-case system or a pass phrase, not upfolding password\n");
         /* don't upfold password */
       } else {
-#ifdef DEBUG
-        printf("non-mixed-case system, not a pass phrase, upfolding password\n");
-#endif
+        DEBUG_TRACE("non-mixed-case system, not a pass phrase, upfolding password\n");
         strupcase(request->password); /* upfold password */
       }
-#ifdef DEBUG
-      printf("returning TRUE from extractBasicAuth\n");
-      fflush(stdout);
-#endif
+      DEBUG_TRACE("returning TRUE from extractBasicAuth\n");
       return TRUE;
     } else{
-      if (traceAuth){
-        printf("no colon seen in basic auth string, returning FALSE\n");
-        fflush(stdout);
-      }
+      AUTH_TRACE("no colon seen in basic auth string, returning FALSE\n");
       return FALSE;
     }
   } else{
-    if (traceAuth){
-      printf("Non-basic auth\n");
-      fflush(stdout);
-    }
+    AUTH_TRACE("Non-basic auth\n");
     return FALSE;
   }
 
@@ -2659,10 +2659,8 @@ static int sessionTokenStillValid(HttpService *service, HttpRequest *request, ch
   char *decodedData = SLHAlloc(slh,strlen(sessionTokenText));
   int decodedDataLength = decodeBase64(sessionTokenText,decodedData);
 
-  if (traceAuth){
-    printf("decoded session token data for text %s\n",sessionTokenText);
-    dumpbuffer(decodedData,decodedDataLength);
-  }
+  AUTH_TRACE("decoded session token data for text %s\n",sessionTokenText);
+  AUTH_DUMPBUF(decodedData,decodedDataLength);
 
   char *plaintextSessionToken = NULL;
   int decodeRC = decodeSessionToken(slh, server->config,
@@ -2675,19 +2673,17 @@ static int sessionTokenStillValid(HttpService *service, HttpRequest *request, ch
 
   int colonPos = indexOf(plaintextSessionToken, decodedDataLength, ':', 0);
   if (traceAuth){
-    printf("colon pos %d;decoded data token:\n",colonPos);
-    dumpbuffer(decodedData,decodedDataLength);
-    printf("EBCDIC session token:\n");
-    dumpbuffer(plaintextSessionToken,decodedDataLength);
+    AUTH_TRACE("colon pos %d;decoded data token:\n",colonPos);
+    AUTH_DUMPBUF(decodedData,decodedDataLength);
+    AUTH_TRACE("EBCDIC session token:\n");
+    AUTH_DUMPBUF(plaintextSessionToken,decodedDataLength);
   }
   if (colonPos == -1){
     return FALSE;
   }
 
   int colonPos2 = indexOf(plaintextSessionToken, decodedDataLength, ':', colonPos+1);
-  if (traceAuth){
-    printf("colon pos2 %d;\n",colonPos2);
-  }
+  AUTH_TRACE("colon pos2 %d;\n",colonPos2);
   if (colonPos2 == -1){
     return FALSE;
   }
@@ -2697,31 +2693,25 @@ static int sessionTokenStillValid(HttpService *service, HttpRequest *request, ch
   uint64 interval = ((uint64)SESSION_VALIDITY_IN_SECONDS)*ONE_SECOND;
   uint64 difference = now-decodedTimestamp;
 
-  if (traceAuth){
-    printf("decodedTimestamp=%llx;now=%llx;difference=%llx;interval=%llx;tokenUID=%llx;serverUID=%llx\n",
-           decodedTimestamp,now,difference,interval, serverInstanceUID, service->serverInstanceUID);
-  }
+  AUTH_TRACE("decodedTimestamp=%llx;now=%llx;difference=%llx;interval=%llx;tokenUID=%llx;serverUID=%llx\n",
+         decodedTimestamp,now,difference,interval, serverInstanceUID, service->serverInstanceUID);
 
   if (difference > interval){
-    if(traceAuth){
-      printf("returning FALSE\n");
-    }
+    AUTH_TRACE("returning FALSE\n");
     return FALSE;
   }
 
   if (serverInstanceUID != service->serverInstanceUID){
-    if(traceAuth){
-      printf("token from other server, returning FALSE\n");
-    }
+    AUTH_TRACE("token from other server, returning FALSE\n");
     return FALSE;
   }
 
   request->username = SLHAlloc(slh, colonPos+1);
   memcpy(request->username, plaintextSessionToken, colonPos);
   request->username[colonPos] = 0;
-  if(traceAuth){
-    printf("returning TRUE\n");
-  }
+  strupcase(request->username);
+
+  AUTH_TRACE("returning TRUE\n");
   return TRUE;
 }
 
@@ -2759,45 +2749,28 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   int authDataFound = FALSE; 
   HttpHeader *authenticationHeader = getHeader(request,"Authorization");
   char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
-  if (traceAuth){
-    printf("serviceAuthNativeWithSessionToken: authenticationHeader 0x%p, extractFunction 0x%p\n",
-           authenticationHeader, service->authExtractionFunction);
-  }
+  AUTH_TRACE("serviceAuthNativeWithSessionToken: authenticationHeader 0x%p, "
+      "extractFunction 0x%p\n",
+       authenticationHeader,
+       service->authExtractionFunction);
 
   if (service->authExtractionFunction != NULL) {
     if (service->authExtractionFunction(service, request) == 0) {
       authDataFound = TRUE;
     }
   } else if (authenticationHeader) {
-    HttpHeader *authenticationHeader = getHeader(request,"Authorization"); 
-#ifdef DEBUG 
-    printf("safAuth: auth header = 0x%x\n",authenticationHeader); 
-    fflush(stdout); 
-#endif 
-    if (authenticationHeader){ 
-      if (extractBasicAuth(request,authenticationHeader)){ 
-#ifdef DEBUG 
-        printf("back inside safAuthenticate after call to extractBasicAuth\n"); 
-        fflush(stdout); 
-#endif 
-        authDataFound = TRUE; 
-      } 
+    DEBUG_TRACE("safAuth: auth header = 0x%x\n",authenticationHeader); 
+    if (extractBasicAuth(request, authenticationHeader)) {
+      DEBUG_TRACE("back inside safAuthenticate after call to extractBasicAuth\n");
+      authDataFound = TRUE;
     } 
   }
     
-
-  strupcase(request->username); /* upfold username */
-  char *username = request->username;
-
-  if (traceAuth){
-    printf("AUTH: tokenCookieText: %s\n",(tokenCookieText ? tokenCookieText : "<noAuthToken>"));
-  } 
+  AUTH_TRACE("AUTH: tokenCookieText: %s\n",(tokenCookieText ? tokenCookieText : "<noAuthToken>"));
   if (tokenCookieText){
     if (sessionTokenStillValid(service,request,tokenCookieText)){
-      if (traceAuth){
-        printf("auth cookie still good, renewing cookie\n");
-      }
-      char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
+      AUTH_TRACE("auth cookie still good, renewing cookie\n");
+      char *sessionToken = generateSessionTokenKeyValue(service, request,request->username);
       if (sessionToken == NULL) {
         return FALSE;
       }
@@ -2806,26 +2779,20 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
       return TRUE;
     } else if (authDataFound){
       if (nativeAuth(service,request)){
-        if (traceAuth){
-          printf("AUTH: cookie not valid, auth is good\n");
-        }
-        char *sessionToken = generateSessionTokenKeyValue(service,request,username);
+        AUTH_TRACE("AUTH: cookie not valid, auth is good\n");
+        char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
         addStringHeader(response,"Set-Cookie",sessionToken);
         response->sessionCookie = sessionToken;
         return TRUE;
       } else{
-        if (traceAuth){
-          printf("cookie not valid, auth is bad\n");
-        }
+        AUTH_TRACE("cookie not valid, auth is bad\n");
         /* NOTES: CLEAR SESSION TOKEN */
         addStringHeader(response,"Set-Cookie","jedHTTPSession=non-token");
         response->sessionCookie = "non-token";
         return FALSE;
       }
     } else{
-      if (traceAuth){
-        printf("AUTH: cookie not valid, no auth provided\n");
-      }
+      AUTH_TRACE("AUTH: cookie not valid, no auth provided\n");
       /* NOTES: CLEAR SESSION TOKEN */
       addStringHeader(response,"Set-Cookie","jedHTTPSession=non-token");
       response->sessionCookie = "non-token";
@@ -2833,23 +2800,21 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
     }
   } else if (authDataFound){
     if (nativeAuth(service,request)){
-      if (traceAuth){
-        printf("AUTH: auth header provided and works, before generate session token req=0x%x, username=0x%x, response=0x%p\n",request,username,response);
-      }
-      char *sessionToken = generateSessionTokenKeyValue(service,request,username);
+      AUTH_TRACE("AUTH: auth header provided and works, before generate session "
+          "token req=0x%x, username=0x%x, response=0x%p\n",
+          request,
+          request->username,
+          response);
+      char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
       addStringHeader(response,"Set-Cookie",sessionToken);
       response->sessionCookie = sessionToken;
       return TRUE;
     } else{
-      if (traceAuth){
-        printf("AUTH: no cookie, but auth header, which wasn't good\n");
-      }
+      AUTH_TRACE("AUTH: no cookie, but auth header, which wasn't good\n");
       return FALSE;
     }
   } else{    /* neither cookie */
-    if (traceAuth){
-      printf("AUTH: neither cookie nor auth header\n");
-    }
+    AUTH_TRACE("AUTH: neither cookie nor auth header\n");
     return FALSE;
   }
 }
