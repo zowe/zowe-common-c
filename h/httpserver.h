@@ -18,6 +18,7 @@
 #include "json.h"
 #include "xml.h"
 #include "unixfile.h"
+#include "jwt/jwt.h"
 
 /** \file 
  *  \brief httpserver.h is the interface of an ultra-lightweight c-based web server.
@@ -47,6 +48,10 @@
 #define SERVICE_AUTH_SAF    2
 #define SERVICE_AUTH_CUSTOM 3 /* done by service */
 #define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN 4
+
+#define SERVICE_AUTH_TOKEN_TYPE_LEGACY                    0
+#define SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK  1
+#define SERVICE_AUTH_TOKEN_TYPE_JWT                       2
 
 #define SERVICE_MATCH_WILD_RIGHT 1
 
@@ -137,6 +142,7 @@ struct HttpService_tag;
 typedef int HttpServiceInit(void);
 typedef int HttpServiceServe(struct HttpService_tag *service, HttpResponse *response);
 typedef int AuthExtract(struct HttpService_tag *service, HttpRequest *request);
+typedef int AuthValidate(struct HttpService_tag *service, HttpRequest *request);
 typedef int HttpServiceInsertCustomHeaders(struct HttpService_tag *service, HttpResponse *response);
 
 /*
@@ -194,6 +200,7 @@ typedef struct HttpService_tag{
   void  *sharedServiceMem; /* server-wide, address shared by all HttpServices */
   const char *productURLPrefix; /* provided by the server */
   int doImpersonation;
+  AuthValidate                   *authValidateFunction;
 } HttpService;
 
 typedef struct HTTPServerConfig_tag {
@@ -202,6 +209,8 @@ typedef struct HTTPServerConfig_tag {
   HttpService *serviceOfLastResort;
   unsigned int sessionTokenKeySize;
   unsigned char sessionTokenKey[HTTP_SERVER_MAX_SESSION_TOKEN_KEY_SIZE];
+  JwtContext *jwtContext;
+  int authTokenType; /* SERVICE_AUTH_TOKEN_TYPE_... */
 } HttpServerConfig;
 
 typedef struct HttpServer_tag{
@@ -539,6 +548,12 @@ int setHttpCloseConversationTrace(int toWhat);
 int setHttpAuthTrace(int toWhat);
 #endif
 
+int httpServerInitJwtContext(HttpServer *self,
+                             bool legacyFallback,
+                             const char *pkcs11TokenName,
+                             const char *keyName,
+                             int keyType,
+                             int *makeContextRc, int *p11Rc, int *p11Rsn);
 
 
 /*
