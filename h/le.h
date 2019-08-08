@@ -245,8 +245,8 @@ ZOWE_PRAGMA_PACK_RESET
 
 #endif
 
-char *getCAA();
-void showRTL();
+char *getCAA(void);
+void showRTL(void);
 
 #else /*  not __ZOWE_OS_ZOS - */
 
@@ -319,7 +319,7 @@ void returnGlobalEnvironment(void);
 
 #endif /* METTLE */
 
-RLEAnchor *makeRLEAnchor();
+RLEAnchor *makeRLEAnchor(void);
 void deleteRLEAnchor(RLEAnchor *anchor);
 
 /* implemented for zOS in scheduling.c, for others in le.c */
@@ -329,12 +329,12 @@ RLETask *makeRLETask(RLEAnchor *anchor,
 
 void deleteRLETask(RLETask *task);
 
-void initRLEEnvironment();
-void termRLEEnvironment();
+void initRLEEnvironment(RLEAnchor *anchor);
+void termRLEEnvironment(void);
 
 char *makeFakeCAA(char *stackArea, int stackSize);
 
-void abortIfUnsupportedCAA();
+void abortIfUnsupportedCAA(void);
 
 #endif /* __LE__ */
 

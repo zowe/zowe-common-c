@@ -221,7 +221,7 @@ typedef struct hostent_tag{
 
 /* sleep(int seconds) is standard in linux */
 #if !defined(__ZOWE_OS_LINUX) && !defined(__ZOWE_OS_AIX)
-void sleep(int secs);
+unsigned int sleep(unsigned int);
 #endif 
 
 /* Set socket tracing; returns prior value */
@@ -316,9 +316,9 @@ int socketSetRemove(SocketSet *set, Socket *socket);
   with select. Yea!
  */
 #ifdef __ZOWE_OS_AIX
-Socket** makeEventSockets();
+Socket** makeEventSockets(void);
 #else
-Socket* makeEventSocket();
+Socket* makeEventSocket(void);
 #endif
 
 /*
@@ -384,7 +384,7 @@ int setSocketBlockingMode(Socket *socket, int isNonBlocking,
 int setSocketOption(Socket *socket, int level, int optionName, int optionDataLength, char *optionData,
                     int *returnCode, int *reasonCode);
 
-int socketSend(Socket *s, char *buffer, int len, int *errno);
+int socketSend(Socket *s, char *buffer, int len, int *_errno_);
 
 Socket *socketAccept(Socket *serverSocket, int *returnCode, int *reasonCode);
 

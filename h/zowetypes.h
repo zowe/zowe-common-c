@@ -15,10 +15,12 @@
 #define __ZOWETYPES__  1
 
 #ifndef __IBM_METAL__
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 #else
 #include <metal/metal.h>
+#include <metal/stddef.h>
 #include <metal/stdint.h>
 #endif
 

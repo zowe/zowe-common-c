@@ -173,7 +173,7 @@ static char crlf[] ={ 0x0d, 0x0a};
 #define DEFAULT_UMASK 0022
 #endif
 
-static int64 getFineGrainedTime();
+static int64 getFineGrainedTime(void);
 
 
 /* worry about compareIgnoringCase 
@@ -520,7 +520,7 @@ static void writeToBigBuffer(BigBuffer *buffer, char *newData, int length){
 static void writeByteToBigBuffer(BigBuffer *buffer, int b){
   char c;
 
-  c = b&0xff;
+  c = (char)b&0xff;
   writeToBigBuffer(buffer,&c,1);
 }
 
@@ -568,7 +568,7 @@ static void addWSFrame(WSMessage *message, WSFrame *newFrame){
   }
 }
 
-static WSReadMachine *makeWSReadMachine(){
+static WSReadMachine *makeWSReadMachine(void){
   WSReadMachine *machine = (WSReadMachine*)safeMalloc(sizeof(WSReadMachine),"WSReadMachine");
   memset(machine,0,sizeof(WSReadMachine));
   machine->payloadStream = makeBigBuffer(256,NULL);
@@ -611,7 +611,7 @@ static void addNewWSFrame(HttpWorkElement *workElement,
     memcpy(workElement->buffer+2,&longLength,8);
   } else if (payloadLength >= 126){
     workElement->buffer[1] = 126;
-    unsigned short shortLength = payloadLength&0xFFFF;
+    unsigned short shortLength = (unsigned short) payloadLength&0xFFFF;
     memcpy(workElement->buffer+2,&shortLength,2);
   } else{
     workElement->buffer[1] = payloadLength;
@@ -2350,12 +2350,12 @@ static char *getCookieValue(HttpRequest *request, char *cookieName){
 }
 
 #ifdef __ZOWE_OS_ZOS
-static int isLowerCasePasswordAllowed(){
+static int isLowerCasePasswordAllowed(void){
   RCVT* rcvt = getCVT()->cvtrac;
   return (RCVTFLG3_BIT_RCVTPLC & (rcvt->rcvtflg3)); /* if lower-case pw allowed */
 }
 #else
-static int isLowerCasePasswordAllowed(){
+static int isLowerCasePasswordAllowed(void){
   return TRUE;
 }
 #endif
@@ -2621,9 +2621,9 @@ int extractBasicAuth(HttpRequest *request, HttpHeader *authHeader){
 
 #ifdef __ZOWE_OS_ZOS
 
-#define ONE_SECOND (4096*1000000)    /* one second in STCK */
+#define ONE_SECOND (4096llu*1000000llu)    /* one second in STCK */
 
-static int64 getFineGrainedTime(){
+static int64 getFineGrainedTime(void){
   int64 stck = 0;
   unsigned long long outSeconds = 0;
   __asm(ASM_PREFIX
@@ -2933,7 +2933,7 @@ static void serveRequest(HttpService* service, HttpResponse* response,
     proxyServe(service, request, response);
   } else {
     char* serviceArgProblem = NULL;
-    if (serviceArgProblem = processServiceRequestParams(service, response)) {
+    if (0 != (serviceArgProblem = processServiceRequestParams(service, response))) {
       respondWithError(response, 404, serviceArgProblem);
       // Response is finished on return
     } else {
@@ -3126,7 +3126,7 @@ static int serviceLoop(Socket *socket){
       break;
     }
     HttpRequest *request = NULL;
-    while (request = dequeueHttpRequest(parser)){
+    while (NULL != (request = dequeueHttpRequest(parser))) {
       HttpHeader *header;
       HttpResponse *response = makeHttpResponse(request,parser->slh,socket);
       /* parse URI after request and response ready for work, have SLH's, etc */

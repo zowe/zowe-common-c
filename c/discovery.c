@@ -69,7 +69,7 @@ static void showVersionInfo(DiscoveryContext *context, char *ssName){
   }
 }
 
-static GDA *getGDA(){
+static GDA *getGDA(void){
   CVT *cvt = getCVT();
   ECVT *ecvt = getECVT();
   GDA *gda = (GDA*)cvt->cvtgda;
@@ -77,6 +77,8 @@ static GDA *getGDA(){
 }
 
 static int isPointerCommon(GDA *gda, void *pointer){
+/* FIXME: why does arithmetic even work on void pointers? 
+   are they just converted to int impilictly? */
   if ( ((pointer >= gda->gdacsa) && (pointer < gda->gdacsa+gda->gdacsasz)) ||
        ((pointer >= gda->gdasqa) && (pointer < gda->gdasqa+gda->gdasqasz)) ||
        ((pointer >= gda->gdaesqa) && (pointer < gda->gdaesqa+gda->gdaesqas)) || 
@@ -848,7 +850,7 @@ static void scanSlowSoftware(ZOSModel *model){
   context->cicsTraceLevel = 0;
   context->db2TraceLevel = 0;
   context->model = model;
-  discoverSubsystems(context,SOFTWARE_TYPE_ALL,NULL);
+  discoverSubsystems(context,SOFTWARE_TYPE_ALL,NULL); /* Converting 4294967295 to type "int" does not preserve its value */
   zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG2, "after discoverySubsystems() in slowScan\n");
   fflush(stdout);
 

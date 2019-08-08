@@ -32,6 +32,7 @@
 #include "charsets.h"
 #include "unixfile.h"
 #include "httpfileservice.h"
+#include "httpserver.h"
 
 #ifdef __ZOWE_OS_ZOS
 #define NATIVE_CODEPAGE CCSID_EBCDIC_1047

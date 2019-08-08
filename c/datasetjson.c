@@ -957,7 +957,7 @@ static void updateVSAMDatasetWithJSON(HttpResponse *response, JsonObject *json, 
     /* TODO: note that non-KSDS uses a pointer to the ? */
     /* TODO: get Key before storing */
     char *key = jsonArrayGetString(recordArray,i); /* TODO: get key AND record here */
-    char *record; /* TODO: correctly parse the record, minding your decided format from the above loop. */
+    char *record = NULL; /* TODO: correctly parse the record, minding your decided format from the above loop. */
     /* TODO: point to the key, based on which type of dataset it is.  See pointByXXX functions in respondWithVSAMDataset() for example syntax */
     if (update) {
       getRecord(outACB, tempRecord, &recordLength); /* in VSAM, we need to GET for update before we can write over a record with a later PUT for update */

@@ -60,8 +60,8 @@ static void abend(int requestedAbendCode, int requestedReasonCode){
 
 #ifdef __ZOWE_OS_ZOS
  
-static char *getmain31(int size, int subpool){
-  char *data;
+static void *getmain31(uint32_t size, unsigned int subpool){
+  void *data;
   __asm(ASM_PREFIX
         " STORAGE OBTAIN,LENGTH=(%1),SP=(%2),LOC=31,CALLRKY=YES\n"  /* ,KEY=8 */
 	" LGR %0,1" :
@@ -70,8 +70,8 @@ static char *getmain31(int size, int subpool){
   return data;
 }
 
-static char *getmain31Key8(int size, int subpool){
-  char *data;
+static void *getmain31Key8(uint32_t size, unsigned int subpool){
+  void *data;
   __asm(ASM_PREFIX
         " STORAGE OBTAIN,LENGTH=(%1),SP=(%2),LOC=31,KEY=8\n"
 	" LGR %0,1" :
@@ -80,8 +80,8 @@ static char *getmain31Key8(int size, int subpool){
   return data;
 }
 
-static char *getmain31Key0(int size, int subpool){
-  char *data;
+static void *getmain31Key0(uint32_t size, unsigned int subpool){
+  void *data;
   __asm(ASM_PREFIX
         " STORAGE OBTAIN,LENGTH=(%1),SP=(%2),LOC=31,KEY=0\n"
 	" LGR %0,1" :
@@ -90,8 +90,8 @@ static char *getmain31Key0(int size, int subpool){
   return data;
 }
 
-static char *getmain31Key2(int size, int subpool){
-  char *data;
+static void *getmain31Key2(uint32_t size, unsigned int subpool){
+  void *data;
   __asm(ASM_PREFIX
         " STORAGE OBTAIN,LENGTH=(%1),SP=(%2),LOC=31,KEY=2\n"
 	" LGR %0,1" :
@@ -100,7 +100,7 @@ static char *getmain31Key2(int size, int subpool){
   return data;
 }
 
-static int freemain31(char *data, int size, int subpool){
+static int freemain31(void *data, uint32_t size, unsigned int subpool){
   __asm(ASM_PREFIX
         " STORAGE RELEASE,LENGTH=(%0),SP=(%1),ADDR=(%2),CALLRKY=YES\n"  /* ,KEY=8 */
 	: :
@@ -108,7 +108,7 @@ static int freemain31(char *data, int size, int subpool){
   return 1;
 }
 
-static int freemain31Key8(char *data, int size, int subpool){
+static int freemain31Key8(void *data, uint32_t size, unsigned int subpool){
   __asm(ASM_PREFIX
         " STORAGE RELEASE,LENGTH=(%0),SP=(%1),ADDR=(%2),KEY=8"
 	: :
@@ -116,7 +116,7 @@ static int freemain31Key8(char *data, int size, int subpool){
   return 1;
 }
 
-static int freemain31Key0(char *data, int size, int subpool){
+static int freemain31Key0(void *data, uint32_t size, unsigned int subpool){
   __asm(ASM_PREFIX
         " STORAGE RELEASE,LENGTH=(%0),SP=(%1),ADDR=(%2),KEY=0"
 	: :
@@ -124,7 +124,7 @@ static int freemain31Key0(char *data, int size, int subpool){
   return 1;
 }
 
-static int freemain31Key2(char *data, int size, int subpool){
+static int freemain31Key2(void *data, uint32_t size, unsigned int subpool){
   __asm(ASM_PREFIX
         " STORAGE RELEASE,LENGTH=(%0),SP=(%1),ADDR=(%2),KEY=2"
 	: :
@@ -132,30 +132,30 @@ static int freemain31Key2(char *data, int size, int subpool){
   return 1;
 }
 
-char *allocECSA(int size, int key){
+void *allocECSA(size_t size, unsigned int key){
   switch (key){
   case 0:
-    return getmain31Key0(size,241);
+    return getmain31Key0((uint32_t)size, 241);
   case 2:
-    return getmain31Key2(size,241);
+    return getmain31Key2((uint32_t)size, 241);
   default:
     printf("PANIC cannot allocate ECSA in key=%d\n",key);
     return NULL;
   }
 }
 
-int freeECSA(char *data, int size, int key){
+int freeECSA(void *data, size_t size, unsigned int key){
   switch (key){
   case 0:
-    return freemain31Key0(data,size,241);
+    return freemain31Key0(data, (uint32_t)size, 241);
   case 2:
-    return freemain31Key2(data,size,241);
+    return freemain31Key2(data, (uint32_t)size, 241);
   default:
     printf("PANIC cannot free ECSA in key=%d\n",key);
     return 12;
   }
 
-  return freemain31Key0(data,size,241);
+  return freemain31Key0(data, (uint32_t)size, 241);
 }
 
 #endif /* ZOWE_OS_ZOS */
@@ -167,9 +167,9 @@ int freeECSA(char *data, int size, int key){
  * GETMAIN/FREEMAIN and STORAGE do not work on virtual storage above the bar.
  * Using the IARV64 macro, a program can create and free a memory object and manage the physical frames that back the virtual storage. */
 /* Size is specified in megabytes. */
-static char* __ptr64 getmain64(long long sizeInMegabytes, int *returnCode, int *reasonCode){
+static void* __ptr64 getmain64(long long sizeInMegabytes, int *returnCode, int *reasonCode){
   
-  char* __ptr64 data = NULL;
+  void* __ptr64 data = NULL;
   
   int macroRetCode = 0;
   int macroResCode = 0;
@@ -189,9 +189,9 @@ static char* __ptr64 getmain64(long long sizeInMegabytes, int *returnCode, int *
 }
 
 #ifdef _LP64
-static char* __ptr64 getmain64ByToken(long long sizeInMegabytes, long long token, int *returnCode, int *reasonCode){
+static void* __ptr64 getmain64ByToken(long long sizeInMegabytes, long long token, int *returnCode, int *reasonCode){
   
-  char* __ptr64 data = NULL;
+  void* __ptr64 data = NULL;
   
   int macroRetCode = 0;
   int macroResCode = 0;
@@ -209,7 +209,7 @@ static char* __ptr64 getmain64ByToken(long long sizeInMegabytes, long long token
   
 }
 
-static void freemain64(char* __ptr64 data, int *returnCode, int *reasonCode){
+static void freemain64(void* __ptr64 data, int *returnCode, int *reasonCode){
   
   int macroRetCode = 0;
   int macroResCode = 0;
@@ -255,14 +255,14 @@ static void freemain64ByToken(long long token, int *returnCode, int *reasonCode)
 #define ALLOCATIONS_TO_TRACK 25000
 
 
-int safeBytes = 0;
-int rawBytes = 0;
-int k8Bytes = 0;
-static int allocationsTracked = 0;
+size_t safeBytes = 0;
+size_t rawBytes = 0;
+size_t k8Bytes = 0;
+static unsigned int allocationsTracked = 0;
 
-static char *allocations[ALLOCATIONS_TO_TRACK];
+static void *allocations[ALLOCATIONS_TO_TRACK];
 static char *allocationNames[ALLOCATIONS_TO_TRACK];
-static int   allocationLengths[ALLOCATIONS_TO_TRACK];
+static size_t  allocationLengths[ALLOCATIONS_TO_TRACK];
 
 int showOutstanding(){
   int i;
@@ -270,9 +270,9 @@ int showOutstanding(){
   printf("total allocations done = %d\n",allocationsTracked);
 /*  dumpbuffer ((char *) allocations, 1024);*/
   for (i=0; i<allocationsTracked; i++){
-    char *ptr = allocations[i];
+    void *ptr = allocations[i];
     if ((ptr != NULL) &&
-        (ptr != (char*)(-1)))
+        (ptr != (void*)(-1)))
     {
       printf("never freed allocNum=%d, size=%d at=0x%x '%s'\n",i,allocationLengths[i],ptr,allocationNames[i]);
     } else if (0 != allocationLengths[i])
@@ -284,7 +284,7 @@ int showOutstanding(){
   return allocationsTracked;
 }
 
-static void trackAllocation(char *ptr, char *name, int length){
+static void trackAllocation(void *ptr, char *name, size_t length){
   if (allocationsTracked >= ALLOCATIONS_TO_TRACK) {
     return;
   }
@@ -304,7 +304,7 @@ static void trackAllocation(char *ptr, char *name, int length){
   allocationsTracked++;
 }
 
-static void trackFree(char *ptr, int length){
+static void trackFree(void *ptr, size_t length){
   int i;
   for (i=0; i<allocationsTracked; i++){
     if (allocations[i] == ptr) {
@@ -314,22 +314,22 @@ static void trackFree(char *ptr, int length){
         printf("bad attempt to free 272 or 296 at addr: %p\n", ptr);
         /* memset((void*)0, 0x0, 1);*/ /* cause a crash */
       }
-      allocations[i] = (char*)(-1);
+      allocations[i] = (void *)(-1);
       allocationLengths[i] = allocationLengths[i] - length;
     }
   }
 }
 #endif
 
-char *malloc31(int size){
+void *malloc31(size_t size){
 #ifdef TRACK_MEMORY
   rawBytes += size;
 #endif
-  char *res = NULL;
+  void *res = NULL;
 #if defined( METTLE )
-  res = getmain31(size,SUBPOOL);
+  res = getmain31((uint32_t)size, SUBPOOL);
 #elif defined(__ZOWE_OS_WINDOWS) || defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
-  res = (char*)malloc(size);
+  res = malloc(size);
 #else 
   res = __malloc31(size);
 #endif
@@ -340,13 +340,13 @@ char *malloc31(int size){
   return res;
 }
 
-void free31(void *data, int size){
+void free31(void *data, size_t size){
 #ifdef TRACK_MEMORY
   rawBytes -= size;
-  trackFree((char*)data, size);
+  trackFree(data, size);
 #endif
 #if defined( METTLE )
-  freemain31(data,size,SUBPOOL);
+  freemain31(data, (uint32_t)size, SUBPOOL);
 #elif defined ( __ZOWE_OS_WINDOWS ) || defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
   free(data);
 #else 
@@ -355,8 +355,8 @@ void free31(void *data, int size){
 }
 
 #ifdef __ZOWE_OS_ZOS
-static void *systemStorageObtain31(int size, int subpool){
-  char *data;
+static void *systemStorageObtain31(uint32_t size, unsigned int subpool){
+  void *data;
   __asm(ASM_PREFIX
         " STORAGE OBTAIN,LENGTH=(%1),SP=(%2),LOC=31,CALLRKY=YES,LINKAGE=SYSTEM\n"  /* ,KEY=8 */
 	" LGR %0,1" :
@@ -375,8 +375,8 @@ static void *systemStorageObtain31(int size, int subpool){
 
 #define TCB_EXISTS (*((void**)0x21C))
 
-char *safeMalloc(int size, char *site){
-  char *res = NULL;
+void *safeMalloc(size_t size, const char *site){
+  void *res = NULL;
   if (size > BIG_MALLOC_THRESHOLD){
     if (MALLOC_TRACE_LEVEL >= 1){
       printf("MALLOC: big alloc coming %d from %s\n",size,site);
@@ -393,7 +393,7 @@ char *safeMalloc(int size, char *site){
 #if defined ( METTLE )
   res = getmain31(size,SUBPOOL);
 #elif defined ( __ZOWE_OS_WINDOWS ) || defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
-  res = (char*)malloc(size);
+  res = malloc(size);
 #else
   if (TCB_EXISTS){
     res = malloc31(size);
@@ -419,8 +419,8 @@ char *safeMalloc(int size, char *site){
   return res;
 }
 
-char *safeMalloc2(int size, char *site, int *indicator){
-  char *res = NULL;
+void *safeMalloc2(size_t size, const char *site, int *indicator){
+  void *res = NULL;
   if (size > BIG_MALLOC_THRESHOLD){
     if (MALLOC_TRACE_LEVEL >= 1){
       printf("MALLOC: big alloc coming %d from %s\n",size,site);
@@ -437,7 +437,7 @@ char *safeMalloc2(int size, char *site, int *indicator){
 #if defined ( METTLE )
   res = getmain31(size,SUBPOOL);
 #elif defined (__ZOWE_OS_WINDOWS) || defined (__ZOWE_OS_LINUX)|| defined(__ZOWE_OS_AIX)
-  res = (char*)malloc(size);
+  res = malloc(size);
 #else
   if (TCB_EXISTS){
     res = malloc31(size);
@@ -463,9 +463,9 @@ char *safeMalloc2(int size, char *site, int *indicator){
   return res;
 }
 
-char *safeMalloc31(int size, char *site){
+void *safeMalloc31(size_t size, const char *site){
   /* printf("allocsize=%d site=%s\n",size,site); */
-  char *res = NULL;
+  void *res = NULL;
   if (size > BIG_MALLOC_THRESHOLD){ /* 1 meg, roughly */
     if (MALLOC_TRACE_LEVEL >= 1){
       printf("MALLOC: big alloc coming %d from %s\n",size,site);
@@ -496,10 +496,10 @@ char *safeMalloc31(int size, char *site){
   return res;
 }
 
-static char *safeMalloc64Internal(int size, char *site, long long token){
+static void *safeMalloc64Internal(size_t size, const char *site, long long token){
   /* printf("allocsize=%d site=%s\n",size,site); */
-  char *res = NULL;
-  int sizeInMegabytes = 0;
+  void *res = NULL;
+  size_t sizeInMegabytes = 0;
 
   if (size > BIG_MALLOC64_THRESHOLD){ /* 1 meg, roughly */
     printf("MALLOC: big alloc coming %d from %s\n",size,site);
@@ -516,7 +516,7 @@ static char *safeMalloc64Internal(int size, char *site, long long token){
     sizeInMegabytes = (size >> 20) + 1;
   }
 #if defined(METTLE) && defined(_LP64)
-  res = getmain64((long long)sizeInMegabytes,NULL,NULL); 
+  res = getmain64(sizeInMegabytes, NULL, NULL);
 #elif defined(_LP64)    /* LE case */
   res = malloc(size);   /* According to Redpaper http://www.redbooks.ibm.com/redpapers/pdfs/redp9110.pdf allocated above bar */
 #else
@@ -534,20 +534,20 @@ static char *safeMalloc64Internal(int size, char *site, long long token){
   return res;
 }
 
-char *safeMalloc64(int size, char *site){
+void *safeMalloc64(size_t size, const char *site){
   return safeMalloc64Internal(size,site,0);
 }
 
-char *safeMalloc64ByToken(int size, char *site, long long token){
+void *safeMalloc64ByToken(size_t size, const char *site, long long token){
   return safeMalloc64Internal(size,site,token);
 }
 
-char *safeMalloc31Key8(int size, char *site){
+void *safeMalloc31Key8(size_t size, const char *site){
   /* printf("allocsize=%d site=%s\n",size,site); */
 #ifdef TRACK_MEMORY
   k8Bytes += size;
 #endif
-  char *res = NULL;
+  void *res = NULL;
   if (size > BIG_MALLOC_THRESHOLD){ /* 10 meg, roughly */
     printf("MALLOC: big alloc coming %d from %s\n",size,site);
   } else if (size == 0){
@@ -556,7 +556,7 @@ char *safeMalloc31Key8(int size, char *site){
     printf("MALLOC: negative malloc %d from %s\n",size,site);
   }
 #ifdef METTLE 
-  res = getmain31Key8(size,SUBPOOL);
+  res = getmain31Key8((uint32_t)size, SUBPOOL);
 #else
   res = malloc31(size);
 #endif
@@ -569,7 +569,7 @@ char *safeMalloc31Key8(int size, char *site){
 }
 
 
-void safeFree31(char *data, int size){
+void safeFree31(void *data, size_t size){
 /*   printf("safeFree31: data 0x%p, size %d\n",data, size); */
 #ifdef TRACK_MEMORY
   safeBytes -= size;
@@ -577,13 +577,13 @@ void safeFree31(char *data, int size){
 #endif
 
 #ifdef METTLE 
-  freemain31(data,size,SUBPOOL);
+  freemain31(data, (uint32_t)size, SUBPOOL);
 #else
   free(data);
 #endif
 }
 
-static void safeFree64Internal(char *data, int size, long long token){
+static void safeFree64Internal(void *data, size_t size, long long token){
 /*   printf("safeFree31: data 0x%p, size %d\n",data, size); */
 #ifdef TRACK_MEMORY
   safeBytes -= size;
@@ -597,29 +597,29 @@ static void safeFree64Internal(char *data, int size, long long token){
 #endif
 }
 
-void safeFree64(char *data, int size){
+void safeFree64(void *data, size_t size){
   safeFree64Internal(data,size,0);
 }
 
-void safeFree64ByToken(char *data, int size, long long token){
+void safeFree64ByToken(void *data, size_t size, long long token){
   safeFree64Internal(data,size,token);
 }
 
-void safeFree31Key8(char *data, int size){
+void safeFree31Key8(void *data, size_t size){
 #ifdef TRACK_MEMORY
   k8Bytes -= size;
 #endif
 
 /*   printf("safeFree31: data 0x%p, size %d\n",data, size); */
 #ifdef METTLE 
-  freemain31(data,size,SUBPOOL);
+  freemain31(data, (uint32_t)size, SUBPOOL);
 #else
   free(data);
 #endif
 }
 
-void safeFree(char *data, int size){
-  safeFree31(data,size);
+void safeFree(void *data, size_t size){
+  safeFree31(data, (uint32_t)size);
 }
 
 void *safeRealloc(void *ptr, int size, int oldSize, char *site) {

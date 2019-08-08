@@ -203,6 +203,8 @@ static const char methodDELETE[] = { 0x44, 0x45, 0x4c, 0x45, 0x54, 0x45, 0x00};
 void requestStringHeader(HttpRequest *request, int inEbcdic, char *name, char *value);
 void requestIntHeader(HttpRequest *request, int inEbcdic, char *name, int value);
 
+void asciify(char *s, int len);
+
 #endif /* _COMMON_HTTP_H_ */
 
 

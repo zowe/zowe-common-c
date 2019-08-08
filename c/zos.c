@@ -748,6 +748,18 @@ static char *makeCountedString(char *name,
   return result;
 }
 
+static int safVerifyInternal(int options,
+                             char *userid,
+                             char *password,
+                             char *newPassword,
+                             ACEE **aceeHandle,
+                             void **messageAreaPtr,
+                             int  subpool,
+                             char *applicationName,
+                             int  sessionType,
+                             int *racfStatus, int *racfReason);
+
+
 int safVerify(int options, char *userid, char *password,
               ACEE **aceeHandle,
               int *racfStatus, int *racfReason){

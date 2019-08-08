@@ -289,6 +289,7 @@ int AllocIntReader(char *datasetOutputClass,
 
     rc = -1;
 
+    /* Converting 128 to type "signed char" does not preserve its value */
     below2G->textUnits[0] = createInt8TextUnit(DALRECFM, DALRECFM_F);
     if (below2G->textUnits[0] == NULL) {
       break;

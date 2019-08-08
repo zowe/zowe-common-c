@@ -119,7 +119,7 @@ typedef struct WPLFlags_tag{
 } WPLFlags;
 
 
-typedef int ntFunction();
+typedef int ntFunction(int *, ...);
 
 #define NT_CREATE   1
 #define NT_RETRIEVE 2
@@ -144,7 +144,7 @@ typedef int ntFunction();
 #define initSysouts              INITSYTS
 #endif
 
-ntFunction **getNameTokenFunctionTable();
+ntFunction **getNameTokenFunctionTable(void);
 int getNameTokenValue(int level, char *name, char *token);
 int createNameTokenPair(int level, char *name, char *token);
 

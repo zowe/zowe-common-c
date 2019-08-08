@@ -336,7 +336,7 @@ int getline(char *dcb, char *line, int *lengthRead);
    for restricted environments <cough>ITM<cough>. getline2 allows you to manage
    a non-static var (via get/freeEODADBuffer). 
  */
-char *getEODADBuffer();
+char *getEODADBuffer(void);
 void freeEODADBuffer(char *EODAD);
 int getline2(char *EODAD, char *dcb, char *line, int *lengthRead);
 

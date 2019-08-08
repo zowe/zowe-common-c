@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>  
+#include <strings.h>
 #include <ctype.h>  
 #endif
 
@@ -35,7 +36,7 @@
 #include "printables_for_dump.h"
 #include "timeutls.h"
 
-char * strcopy_safe(char * dest, const char * source, int dest_size) {
+char *strcopy_safe(char *dest, const char *source, int dest_size) {
   if( dest_size == 0 )
     return dest;
   dest[0] = '\0';
@@ -82,7 +83,7 @@ int nullTerminate(char *str, int len){
   return 0;
 }
 
-int isZeros(char *data, int offset, int length){
+int isZeros(const char *data, int offset, int length) {
   int i;
   for (i=0; i<length; i++){
     if (data[offset+i] != 0){
@@ -92,7 +93,7 @@ int isZeros(char *data, int offset, int length){
   return TRUE;
 }
 
-int hasText(char* data, int offset, int length){
+int hasText(const char *data, int offset, int length) {
   int hasText = FALSE;
   int i;
 
@@ -107,7 +108,7 @@ int hasText(char* data, int offset, int length){
   return hasText;
 }
 
-int isBlanks(char * data, int offset, int length){
+int isBlanks(const char *data, int offset, int length){
   int i;
 
   for (i=0; i<length; i++){
@@ -119,7 +120,7 @@ int isBlanks(char * data, int offset, int length){
   return TRUE;
 }
 
-int indexOf(char *str, int len, char c, int startPos){
+int indexOf(const char *str, int len, char c, int startPos) {
   int pos = startPos;
   while (pos < len){
     char c1 = str[pos];
@@ -143,7 +144,7 @@ int lastIndexOf(const char *str, int len, char c) {
   return -1;
 }
 
-int indexOfString(char *str, int len, char *searchString, int startPos){
+int indexOfString(const char *str, int len, const char *searchString, int startPos) {
   int searchLen = strlen(searchString);
   int lastPossibleStart = len-searchLen;
   int pos = startPos;
@@ -162,7 +163,8 @@ int indexOfString(char *str, int len, char *searchString, int startPos){
 
 #if defined(__ZOWE_OS_WINDOWS) || defined(__ZOWE_OS_LINUX) || defined(METTLE) || defined(__ZOWE_OS_AIX)
 
-static int cheesyInsensitiveMatch(char *str, int len, char *searchString, int searchLen){
+static int cheesyInsensitiveMatch(const char *str, int len,
+                                  const char *searchString, int searchLen){
   int i;
   if (searchLen != len){
     return FALSE;
@@ -179,7 +181,8 @@ static int cheesyInsensitiveMatch(char *str, int len, char *searchString, int se
 
 #endif 
 
-int indexOfStringInsensitive(char *str, int len, char *searchString, int startPos){
+int indexOfStringInsensitive(const char *str, int len, const char *searchString,
+                             int startPos){
   int searchLen = strlen(searchString);
   int lastPossibleStart = len-searchLen;
   int pos = startPos;
@@ -223,7 +226,7 @@ int upchar(char c){
   }
 }
 
-int compareIgnoringCase(char *s1, char *s2, int len){
+int compareIgnoringCase(const char *s1, const char *s2, int len){
   int i;
 
   for (i=0; i<len; i++){
@@ -261,7 +264,7 @@ void freeToken(token *t){
   safeFree((char*)t,sizeof(token));
 }
 
-token* tknGetDecimal(char *str, int len, int start){
+token *tknGetDecimal(const char *str, int len, int start) {
   int i;
   int inToken = 0;
   int tokenStart = -1;
@@ -297,7 +300,7 @@ token* tknGetDecimal(char *str, int len, int start){
 }
                                                                
                                                               
-token* tknGetAlphanumeric(char *str, int len, int start){    
+token *tknGetAlphanumeric(const char *str, int len, int start) {
   int i;
   int inToken = 0;
   int tokenStart = -1;
@@ -330,7 +333,8 @@ token* tknGetAlphanumeric(char *str, int len, int start){
   }
 }
 
-token* tknGetQuoted(char *str, int len, int start, char quote, char escape){
+token *tknGetQuoted(const char *str, int len, int start, char quote,
+                    char escape) {
   int i;
   int inToken = 0;
   int tokenStart = -1;
@@ -357,7 +361,7 @@ token* tknGetQuoted(char *str, int len, int start, char quote, char escape){
 }
 
 /* alphanumeric plus hash dollar and at sign */
-token* tknGetStandard(char *str, int len, int start){    
+token *tknGetStandard(const char *str, int len, int start) {
   int i;
   int inToken = 0;
   int tokenStart = -1;
@@ -394,7 +398,7 @@ token* tknGetStandard(char *str, int len, int start){
   }
 }
 
-token* tknGetNonWhitespace(char *str, int len, int start){    
+token *tknGetNonWhitespace(const char *str, int len, int start) {
   int i;
   int inToken = 0;
   int tokenStart = -1;
@@ -426,8 +430,8 @@ token* tknGetNonWhitespace(char *str, int len, int start){
 } 
 
 
-token* tknGetTerminating(char *str, int len,                  
-                          char *match, int start){            
+token *tknGetTerminating(const char *str, int len,
+                         const char *match, int start) {
   int i;
   int matchLen = strlen(match);
 
@@ -456,7 +460,7 @@ token* tknGetTerminating(char *str, int len,
   return NULL;
 }
 
-int tknTextEquals(token *t, char *str, char *match){
+int tknTextEquals(token *t, const char *str, const char *match) {
   int matchLen = strlen(match);
   int start = t->start;
   int i;
@@ -472,7 +476,7 @@ int tknTextEquals(token *t, char *str, char *match){
   return 1;
 }
                                                                
-char *tknText(token *t, char *str){
+char *tknText(token *t, const char *str) {
   int len = t->end - t->start;
   char *text = safeMalloc(len+1,"Token Text");
   memcpy(text,str+t->start,len);
@@ -480,7 +484,7 @@ char *tknText(token *t, char *str){
   return text;
 }
 
-int tknInt(token *t, char *str){
+int tknInt(token *t, const char *str) {
   int x = 0;
   int i;
                                           
@@ -530,7 +534,7 @@ char *simpleHexFill(char *buffer, int formatWidth, int value){
   return buffer;
 }
 
-char *simpleHexPrint(char *buffer, char *data, int len){
+char *simpleHexPrint(char *buffer, const char *data, int len){
   int i;
   for (i=0; i<len; i++){
     buffer[(2*i)] = hexDigits[(data[i]&0xf0)>>4];
@@ -540,7 +544,7 @@ char *simpleHexPrint(char *buffer, char *data, int len){
   return buffer;
 }
 
-char *simpleHexPrintLower(char *buffer, char *data, int len){
+char *simpleHexPrintLower(char *buffer, const char *data, int len) {
   int i;
   for (i=0; i<len; i++){
     buffer[(2*i)] = hexDigitsLower[(data[i]&0xf0)>>4];
@@ -560,12 +564,11 @@ static char *ascii =
 "`abcdefghijklmno"
 "pqrstuvwxyz{|}~ ";
 
-void dumpBufferToStream(const char *buffer, int length, /* FILE* */void *traceOut)
-{
-  int i;
+void dumpBufferToStream(const void *in_buffer, int length, /* FILE* */void *traceOut) {
   int index = 0;
   int last_index;
   char lineBuffer[256];
+  const char *buffer = in_buffer;
 
 #ifdef __ZOWE_EBCDIC
   const unsigned char *trans = printableEBCDIC;
@@ -622,7 +625,7 @@ void dumpBufferToStream(const char *buffer, int length, /* FILE* */void *traceOu
 #endif
 }
 
-void dumpbuffer(const char *buffer, int length) {
+void dumpbuffer(const void *buffer, int length) {
 #ifdef METTLE
   dumpBufferToStream(buffer, length, 0);
 #else
@@ -630,13 +633,14 @@ void dumpbuffer(const char *buffer, int length) {
 #endif
 }
 
-void hexdump(char *buffer, int length, int nominalStartAddress, int formatWidth, char *pad1, char *pad2){
-  int i;
+void hexdump(const void *in_buffer, int length, int nominalStartAddress,
+             int formatWidth, const char *pad1, const char *pad2) {
   int index = 0;
   int last_index = length-1;
   char lineBuffer[256];
   const unsigned char *trans = printableEBCDIC;
   int pad1Len = strlen(pad1);
+  const char *buffer = in_buffer;
 
   while (index <= last_index){
     int pos;
@@ -665,17 +669,18 @@ void hexdump(char *buffer, int length, int nominalStartAddress, int formatWidth,
   fflush(stdout);
 }
 
-void dumpbuffer2(char *buffer, int length){
+void dumpbuffer2(const void *buffer, int length) {
   hexdump(buffer,length,0,32," "," ");
 }
 
-void dumpbufferA(const char *buffer, int length){
+void dumpbufferA(const void *in_buffer, int length){
   int i;
   int index = 0;
   int last_index;
   char lineBuffer[256];
   const unsigned char *trans = printableASCII;
   void *traceOut = (void*)stdout;
+  const char *buffer = in_buffer;
 
   if (length <= 0){
     return;
@@ -747,7 +752,7 @@ char *strupcase(char *s){
 
 /* problems:  hash mark at 0x23, dollar at 0x24 */
 
-int percentEncode(char *value, char *buffer, int len){
+int percentEncode(const char *value, char *buffer, int len){
   int i;
   int pos = 0;
 
@@ -878,7 +883,7 @@ int percentEncode(char *value, char *buffer, int len){
   return pos;
 }
 
-char *cleanURLParamValue(ShortLivedHeap *slh, char *value){
+char *cleanURLParamValue(ShortLivedHeap *slh, const char *value){
   int len = strlen(value);
   int i;
   int pos = 0;
@@ -967,7 +972,7 @@ static int getBitsForChar(char c){
   }
 }
 
-int decodeBase64(char *s, char *result){
+int decodeBase64(const char *s, char *result){
   int sLen = strlen(s);
   int numGroups = sLen / 4;
   int missingBytesInLastGroup = 0;
@@ -1029,7 +1034,8 @@ static char binToEB64[] ={0xc1,0xc2,0xc3,0xc4,0xc5,0xc6,0xc7,0xc8,0xc9,0xd1,0xd2
 
 #define ENCODE64_SIZE(SZ) (2 + 4 * ((SZ + 2) / 3))
 
-char *encodeBase64(ShortLivedHeap *slh, char *buf, int size, int *resultSize, int useEbcdic){
+char *encodeBase64(ShortLivedHeap *slh, const char *buf, int size,
+                   int *resultSize, int useEbcdic){
   char *data = (char*)buf;
   char *result = NULL;
   char equalsChar = (useEbcdic ? '=' : 0x3D);
@@ -1137,7 +1143,7 @@ char EBCDICEncodeTable [32] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
                                'Y', 'Z', '2', '3', '4', '5', '6', '7'};
 
 int base32Decode (int alphabet,
-                  char *input,
+                  const char *input,
                   char *output,
                   int *outputLength,
                   int useEBCDIC) {
@@ -1220,7 +1226,7 @@ int base32Decode (int alphabet,
 }
 
 int base32Encode (int alphabet,
-                  char *input,
+                  const char *input,
                   int inputLength,
                   char *output,
                   int *outputLength,
@@ -1374,13 +1380,13 @@ ShortLivedHeap *makeShortLivedHeap64(int blockSize, int maxBlocks){
   return makeShortLivedHeapInternal(blockSize,maxBlocks,TRUE);
 }
 
-char *SLHAlloc(ShortLivedHeap *slh, int size){
+void *SLHAlloc(ShortLivedHeap *slh, int size) {
   /* expand for fullword alignment */
   int rem = size & 0x3;
   if (rem != 0){
     size += (4-rem);
   }
-  char *data;
+  void *data;
   /* printf("slh=%d\n",slh);fflush(stdout);
      printf("SLHAlloc me=0x%x size=%d bc=%d\n",slh,size,slh->blockCount);fflush(stdout); */
   int remainingHeapBytes = (slh->blockSize * (slh->maxBlocks - slh->blockCount));
@@ -1433,14 +1439,14 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
   slh->bytesRemaining -= size;
   data = slh->activeBlock;
   slh->activeBlock += size;
-  return (char *)data;
+  return data;
   }
 
 void SLHFree(ShortLivedHeap *slh){
   ListElt *chain = slh->blockChain;
   while (chain){
     ListElt *elt = chain;
-    char *data = chain->data-4;
+    void *data = chain->data-4;
     int size = *((int*)data);
     /* printf("SLHFree %d bytes\n",size); */
     if (slh->is64){
@@ -1449,13 +1455,13 @@ void SLHFree(ShortLivedHeap *slh){
       safeFree31(data,size+4);
     }
     chain = chain->next;
-    safeFree((char*)elt,sizeof(ListElt));
+    safeFree(elt, sizeof(ListElt));
   }
-  safeFree((char*)slh,sizeof(ShortLivedHeap));
+  safeFree(slh, sizeof(ShortLivedHeap));
 }
 
-char *noisyMalloc(int size){
-  char *data = safeMalloc(size,"NoisyMalloc");
+void *noisyMalloc(int size) {
+  void *data = safeMalloc(size,"NoisyMalloc");
   if (data == 0){
     printf("malloc failure for allocation of %d bytes\n",size);
     fflush(stdout);
@@ -1491,7 +1497,7 @@ int stringListLength(StringList *list){
   }
 }
 
-int stringListContains(StringList *list, char *s){
+int stringListContains(StringList *list, const char *s) {
   if (list->head){
     StringListElt *elt = list->head;
     while (elt){
@@ -1553,7 +1559,8 @@ StringListElt *firstStringListElt(StringList *list){
   return list->head;
 }
 
-char *stringListPrint(StringList *list, int start, int max, char *separator, char quoteChar){
+char *stringListPrint(StringList *list, int start, int max,
+                      const char *separator, char quoteChar) {
   int separatorLen = strlen(separator);
   char *out = NULL;
   int pos = 0;
@@ -1592,7 +1599,7 @@ char *stringListPrint(StringList *list, int start, int max, char *separator, cha
   return out;
 }
 
-char *stringConcatenate(ShortLivedHeap *slh, char *s1, char *s2){
+char *stringConcatenate(ShortLivedHeap *slh, const char *s1, const char *s2) {
   int l1 = strlen(s1);
   int l2 = strlen(s2);
   char *s = SLHAlloc(slh,l1+l2+1);
@@ -1880,9 +1887,11 @@ int decimalToOctal(int decimal) {
 #define debugPrintf(formatString, ...)
 #endif
 
-int matchWithWildcards(char *pattern, int patternLen,
-                       char *s, int len, int flags){
+static int incrementPlaceValues(int *placeValues,
+                                int lim, int digits);
 
+int matchWithWildcards(const char *pattern, int patternLen,
+                       const char *s, int len, unsigned int flags) {
   int wildcardPositions[MAX_WILDCARDS];
   int wildcardState[MAX_WILDCARDS];
   int fixedWidths[MAX_WILDCARDS+1];

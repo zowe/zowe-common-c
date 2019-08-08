@@ -434,10 +434,10 @@ static void getSTCK(uint64 *stckValue) {
   __asm(" STCK 0(%0)" : : "r"(stckValue));
 }
 
-int64 getLocalTimeOffset() {
+int64 getLocalTimeOffset(void) {
   CVT * __ptr32 cvt = *(void * __ptr32 * __ptr32)0x10;
   void * __ptr32 cvtext2 = cvt->cvtext2;
-  int64 *cvtldto = (int64 * __ptr32)(cvtext2 + 0x38);
+  int64 *cvtldto = (int64 * __ptr32)(/*note that we're adding a number to a void **/cvtext2 + 0x38);
   return *cvtldto;
 }
 
@@ -3294,9 +3294,10 @@ static int handleModifyCommand(STCBase *base, CIB *cib, STCConsoleCommandType co
   return 0;
 }
 
-static void sleep(int seconds){
+static unsigned int sleep(unsigned int seconds){
   int waitValue = seconds * 100;
   __asm(" STIMER WAIT,BINTVL=%0\n" : : "m"(waitValue));
+  return 0;
 }
 
 static int isEnvironmentReady() {

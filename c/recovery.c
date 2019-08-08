@@ -104,7 +104,7 @@ static void resetESPIE(int token) {
 
 }
 
-static int setDummyESPIE() {
+static int setDummyESPIE(void) {
 
   int wasProblemState = supervisorMode(FALSE);
 
@@ -214,7 +214,7 @@ static ESTAEXFeedback setESTAEX(void * __ptr32 userExit, void *userData, char fl
   return localFeedback;
 }
 
-static ESTAEXFeedback deleteESTAEX() {
+static ESTAEXFeedback deleteESTAEX(void) {
 
   ESTAEXFeedback localFeedback;
 
@@ -271,7 +271,7 @@ static void storageRelease(void *data, int size){
   );
 }
 
-static void * __ptr32 getRecoveryRouterAddress() {
+static void * __ptr32 getRecoveryRouterAddress(void) {
 
   void * __ptr32 address = NULL;
 
@@ -598,7 +598,7 @@ static void * __ptr32 getRecoveryRouterAddress() {
 }
 
 #define recoveryDESCTs RCVDSECT
-void recoveryDESCTs(){
+void recoveryDESCTs(void){
 
   __asm(
       "         DS    0H                                                       \n"
@@ -696,7 +696,7 @@ void recoveryDESCTs(){
 
 #endif
 
-RecoveryContext *getRecoveryContext() {
+RecoveryContext *getRecoveryContext(void) {
 #ifdef CUSTOM_CONTEXT_GETTER
   return rcvrgcxt();
 #else
@@ -716,7 +716,7 @@ RecoveryContext *getRecoveryContext() {
 #endif /* CUSTOM_CONTEXT_GETTER */
 }
 
-static RecoveryStateEntry *getLatestState() {
+static RecoveryStateEntry *getLatestState(void) {
   RecoveryContext *context = getRecoveryContext();
   return context ? context->recoveryStateChain : NULL;
 }
@@ -889,7 +889,7 @@ int recoveryEstablishRouter(int flags) {
 
 #elif defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_LINUX)
 
-static void generateCoreDump() {
+static void generateCoreDump(void) {
   if(!fork()) {
     abort();
   }
@@ -1033,7 +1033,7 @@ int recoveryEstablishRouter(int flags) {
 
 #ifdef __ZOWE_OS_ZOS
 
-int recoveryRemoveRouter() {
+int recoveryRemoveRouter(void) {
 
   RecoveryContext *context = getRecoveryContext();
   if (context == NULL) {
@@ -1074,7 +1074,7 @@ int recoveryRemoveRouter() {
 
 #elif defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_LINUX)
 
-int recoveryRemoveRouter() {
+int recoveryRemoveRouter(void) {
 
   RecoveryContext *context = getRecoveryContext();
   if (context == NULL) {
@@ -1324,7 +1324,7 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
 
 #endif /* __ZOWE_OS_ZOS */
 
-void recoveryPop() {
+void recoveryPop(void) {
   RecoveryContext *context = getRecoveryContext();
   if (context != NULL) {
     removeRecoveryStateEntry(context);
@@ -1366,21 +1366,21 @@ void recoverySetFlagValue(int flag, bool value) {
   }
 }
 
-void recoveryEnableCurrentState() {
+void recoveryEnableCurrentState(void) {
   RecoveryStateEntry *state = getLatestState();
   if (state != NULL) {
     state->state |= RECOVERY_STATE_ENABLED;
   }
 }
 
-void recoveryDisableCurrentState() {
+void recoveryDisableCurrentState(void) {
   RecoveryStateEntry *state = getLatestState();
   if (state != NULL) {
     state->state &= ~RECOVERY_STATE_ENABLED;
   }
 }
 
-bool recoveryIsRouterEstablished() {
+bool recoveryIsRouterEstablished(void) {
   return getRecoveryContext() ? true : false;
 }
 

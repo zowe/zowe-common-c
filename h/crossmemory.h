@@ -213,7 +213,7 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   CMSBuildTimestamp lpaModuleTimestamp;
   char reserved2[16];
 
-  int (* __ptr32 pccpHandler)();
+  int (* __ptr32 pccpHandler)(void);
   LPMEA lpaModuleInfo;
 
   struct {
@@ -380,7 +380,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define CMS_SERVICE_FLAG_CODE_IN_COMMON       0x00000004
 
 /* server side functions (must be authorized and in supervisor mode) */
-void cmsInitializeLogging();
+void cmsInitializeLogging(void);
 CrossMemoryServer *makeCrossMemoryServer(STCBase *base, const CrossMemoryServerName *serverName, unsigned int flags, int *reasonCode);
 CrossMemoryServer *makeCrossMemoryServer2(
     STCBase *base,

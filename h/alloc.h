@@ -13,6 +13,8 @@
 #ifndef __ALLOC__
 #define __ALLOC__ 1
 
+#include "zowetypes.h"
+
 /** \file
  *  \brief alloc.h defines an interface for allocating memory that enables some features that are special to each platform.
  *
@@ -41,34 +43,33 @@
 #define safeMalloc64v3 SAMLC643
 #endif
 
-char *malloc31(int size);
-void free31(void *data, int size);
+void *malloc31(size_t size);
+void free31(void *data, size_t size);
 
 /**
  *   safeMalloc is the primary heap memory allocated for Zowe COMMON c code.   It
  *   includes a second argument that defines the call site for diagnostics including leak detection.
  */
 
-char *safeMalloc(int size, char *site);
-char *safeMalloc2(int size, char *site, int *indicator);
-char *safeMalloc31(int size, char *site);
-char *safeMalloc31Key8(int size, char *site);
+void *safeMalloc(size_t size, const char *site);
+void *safeMalloc2(size_t size, const char *site, int *indicator);
+void *safeMalloc31(size_t size, const char *site);
+void *safeMalloc31Key8(size_t size, const char *site);
 
 /** 
- *   safeFree is the primary de-allocator of memory for Zowe COMMON code.  It is uses a char pointer
- *   rather than void pointer for historical reasons.  This will be fixed at some time. 
+ *   safeFree is the primary de-allocator of memory for Zowe COMMON code.
  */
 
-void safeFree(char *data, int size);
-void safeFree31(char *data, int size);
-void safeFree31Key8(char *data, int size);
+void safeFree(void *data, size_t size);
+void safeFree31(void *data, size_t size);
+void safeFree31Key8(void *data, size_t size);
 
-char *safeMalloc64(int size, char *site);
-char *safeMalloc64ByToken(int size, char *site, long long token);
+void *safeMalloc64(size_t  size, const char *site);
+void *safeMalloc64ByToken(size_t size, const char *site, long long token);
 
 
-void safeFree64(char *data, int size);
-void safeFree64ByToken(char *data, int size, long long token);
+void safeFree64(void *data, size_t size);
+void safeFree64ByToken(void *data, size_t size, long long token);
 
 void *safeRealloc(void *ptr, int size, int oldSize, char *site);
 
@@ -92,8 +93,8 @@ int safeFree64v3(void *data, unsigned long long size, int *sysRC, int *sysRSN);
 #endif
 
 #ifdef __ZOWE_OS_ZOS
-char *allocECSA(int size, int key);
-int freeECSA(char *data, int size, int key);
+void *allocECSA(size_t size, unsigned int key);
+int freeECSA(void *data, size_t size, unsigned int key);
 #endif
 
 #ifdef __ZOWE_OS_ZOS
@@ -128,11 +129,11 @@ memset(name, 0, sizeof(struct STRUCT31_LOCAL_VAR_NAME(name)))
 
 #if defined(_LP64) && !defined(METTLE)
 #define FREE_STRUCT31(name) \
-  safeFree31((char *)name, sizeof(struct name)); \
+  safeFree31(name, sizeof(struct name)); \
   name = NULL
 #define FREE_COND_STRUCT31(name) \
   if (name) \
-  safeFree31((char *)name, sizeof(struct name)); \
+  safeFree31(name, sizeof(struct name)); \
   name = NULL
 #else
 #define FREE_STRUCT31(name) \

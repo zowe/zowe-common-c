@@ -78,8 +78,7 @@ const char* pluginTypeString(int pluginType)
 {
   PlugInMapEntry *e = plugInMap;
   while (e->pluginString != 0) {
-    // this seems like an error, but it appears vestigial
-    if (pluginType = e->pluginType) {
+    if (pluginType == e->pluginType) {
       return e->pluginString;
     }
     ++e;

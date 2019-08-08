@@ -91,7 +91,7 @@ int convertCharset(char *input,
                    int *conversionOutputLength, 
                    int *reasonCode);
 
-
+int getCharsetCode(char *charsetName);
 
 #endif
 
