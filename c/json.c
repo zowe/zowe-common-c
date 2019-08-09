@@ -182,20 +182,6 @@ void jsonWriteBufferInternal(jsonPrinter *p, char *text, int len) {
   }
 }
 
-void *safeRealloc(void *ptr, size_t size, size_t oldSize, char *site) {
-  void *new;
-
-  new = safeMalloc(size, site);
-  if (new == NULL) {
-    return NULL;
-  }
-  if ((ptr != NULL) && (oldSize > 0)) {
-    memmove(new, ptr, oldSize);
-    safeFree(ptr, oldSize);
-  }
-  return new;
-}
-
 #define MAX($a, $b) ((($a) > ($b))? ($a) : ($b))
 
 #define ESCAPE_LEN 6 /* \u0123 */
@@ -607,6 +593,66 @@ void jsonAddJSONString(jsonPrinter *p, char *keyOrNull, char *validJsonValue) {
   jsonWrite(p, validJsonValue, false, p->inputCCSID);
 }
 
+void jsonStartMultipartString(jsonPrinter *p, char *keyOrNull) {
+  if (jsonShouldStopWriting(p)) {
+    return;
+  }
+  if (p->isFirstLine) {
+    p->isFirstLine = FALSE;
+  } else {
+    jsonNewLine(p);
+  }
+  jsonWriteKeyAndSemicolon(p, keyOrNull);
+  jsonWrite(p, "\"", false, SOURCE_CODE_CHARSET);
+  p->isInMultipartString = 1;
+}
+
+void jsonAppendStringPart(jsonPrinter *p, char *s) {
+  if (jsonShouldStopWriting(p)) {
+    return;
+  }
+  if (!p->isInMultipartString) {
+    return;
+  }
+  jsonWrite(p, s, true, p->inputCCSID);
+}
+
+void jsonAppendUnterminatedStringPart(jsonPrinter *p, char *value,
+    int valueLength) {
+  if (jsonShouldStopWriting(p)) {
+    return;
+  }
+  if (!p->isInMultipartString) {
+    return;
+  }
+  jsonConvertAndWriteBuffer(p, value, valueLength, true, p->inputCCSID);
+}
+
+void jsonEndMultipartString(jsonPrinter *p) {
+  if (jsonShouldStopWriting(p)) {
+    return;
+  }
+  if (!p->isInMultipartString) {
+    return;
+  }
+  jsonWrite(p, "\"", false, SOURCE_CODE_CHARSET);
+  p->isInMultipartString = 0;
+}
+
+void jsonAddUnterminatedJSONString(jsonPrinter *p, char *keyOrNull,
+                                   char *validJsonValue, int jsonLength) {
+  if (jsonShouldStopWriting(p)) {
+    return;
+  }
+  if (p->isFirstLine) {
+    p->isFirstLine = FALSE;
+  } else {
+    jsonNewLine(p);
+  }
+  jsonWriteKeyAndSemicolon(p, keyOrNull);
+  jsonConvertAndWriteBuffer(p, validJsonValue, jsonLength, false, p->inputCCSID);
+}
+
 void jsonAddUnterminatedString(jsonPrinter *p, char *keyOrNull, char *value, int valueLength) {
   if (jsonShouldStopWriting(p)) {
     return;
@@ -720,6 +766,10 @@ int jsonCheckIOErrorFlag(jsonPrinter *p) {
 #define JSON_TOKEN_BUFFER_SIZE  16384
 #endif
 
+#ifndef JSON_TOKEN_BUFFER_SIZE_LIMIT
+#define JSON_TOKEN_BUFFER_SIZE_LIMIT  104857600 /* 100 MB (for one token) */
+#endif
+
 typedef struct JsonParser_tag JsonParser;
 typedef struct JsonTokenizer_tag JsonTokenizer;
 typedef struct JsonToken_tag JsonToken;
@@ -765,6 +815,7 @@ struct JsonToken_tag {
 #define JSON_TOKEN_UNTERMINATED_BLOCK_COMMENT 16
 #define JSON_TOKEN_BAD_COMMENT 17
 #define JSON_TOKEN_UNEXPECTED_CHAR 18
+#define JSON_TOKEN_STRING_TOO_LONG 19
 #define JSON_TOKEN_UNMATCHED 666
   int type;
   char *text;
@@ -839,6 +890,8 @@ char *getTokenTypeString(int type) {
       return "unexpected character";
     case JSON_TOKEN_UNMATCHED:
       return "unmatched token";
+    case JSON_TOKEN_STRING_TOO_LONG:
+      return "string too long";
     default:
       return "unknown token";
   }
@@ -953,6 +1006,25 @@ void jsonParseFail(JsonParser *parser, char *formatString, ...) {
   }
 }
 
+static int
+jsonTokenizerGrowBuffer(JsonTokenizer *t) {
+  if (t->bufferSize >= INT32_MAX / 2) {
+    return -1;
+  }
+  int newSize = 2 * t->bufferSize;
+  if (newSize >= JSON_TOKEN_BUFFER_SIZE_LIMIT) {
+    return -1;
+  }
+  void *newBuffer = safeRealloc(t->buffer, newSize,
+      t->bufferSize, "JSON token buffer");
+  if (newBuffer == NULL) {
+    return -1;
+  }
+  t->buffer = newBuffer;
+  t->bufferSize = newSize;
+  return 0;
+}
+
 static 
 int jsonTokenizerRead(JsonTokenizer *t) {
   if (t->unreadChar != 0) {
@@ -1004,9 +1076,9 @@ JsonToken *makeJsonToken(JsonTokenizer* tokenizer, int type, char *text) {
 
 static 
 JsonToken *getStringToken(JsonTokenizer *tokenizer) {
-  char *buffer = tokenizer->buffer;
   int pos = 0;
   int badString = FALSE;
+  int stringTooLong = FALSE;
   
   int quote = jsonTokenizerRead(tokenizer);
   while (TRUE) {
@@ -1020,38 +1092,52 @@ JsonToken *getStringToken(JsonTokenizer *tokenizer) {
     } else if (lookahead == '\\') {
       int backSlash = jsonTokenizerRead(tokenizer);
       int c = jsonTokenizerRead(tokenizer);
-      if (pos < tokenizer->bufferSize) {
-        switch (c) {
-          case 'b':
-            buffer[pos++] = '\b';
-            break;
-          case 'n':
-            buffer[pos++] = '\n';
-            break;
-          case 'f':
-            buffer[pos++] = '\f';
-            break;
-          case 'r':
-            buffer[pos++] = '\r';
-            break;
-          case 't':
-            buffer[pos++] = '\t';
-            break;
-          default:
-            buffer[pos++] = c;
+      if (pos >= tokenizer->bufferSize) {
+        int growRc = jsonTokenizerGrowBuffer(tokenizer);
+        if (growRc < 0) {
+          stringTooLong = TRUE;
+          break;
         }
+      }
+      switch (c) {
+        case 'b':
+          tokenizer->buffer[pos++] = '\b';
+          break;
+        case 'n':
+          tokenizer->buffer[pos++] = '\n';
+          break;
+        case 'f':
+          tokenizer->buffer[pos++] = '\f';
+          break;
+        case 'r':
+          tokenizer->buffer[pos++] = '\r';
+          break;
+        case 't':
+          tokenizer->buffer[pos++] = '\t';
+          break;
+        default:
+          tokenizer->buffer[pos++] = c;
       }
     } else {
       int c = jsonTokenizerRead(tokenizer);
-      if (isprint(c) && pos < tokenizer->bufferSize) {
-        buffer[pos++] = c;
+      if (isprint(c)) {
+        if (pos >= tokenizer->bufferSize) {
+          int growRc = jsonTokenizerGrowBuffer(tokenizer);
+          if (growRc < 0) {
+            stringTooLong = TRUE;
+            break;
+          }
+        }
+        tokenizer->buffer[pos++] = c;
       }
     }
   }
   char *text = jsonTokenizerAlloc(tokenizer, pos + 1);
-  memcpy(text, buffer, pos);
+  memcpy(text, tokenizer->buffer, pos);
   if (badString) {
     return makeJsonToken(tokenizer, JSON_TOKEN_UNTERMINATED_STRING, text);
+  } else if (stringTooLong) {
+    return makeJsonToken(tokenizer, JSON_TOKEN_STRING_TOO_LONG, text);
   } else {
     return makeJsonToken(tokenizer, JSON_TOKEN_STRING, text);
   }
@@ -1201,6 +1287,10 @@ void jsonValidateToken(JsonParser *parser, JsonToken *token) {
       break;
     case JSON_TOKEN_UNTERMINATED_BLOCK_COMMENT:
       jsonParseFail(parser, "unterminated comment /*%s", token->text);
+      break;
+    case JSON_TOKEN_STRING_TOO_LONG:
+      jsonParseFail(parser, "string length exceeded the limit");
+      break;
   }
 }
 

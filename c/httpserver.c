@@ -3284,7 +3284,37 @@ void respondWithError(HttpResponse *response, int code, char *message){
   finishResponse(response);
 }
 
+void respondWithMessage(HttpResponse *response, int status,
+                        const char *messageFormatString, ...) {
 
+  char errorMessage[512] = { 0 };
+  char errorMessageASCII[512] = { 0 };
+
+  va_list argPointer;
+  va_start(argPointer, messageFormatString);
+  {
+    vsnprintf(errorMessage,
+              sizeof(errorMessage),
+              messageFormatString,
+              argPointer);
+  }
+  va_end(argPointer);
+
+  size_t messageLength = strlen(errorMessage);
+
+  strcpy(errorMessageASCII, errorMessage);
+  toASCIIUTF8(errorMessageASCII, messageLength);
+
+  setResponseStatus(response, status, errorMessage);
+  setContentType(response, "text/plain");
+  addStringHeader(response, "Server", "jdmfws");
+  addIntHeader(response, "Content-Length", messageLength);
+  writeHeader(response);
+  writeFully(response->socket, errorMessageASCII, messageLength);
+
+  finishResponse(response);
+
+}
 
 // Response must ALWAYS be finished on return
 void serveFile(HttpService *service, HttpResponse *response){
@@ -3761,30 +3791,43 @@ void respondWithUnixFile(HttpResponse* response, char* absolutePath, int jsonMod
 
 // Response must ALWAYS be finished on return
 void respondWithUnixDirectory(HttpResponse *response, char* absolutePath, int jsonMode) {
+  int returnCode;
+  int reasonCode;
+    UnixFile *directory = NULL;
+
+  
 #ifdef DEBUG
   printf("Directory case: %s\n",absolutePath);
   fflush(stdout);
 #endif
-  setResponseStatus(response,200,"OK");
-  addStringHeader(response, "Cache-control", "no-store");
-  addStringHeader(response, "Pragma", "no-cache");  
-  addStringHeader(response,"Server","jdmfws");
-  addStringHeader(response,"Transfer-Encoding","chunked");
-  if (jsonMode == 0) {
-    setContentType(response,"text/html");
-    writeHeader(response);
-    StringListElt *parsedFileTail = firstStringListElt(response->request->parsedFile);
-    while (parsedFileTail->next){
-      parsedFileTail = parsedFileTail->next;
-    }
-    makeHTMLForDirectory(response, absolutePath, parsedFileTail->string,TRUE);
+  
+ if ((directory = directoryOpen(absolutePath,&returnCode,&reasonCode)) == NULL){
+    respondWithJsonError(response, "Permission denied", 403, "Forbidden");
     // Response is finished on return
   }
   else {
-    setContentType(response,"application/x.directory");
-    writeHeader(response);
-    makeJSONForDirectory(response,absolutePath,TRUE);
-    // Response is finished on return
+    directoryClose(directory,&returnCode,&reasonCode);
+    setResponseStatus(response,200,"OK");
+    addStringHeader(response, "Cache-control", "no-store");
+    addStringHeader(response, "Pragma", "no-cache");  
+    addStringHeader(response,"Server","jdmfws");
+    addStringHeader(response,"Transfer-Encoding","chunked");
+    if (jsonMode == 0) {
+      setContentType(response,"text/html");
+      writeHeader(response);
+      StringListElt *parsedFileTail = firstStringListElt(response->request->parsedFile);
+      while (parsedFileTail->next){
+        parsedFileTail = parsedFileTail->next;
+      }
+      makeHTMLForDirectory(response, absolutePath, parsedFileTail->string,TRUE);
+      // Response is finished on return
+    }
+    else {
+      setContentType(response,"application/json");
+      writeHeader(response);
+      makeJSONForDirectory(response,absolutePath,TRUE);
+      // Response is finished on return
+    }
   }
 }
 
@@ -3840,7 +3883,7 @@ void respondWithJsonError(HttpResponse *response, char *error, int statusCode, c
 int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
-  int bufferSize = 3*FILE_STREAM_BUFFER_SIZE;
+  int bufferSize = FILE_STREAM_BUFFER_SIZE;
   char buffer[bufferSize+4];
   int encodedLength;
 
@@ -3875,7 +3918,7 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
   int returnCode = 0;
   int reasonCode = 0;
   int bytesSent = 0;
-  int bufferSize = 3*FILE_STREAM_BUFFER_SIZE;
+  int bufferSize = FILE_STREAM_BUFFER_SIZE;
   char buffer[bufferSize+4];
   char translation[(2*bufferSize)+4]; /* UTF inflation tolerance */
   int encodedLength;
@@ -4124,7 +4167,7 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
           strncat(path, name, nameLength);
 
           FileInfo info = {0};
-          fileInfo(path, &info, &returnCode, &reasonCode);
+          symbolicFileInfo(path, &info, &returnCode, &reasonCode);
           int decimalMode = fileUnixMode(&info);
           int octalMode = decimalToOctal(decimalMode);
 

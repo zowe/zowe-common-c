@@ -150,6 +150,14 @@ typedef struct SVC99RequestBlock_tag {
   char verbCode;
 
   short flags1;
+#define SVC99_FLAG1_ONCNV 0x8000
+#define SVC99_FLAG1_NOCNV 0x4000
+#define SVC99_FLAG1_NOMNT 0x2000
+#define SVC99_FLAG1_JBSYS 0x1000
+#define SVC99_FLAG1_CNENQ 0x0800
+#define SVC99_FLAG1_GDGNT 0x0400
+#define SVC99_FLAG1_MSGL0 0x0200
+#define SVC99_FLAG1_NOMIG 0x0100
 
   short errorReasonCode;
   short infoReasonCode;
@@ -959,6 +967,183 @@ int unallocDataset(DynallocInputParms *inputParms, int *reasonCode) {
 
 }
 
+static void setAllocsFlags(SVC99RequestBlock *rb, DynallocAllocFlags flags) {
+
+  if (flags & DYNALLOC_ALLOC_FLAG_NO_CONVERSION) {
+    rb->flags1 |= SVC99_FLAG1_NOCNV;
+  }
+
+  if (flags & DYNALLOC_ALLOC_FLAG_NO_MOUNT) {
+    rb->flags1 |= SVC99_FLAG1_NOMNT;
+  }
+
+}
+
+int dynallocAllocDataset(const DynallocDatasetName *dsn,
+                         const DynallocMemberName *member,
+                         DynallocDDName *ddName,
+                         DynallocDisposition disp,
+                         DynallocAllocFlags flags,
+                         int *sysRC, int *sysRSN) {
+
+  ALLOC_STRUCT31(
+    STRUCT31_NAME(below2G),
+    STRUCT31_FIELDS(
+      SVC99RequestBlock requestBlock;
+      SVC99RequestBlock * __ptr32 requestBlockAddress;
+      TextUnit * __ptr32 textUnits[4];
+    )
+  );
+
+  below2G->requestBlockAddress =
+      (SVC99RequestBlock * __ptr32)((int)&below2G->requestBlock | 0x80000000);
+  SVC99RequestBlock *requestBlock = &below2G->requestBlock;
+
+  unsigned textUnitCount = TEXT_UNIT_ARRAY_SIZE(below2G->textUnits);
+
+  memset(requestBlock, 0, sizeof(SVC99RequestBlock));
+  requestBlock->requestBlockLen = sizeof(SVC99RequestBlock);
+  requestBlock->verbCode = S99VRBAL;
+  requestBlock->textUnits = below2G->textUnits;
+  setAllocsFlags(requestBlock, flags);
+
+  TextUnit *ddNameInOutTU = NULL;
+
+  int rc = RC_DYNALLOC_OK;
+  int currTUIdx = 0;
+
+  do {
+
+    rc = RC_DYNALLOC_TU_ALLOC_FAILED;
+
+    if (!memcmp(ddName->name, "????????", sizeof(ddName->name))) {
+      ddNameInOutTU = createSimpleTextUnit2(DALRTDDN, "        ", 8);
+    } else {
+      ddNameInOutTU = createSimpleTextUnit2(DALDDNAM, ddName->name,
+                                            sizeof(ddName->name));
+    }
+
+    below2G->textUnits[currTUIdx] = ddNameInOutTU;
+    if (below2G->textUnits[currTUIdx] == NULL) {
+      break;
+    }
+    currTUIdx++;
+
+    below2G->textUnits[currTUIdx] = createSimpleTextUnit2(DALDSNAM,
+                                                          (char *)dsn->name,
+                                                          sizeof(dsn->name));
+    if (below2G->textUnits[currTUIdx] == NULL) {
+      break;
+    }
+    currTUIdx++;
+
+    below2G->textUnits[currTUIdx] = createCharTextUnit(DALSTATS, disp);
+    if (below2G->textUnits[currTUIdx] == NULL) {
+      break;
+    }
+    currTUIdx++;
+
+    if (member) {
+      below2G->textUnits[currTUIdx] = createSimpleTextUnit2(DALMEMBR,
+                                                            (char *)member->name,
+                                                            sizeof(member->name));
+      if (below2G->textUnits[currTUIdx] == NULL) {
+        break;
+      }
+      currTUIdx++;
+    }
+
+    turn_on_HOB(below2G->textUnits[currTUIdx - 1]);
+
+    int svc99RC = invokeSVC99(&below2G->requestBlockAddress);
+    int svc99RSN = requestBlock->infoReasonCode +
+        (requestBlock->errorReasonCode << 16);
+
+    if (svc99RC == 0) {
+      rc = RC_DYNALLOC_OK;
+    } else {
+      *sysRC = svc99RC;
+      *sysRSN = svc99RSN;
+      rc = RC_DYNALLOC_SVC99_FAILED;
+    }
+
+  } while (0);
+
+  if (ddNameInOutTU) {
+    memcpy(ddName->name, ddNameInOutTU->first_value, sizeof(ddName->name));
+  }
+
+  freeTextUnitArray(below2G->textUnits, textUnitCount);
+
+  FREE_STRUCT31(
+    STRUCT31_NAME(below2G)
+  );
+
+  return rc;
+}
+
+
+int dynallocUnallocDatasetByDDName(const DynallocDDName *ddName,
+                                   DynallocUnallocFlags flags,
+                                   int *sysRC, int *sysRSN) {
+
+  ALLOC_STRUCT31(
+    STRUCT31_NAME(below2G),
+    STRUCT31_FIELDS(
+      SVC99RequestBlock requestBlock;
+      SVC99RequestBlock * __ptr32 requestBlockAddress;
+      TextUnit * __ptr32 textUnits[1];
+    )
+  );
+
+  below2G->requestBlockAddress =
+      (SVC99RequestBlock * __ptr32)((int)&below2G->requestBlock | 0x80000000);
+  SVC99RequestBlock *requestBlock = &below2G->requestBlock;
+
+  unsigned textUnitCount = TEXT_UNIT_ARRAY_SIZE(below2G->textUnits);
+
+  memset(requestBlock, 0, sizeof(SVC99RequestBlock));
+  requestBlock->requestBlockLen = sizeof(SVC99RequestBlock);
+  requestBlock->verbCode = S99VRBUN;
+  requestBlock->textUnits = below2G->textUnits;
+
+  int rc = RC_DYNALLOC_OK;
+
+  do {
+
+    rc = RC_DYNALLOC_TU_ALLOC_FAILED;
+
+    below2G->textUnits[0] = createSimpleTextUnit2(DALDDNAM,
+                                                  (char *)ddName->name,
+                                                  sizeof(ddName->name));
+    if (below2G->textUnits[0] == NULL) {
+      break;
+    }
+
+    turn_on_HOB(below2G->textUnits[textUnitCount - 1]);
+
+    int svc99RC = invokeSVC99(&below2G->requestBlockAddress);
+    int svc99RSN = requestBlock->infoReasonCode +
+        (requestBlock->errorReasonCode << 16);
+
+    if (svc99RC == 0) {
+      rc = RC_DYNALLOC_OK;
+    } else {
+      *sysRC = svc99RC;
+      *sysRSN = svc99RSN;
+      rc = RC_DYNALLOC_SVC99_FAILED;
+    }
+
+  } while (0);
+
+  freeTextUnitArray(below2G->textUnits, textUnitCount);
+
+  FREE_STRUCT31(
+    STRUCT31_NAME(below2G)
+  );
+
+  return rc;
+}
 
 
 /*

@@ -622,6 +622,486 @@ void safeFree(char *data, int size){
   safeFree31(data,size);
 }
 
+void *safeRealloc(void *ptr, int size, int oldSize, char *site) {
+  void *new;
+
+  new = safeMalloc(size, site);
+  if (new == NULL) {
+    return NULL;
+  }
+  if ((ptr != NULL) && (oldSize > 0)) {
+    memmove(new, ptr, oldSize);
+    safeFree(ptr, oldSize);
+  }
+  return new;
+}
+
+#ifdef __ZOWE_OS_ZOS
+
+#ifdef METTLE
+
+__asm(" TCBTOKEN MF=L" : "DS"(tcbTokenGlobalPlist));
+
+static int getJobstepTCBToken(char *tcbToken) {
+
+  __asm(" TCBTOKEN MF=L" : "DS"(plist));
+  plist = tcbTokenGlobalPlist;
+
+  int returnCode = 0;
+  char tcbTokenInternal[16];
+  memset(tcbTokenInternal, 0, sizeof(tcbTokenInternal));
+
+  __asm(ASM_PREFIX
+#ifdef _LP64
+        " SAM31                                       \n"
+        " SYSSTATE AMODE64=NO                         \n"
+#endif
+        " TCBTOKEN TYPE=JOBSTEP,TTOKEN=%1,MF=(E,(%2)) \n"
+        " ST  15,%0                                   \n"
+#ifdef _LP64
+        " SAM64                                       \n"
+        " SYSSTATE AMODE64=YES                        \n"
+#endif
+        : "=m"(returnCode)
+        : "m"(tcbTokenInternal), "r"(&plist)
+        : "r0", "r1", "r14", "r15");
+
+  memcpy(tcbToken, tcbTokenInternal, 16);
+  return returnCode;
+}
+
+__asm("IARV64GL IARV64 MF=(L,IARV64GL)" : "DS"(iarv64GlobalPlist));
+
+static char* __ptr64 iarv64GetStorage(unsigned long long sizeInMegabytes,
+                                      char *tcbToken,
+                                      int *returnCode, int *reasonCode) {
+
+  char* __ptr64 data = NULL;
+
+  int macroRetCode = 0;
+  int macroResCode = 0;
+
+  __asm(" IARV64 MF=L" : "DS"(plist));
+  plist = iarv64GlobalPlist;
+
+  __asm(ASM_PREFIX
+        " IARV64 REQUEST=GETSTOR,COND=NO,SEGMENTS=(%2),ORIGIN=(%3),TTOKEN=(%4),"
+        "RETCODE=%0,RSNCODE=%1,MF=(E,(%5))  \n"
+        : "=m"(macroRetCode), "=m"(macroResCode)
+        : "r"(&sizeInMegabytes), "r"(&data), "r"(tcbToken), "r"(&plist)
+        : "r0", "r1", "r14", "r15");
+
+   if (returnCode){
+     *returnCode = macroRetCode;
+   }
+   if (reasonCode){
+     *reasonCode = macroResCode;
+   }
+
+   return data;
+}
+
+static void iarv64Detach(char* __ptr64 data, char *tcbToken,
+                         int *returnCode, int *reasonCode) {
+
+  int macroRetCode = 0;
+  int macroResCode = 0;
+
+  __asm(" IARV64 MF=L" : "DS"(plist));
+  plist = iarv64GlobalPlist;
+
+  __asm(ASM_PREFIX
+        " IARV64 REQUEST=DETACH,COND=NO,MEMOBJSTART=(%2),OWNER=YES,TTOKEN=(%3),"
+        "RETCODE=%0,RSNCODE=%1,MF=(E,(%4))  \n"
+        : "=m"(macroRetCode), "=m"(macroResCode)
+        : "r"(&data), "r"(tcbToken), "r"(&plist)
+        : "r0", "r1", "r14", "r15");
+
+   if (returnCode){
+     *returnCode = macroRetCode;
+   }
+   if (reasonCode){
+     *reasonCode = macroResCode;
+   }
+
+}
+
+#define MEM_128K 131072
+
+static void* __ptr64 iarst64Get(int size, int *returnCode, int *reasonCode) {
+
+  char* __ptr64 data = NULL;
+
+  int macroRetCode = 0;
+  int macroResCode = 0;
+
+  __asm(ASM_PREFIX
+        " IARST64 REQUEST=GET,AREAADDR=(%2),SIZE=(%3),COMMON=NO,"
+        "OWNINGTASK=JOBSTEP,MEMLIMIT=YES,FPROT=NO,TYPE=PAGEABLE,"
+        "CALLERKEY=YES,FAILMODE=ABEND,REGS=SAVE,"
+        "RETCODE=%0,RSNCODE=%1"
+        : "=m"(macroRetCode), "=m"(macroResCode)
+        : "r"(&data), "r"(&size)
+        : "r0", "r1", "r14", "r15");
+
+  if (returnCode) {
+    *returnCode = macroRetCode;
+  }
+  if (reasonCode) {
+    *reasonCode = macroResCode;
+  }
+
+  return data;
+}
+
+static void iarst64Free(void* __ptr64 data) {
+
+  __asm(ASM_PREFIX
+        " IARST64 REQUEST=FREE,AREAADDR=(%0),REGS=SAVE"
+        :
+        : "r"(&data)
+        : "r0", "r1", "r14", "r15");
+
+}
+
+#endif /* END of METTLE */
+
+/*
+ * Unlike safeMalloc64, this function uses two services to get storage.
+ * If size <= 128K IARST64 is used, otherwise IARV64 is used.
+ */
+char *safeMalloc64v2(unsigned long long size, int zeroOut, char *site,
+                     int *returnCode, int *sysRC, int *sysRSN) {
+
+  if (size > BIG_MALLOC64_THRESHOLD){ /* 1 meg, roughly */
+    printf("MALLOC: big alloc coming %llu from %s\n",size,site);
+  } else if (size == 0){
+    printf("MALLOC: zero alloc from %s\n",site);
+  }
+
+  char *data = NULL;
+#if defined(METTLE) && defined(_LP64)
+  if (size > MEM_128K) {
+
+    unsigned long long sizeInMegabytes = 0;
+    if ((size & 0xFFFFF) == 0){
+      sizeInMegabytes = size >> 20;
+    } else{
+      sizeInMegabytes = (size >> 20) + 1;
+    }
+
+    char tcbToken[16];
+    memset(tcbToken, 0, sizeof(tcbToken));
+    int getTCBTokenRC = getJobstepTCBToken(tcbToken);
+    /* this is to insure that getTCBTokenRC doesn't get compiled out
+     * and in case of an error we can access it in the SVC dump */
+    if (FALSE) {
+      printf("safeMalloc64v2: job step TCB, rc=%d\n", getTCBTokenRC);
+    }
+
+    int rc = 0, rsn = 0;
+    data = iarv64GetStorage(sizeInMegabytes, tcbToken, &rc, &rsn);
+    if (rc) {
+      if (returnCode != NULL) {
+        *returnCode = ALLOC64V2_RC_IARV64_FAILURE;
+      }
+      if (sysRC != NULL) {
+        *sysRC = rc;
+      }
+      if (sysRSN != NULL) {
+        *sysRSN = rsn;
+      }
+      if (rc >= 8) {
+        data = NULL;
+      }
+    }
+
+  }
+  else {
+    int rc = 0, rsn = 0;
+    data = iarst64Get(size, &rc, &rsn);
+    if (rc) {
+      if (returnCode != NULL) {
+        *returnCode = ALLOC64V2_RC_IARST64_FAILURE;
+      }
+      if (sysRC != NULL) {
+        *sysRC = rc;
+      }
+      if (sysRSN != NULL) {
+        *sysRSN = rsn;
+      }
+      data = NULL;
+    }
+  }
+#elif defined(_LP64)
+  data = malloc(size);
+#else
+  data = NULL;  /* Invalid if not compiled _LP64 */
+#endif
+  if (data != NULL){
+    if (zeroOut) {
+      memset(data, 0, size);
+    }
+  } else{
+    printf("MALLOC failed, got NULL for size %llu at site %s\n",size, site);
+  }
+#ifdef TRACK_MEMORY
+  safeBytes += size;
+  trackAllocation(data, site, size);
+#endif
+
+  return data;
+}
+
+int safeFree64v2(void *data, unsigned long long size, int *sysRC, int *sysRSN) {
+
+  int returnCode = 0;
+#ifdef TRACK_MEMORY
+  safeBytes -= size;
+  trackFree(data, size);
+#endif
+
+#if defined(METTLE) && defined(_LP64)
+  if (size > MEM_128K) {
+
+    char tcbToken[16];
+    memset(tcbToken, 0, sizeof(tcbToken));
+    int getTCBTokenRC = getJobstepTCBToken(tcbToken);
+    if (FALSE) {
+      printf("safeFree64v2: job step TCB, rc=%d\n", getTCBTokenRC);
+    }
+
+    int rc = 0, rsn = 0;
+    iarv64Detach(data, tcbToken, &rc, &rsn);
+    if (rc != 0) {
+      if (rc >= 8) {
+        returnCode = FREE64V2_RC_IARV64_FAILURE;
+      }
+      if (sysRC != NULL) {
+        *sysRC = rc;
+      }
+      if (sysRSN != NULL) {
+        *sysRSN = rsn;
+      }
+    }
+
+  }
+  else {
+    iarst64Free(data);
+  }
+#elif defined(_LP64)
+  free(data);
+#else
+  /* Invalid if not compiled _LP64 */
+#endif
+
+  return returnCode;
+}
+
+#ifdef METTLE
+
+static char* __ptr64 iarv64GetStorageSingleOwner(
+    unsigned long long sizeInMegabytes,
+    int *returnCode, int *reasonCode
+) {
+
+  char* __ptr64 data = NULL;
+
+  int macroRetCode = 0;
+  int macroResCode = 0;
+
+  __asm(" IARV64 MF=L" : "DS"(plist));
+  plist = iarv64GlobalPlist;
+
+  __asm(ASM_PREFIX
+        " IARV64 REQUEST=GETSTOR,COND=NO,SEGMENTS=(%2),ORIGIN=(%3),"
+        "RETCODE=%0,RSNCODE=%1,MF=(E,(%4))  \n"
+        : "=m"(macroRetCode), "=m"(macroResCode)
+        : "r"(&sizeInMegabytes), "r"(&data), "r"(&plist)
+        : "r0", "r1", "r14", "r15");
+
+   if (returnCode){
+     *returnCode = macroRetCode;
+   }
+   if (reasonCode){
+     *reasonCode = macroResCode;
+   }
+
+   return data;
+}
+
+static void iarv64DetachSingleOwner(char* __ptr64 data,
+                                    int *returnCode,
+                                    int *reasonCode) {
+
+  int macroRetCode = 0;
+  int macroResCode = 0;
+
+  __asm(" IARV64 MF=L" : "DS"(plist));
+  plist = iarv64GlobalPlist;
+
+  __asm(ASM_PREFIX
+        " IARV64 REQUEST=DETACH,COND=NO,MEMOBJSTART=(%2),OWNER=YES,"
+        "RETCODE=%0,RSNCODE=%1,MF=(E,(%3))  \n"
+        : "=m"(macroRetCode), "=m"(macroResCode)
+        : "r"(&data), "r"(&plist)
+        : "r0", "r1", "r14", "r15");
+
+   if (returnCode){
+     *returnCode = macroRetCode;
+   }
+   if (reasonCode){
+     *reasonCode = macroResCode;
+   }
+
+}
+
+static void* __ptr64 iarst64GetSingleOwner(int size,
+                                           int *returnCode,
+                                           int *reasonCode) {
+
+  char* __ptr64 data = NULL;
+
+  int macroRetCode = 0;
+  int macroResCode = 0;
+
+  __asm(ASM_PREFIX
+        " IARST64 REQUEST=GET,AREAADDR=(%2),SIZE=(%3),COMMON=NO,"
+        "OWNINGTASK=CURRENT,MEMLIMIT=YES,FPROT=NO,TYPE=PAGEABLE,"
+        "CALLERKEY=YES,FAILMODE=ABEND,REGS=SAVE,"
+        "RETCODE=%0,RSNCODE=%1"
+        : "=m"(macroRetCode), "=m"(macroResCode)
+        : "r"(&data), "r"(&size)
+        : "r0", "r1", "r14", "r15");
+
+  if (returnCode) {
+    *returnCode = macroRetCode;
+  }
+  if (reasonCode) {
+    *reasonCode = macroResCode;
+  }
+
+  return data;
+}
+
+/* The following functions are the same as the v2 versions expect the allocated storage
+ * is owned by the caller's TCB
+ * WARNING: Metal C only for now */
+
+char *safeMalloc64v3(unsigned long long size, int zeroOut, char *site,
+                     int *returnCode, int *sysRC, int *sysRSN) {
+
+  if (size > BIG_MALLOC64_THRESHOLD){ /* 1 meg, roughly */
+    printf("MALLOC: big alloc coming %llu from %s\n",size,site);
+  } else if (size == 0){
+    printf("MALLOC: zero alloc from %s\n",site);
+  }
+
+  char *data = NULL;
+#if defined(METTLE) && defined(_LP64)
+  if (size > MEM_128K) {
+
+    unsigned long long sizeInMegabytes = 0;
+    if ((size & 0xFFFFF) == 0){
+      sizeInMegabytes = size >> 20;
+    } else{
+      sizeInMegabytes = (size >> 20) + 1;
+    }
+
+    int rc = 0, rsn = 0;
+    data = iarv64GetStorageSingleOwner(sizeInMegabytes, &rc, &rsn);
+    if (rc) {
+      if (returnCode != NULL) {
+        *returnCode = ALLOC64V2_RC_IARV64_FAILURE;
+      }
+      if (sysRC != NULL) {
+        *sysRC = rc;
+      }
+      if (sysRSN != NULL) {
+        *sysRSN = rsn;
+      }
+      if (rc >= 8) {
+        data = NULL;
+      }
+    }
+
+  }
+  else {
+    int rc = 0, rsn = 0;
+    data = iarst64GetSingleOwner(size, &rc, &rsn);
+    if (rc) {
+      if (returnCode != NULL) {
+        *returnCode = ALLOC64V2_RC_IARST64_FAILURE;
+      }
+      if (sysRC != NULL) {
+        *sysRC = rc;
+      }
+      if (sysRSN != NULL) {
+        *sysRSN = rsn;
+      }
+      data = NULL;
+    }
+  }
+#elif defined(_LP64)
+  data = malloc(size);
+#else
+  data = NULL;  /* Invalid if not compiled _LP64 */
+#endif
+  if (data != NULL){
+    if (zeroOut) {
+      memset(data, 0, size);
+    }
+  } else{
+    printf("MALLOC failed, got NULL for size %llu at site %s\n",size, site);
+  }
+#ifdef TRACK_MEMORY
+  safeBytes += size;
+  trackAllocation(data, site, size);
+#endif
+
+  return data;
+}
+
+int safeFree64v3(void *data, unsigned long long size, int *sysRC, int *sysRSN) {
+
+  int returnCode = 0;
+#ifdef TRACK_MEMORY
+  safeBytes -= size;
+  trackFree(data, size);
+#endif
+
+#if defined(METTLE) && defined(_LP64)
+  if (size > MEM_128K) {
+
+    int rc = 0, rsn = 0;
+    iarv64DetachSingleOwner(data, &rc, &rsn);
+    if (rc != 0) {
+      if (rc >= 8) {
+        returnCode = FREE64V2_RC_IARV64_FAILURE;
+      }
+      if (sysRC != NULL) {
+        *sysRC = rc;
+      }
+      if (sysRSN != NULL) {
+        *sysRSN = rsn;
+      }
+    }
+
+  }
+  else {
+    iarst64Free(data);
+  }
+#elif defined(_LP64)
+  free(data);
+#else
+  /* Invalid if not compiled _LP64 */
+#endif
+
+  return returnCode;
+}
+
+#endif /* END of METTLE */
+#endif /* END of __ZOWE_OS_ZOS */
 
 /*
   This program and the accompanying materials are
