@@ -164,7 +164,13 @@ typedef struct BPXYSTAT_tag{
   short    fileTaggingTags;
   int      reserved2[2];
   int64    blocks;
-  int      attributeFlags;
+  uint32_t reservedAttributeFlags: 24;
+  uint8_t  attributeFlags;
+  #define BPXYSTAT_ATTR_SHARELIB    0x10
+  #define BPXYSTAT_ATTR_NOSHAREAS   0x08
+  #define BPXYSTAT_ATTR_APFAUTH     0x04
+  #define BPXYSTAT_ATTR_PROGCTL     0x02
+  #define BPXYSTAT_ATTR_EXTLINK     0x01
   /* 0x10 shared lib 
      0x08 no shareas
      0x04 APF
@@ -410,6 +416,9 @@ int fileDelete(const char *fileName, int *returnCode, int *reasonCode);
 */
 
 int fileInfo(const char *filename, FileInfo *fileInfo, int *returnCode, int *reasonCode);
+
+/* Same as fileInfo but does not follow symbolic link */
+int symbolicFileInfo(const char *filename, FileInfo *fileInfo, int *returnCode, int *reasonCode);
 
 #ifdef __ZOWE_OS_ZOS
 int fileChangeTag(const char *fileName, int *returnCode, int *reasonCode, int ccsid);

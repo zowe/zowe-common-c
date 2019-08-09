@@ -48,6 +48,7 @@
 #pragma linkage(BPX4CLD,OS)
 #pragma linkage(BPX4UMK,OS)
 #pragma linkage(BPX4FCT,OS)
+#pragma linkage(BPX4LST,OS)
 
 #define BPXRED BPX4RED
 #define BPXOPN BPX4OPN
@@ -64,6 +65,7 @@
 #define BPXCLD BPX4CLD
 #define BPXUMK BPX4UMK
 #define BPXFCT BPX4FCT
+#define BPXLST BPX4LST
 
 #else
 #pragma linkage(BPX1RED,OS)
@@ -81,6 +83,7 @@
 #pragma linkage(BPX1CLD,OS)
 #pragma linkage(BPX1UMK,OS)
 #pragma linkage(BPX1FCT,OS)
+#pragma linkage(BPX1LST,OS)
 
 #define BPXRED BPX1RED
 #define BPXOPN BPX1OPN
@@ -97,6 +100,7 @@
 #define BPXCLD BPX1CLD
 #define BPXUMK BPX1UMK
 #define BPXFCT BPX1FCT
+#define BPXLST BPX1LST
 #endif
 
 static int fileTrace = FALSE;
@@ -956,6 +960,52 @@ int fileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int *reason
   }
   return returnValue;
 }
+
+int symbolicFileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int *reasonCode) {
+  int nameLength = strlen(filename);
+  int statsLength = sizeof(BPXYSTAT);
+  int *reasonCodePtr;
+  int returnValue = 0;
+
+#ifndef _LP64
+  reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
+#else
+  reasonCodePtr = reasonCode;
+#endif
+
+  BPXLST(&nameLength,
+         filename,
+         &statsLength,
+         stats,
+         &returnValue,
+         returnCode,
+         reasonCodePtr);
+
+  if (fileTrace) {
+    if(returnValue != 0) {
+#ifdef METTLE
+      printf("BPXLST (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+             filename, returnValue, *returnCode, *reasonCode);
+#else
+      printf("BPXLST (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+             filename, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
+#endif
+    }
+    else {
+      printf("BPXLST (%s) OK: returnVal: %d, type: %s\n", filename, returnValue, fileTypeString(stats->fileType));
+    }
+  }
+
+  if (returnValue != 0) {
+    returnValue = -1;
+  }
+  else{
+    *returnCode = 0;
+    *reasonCode = 0;
+  }
+  return returnValue;
+}
+
 
 int fileInfoIsDirectory(const FileInfo *info) {
   return (info->fileType == BPXSTA_FILETYPE_DIRECTORY ? TRUE: FALSE);

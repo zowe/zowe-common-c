@@ -52,7 +52,7 @@
 
 #define HTTP_SERVICE_SUCCESS 0
 #define HTTP_SERVICE_FAILED  8
-#define FILE_STREAM_BUFFER_SIZE 1024
+#define FILE_STREAM_BUFFER_SIZE 1024000
 
 #define HTTP_SERVER_MAX_SESSION_TOKEN_KEY_SIZE 1024u
 
@@ -502,6 +502,8 @@ void setConfiguredProperty(HttpServer *server, char *key, void *value);
  */
 
 void respondWithError(HttpResponse *response, int code, char *message);
+void respondWithMessage(HttpResponse *response, int status,
+                        const char *messageFormatString, ...);
 void setResponseStatus(HttpResponse *response, int status, char *message);
 
 void addHeader(HttpResponse *response, HttpHeader *header);
