@@ -45,6 +45,9 @@
 #define DEFAULT_UMASK 0022
 #endif
 
+/* A generic function to return a 200 OK to the caller.
+ * It takes a msg and prints it to JSON.
+ */
 void response200WithMessage(HttpResponse *response, char *msg) {
   setResponseStatus(response,200,"OK");
   setDefaultJSONRESTHeaders(response);
@@ -57,11 +60,12 @@ void response200WithMessage(HttpResponse *response, char *msg) {
   finishResponse(response);
 }
 
-int isDir(char *absolutePath) {
-  int status = 0;
-  int returnCode = 0;
-  int reasonCode = 0;
-  FileInfo info;
+/* Returns a boolean value for whether or not
+ * the specified file is a directory or not.
+ */
+bool isDir(char *absolutePath) {
+  int returnCode = 0, reasonCode = 0, status = 0;  
+  FileInfo info = {0};
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
@@ -71,35 +75,32 @@ int isDir(char *absolutePath) {
   return (fileInfoIsDirectory(&info));
 }
 
-int doesItExist(char *absolutePath) {
-  int status = 0;
-  int returnCode = 0;
-  int reasonCode = 0;
-  FileInfo info;
+/* Returns a boolean value for whether or not
+ * the specified file exists.
+ */
+bool doesFileExist(char *absolutePath) {
+  int returnCode = 0, reasonCode = 0, status = 0;  
+  FileInfo info = {0};
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
     return FALSE;
   }
-
+  
   return TRUE;
 }
 
+/* Creates a new unix directory at the specified absolute
+ * path. It will only overwrite an existing directory if
+ * the forceCreate flag is on.
+ */
 static int createUnixDirectory(char *absolutePath, int forceCreate) {
-  int status = 0;
-  int returnCode = 0;
-  int reasonCode = 0;
-  FileInfo info;
-  int dirExists = FALSE;
-
+  int returnCode = 0, reasonCode = 0, status = 0;  
+  FileInfo info = {0};
+  
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
   if (status == 0) {
     if (!forceCreate) {
-      return -1;
-    }
-    dirExists = TRUE;
-    status = tmpDirMake(absolutePath);
-    if (status == -1) {
       return -1;
     }
   }
@@ -110,16 +111,12 @@ static int createUnixDirectory(char *absolutePath, int forceCreate) {
                          &reasonCode);
 
   if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to create directory %s: (return = 0x%x, reason = 0x%x)\n", absolutePath, returnCode, reasonCode);
-#endif
-    if (dirExists) {
-      tmpDirCleanup(absolutePath);
-    }
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to create directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            absolutePath, returnCode, reasonCode);
     return -1;
   }
 
-  tmpDirDelete(absolutePath);
   return 0;
 }
 
@@ -132,22 +129,26 @@ void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, i
   }
 }
 
+/* Deletes a unix directory at the specified absolute
+ * path.
+ */
 static int deleteUnixDirectory(char *absolutePath) {
-  int status = 0;
-  int returnCode = 0;
-  int reasonCode = 0;
-  FileInfo info;
-
+  int returnCode = 0, reasonCode = 0, status = 0;
+  FileInfo info = {0};
+  
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to stat directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            absolutePath, returnCode, reasonCode);
     return -1;
   }
 
-  status = directoryDeleteRecursive(absolutePath);
+  status = directoryDeleteRecursive(absolutePath, &returnCode, &reasonCode);
   if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to delete directory %s\n", absolutePath);
-#endif
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to delete directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            absolutePath, returnCode, reasonCode);
     return -1;
   }
 
@@ -163,22 +164,26 @@ void deleteUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
   }
 }
 
+/* Deletes a unix file at the specified absolute
+ * path.
+ */
 static int deleteUnixFile(char *absolutePath) {
-  int status = 0;
-  int returnCode = 0;
-  int reasonCode = 0;
-  FileInfo info;
+  int returnCode = 0, reasonCode = 0, status = 0;
+  FileInfo info = {0};
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to stat file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            absolutePath, returnCode, reasonCode);
     return -1;
   }
 
   status = fileDelete(absolutePath, &returnCode, &reasonCode);
   if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to delete file %s: (return = 0x%x, reason = 0x%x)\n", absolutePath, returnCode, reasonCode);
-#endif
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to delete file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            absolutePath, returnCode, reasonCode);
     return -1;
   }
 
@@ -194,14 +199,19 @@ void deleteUnixFileAndRespond(HttpResponse *response, char *absolutePath) {
   }
 }
 
+/* Renames a unix directory at the specified absolute
+ * path. It will only overwrite an existing directory
+ * if the forceRename flag is on.
+ */
 static int renameUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int forceRename) {
-  int status = 0;
-  int returnCode = 0;
-  int reasonCode = 0;
-  FileInfo info;
+  int returnCode = 0, reasonCode = 0, status = 0;
+  FileInfo info = {0};
 
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to stat directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            oldAbsolutePath, returnCode, reasonCode);
     return -1;
   }
 
@@ -212,9 +222,9 @@ static int renameUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int
 
   status = directoryRename(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
   if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to rename directory %s: (return = 0x%x, reason = 0x%x)\n", oldAbsolutePath, returnCode, reasonCode);
-#endif
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to rename directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            oldAbsolutePath, returnCode, reasonCode);
     return -1;
   }
 
@@ -230,14 +240,19 @@ void renameUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath
   }
 }
 
+/* Renames a unix file at the specified absolute
+ * path. It will only overwrite an existing file
+ * if the forceRename flag is on.
+ */
 static int renameUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceRename) {
-  int status = 0;
-  int returnCode = 0;
-  int reasonCode = 0;
-  FileInfo info;
+  int returnCode = 0, reasonCode = 0, status = 0;
+  FileInfo info = {0};
 
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to stat file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            oldAbsolutePath, returnCode, reasonCode);
     return -1;
   }
 
@@ -248,9 +263,9 @@ static int renameUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forc
 
   status = fileRename(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
   if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to rename file %s: (return = 0x%x, reason = 0x%x)\n", oldAbsolutePath, returnCode, reasonCode);
-#endif
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to rename file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            oldAbsolutePath, returnCode, reasonCode);
     return -1;
   }
 
@@ -266,22 +281,33 @@ void renameUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, cha
   }
 }
 
+/* Copies the contents of a unix directory to a new
+ * directory. It will only overwrite an existing directory
+ * if the forceCopy flag is on. At this time, copy will only
+ * copy the contents and nothing else.
+ */
 static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int forceCopy) {
-  int status = 0;
-  int returnCode = 0;
-  int reasonCode = 0;
-  FileInfo info;
+  int returnCode = 0, reasonCode = 0, status = 0;
+  FileInfo info = {0};
 
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to stat directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            oldAbsolutePath, returnCode, reasonCode);
+    return -1;
+  }
+  
+  status = fileInfo(newAbsolutePath, &info, &returnCode, &reasonCode);
+  if (status == 0 && !forceCopy) {
     return -1;
   }
 
-  status = directoryCopy(oldAbsolutePath, newAbsolutePath, forceCopy);
+  status = directoryCopy(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
   if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to copy directory %s\n", oldAbsolutePath);
-#endif
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to copy directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            oldAbsolutePath, returnCode, reasonCode);
     return -1;
   }
 
@@ -297,22 +323,33 @@ void copyUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath, 
   }
 }
 
+/* Copies the contents of a unix file to a new
+ * file. It will only overwrite an existing file
+ * if the forceCopy flag is on. At this time, copy will only
+ * copy the contents and nothing else.
+ */
 static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceCopy) {
-  int status = 0;
-  int returnCode = 0;
-  int reasonCode = 0;
-  FileInfo info;
+  int returnCode = 0, reasonCode = 0, status = 0;
+  FileInfo info = {0};
 
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to stat file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            oldAbsolutePath, returnCode, reasonCode);
+    return -1;
+  }
+  
+  status = fileInfo(newAbsolutePath, &info, &returnCode, &reasonCode);
+  if (status == 0 && !forceCopy) {
     return -1;
   }
 
-  status = fileCopy(oldAbsolutePath, newAbsolutePath, forceCopy);
+  status = fileCopy(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
   if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to copy file %s\n", oldAbsolutePath);
-#endif
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to copy file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            oldAbsolutePath, returnCode, reasonCode);
     return -1;
   }
 
@@ -328,6 +365,98 @@ void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char 
   }
 }
 
+/* Creates an empty unix file with no tag. This is
+ * done by mimicing the touch command.
+ */
+static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
+  int returnCode = 0, reasonCode = 0, status = 0;
+  FileInfo info = {0};
+
+  status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  if (status == 0 && !forceWrite) {
+    return -1;
+  }
+
+  UnixFile *dest = fileOpen(absolutePath,
+                            FILE_OPTION_CREATE | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY,
+                            0700,
+                            0,
+                            &returnCode,
+                            &reasonCode);
+
+  if (dest == NULL) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to open file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            absolutePath, returnCode, reasonCode);
+    return -1;
+  }
+
+  status = fileClose(dest, &returnCode, &reasonCode);
+  if (status == -1) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to close file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            absolutePath, returnCode, reasonCode);
+    return -1;
+  }
+
+  return 0;
+}
+
+void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite) {
+  if (!writeEmptyUnixFile(absolutePath, forceWrite)) {
+    response200WithMessage(response, "Successfully wrote a file");
+  }
+  else {
+    respondWithJsonError(response, "Failed to write a file", 500, "Internal Server Error");
+  }
+}
+
+/* Gets the metadata of a unix file and returns it to the
+ * caller.
+ */
+void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
+  FileInfo info;
+  int returnCode;
+  int reasonCode;
+  int status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+
+  if (status == 0) {
+    jsonPrinter *out = respondWithJsonPrinter(response);
+
+    setResponseStatus(response, 200, "OK");
+    setDefaultJSONRESTHeaders(response);
+    writeHeader(response);
+
+    int decimalMode = fileUnixMode(&info);
+    int octalMode = decimalToOctal(decimalMode);
+
+    ISOTime timeStamp;
+    int unixTime = fileInfoUnixCreationTime(&info);
+    convertUnixToISO(unixTime, &timeStamp);
+
+    jsonStart(out);
+    {
+      jsonAddString(out, "path", absolutePath);
+      jsonAddBoolean(out, "directory", fileInfoIsDirectory(&info));
+      jsonAddInt64(out, "size", fileInfoSize(&info));
+      jsonAddInt(out, "ccsid", fileInfoCCSID(&info));
+      jsonAddString(out, "createdAt", timeStamp.data);
+      jsonAddInt(out, "mode", octalMode);
+    }
+    jsonEnd(out);
+
+    finishResponse(response);
+  }
+  else {
+    respondWithUnixFileNotFound(response, TRUE);
+  }
+}
+
+/* Writes binary data to a unix file by:
+ *
+ * 1. Decoding the data from base64.
+ * 2. Converting the data to EBCDIC.
+ */
 int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLength) {
   int status = 0;
   int returnCode = 0;
@@ -391,6 +520,12 @@ int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLen
   return 0;
 }
 
+/* Writes text data to a unix file by:
+ *
+ * 1. Decoding the data from base64.
+ * 2. Converting the data to the specified encoding.
+ * 3. Disabling auto conversion.
+ */
 int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLength, int sourceEncoding, int targetEncoding) {
   int status = 0;
   int returnCode = 0;
@@ -477,115 +612,6 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
   safeFree(dataToWrite, dataToWriteSize);
   return 0;
 }
-
-static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
-  int status = 0;
-  int returnCode = 0;
-  int reasonCode = 0;
-  FileInfo info;
-  int fileExists = FALSE;
-
-  status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
-  if (status == 0) {
-    if (!forceWrite) {
-#ifdef DEBUG
-      printf("Writing has stopped because the file already exists and the force flag is off\n");
-#endif
-      return -1;
-    }
-    fileExists = TRUE;
-    status = tmpFileMake(absolutePath);
-    if (status == -1) {
-#ifdef DEBUG
-      printf("Error occurred while creating tmp file: %s.tmp\n", absolutePath);
-#endif
-      return -1;
-    }
-  }
-
-  setUmask(DEFAULT_UMASK);
-  UnixFile *dest = fileOpen(absolutePath,
-                            FILE_OPTION_CREATE | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY,
-                            0700,
-                            0,
-                            &returnCode,
-                            &reasonCode);
-
-  if (dest == NULL) {
-#ifdef DEBUG
-    printf("Failed to open file %s: (return = 0x%x, reason = 0x%x)\n", absolutePath, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      tmpFileCleanup(absolutePath);
-    }
-    return -1;
-  }
-
-  status = fileClose(dest, &returnCode, &reasonCode);
-  if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to close file %s: (return = 0x%x, reason = 0x%x)\n", absolutePath, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      tmpFileCleanup(absolutePath);
-    }
-    else {
-      fileDelete(absolutePath, &returnCode, &reasonCode);
-    }
-    return -1;
-  }
-
-  tmpFileDelete(absolutePath);
-  return 0;
-}
-
-void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite) {
-  if (!writeEmptyUnixFile(absolutePath, forceWrite)) {
-    response200WithMessage(response, "Successfully wrote a file");
-  }
-  else {
-    respondWithJsonError(response, "Failed to write a file", 500, "Internal Server Error");
-  }
-}
-
-void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
-  FileInfo info;
-  int returnCode;
-  int reasonCode;
-  int status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
-
-  if (status == 0) {
-    jsonPrinter *out = respondWithJsonPrinter(response);
-
-    setResponseStatus(response, 200, "OK");
-    setDefaultJSONRESTHeaders(response);
-    writeHeader(response);
-
-    int decimalMode = fileUnixMode(&info);
-    int octalMode = decimalToOctal(decimalMode);
-
-    ISOTime timeStamp;
-    int unixTime = fileInfoUnixCreationTime(&info);
-    convertUnixToISO(unixTime, &timeStamp);
-
-    jsonStart(out);
-    {
-      jsonAddString(out, "path", absolutePath);
-      jsonAddBoolean(out, "directory", fileInfoIsDirectory(&info));
-      jsonAddInt64(out, "size", fileInfoSize(&info));
-      jsonAddInt(out, "ccsid", fileInfoCCSID(&info));
-      jsonAddString(out, "createdAt", timeStamp.data);
-      jsonAddInt(out, "mode", octalMode);
-    }
-    jsonEnd(out);
-
-    finishResponse(response);
-  }
-  else {
-    respondWithUnixFileNotFound(response, TRUE);
-  }
-}
-
 
 /*
   This program and the accompanying materials are
