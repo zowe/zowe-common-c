@@ -1706,6 +1706,9 @@ void respondWithDatasetMetadata(HttpResponse *response) {
   }
   HttpRequestParam *detailParam = getCheckedParam(request,"detail");
   char *detailArg = (detailParam ? detailParam->stringValue : NULL);
+  
+  HttpRequestParam *addQualifiersParam = getCheckedParam(request,"addQualifiers");
+  char *addQualifiersArg = (addQualifiersParam ? addQualifiersParam->stringValue : NULL);
 
   HttpRequestParam *typesParam = getCheckedParam(request,"types");
   char *typesArg = (typesParam ? typesParam->stringValue : defaultDatasetTypesAllowed);
@@ -1756,7 +1759,27 @@ void respondWithDatasetMetadata(HttpResponse *response) {
 
   int fieldCount = defaultCSIFieldCount;
   char **csiFields = defaultCSIFields;
-
+  int asteriskPos = indexOf(dsn,dsnLen,'*',0);
+  int dblAsteriskPos = indexOfString(dsn,dsnLen,"**",0);
+  int periodPos = lastIndexOf(dsn, dsnLen, '.');
+  int addQualifiers = !strcmp(addQualifiersArg, "true");
+  
+  if(addQualifiers){
+	  int newDsnLen = dsnLen + 4; //+2 for asterisk, +1 for period, +1 for null terminator
+	  char newDsn[newDsnLen];
+	  strncpy(newDsn, dsn, dsnLen + 1);
+	  if(asteriskPos < 0 && dblAsteriskPos < 0){
+		  if(periodPos < 0 || periodPos != dsnLen - 1){
+			strncat(newDsn, ".**\0", 4);
+		  } else if(periodPos == dsnLen - 1){
+			  strncat(newDsn, "**\0", 3);
+		  }
+	  } else if(periodPos < 0 && asteriskPos == dsnLen - 1){
+		  strncat(newDsn, ".**\0", 4);
+	  }
+	  dsn = newDsn;
+  }
+  
   csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
   EntryDataSet *entrySet = returnEntries(dsn, typesArg,datasetTypeCount, workAreaSizeArg, csiFields, fieldCount, resumeNameArg, resumeCatalogNameArg, returnParms); 
   char *resumeName = returnParms->resume_name;
