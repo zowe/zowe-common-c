@@ -1662,6 +1662,10 @@ void respondWithDatasetMetadata(HttpResponse *response) {
   char *username = response->request->username;
   int dsnLen = strlen(datasetOrMember);
   int lParenIndex = indexOf(datasetOrMember, dsnLen, '(', 0);
+  if(lParenIndex > 44 || dsnLen > 44){
+    respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Dataset name longer than 44 chars");
+    return;
+  }
   char pdsDSN[45];
   char pdsMember[100];
   int memberNameLength = 0;
@@ -1759,25 +1763,35 @@ void respondWithDatasetMetadata(HttpResponse *response) {
 
   int fieldCount = defaultCSIFieldCount;
   char **csiFields = defaultCSIFields;
-  int asteriskPos = indexOf(dsn,dsnLen,'*',0);
-  int dblAsteriskPos = indexOfString(dsn,dsnLen,"**",0);
-  int periodPos = lastIndexOf(dsn, dsnLen, '.');
   int addQualifiers = !strcmp(addQualifiersArg, "true");
   
-  if(addQualifiers){
-	  int newDsnLen = dsnLen + 4; //+2 for asterisk, +1 for period, +1 for null terminator
-	  char newDsn[newDsnLen];
-	  strncpy(newDsn, dsn, dsnLen + 1);
+#define DSN_MAX_LEN 44
+  if(addQualifiers && dsnLen < DSN_MAX_LEN){
+    int asteriskPos = lastIndexOf(dsn,dsnLen,'*');
+    int dblAsteriskPos = indexOfString(dsn, dsnLen, "**", 0); //"**" is only valid at the end of a query, cannot appear in the middle of a search
+    int periodPos = lastIndexOf(dsn, dsnLen, '.');
+	  int newDsnLen = dsnLen + 4;   
+    int count;
+	  char newDsn[DSN_MAX_LEN];
+    printf("dsn: %s\nperiod pos: %d\nasterisk pos: %d\ndblAsterisk pos: %d\n dsn len: %d\n", dsn, periodPos, asteriskPos, dblAsteriskPos, dsnLen);
 	  if(asteriskPos < 0 && dblAsteriskPos < 0){
-		  if(periodPos < 0 || periodPos != dsnLen - 1){
-			strncat(newDsn, ".**\0", 4);
-		  } else if(periodPos == dsnLen - 1){
-			  strncat(newDsn, "**\0", 3);
+      if(periodPos < 0 || periodPos != dsnLen - 1){ //-1 for null terminator.  Query in form of hlq1.hlq2
+        printf("lol\n");
+        count = snprintf(dsn, DSN_MAX_LEN + 1, "%s.**", dsn);
+		  }else if(periodPos == dsnLen - 1){ //not sure if this case is ever valid, trailing periods seem to be truncated
+        printf("lmao\n");
+        count = snprintf(dsn, DSN_MAX_LEN + 1, "%s**", dsn);
 		  }
-	  } else if(periodPos < 0 && asteriskPos == dsnLen - 1){
-		  strncat(newDsn, ".**\0", 4);
+	  }else{
+      if(asteriskPos == dsnLen - 1 && periodPos != asteriskPos - 1 && dblAsteriskPos < 0){ //query in form of hlq1.hlq2*
+        printf("Appending period dbl asterisk\n");
+        count = snprintf(dsn, DSN_MAX_LEN + 1, "%s.**", dsn); 
+      }else if(asteriskPos == dsnLen - 1 && periodPos == asteriskPos - 1){
+        printf("ayy lmao\n");
+        count = snprintf(dsn, DSN_MAX_LEN + 1, "%s*", dsn);
+      }
 	  }
-	  dsn = newDsn;
+    printf("new dsn: %s\nnew dsn len: %d\n", dsn, strlen(dsn));
   }
   
   csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
