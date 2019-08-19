@@ -1036,6 +1036,10 @@ static void traceHeader(const char*line, int len)
 }
 
 void writeHeader(HttpResponse *response){
+  if (response->sessionCookie) {
+    addStringHeader(response, "Set-Cookie", response->sessionCookie);
+  }
+
   Socket *socket = response->socket;
   int returnCode;
   int reasonCode;
@@ -1558,7 +1562,7 @@ int httpServerSetSessionTokenKey(HttpServer *server, unsigned int size,
 }
 
 HttpServer *makeHttpServer(STCBase *base, int port, int *returnCode, int *reasonCode){
-  return makeHttpServer2(base, NULL, 0, port, returnCode, reasonCode);
+  return makeHttpServer2(base, NULL, port, 0, returnCode, reasonCode);
 }
 
 int registerHttpService(HttpServer *server, HttpService *service){
@@ -2766,6 +2770,8 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
     } 
   }
     
+  response->sessionCookie = NULL;
+
   AUTH_TRACE("AUTH: tokenCookieText: %s\n",(tokenCookieText ? tokenCookieText : "<noAuthToken>"));
   if (tokenCookieText){
     if (sessionTokenStillValid(service,request,tokenCookieText)){
@@ -2774,27 +2780,23 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
       if (sessionToken == NULL) {
         return FALSE;
       }
-      addStringHeader(response,"Set-Cookie",sessionToken);
       response->sessionCookie = sessionToken;
       return TRUE;
     } else if (authDataFound){
       if (nativeAuth(service,request)){
         AUTH_TRACE("AUTH: cookie not valid, auth is good\n");
         char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
-        addStringHeader(response,"Set-Cookie",sessionToken);
         response->sessionCookie = sessionToken;
         return TRUE;
       } else{
         AUTH_TRACE("cookie not valid, auth is bad\n");
         /* NOTES: CLEAR SESSION TOKEN */
-        addStringHeader(response,"Set-Cookie","jedHTTPSession=non-token");
         response->sessionCookie = "non-token";
         return FALSE;
       }
     } else{
       AUTH_TRACE("AUTH: cookie not valid, no auth provided\n");
       /* NOTES: CLEAR SESSION TOKEN */
-      addStringHeader(response,"Set-Cookie","jedHTTPSession=non-token");
       response->sessionCookie = "non-token";
       return FALSE;
     }
@@ -2806,7 +2808,6 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
           request->username,
           response);
       char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
-      addStringHeader(response,"Set-Cookie",sessionToken);
       response->sessionCookie = sessionToken;
       return TRUE;
     } else{
