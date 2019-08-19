@@ -499,6 +499,58 @@ int fileChangeTag(const char *fileName, int *returnCode, int *reasonCode, int cc
   return returnValue;
 }
 
+int fileTouch(const char *fileName, int *returnCode, int *reasonCode) {
+  int nameLength = strlen(fileName);
+  int attributeLength = sizeof(BPXYATT);
+  int *reasonCodePtr;
+  int returnValue = 0;
+  *returnCode = *reasonCode = 0;
+
+#ifndef _LP64
+  reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
+#else
+  reasonCodePtr = reasonCode;
+#endif
+
+  FileAttributes attributes = {0};
+  memcpy(attributes.eyecatcher, "ATT ", 4);
+  attributes.version = 3;
+  attributes.flag1 = ATTATIMETOD | ATTMTIMETOD;
+
+  BPXCHR(nameLength,
+         fileName,
+         attributeLength,
+         &attributes,
+         &returnValue,
+         returnCode,
+         reasonCodePtr);
+
+  if (fileTrace) {
+    if (returnValue != 0) {
+#ifdef METTLE
+      printf("BPXCHR FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+             returnValue, *returnCode, *reasonCode);
+#else
+      printf("BPXCHR FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+             returnValue, *returnCode, *reasonCode, strerror(*returnCode));
+#endif
+    }
+    else {
+      printf("BPXCHR (%s) OK: returnValue: %d\n\n", fileName, returnValue);
+    }
+  }
+
+  if (returnValue != 0) {
+    returnValue = -1;
+  }
+  else{
+    *returnCode = 0;
+    *reasonCode = 0;
+  }
+  
+  return returnValue;
+}
+
 int fileCopy(const char *existingFileName, const char *newFileName, int *retCode, int *resCode) {
   int returnCode = 0, reasonCode = 0, status = 0;
   FileInfo info = {0};

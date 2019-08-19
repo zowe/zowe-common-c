@@ -43,8 +43,12 @@ void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char 
 
 void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath);
 
-static int writeEmptyUnixFile(char *absolutePath, int forceWrite);
-void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite);
+static int writeEmptyUnixFile(char *absolutePath);
+static int touchUnixFileOrDirectory(char *absolutePath);
+void touchUnixFileOrDirectoryAndRespond(HttpResponse *response, char *absolutePath);
+
+static int tagUnixFile(char *absolutePath, int targetEncoding);
+void tagUnixFileAndRespond(HttpResponse *response, char *absolutePath, int targetEncoding);
 
 int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLength);
 int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLength, int sourceEncoding, int targetEncoding);

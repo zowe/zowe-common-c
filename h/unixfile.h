@@ -407,6 +407,8 @@ int fileRename(const char *oldFileName, const char *newFileName, int *returnCode
 
 int fileDelete(const char *fileName, int *returnCode, int *reasonCode);
 
+int fileTouch(const char *fileName, int *returnCode, int *reasonCode);
+
 /* FileInfo is a generic, opaque typedef that contains a data structure that can give the following 
    info about a file 
 

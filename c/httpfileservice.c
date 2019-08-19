@@ -368,12 +368,12 @@ void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char 
 /* Creates an empty unix file with no tag. This is
  * done by mimicing the touch command.
  */
-static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
+static int writeEmptyUnixFile(char *absolutePath) {
   int returnCode = 0, reasonCode = 0, status = 0;
   FileInfo info = {0};
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
-  if (status == 0 && !forceWrite) {
+  if (status == 0) {
     return -1;
   }
 
@@ -402,12 +402,84 @@ static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
   return 0;
 }
 
-void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite) {
-  if (!writeEmptyUnixFile(absolutePath, forceWrite)) {
-    response200WithMessage(response, "Successfully wrote a file");
+/* Changes the access time and modification time of a file
+ * or directory. This is done by mimicing the touch command.
+ */
+static int touchUnixFileOrDirectory(char *absolutePath) {
+  int returnCode = 0, reasonCode = 0, status = 0;
+  FileInfo info = {0};
+
+  status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  if (status == -1) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to stat file or directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            absolutePath, returnCode, reasonCode);
+    return -1;
+  }
+
+  status = fileTouch(absolutePath, &returnCode, &reasonCode);
+  if (status == -1) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to touch file or directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            absolutePath, returnCode, reasonCode);
+    return -1;
+  }
+
+  return 0;
+}
+
+void touchUnixFileOrDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
+  bool doesExist = doesFileExist(absolutePath);
+  if (doesExist) {
+    if (!touchUnixFileOrDirectory(absolutePath)) {
+      response200WithMessage(response, "Successfully touched file or directory");
+    }
+    else {
+      respondWithJsonError(response, "Failed to touch file or directory", 500, "Internal Server Error");
+    }
   }
   else {
-    respondWithJsonError(response, "Failed to write a file", 500, "Internal Server Error");
+    if (!writeEmptyUnixFile(absolutePath)) {
+      response200WithMessage(response, "Successfully wrote a file");
+    }
+    else {
+      respondWithJsonError(response, "Failed to write a file", 500, "Internal Server Error");
+    }
+  }
+}
+
+/* Change the tag of a unix file to the desired encoding. Does not
+ * convert the contents of a the file.
+ */
+static int tagUnixFile(char *absolutePath, int targetEncoding) {
+  int returnCode = 0, reasonCode = 0, status = 0;
+  FileInfo info = {0};
+
+  status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  if (status == -1) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to stat file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            absolutePath, returnCode, reasonCode);
+    return -1;
+  }
+
+  status = fileChangeTag(absolutePath, &returnCode, &reasonCode, targetEncoding);
+  if (status == -1) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to tag file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            absolutePath, returnCode, reasonCode);
+    return -1;
+  }
+
+  return 0;
+}
+
+void tagUnixFileAndRespond(HttpResponse *response, char *absolutePath, int targetEncoding) {
+  if (!tagUnixFile(absolutePath, targetEncoding)) {
+    response200WithMessage(response, "Successfully tagged a file");
+  }
+  else {
+    respondWithJsonError(response, "Failed to tag a file", 500, "Internal Server Error");
   }
 }
 
