@@ -67,7 +67,7 @@
 #include "rs_ssl.h"
 #endif
 
-#include "jwt/jwt.h"
+#include "../jwt/jwt/jwt.h"
 
 /* bool and time_t are not available for
  * METAL builds, but casting them to ints

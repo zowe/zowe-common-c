@@ -18,7 +18,7 @@
 #include "json.h"
 #include "xml.h"
 #include "unixfile.h"
-#include "jwt/jwt.h"
+#include "../jwt/jwt/jwt.h"
 
 /** \file 
  *  \brief httpserver.h is the interface of an ultra-lightweight c-based web server.
