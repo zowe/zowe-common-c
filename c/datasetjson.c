@@ -1776,18 +1776,14 @@ void respondWithDatasetMetadata(HttpResponse *response) {
     printf("dsn: %s\nperiod pos: %d\nasterisk pos: %d\ndblAsterisk pos: %d\n dsn len: %d\n", dsn, periodPos, asteriskPos, dblAsteriskPos, dsnLen);
 	  if(asteriskPos < 0 && dblAsteriskPos < 0){
       if(periodPos < 0 || periodPos != dsnLen - 1){ //-1 for null terminator.  Query in form of hlq1.hlq2
-        printf("lol\n");
         count = snprintf(dsn, DSN_MAX_LEN + 1, "%s.**", dsn);
 		  }else if(periodPos == dsnLen - 1){ //not sure if this case is ever valid, trailing periods seem to be truncated
-        printf("lmao\n");
         count = snprintf(dsn, DSN_MAX_LEN + 1, "%s**", dsn);
 		  }
 	  }else{
       if(asteriskPos == dsnLen - 1 && periodPos != asteriskPos - 1 && dblAsteriskPos < 0){ //query in form of hlq1.hlq2*
-        printf("Appending period dbl asterisk\n");
         count = snprintf(dsn, DSN_MAX_LEN + 1, "%s.**", dsn); 
       }else if(asteriskPos == dsnLen - 1 && periodPos == asteriskPos - 1){
-        printf("ayy lmao\n");
         count = snprintf(dsn, DSN_MAX_LEN + 1, "%s*", dsn);
       }
 	  }
