@@ -2755,50 +2755,46 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
 }
 
 static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *request,  HttpResponse *response,
-                                            int *clearSessionToken){
+                                             int *clearSessionToken){
   int authDataFound = FALSE; 
-  HttpHeader *authenticationHeader = getHeader(request,"Authorization");
-  char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
-  if (traceAuth){
-    printf("serviceAuthNativeWithSessionToken: authenticationHeader 0x%p, extractFunction 0x%p\n",
-           authenticationHeader, service->authExtractionFunction);
-  }
 
-  if (service->authExtractionFunction != NULL) {
-    if (service->authExtractionFunction(service, request) == 0) {
+  HttpHeader *authenticationHeader = getHeader(request,"Authorization");
+  if (authenticationHeader){
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+            "serviceAuthNativeWithSessionToken: authenticationHeader(ptr) = 0x%p, authenticationHeader(hex) = 0x%x\n",
+            authenticationHeader,authenticationHeader);
+    
+    if (extractBasicAuth(request,authenticationHeader)){
       authDataFound = TRUE;
     }
-  } else if (authenticationHeader) {
-    HttpHeader *authenticationHeader = getHeader(request,"Authorization"); 
-#ifdef DEBUG 
-    printf("safAuth: auth header = 0x%x\n",authenticationHeader); 
-    fflush(stdout); 
-#endif 
-    if (authenticationHeader){ 
-      if (extractBasicAuth(request,authenticationHeader)){ 
-#ifdef DEBUG 
-        printf("back inside safAuthenticate after call to extractBasicAuth\n"); 
-        fflush(stdout); 
-#endif 
-        authDataFound = TRUE; 
-      } 
-    } 
   }
-    
+  else{
+    if (service->authExtractionFunction != NULL){
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+             "serviceAuthNativeWithSessionToken: authExtractionFunction 0x%p\n",
+             service->authExtractionFunction);
+             
+      if (service->authExtractionFunction(service, request) == 0){
+        authDataFound = TRUE;
+      }
+    }
+  }
 
   strupcase(request->username); /* upfold username */
   char *username = request->username;
 
-  if (traceAuth){
-    printf("AUTH: tokenCookieText: %s\n",(tokenCookieText ? tokenCookieText : "<noAuthToken>"));
-  } 
+  char *tokenCookieText = getCookieValue(request, SESSION_TOKEN_COOKIE_NAME);
   if (tokenCookieText){
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+           "serviceAuthNativeWithSessionToken: tokenCookieText: %s\n",
+           (tokenCookieText ? tokenCookieText : "<noAuthToken>"));
+           
     if (sessionTokenStillValid(service,request,tokenCookieText)){
-      if (traceAuth){
-        printf("auth cookie still good, renewing cookie\n");
-      }
-      char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
-      if (sessionToken == NULL) {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+              "serviceAuthNativeWithSessionToken: Cookie still good, renewing cookie\n");
+      
+      char *sessionToken = generateSessionTokenKeyValue(service,request,username);
+      if (sessionToken == NULL){
         return FALSE;
       }
       addStringHeader(response,"Set-Cookie",sessionToken);
@@ -2806,26 +2802,26 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
       return TRUE;
     } else if (authDataFound){
       if (nativeAuth(service,request)){
-        if (traceAuth){
-          printf("AUTH: cookie not valid, auth is good\n");
-        }
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+               "serviceAuthNativeWithSessionToken: Cookie not valid, auth is good\n");
+
         char *sessionToken = generateSessionTokenKeyValue(service,request,username);
         addStringHeader(response,"Set-Cookie",sessionToken);
         response->sessionCookie = sessionToken;
         return TRUE;
       } else{
-        if (traceAuth){
-          printf("cookie not valid, auth is bad\n");
-        }
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+                 "serviceAuthNativeWithSessionToken: Cookie not valid, auth is bad\n");
+                 
         /* NOTES: CLEAR SESSION TOKEN */
         addStringHeader(response,"Set-Cookie","jedHTTPSession=non-token");
         response->sessionCookie = "non-token";
         return FALSE;
       }
     } else{
-      if (traceAuth){
-        printf("AUTH: cookie not valid, no auth provided\n");
-      }
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+                "serviceAuthNativeWithSessionToken: Cookie not valid, no auth provided\n");
+ 
       /* NOTES: CLEAR SESSION TOKEN */
       addStringHeader(response,"Set-Cookie","jedHTTPSession=non-token");
       response->sessionCookie = "non-token";
@@ -2833,23 +2829,25 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
     }
   } else if (authDataFound){
     if (nativeAuth(service,request)){
-      if (traceAuth){
-        printf("AUTH: auth header provided and works, before generate session token req=0x%x, username=0x%x, response=0x%p\n",request,username,response);
-      }
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+              "serviceAuthNativeWithSessionToken: auth header provided and works, "
+              "before generate session token req=0x%x, username=0x%x, response=0x%p\n",
+              request,username,response);
+
       char *sessionToken = generateSessionTokenKeyValue(service,request,username);
       addStringHeader(response,"Set-Cookie",sessionToken);
       response->sessionCookie = sessionToken;
       return TRUE;
     } else{
-      if (traceAuth){
-        printf("AUTH: no cookie, but auth header, which wasn't good\n");
-      }
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+               "serviceAuthNativeWithSessionToken: No cookie, but auth header, which wasn't good\n");
+               
       return FALSE;
     }
   } else{    /* neither cookie */
-    if (traceAuth){
-      printf("AUTH: neither cookie nor auth header\n");
-    }
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+           "serviceAuthNativeWithSessionToken: Neither cookie nor auth header\n");
+
     return FALSE;
   }
 }
