@@ -1043,15 +1043,23 @@ static char binToEB64[] ={0xc1,0xc2,0xc3,0xc4,0xc5,0xc6,0xc7,0xc8,0xc9,0xd1,0xd2
                           0xa6,0xa7,0xa8,0xa9,0xf0,0xf1,0xf2,0xf3,0xf4,0xf5,0xf6,0xf7,0xf8,0xf9,0x4e,0x61};
                           
 
-#define ENCODE64_SIZE(SZ) (2 + 4 * ((SZ + 2) / 3))
-
-char *encodeBase64(ShortLivedHeap *slh, char *buf, int size, int *resultSize, int useEbcdic){
-  char *data = (char*)buf;
+char *encodeBase64(ShortLivedHeap *slh, const char buf[], int size, int *resultSize, int useEbcdic){
+  int   allocSize = BASE64_ENCODE_SIZE(size)+1;  /* +1 for null term */
   char *result = NULL;
+  if (result = (slh ? SLHAlloc(slh,allocSize) : safeMalloc31(allocSize,"BASE64"))) {
+    encodeBase64NoAlloc(buf, size, result, resultSize, useEbcdic);
+    return result;
+  } else{
+    *resultSize = 0;
+    return NULL;
+  }
+}
+
+void encodeBase64NoAlloc(const char buf[], int size, char result[], int *resultSize,
+                         int useEbcdic){
+  const char *data = (char*)buf;
   char equalsChar = (useEbcdic ? '=' : 0x3D);
   char *translation = (useEbcdic ? binToEB64 : binToB64);
-  int   allocSize = ENCODE64_SIZE(size)+1;  /* +1 for null term */
-  if (result = (slh ? SLHAlloc(slh,allocSize) : safeMalloc31(allocSize,"BASE64"))) {
     int numFullGroups = size / 3;
     int numBytesInPartialGroup = size - 3 * numFullGroups;
     int inCursor = 0;
@@ -1086,17 +1094,83 @@ char *encodeBase64(ShortLivedHeap *slh, char *buf, int size, int *resultSize, in
     }
     *resultSize = resPtr - result;
     result[*resultSize] = 0;
-    return result;
-  } else{
-    *resultSize = 0;
-    return NULL;
+}
+
+/*
+ * Assumes "EBCDIC base64" on EBCDIC platforms
+ */
+int base64ToBase64url(char *s) {
+  int i = 0;
+  unsigned int c;
+
+  while ((c = s[i]) != '\0') {
+    switch (c) {
+    case '+':
+      s[i] = '-';
+      break;
+    case '/':
+      s[i] = '_';
+      break;
+    }
+    i++;
   }
+  while ((i > 0) && s[i - 1] == '=') {
+    s[--i] = '\0';
+  }
+  return i;
+}
+
+/*
+ * Assumes "EBCDIC base64" on EBCDIC platforms
+ */
+int base64urlToBase64(char *s, int bufSize) {
+  int i = 0;
+  unsigned int c;
+  int rc = 0;
+
+  while (((c = s[i]) != '\0') && (i < bufSize)) {
+    switch (c) {
+    case '-':
+      s[i] = '+';
+      break;
+    case '_':
+      s[i] = '/';
+      break;
+    }
+    i++;
+  }
+  switch (i % 4) {
+    case 2:
+      if (i >= bufSize - 2) {
+        rc = -2;
+        break;
+      } else {
+        s[i++] = '=';
+        rc++;
+        /* fall through */
+      }
+    case 3:
+      if (i >= bufSize - 1) {
+        rc = -1;
+        break;
+      } else {
+        s[i++] = '=';
+        rc++;
+        /* fall through */
+      }
+    case 0:
+      s[i++] = '\0';
+      break;
+    default:
+      rc = -3;
+  }
+  return rc;
 }
 
 
 char *destructivelyUnasciify(char *s){
-  int i,len = strlen(s);
-  for (i=0; i<len; i++){
+  int i;
+  for (i=0; s[i] != '\0'; i++){
     char c = s[i];
     if (c == 0x24){
       s[i] = 0x5b;

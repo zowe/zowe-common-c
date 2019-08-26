@@ -85,6 +85,9 @@ int jsonIsError(Json *json) {
   return json->type == JSON_TYPE_ERROR;
 }
 
+static void
+writeToBuffer(struct jsonPrinter_tag *p, char *text, int len);
+
 jsonPrinter *makeJsonPrinter(int fd) {
   jsonPrinter *p = (jsonPrinter*) safeMalloc(sizeof (jsonPrinter), "JSON Printer");
 
@@ -129,6 +132,10 @@ jsonPrinter *makeCustomUtf8JsonPrinter(void (*writeMethod)(jsonPrinter *, char *
   p->mode = JSON_MODE_CONVERT_TO_UTF8;
   p->inputCCSID = inputCCSID;
   return p;
+}
+
+jsonPrinter *makeBufferJsonPrinter(int inputCCSID, JsonBuffer *buf) {
+  return makeCustomUtf8JsonPrinter(&writeToBuffer, buf, inputCCSID);
 }
 
 void jsonEnablePrettyPrint(jsonPrinter *p) {
@@ -760,6 +767,55 @@ int jsonShouldStopWriting(jsonPrinter *p) {
 
 int jsonCheckIOErrorFlag(jsonPrinter *p) {
   return p->ioErrorFlag;
+}
+
+#define JSON_BUF_DEFAULT_SIZE 1024
+
+JsonBuffer *makeJsonBuffer(void) {
+  JsonBuffer *buf = (void *)safeMalloc(sizeof (*buf), "JSON buffer");
+  buf->data = safeMalloc(JSON_BUF_DEFAULT_SIZE, "JSON buffer data");
+  buf->size = JSON_BUF_DEFAULT_SIZE;
+  buf->len = 0;
+  return buf;
+}
+
+void jsonBufferTerminateString(JsonBuffer *buf) {
+  buf->data[buf->len] = '\0';
+  buf->len++;
+}
+
+void freeJsonBuffer(JsonBuffer *buf) {
+  safeFree(buf->data, buf->size);
+  safeFree(buf, sizeof (*buf));
+}
+
+void jsonBufferRewind(JsonBuffer *buf) {
+  buf->len = 0;
+  memset(buf->data, '0', buf->size);
+}
+
+static void
+writeToBuffer(struct jsonPrinter_tag *p, char *text, int len) {
+  JsonBuffer *buf = p->customObject;
+  int bytesRemaining;
+
+  while ((bytesRemaining = buf->size - buf->len) < len) {
+    if (buf->size > INT32_MAX / 2) {
+      jsonSetIOErrorFlag(p);
+      return;
+    }
+    int newSize = 2 * buf->size;
+    void *newData = safeRealloc(buf->data, newSize, buf->size,
+        "JSON buffer data realloc");
+    if (newData == NULL) {
+      jsonSetIOErrorFlag(p);
+      return;
+    }
+    buf->size = newSize;
+    buf->data = newData;
+  }
+  memmove(&buf->data[buf->len], text, len);
+  buf->len += len;
 }
 
 #ifndef JSON_TOKEN_BUFFER_SIZE
@@ -1869,6 +1925,40 @@ Json *jsonParseUnterminatedString(ShortLivedHeap *slh, char *jsonString, int len
   return json;
 }
 
+/*
+ * Converts the string from UTF-8 to `outputCCSID` before parsing.
+ *
+ * This is a quick hack and doesn't actually handle UTF-8 properly:
+ * - non-ascii characters in strings are not handled correctly (even if the
+ *   consumer of this API is capable of handling them)
+ * - Unicode escapes ('\u1234') are not supported by the parser
+ * - the source code defines the tokens in the source code encoding anyway,
+ *   if `outputCCSID` is significantly different, nothing good will happen
+ * */
+Json *jsonParseUnterminatedUtf8String(ShortLivedHeap *slh, int outputCCSID,
+                                      char *jsonUtf8String, int len,
+                                      char* errorBufferOrNull, int errorBufferSize) {
+  int convRc, convRsn;
+  int convesionOutputLength = 2 * len;
+  char *buffer;
+
+  buffer = SLHAlloc(slh, convesionOutputLength);
+  if (buffer == NULL) {
+    snprintf(errorBufferOrNull, errorBufferSize, "not enough memory");
+    return NULL;
+  }
+  convRc = convertCharset(jsonUtf8String, len, CCSID_UTF_8,
+      CHARSET_OUTPUT_USE_BUFFER, &buffer, convesionOutputLength, outputCCSID,
+      NULL, &convesionOutputLength, &convRsn);
+  if (convRc != 0) {
+    snprintf(errorBufferOrNull, errorBufferSize, "could not convert from UTF8:"
+        " conversion rc %d, reason %d", convRc, convRsn);
+    return NULL;
+  }
+  return jsonParseUnterminatedString(slh, buffer, convesionOutputLength,
+      errorBufferOrNull, errorBufferSize);
+}
+
 Json *jsonParseFile(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize) {
   Json *json = NULL;
   int returnCode = 0;
@@ -1903,8 +1993,6 @@ Json *jsonParseFile(ShortLivedHeap *slh, const char *filename, char* errorBuffer
 Json *jsonParseString(ShortLivedHeap *slh, char *jsonString, char* errorBufferOrNull, int errorBufferSize) {
   return jsonParseUnterminatedString(slh,jsonString,strlen(jsonString),errorBufferOrNull,errorBufferSize);
 }
-
-
 
 void jsonPrint(jsonPrinter *printer, Json *json) {
   jsonPrintInternal(printer, NULL, json);
