@@ -31,6 +31,7 @@ extern "C" {
 #define strcopy_safe STRCPSAF
 #define indexOf INDEXOF
 #define indexOfString IDXSTR
+#define lastIndexOfString LIDXSTR
 #define indexOfStringInsensitive IDXSTRNS
 #endif
 
@@ -39,6 +40,7 @@ char * strcopy_safe(char * dest, const char * source, int dest_size);
 int indexOf(char *str, int len, char c, int startPos);
 int lastIndexOf(const char *str, int len, char c);
 int indexOfString(char *str, int len, char *searchString, int startPos);
+int lastIndexOfString(char *str, int len, char *searchString);
 int indexOfStringInsensitive(char *str, int len, char *searchString, int startPos);
 
 /* max() is not a standard macro.  Windows introduces this and they are wrong */
