@@ -199,6 +199,28 @@ int ddnameExists(char *ddname){
 
 /* CVT Stuff */
 
+#define ESM_EYECATCHER_LENGTH 4
+#define RTSS_EYECATCHER       "RTSS"
+#define ACF2_EYECATCHER       "ACF2"
+#define RACF_EYECATCHER       "RCVT"
+
+ExternalSecurityManager getExternalSecurityManager(void) {
+  CVT *cvt = getCVT();
+
+  if (!memcmp(cvt->cvtrac, RACF_EYECATCHER, ESM_EYECATCHER_LENGTH)) {
+    return ZOS_ESM_RACF;
+  }
+  else if (!memcmp(cvt->cvtrac, RTSS_EYECATCHER, ESM_EYECATCHER_LENGTH)) {
+    return ZOS_ESM_RTSS;
+  }
+  else if (!memcmp(cvt->cvtrac, ACF2_EYECATCHER, ESM_EYECATCHER_LENGTH)) {
+    return ZOS_ESM_ACF2;
+  }
+  else {
+    return ZOS_ESM_NONE;
+  }
+}
+
 CVT *getCVT(void) {
   int * __ptr32 mem = (int * __ptr32) 0;
   int * __ptr32 theCVT = (int * __ptr32)(*(mem+(0x10/4)));

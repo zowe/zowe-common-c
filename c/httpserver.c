@@ -118,7 +118,7 @@ typedef int time_t;
 /* A *very special* ifdef had been chosen so we never accidentally ship an
  * executable that can be persuaded to print out passwords
  */
-#ifdef NEVER_DEFINE
+#ifdef ENABLE_DANGEROUS_AUTH_TRACING
 #  define DANGEROUS_TRACE        AUTH_TRACE
 #  define DANGEROUS_DUMPBUF      AUTH_DUMPBUF
 #else
@@ -2420,7 +2420,7 @@ static int safAuthenticate(HttpService *service, HttpRequest *request){
   if (authDataFound) {
     ACEE *acee = NULL;
     strupcase(request->username); /* upfold username */
-#ifdef NEVER_DEFINE
+#ifdef ENABLE_DANGEROUS_AUTH_TRACING
  #ifdef METTLE
     printf("SAF auth for user: '%s'\n", request->username);
  #else
@@ -2749,73 +2749,93 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
 }
 
 static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *request,  HttpResponse *response,
-                                            int *clearSessionToken){
+                                             int *clearSessionToken){
   int authDataFound = FALSE; 
   HttpHeader *authenticationHeader = getHeader(request,"Authorization");
   char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
-  AUTH_TRACE("serviceAuthNativeWithSessionToken: authenticationHeader 0x%p, "
-      "extractFunction 0x%p\n",
+  
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+       "serviceAuthNativeWithSessionToken: authenticationHeader 0x%p, authenticationHeader(hex) = 0x%x\n",
+       "extractFunction 0x%p\n",
+       authenticationHeader,
        authenticationHeader,
        service->authExtractionFunction);
-
-  if (service->authExtractionFunction != NULL) {
-    if (service->authExtractionFunction(service, request) == 0) {
+  
+  if (authenticationHeader) {
+    if (extractBasicAuth(request,authenticationHeader)){
       authDataFound = TRUE;
     }
-  } else if (authenticationHeader) {
-    DEBUG_TRACE("safAuth: auth header = 0x%x\n",authenticationHeader); 
-    if (extractBasicAuth(request, authenticationHeader)) {
-      DEBUG_TRACE("back inside safAuthenticate after call to extractBasicAuth\n");
-      authDataFound = TRUE;
-    } 
+  } else {
+    if (service->authExtractionFunction != NULL){
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+             "serviceAuthNativeWithSessionToken: authExtractionFunction 0x%p\n",
+             service->authExtractionFunction);
+             
+      if (service->authExtractionFunction(service, request) == 0){
+        authDataFound = TRUE;
+      }
+    }
   }
-    
+  
   response->sessionCookie = NULL;
 
   AUTH_TRACE("AUTH: tokenCookieText: %s\n",(tokenCookieText ? tokenCookieText : "<noAuthToken>"));
+
   if (tokenCookieText){
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+           "serviceAuthNativeWithSessionToken: tokenCookieText: %s\n",
+           (tokenCookieText ? tokenCookieText : "<noAuthToken>"));
+           
     if (sessionTokenStillValid(service,request,tokenCookieText)){
-      AUTH_TRACE("auth cookie still good, renewing cookie\n");
-      char *sessionToken = generateSessionTokenKeyValue(service, request,request->username);
-      if (sessionToken == NULL) {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+              "serviceAuthNativeWithSessionToken: Cookie still good, renewing cookie\n");
+      char *sessionToken = generateSessionTokenKeyValue(service, request,request->username);      
+      if (sessionToken == NULL){
         return FALSE;
       }
       response->sessionCookie = sessionToken;
       return TRUE;
     } else if (authDataFound){
       if (nativeAuth(service,request)){
-        AUTH_TRACE("AUTH: cookie not valid, auth is good\n");
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+               "serviceAuthNativeWithSessionToken: Cookie not valid, auth is good\n");
         char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
         response->sessionCookie = sessionToken;
         return TRUE;
       } else{
-        AUTH_TRACE("cookie not valid, auth is bad\n");
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+                 "serviceAuthNativeWithSessionToken: Cookie not valid, auth is bad\n");
         /* NOTES: CLEAR SESSION TOKEN */
         response->sessionCookie = "non-token";
         return FALSE;
       }
     } else{
-      AUTH_TRACE("AUTH: cookie not valid, no auth provided\n");
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+                "serviceAuthNativeWithSessionToken: Cookie not valid, no auth provided\n");
       /* NOTES: CLEAR SESSION TOKEN */
       response->sessionCookie = "non-token";
       return FALSE;
     }
   } else if (authDataFound){
     if (nativeAuth(service,request)){
-      AUTH_TRACE("AUTH: auth header provided and works, before generate session "
-          "token req=0x%x, username=0x%x, response=0x%p\n",
-          request,
-          request->username,
-          response);
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+              "serviceAuthNativeWithSessionToken: auth header provided and works, "
+              "before generate session token req=0x%x, username=0x%x, response=0x%p\n",
+              request,request->username,response);
+
       char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
       response->sessionCookie = sessionToken;
       return TRUE;
     } else{
-      AUTH_TRACE("AUTH: no cookie, but auth header, which wasn't good\n");
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+               "serviceAuthNativeWithSessionToken: No cookie, but auth header, which wasn't good\n");
+
       return FALSE;
     }
   } else{    /* neither cookie */
-    AUTH_TRACE("AUTH: neither cookie nor auth header\n");
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
+           "serviceAuthNativeWithSessionToken: Neither cookie nor auth header\n");
+
     return FALSE;
   }
 }

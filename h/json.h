@@ -59,6 +59,13 @@ typedef struct jsonPrinter_tag {
   int isInMultipartString;
 } jsonPrinter;
 
+typedef struct jsonBuffer_tag {
+  char *data;
+  int size;
+  int len;
+} JsonBuffer;
+
+
 /** \fn makeJsonPrinter()
     makeJsonPrinter is the principal means of creating a logical stream for generating JSON output to a 
     lower level C stream.   This calls the generate output in this printer must be done in the order of generation, i.e. 
@@ -73,6 +80,8 @@ jsonPrinter *makeCustomJsonPrinter(void (*writeMethod)(jsonPrinter *,char *,int)
 jsonPrinter *makeCustomUtf8JsonPrinter(
     void (*writeMethod)(jsonPrinter *, char *, int),  void *object,
     int inputCCSID);
+
+jsonPrinter *makeBufferJsonPrinter(int inputCCSID, JsonBuffer *buf);
 
 /** 
  *   \brief   This will change the JSON printing to generate newlines and indentation to make the output human-friendly.
@@ -319,6 +328,11 @@ int jsonCheckIOErrorFlag(jsonPrinter *p);
  */
 void jsonSetIOErrorFlag(jsonPrinter *p);
 
+JsonBuffer *makeJsonBuffer(void);
+void jsonBufferTerminateString(JsonBuffer *buffer);
+void jsonBufferRewind(JsonBuffer *buffer);
+void freeJsonBuffer(JsonBuffer *buffer);
+
 typedef struct Json_tag Json;
 typedef struct JsonObject_tag JsonObject;
 typedef struct JsonArray_tag JsonArray;
@@ -368,6 +382,9 @@ struct JsonError_tag {
 Json *jsonParseString(ShortLivedHeap *slh, char *jsonString, char* errorBufferOrNull, int errorBufferSize);
 Json *jsonParseUnterminatedString(ShortLivedHeap *slh, char *jsonString, int len, char* errorBufferOrNull, int errorBufferSize);
 Json *jsonParseFile(ShortLivedHeap *slh, const char *filename , char* errorBufferOrNull, int errorBufferSize);
+Json *jsonParseUnterminatedUtf8String(ShortLivedHeap *slh, int outputCCSID,
+                                      char *jsonUtf8String, int len,
+                                      char *errorBufferOrNull, int errorBufferSize);
 
 void jsonPrint(jsonPrinter *printer, Json *json);
 void jsonPrintObject(jsonPrinter* printer, JsonObject *object);
