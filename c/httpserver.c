@@ -3465,7 +3465,6 @@ static void respondWithUnixFileInternal(HttpResponse* response, char* absolutePa
 static void respondWithUnixDirectoryInternal(HttpResponse* response, char* absolutePath, int jsonMode, int secureFlag);
 
 static void respondWithUnixFile(HttpResponse* response, char* absolutePath, int jsonMode, bool asB64);
-static void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode, int autocvt, bool asB64);
 void respondWithUnixDirectory(HttpResponse *response, char* absolutePath, int jsonMode);
 void respondWithUnixFileSafer(HttpResponse* response, char* absolutePath, int jsonMode);
 void respondWithUnixDirectorySafer(HttpResponse* response, char* absolutePath, int jsonMode);
