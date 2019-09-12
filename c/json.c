@@ -786,7 +786,7 @@ void jsonBufferTerminateString(JsonBuffer *buf) {
 
 void freeJsonBuffer(JsonBuffer *buf) {
   safeFree(buf->data, buf->size);
-  safeFree(buf, sizeof (*buf));
+  safeFree((void *)buf, sizeof (*buf));
 }
 
 void jsonBufferRewind(JsonBuffer *buf) {
