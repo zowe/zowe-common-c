@@ -14,7 +14,7 @@
 #include "zowetypes.h"
 #include "json.h"
 #include "utils.h"
-#include "rs_icsfp11.h"
+#include "../rscrypto/rs_icsfp11.h"
 
 #define RC_JWT_OK                0
 #define RC_JWT_MEMORY_ERROR      1
