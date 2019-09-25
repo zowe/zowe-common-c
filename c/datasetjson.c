@@ -42,6 +42,7 @@
 #include "dynalloc.h"
 #include "utils.h"
 #include "vsam.h"
+#include "qsam.h"
 
 #define INDEXED_DSCB 96
 
@@ -1119,6 +1120,133 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
     respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"Could not translate character set to EBCDIC");    
   }
   safeFree(convertedBody,conversionBufferLength);
+#endif /* __ZOWE_OS_ZOS */
+}
+
+void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
+#ifdef __ZOWE_OS_ZOS
+  HttpRequest *request = response->request;
+  
+  if (!isDatasetPathValid(absolutePath)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
+    return;
+  }
+  
+  DatasetName datasetName;
+  DatasetMemberName memberName;
+  extractDatasetAndMemberName(absolutePath, &datasetName, &memberName);
+  
+  DynallocDatasetName daDatasetName;
+  DynallocMemberName daMemberName;
+  memcpy(daDatasetName.name, datasetName.value, sizeof(daDatasetName.name));
+  memcpy(daMemberName.name, memberName.value, sizeof(daMemberName.name));
+  DynallocDDName daDDName = {.name = "????????"};
+  
+  int daReturnCode = RC_DYNALLOC_OK, daSysReturnCode = 0, daSysReasonCode = 0;
+  daReturnCode = dynallocAllocDataset(
+              &daDatasetName,
+              IS_DAMEMBER_EMPTY(daMemberName) ? NULL : &daMemberName,
+              &daDDName,
+              DYNALLOC_DISP_OLD,
+              DYNALLOC_ALLOC_FLAG_NO_CONVERSION | DYNALLOC_ALLOC_FLAG_NO_MOUNT,
+              &daSysReturnCode, &daSysReasonCode
+              );
+  
+  if (daReturnCode != RC_DYNALLOC_OK) {
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
+            "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+            " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
+            daDatasetName.name, daMemberName.name, daDDName.name,
+            daReturnCode, daSysReturnCode, daSysReasonCode);
+    respondWithDYNALLOCError(response, daReturnCode, daSysReturnCode,
+                             daSysReasonCode, &daDatasetName, &daMemberName,
+                             "r");
+    return;
+  }
+  
+  bool isMemberEmpty = IS_DAMEMBER_EMPTY(daMemberName);
+  
+  if (isMemberEmpty) {
+    daReturnCode = dynallocUnallocDatasetByDDName2(&daDDName, DYNALLOC_UNALLOC_FLAG_NONE,
+                                                   &daSysReturnCode, &daSysReasonCode,
+                                                   TRUE /* Delete data set on deallocation */
+                                                   ); 
+    if (daReturnCode != RC_DYNALLOC_OK) {
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
+              "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+              " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
+              daDatasetName.name, daMemberName.name, daDDName.name,
+              daReturnCode, daSysReturnCode, daSysReasonCode);
+      respondWithDYNALLOCError(response, daReturnCode, daSysReturnCode,
+                               daSysReasonCode, &daDatasetName, &daMemberName,
+                               "r");
+      return;
+    }  
+  }
+  else {
+    char *dcb = openSAM(daDDName.name,      /* The data set must be opened by supplying a dd name */
+                        OPEN_CLOSE_OUTPUT,  /* To delete a pds data set member, this option must be set */
+                        FALSE,              /* Indicates that this data set is not QSAM */
+                        0,                  /* Record format (zero if unknown) */
+                        0,                  /* Record length (zero if unknown) */
+                        0);                 /* Block size (zero if unknown) */
+                      
+    if (dcb == NULL) {
+      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Data set could not be opened");
+      return;
+    }
+    
+    char *belowMemberName = malloc24(DATASET_MEMBER_NAME_LEN); /* This must be allocated below the line */
+    memset(belowMemberName, ' ', DATASET_MEMBER_NAME_LEN);
+    memcpy(belowMemberName, memberName.value, DATASET_MEMBER_NAME_LEN);
+    
+    int stowReturnCode = 0, stowReasonCode = 0;  
+    stowReturnCode = bpamDeleteMember(dcb, belowMemberName, &stowReasonCode);
+    
+    free24(belowMemberName, DATASET_MEMBER_NAME_LEN);
+    
+    if (stowReturnCode != 0) {
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
+              "error: stowReturnCode=%d, stowReasonCode=%d\n",
+              stowReturnCode, stowReasonCode);
+      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Member could not be deleted");
+      return;
+    }
+    
+    closeSAM(dcb, 0);
+    
+    daReturnCode = dynallocUnallocDatasetByDDName(&daDDName, DYNALLOC_UNALLOC_FLAG_NONE,
+                                                  &daSysReturnCode, &daSysReasonCode); 
+    if (daReturnCode != RC_DYNALLOC_OK) {
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
+              "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+              " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
+              daDatasetName.name, daMemberName.name, daDDName.name,
+              daReturnCode, daSysReturnCode, daSysReasonCode);
+      respondWithDYNALLOCError(response, daReturnCode, daSysReturnCode,
+                               daSysReasonCode, &daDatasetName, &daMemberName,
+                               "r");
+      return;
+    }
+  }
+
+  jsonPrinter *p = respondWithJsonPrinter(response);
+  setResponseStatus(response, 200, "OK");
+  setDefaultJSONRESTHeaders(response);
+ 
+  writeHeader(response);
+
+  jsonStart(p);
+  if (isMemberEmpty) {
+    jsonAddString(p, "msg", "Data set was deleted successfully");
+  }
+  else {
+    jsonAddString(p, "msg", "Data set member was deleted successfully");
+  }
+  jsonEnd(p);
+ 
+  finishResponse(response);
+  
 #endif /* __ZOWE_OS_ZOS */
 }
 
