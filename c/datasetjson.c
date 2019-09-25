@@ -1196,14 +1196,24 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
       return;
     }
     
-    char *belowMemberName = malloc24(DATASET_MEMBER_NAME_LEN); /* This must be allocated below the line */
+    char *belowMemberName = NULL;
+    belowMemberName = malloc24(DATASET_MEMBER_NAME_LEN); /* This must be allocated below the line */
+    
+    if (belowMemberName == NULL) {
+      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Could not allocate member name");
+      closeSAM(dcb, 0);
+      return;
+    }
+    
     memset(belowMemberName, ' ', DATASET_MEMBER_NAME_LEN);
     memcpy(belowMemberName, memberName.value, DATASET_MEMBER_NAME_LEN);
     
     int stowReturnCode = 0, stowReasonCode = 0;  
     stowReturnCode = bpamDeleteMember(dcb, belowMemberName, &stowReasonCode);
     
+    /* Free member name and dcb as they are no longer needed */
     free24(belowMemberName, DATASET_MEMBER_NAME_LEN);
+    closeSAM(dcb, 0);
     
     if (stowReturnCode != 0) {
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
@@ -1212,8 +1222,6 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
       respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Member could not be deleted");
       return;
     }
-    
-    closeSAM(dcb, 0);
     
     daReturnCode = dynallocUnallocDatasetByDDName(&daDDName, DYNALLOC_UNALLOC_FLAG_NONE,
                                                   &daSysReturnCode, &daSysReasonCode); 
