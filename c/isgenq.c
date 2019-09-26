@@ -31,11 +31,11 @@
 __asm("GLBENQPL    ISGENQ MF=(L,GLBENQPL)" : "DS"(GLBENQPL));
 #endif
 
-int isgenqGetExclusiveLockOrFail(const QName *qname,
-                                 const RName *rname,
-                                 uint8_t scope,
-                                 ENQToken *token,
-                                 int *reasonCode) {
+int isgenqTryExclusiveLock(const QName *qname,
+                           const RName *rname,
+                           uint8_t scope,
+                           ENQToken *token,
+                           int *reasonCode) {
 
   QName localQName = *qname;
   RName localRName = *rname;
@@ -145,11 +145,11 @@ int isgenqGetExclusiveLock(const QName *qname,
   return rc;
 }
 
-int isgenqGetSharedLockOrFail(const QName *qname,
-                              const RName *rname,
-                              uint8_t scope,
-                              ENQToken *token,
-                              int *reasonCode) {
+int isgenqTrySharedLock(const QName *qname,
+                        const RName *rname,
+                        uint8_t scope,
+                        ENQToken *token,
+                        int *reasonCode) {
 
   QName localQName = *qname;
   RName localRName = *rname;

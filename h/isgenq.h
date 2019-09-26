@@ -39,9 +39,9 @@ typedef struct ENQToken_tag {
 #define ISGENQ_SCOPE_SYSTEMS  3
 #define ISGENQ_SCOPE_SYSPLEX  4
 
-#pragma map(isgenqGetExclusiveLockOrFail, "ENQGETXF")
+#pragma map(isgenqTryExclusiveLock, "ENQTRYX")
 #pragma map(isgenqGetExclusiveLock, "ENQGETX")
-#pragma map(isgenqGetSharedLockOrFail, "ENQGETSF")
+#pragma map(isgenqTrySharedLock, "ENQTRYS")
 #pragma map(isgenqGetSharedLock, "ENQGETS")
 #pragma map(isgenqTestExclusiveLock, "ENQTSTX")
 #pragma map(isgenqTestSharedLock, "ENQTSTS")
@@ -59,6 +59,18 @@ typedef struct ENQToken_tag {
  * @param token Token used to release the enqueue
  * @param reasonCode Reason code from ISGENQ
  * @return Return code from ISGENQ
+ */
+int isgenqTryExclusiveLock(const QName *qname,
+                           const RName *rname,
+                           uint8_t scope,
+                           ENQToken *token,
+                           int *reasonCode);
+
+#define isgenqGetExclusiveLockOrFail isgenqTryExclusiveLock
+
+/**
+ * @brief Same as isgenqTryExclusiveLock
+ * @deprecated Use isgenqTryExclusiveLock
  */
 int isgenqGetExclusiveLockOrFail(const QName *qname,
                                  const RName *rname,
@@ -94,11 +106,11 @@ int isgenqGetExclusiveLock(const QName *qname,
  * @param reasonCode Reason code from ISGENQ
  * @return Return code from ISGENQ
  */
-int isgenqGetSharedLockOrFail(const QName *qname,
-                              const RName *rname,
-                              uint8_t scope,
-                              ENQToken *token,
-                              int *reasonCode);
+int isgenqTrySharedLock(const QName *qname,
+                        const RName *rname,
+                        uint8_t scope,
+                        ENQToken *token,
+                        int *reasonCode);
 /**
  * @brief The function acquires a shared lock. If an exclusive lock is already
  * being held for this QNAME and RNAME combination, the current task is
@@ -118,7 +130,7 @@ int isgenqGetSharedLock(const QName *qname,
                         int *reasonCode);
 
 /**
- * @brief The function does the same as isgenqGetExclusiveLockOrFail without
+ * @brief The function does the same as isgenqTryExclusiveLock without
  * acquiring the actual lock in case of success. See more details in the ISGENQ
  * documentation.
  *
@@ -134,7 +146,7 @@ int isgenqTestExclusiveLock(const QName *qname,
                             uint8_t scope,
                             int *reasonCode);
 /**
- * @brief The function does the same as isgenqGetSharedLockOrFail without
+ * @brief The function does the same as isgenqTrySharedLock without
  * acquiring the actual lock in case of success. See more details in the ISGENQ
  * documentation.
  *
