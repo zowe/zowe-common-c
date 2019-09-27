@@ -67,6 +67,8 @@
 #include "rs_ssl.h"
 #endif
 
+#include "../jwt/jwt/jwt.h"
+
 /* bool and time_t are not available for
  * METAL builds, but casting them to ints
  * is valid.
@@ -1498,6 +1500,7 @@ HttpServer *makeHttpServer2(STCBase *base,
   server->config->sessionTokenKeySize = sizeof (sessionTokenKey);
   memcpy(&server->config->sessionTokenKey[0], &sessionTokenKey,
          sizeof (sessionTokenKey));
+  server->config->authTokenType = SERVICE_AUTH_TOKEN_TYPE_LEGACY;
 
   return server;
 }
@@ -2623,6 +2626,47 @@ int extractBasicAuth(HttpRequest *request, HttpHeader *authHeader){
 
 }
 
+int extractBearerToken(HttpRequest *request, HttpHeader *authHeader) {
+  const char *const asciiHeader = authHeader->value;
+  const char *const ebcdicHeader = authHeader->nativeValue;
+  const int headerLength = strlen(asciiHeader);
+
+  AUTH_TRACE("authHeader(A): \n");
+  AUTH_DUMPBUF(asciiHeader, strlen(asciiHeader));
+  AUTH_TRACE("authHeader(E): \n");
+  AUTH_DUMPBUF(ebcdicHeader, strlen(ebcdicHeader));
+
+  if (strncmp(ebcdicHeader, "Bearer ", 7) != 0) {
+    AUTH_TRACE("Non-bearer auth\n");
+    return FALSE;
+  }
+
+  const int tokenStart = 7;
+  int tokenEnd = tokenStart;
+  AUTH_TRACE("start tokenEnd loop\n");
+  while ((tokenEnd < headerLength) && (ebcdicHeader[tokenEnd] > 0x041)){
+    tokenEnd++;
+    DEBUG_TRACE("tokenEnd=%d\n", tokenEnd);
+  }
+  const int tokenLen = tokenEnd - tokenStart;
+  AUTH_TRACE("bearer token length\n", tokenLen);
+
+  char *const tokenString = SLHAlloc(request->slh, tokenLen + 1);
+  AUTH_TRACE("bearer token buffer at %p\n", tokenString);
+  if (tokenString == NULL) {
+    return FALSE;
+  }
+  memcpy(&tokenString[0], &ebcdicHeader[tokenStart], tokenLen);
+  tokenString[tokenLen] = 0;
+
+  /* choosing *very special* ifdef so we never accidentally ship an
+   * executable that can be persuaded to print out passwords
+   */
+
+  request->authToken = tokenString;
+  return TRUE;
+}
+
 #ifdef __ZOWE_OS_ZOS
 
 #define ONE_SECOND (4096*1000000)    /* one second in STCK */
@@ -2840,6 +2884,115 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   }
 }
 
+static int serviceAuthWithJwt(HttpService *service,
+                              HttpRequest *request,
+                              HttpResponse *response) {
+  int authDataFound = FALSE;
+  HttpHeader *const authorizationHeader = getHeader(request, "Authorization");
+  char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
+
+  AUTH_TRACE("serviceAuthWithJwt: authenticationHeader 0x%p,"
+      " extractFunction 0x%p\n",
+      authorizationHeader,
+      service->authExtractionFunction);
+
+  /*
+   * The extractor should look at the request and get the raw JWT from anywhere
+   * in the request it thinks it can find it (Authorization: Bearer, cookie, URL,
+   * etc) and store it in  request->authToken.
+   *
+   * Then we *replace* request->authToken with a parsed JWT structure, so that
+   * the service handler can find the JWT there if it needs it.
+   *
+   * TODO: consider changing the architecture: what fields do we want in the
+   * request structure?
+   */
+  if (service->authExtractionFunction != NULL) {
+    if (service->authExtractionFunction(service, request) == 0) {
+      authDataFound = TRUE;
+    }
+  } else if (authorizationHeader) {
+    DEBUG_TRACE("serviceAuthWithJwt: auth header = 0x%x\n", authorizationHeader);
+    if (extractBearerToken(request, authorizationHeader)) {
+      DEBUG_TRACE("back inside serviceAuthWithJwt after call to extractBearerToken\n");
+      authDataFound = TRUE;
+    }
+  }
+
+  AUTH_TRACE("serviceAuthWithJwt: request->authToken %p\n", request->authToken);
+  if (request->authToken == NULL) {
+    return FALSE;
+  }
+
+  JwtContext *const jwtContext = service->server->config->jwtContext;
+  if (jwtContext == NULL) {
+    return FALSE;
+  }
+
+  int jwtRc = 0;
+  const Jwt *const jwt = jwtVerifyAndParseToken(
+      jwtContext,
+      request->authToken,
+      true,
+      request->slh,
+      &jwtRc);
+  AUTH_TRACE("serviceAuthWithJwt: jwtContext %p\n", jwtContext);
+  if (jwtRc != RC_JWT_OK) {
+    return FALSE;
+  }
+
+  if (!jwtAreBasicClaimsValid(jwt, NULL)) {
+    AUTH_TRACE("serviceAuthWithJwt: basic claims invalid\n");
+    return FALSE;
+  }
+
+  request->authToken = jwt;
+
+  if (service->authValidateFunction != NULL) {
+    return service->authValidateFunction(service, request);
+  } else {
+    if (jwt->subject == NULL) {
+      return FALSE;
+    }
+    request->username = SLHAlloc(request->slh, 1 + strlen(jwt->subject));
+    if (request->username == NULL) {
+      return FALSE;
+    }
+    strcpy(request->username, jwt->subject);
+    strupcase(request->username);
+    return TRUE;
+  }
+}
+
+int httpServerInitJwtContext(HttpServer *self,
+                             bool legacyFallback,
+                             const char *pkcs11TokenName,
+                             const char *keyName,
+                             int keyType,
+                             int *makeContextRc, int *p11Rc, int *p11Rsn) {
+  JwtContext *const context = makeJwtContextForKeyInToken(
+      pkcs11TokenName,
+      keyName,
+      keyType,
+      makeContextRc,
+      p11Rc,
+      p11Rsn);
+
+  AUTH_TRACE("jwt context for %s:%s: rc %d, context at %p\n",
+      pkcs11TokenName, keyName,
+      *makeContextRc, context);
+
+  if (*makeContextRc != RC_JWT_OK) {
+    return 1;
+  }
+  self->config->jwtContext = context;
+  self->config->authTokenType = legacyFallback?
+      SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK
+      : SERVICE_AUTH_TOKEN_TYPE_JWT;
+  return 0;
+}
+
+
 #ifdef __ZOWE_OS_ZOS
 
 typedef struct HTTPServiceABENDInfo_tag {
@@ -3020,7 +3173,20 @@ static int handleHttpService(HttpServer *server,
     request->authenticated = FALSE;
     break;
   case SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN:
-    request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken);
+    switch (server->config->authTokenType) {
+    case SERVICE_AUTH_TOKEN_TYPE_JWT:
+    case SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK:
+      request->authenticated = serviceAuthWithJwt(service, request, response);
+
+      if (request->authenticated  ||
+          service->server->config->authTokenType
+            != SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK) {
+        break;
+      } /* else fall through */
+    case SERVICE_AUTH_TOKEN_TYPE_LEGACY:
+      request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken);
+      break;
+    }
     break;
   }
 #ifdef DEBUG
