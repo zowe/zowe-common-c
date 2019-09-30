@@ -472,6 +472,7 @@ HttpService *makeWebSocketService(char *name, char *urlMask, WSEndpoint *endpoin
 jsonPrinter *initWSJsonPrinting(WSSession *session, int maxFrameSize);
 void flushWSJsonPrinting(WSSession *session);
 
+void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode, int autocvt, bool asB64);
 void respondWithUnixFileContents(HttpResponse* response, char *absolutePath, int jsonMode);
 void respondWithUnixFileContents2(HttpService* service, HttpResponse* response, char *absolutePath, int jsonMode);
 void respondWithUnixFileContentsWithAutocvtMode(HttpService* service, HttpResponse* response, char *absolutePath, int jsonMode, int convert);
