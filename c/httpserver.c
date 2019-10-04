@@ -2787,8 +2787,10 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
   memcpy(keyValueBuffer,SESSION_TOKEN_COOKIE_NAME,keyLength);
   int offset = keyLength;
   keyValueBuffer[keyLength] = '=';
-  memcpy(keyValueBuffer+keyLength+1,base64Output,strlen(base64Output));
-
+  offset = keyValueBuffer+keyLength+1;
+  int b64Len = strlen(base64Output);
+  memcpy(offset,base64Output,b64Len);
+  sprintf(offset+b64Len,"; Path=/; HttpOnly");
   return keyValueBuffer;
 }
 
@@ -2829,7 +2831,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
            "serviceAuthNativeWithSessionToken: tokenCookieText: %s\n",
            (tokenCookieText ? tokenCookieText : "<noAuthToken>"));
-           
+
     if (sessionTokenStillValid(service,request,tokenCookieText)){
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
               "serviceAuthNativeWithSessionToken: Cookie still good, renewing cookie\n");
