@@ -444,38 +444,38 @@ typedef struct ecvt_tag{
 typedef struct gda_tag{
   char   gdaid[4];  /* eyecatcher "GDA " */
   char   stuff[0x60];
-  void  *gdafbqcf;   /* chain head of CSA FBQE */ 
-  void  *gdafbqcl;   /* chain tail */
-  void  *gdacsa;     /* base of CSA */
+  Addr31 gdafbqcf;   /* chain head of CSA FBQE */
+  Addr31 gdafbqcl;   /* chain tail */
+  Addr31 gdacsa;     /* base of CSA */
   int    gdacsasz;   /* CSA size */
-  void  *gdaefbcf;   /* first ECSA FBQE */
-  void  *gdaefbcl;   /* last  ECSA FBQE */
-  void  *gdaecsa;    /* base of ECSA */
+  Addr31 gdaefbcf;   /* first ECSA FBQE */
+  Addr31 gdaefbcl;   /* last  ECSA FBQE */
+  Addr31 gdaecsa;    /* base of ECSA */
   /* OFFSET 0x80 */
   int    gdaecsas;   /* size of ECSA */
   int    gdacsare;   /* amount of low common (CSA + SQA) left over */
-  void  *gdaspt;     /* CSA subpool table */
+  Addr31 gdaspt;     /* CSA subpool table */
   int    gdacsacv;   /* amount of CSA converted to SQA */
   /* OFFSET 0x90 */
-  void  *gdasqa;     /* start of SQA */
+  Addr31 gdasqa;     /* start of SQA */
   int    gdasqasz;   /* size of SQA */
-  void  *gdaesqa;    /* start of ESQA */
+  Addr31 gdaesqa;    /* start of ESQA */
   int    gdaesqas;   /* size of ESQA */
   /* OFFSET 0xA0 */
-  void  *gdapvt;     /* start of low private */
+  Addr31 gdapvt;     /* start of low private */
   int    gdapvtsz;   /* low private size.  Why 0? */
-  void  *gdaepvt;    /* start of high private */
+  Addr31 gdaepvt;    /* start of high private */
   int    gdaepvts;   /* size of high private */
   /* OFFSET 0xB0 */
-  void  *gdacpanc;   /* VSM's SQA Cell pool */
+  Addr31 gdacpanc;   /* VSM's SQA Cell pool */
   int    gdacpcnt;   /* Free Cell Count in above */
-  void  *gdafcadr;   /* First free cell in above */
-  void  *gdacpab;    /* Address of Permanent CPAB (what is this?) table */
+  Addr31 gdafcadr;   /* First free cell in above */
+  Addr31 gdacpab;    /* Address of Permanent CPAB (what is this?) table */
   /* OFFSET 0xC0 */
-  void  *gdavr;      /* address of global V=R area (PSPI) */
+  Addr31 gdavr;      /* address of global V=R area (PSPI) */
   int    gdavrsz;    /* size of above */
   int    gdavregs;   /* default V=R region size */
-  void  *gdawrka;    /* global work area in nucleus */
+  Addr31 gdawrka;    /* global work area in nucleus */
   /* OFFSET 0xD0 */
   char   unmapped[0x310-0xD0];
 } GDA;
