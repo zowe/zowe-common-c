@@ -69,7 +69,7 @@ bool isDir(char *absolutePath) {
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
-    return FALSE;
+    return false;
   }
 
   return (fileInfoIsDirectory(&info));
@@ -84,10 +84,10 @@ bool doesFileExist(char *absolutePath) {
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
-    return FALSE;
+    return false;
   }
   
-  return TRUE;
+  return true;
 }
 
 /* Creates a new unix directory at the specified absolute
