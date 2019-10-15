@@ -68,6 +68,9 @@ bool isDir(char *absolutePath) {
   FileInfo info = {0};
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  if (status == -1) {
+    return FALSE;
+  }
 
   return (fileInfoIsDirectory(&info));
 }
