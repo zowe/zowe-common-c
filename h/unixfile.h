@@ -401,7 +401,7 @@ int fileWrite(UnixFile *file, const char *buffer, int desiredBytes,
 
 int fileGetChar(UnixFile *file, int *returnCode, int *reasonCode);
 
-int fileCopy(const char *existingFile, const char *newFile, int forceCopy);
+int fileCopy(const char *existingFile, const char *newFile, int *retCode, int *resCode);
 
 int fileRename(const char *oldFileName, const char *newFileName, int *returnCode, int *reasonCode);
 
@@ -467,6 +467,9 @@ int fileSetLock(UnixFile *file, int *returnCode, int *reasonCode);
 int fileGetLock(UnixFile *file, int *returnCode, int *reasonCode, int *isLocked);
 int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode);
 
+#define USS_MAX_PATH_LENGTH 1023
+#define USS_MAX_FILE_NAME   255
+
 #endif
 
 int fileInfoIsDirectory(const FileInfo *info);
@@ -484,8 +487,8 @@ int fileClose(UnixFile *file, int *returnCode, int *reasonCode);
 
 int directoryMake(const char *pathName, int mode, int *returnCode, int *reasonCode);
 int directoryDelete(const char *pathName, int *returnCode, int *reasonCode);
-int directoryDeleteRecursive(const char *pathName);
-int directoryCopy(const char *existingPathName, const char *newPathName, int forceCopy);
+int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode);
+int directoryCopy(const char *existingPathName, const char *newPathName, int *retCode, int *resCode);
 int directoryRename(const char *oldDirName, const char *newDirName, int *returnCode, int *reasonCode);
 UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonCode);
 int directoryRead(UnixFile *directory, char *entryBuffer, int entryBufferLength, int *returnCode, int *reasonCode);
@@ -493,20 +496,6 @@ int directoryClose(UnixFile *directory, int *returnCode, int *reasonCode);
 
 int setUmask(int mask);
 int getUmask();
-
-/* Utility functions that are used in zosfile.c
- * and httpfileservice.c. Makes and deletes temporary
- * files and directories. A ".tmp" is added to the
- * absolutePath provided.
- */
-int tmpFileMake(const char *fileName);
-int tmpFileRecover(const char *fileName);
-int tmpFileDelete(const char *fileName);
-void tmpFileCleanup(const char *fileName);
-int tmpDirMake(const char *dirName);
-int tmpDirRecover(const char *dirName);
-int tmpDirDelete(const char *dirName);
-void tmpDirCleanup(const char *dirName);
 
 #endif
 

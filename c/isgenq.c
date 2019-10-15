@@ -31,11 +31,11 @@
 __asm("GLBENQPL    ISGENQ MF=(L,GLBENQPL)" : "DS"(GLBENQPL));
 #endif
 
-int isgenqGetExclusiveLockOrFail(const QName *qname,
-                                 const RName *rname,
-                                 uint8_t scope,
-                                 ENQToken *token,
-                                 int *reasonCode) {
+int isgenqTryExclusiveLock(const QName *qname,
+                           const RName *rname,
+                           uint8_t scope,
+                           ENQToken *token,
+                           int *reasonCode) {
 
   QName localQName = *qname;
   RName localRName = *rname;
@@ -145,6 +145,120 @@ int isgenqGetExclusiveLock(const QName *qname,
   return rc;
 }
 
+int isgenqTrySharedLock(const QName *qname,
+                        const RName *rname,
+                        uint8_t scope,
+                        ENQToken *token,
+                        int *reasonCode) {
+
+  QName localQName = *qname;
+  RName localRName = *rname;
+
+#ifdef METTLE
+  __asm(" ISGENQ MF=L" : "DS"(isgenqParmList));
+  isgenqParmList = GLBENQPL;
+#else
+  char isgenqParmList[512];
+#endif
+
+  int rc = 0, rsn = 0;
+  __asm(
+      ASM_PREFIX
+      "         PUSH USING                                                     \n"
+      "         DROP                                                           \n"
+      "ENQOBTS  LARL  2,ENQOBTS                                                \n"
+      "         USING ENQOBTS,2                                                \n"
+      "         ISGENQ   REQUEST=OBTAIN"
+      ",TEST=NO"
+      ",CONTENTIONACT=FAIL"
+      ",USERDATA=NO_USERDATA"
+      ",RESLIST=NO"
+      ",QNAME=(%2)"
+      ",RNAME=(%3)"
+      ",RNAMELEN=(%4)"
+      ",CONTROL=SHARED"
+      ",RESERVEVOLUME=NO"
+      ",SCOPE=VALUE"
+      ",SCOPEVAL=(%5)"
+      ",RNL=YES"
+      ",ENQTOKEN=(%6)"
+      ",COND=YES"
+      ",RETCODE=%0"
+      ",RSNCODE=%1"
+      ",PLISTVER=IMPLIED_VERSION"
+      ",MF=(E,(%7),COMPLETE)"
+      "                                                                        \n"
+      "         DROP                                                           \n"
+      "         POP USING                                                      \n"
+      : "=m"(rc), "=m"(rsn)
+      : "r"(&localQName.value), "r"(&localRName.value), "r"(&localRName.length),
+        "r"(&scope), "r"(token), "r"(&isgenqParmList)
+      : "r0", "r1", "r2", "r14", "r15"
+  );
+
+  if (reasonCode != NULL) {
+    *reasonCode = rsn;
+  }
+  return rc;
+}
+
+int isgenqGetSharedLock(const QName *qname,
+                        const RName *rname,
+                        uint8_t scope,
+                        ENQToken *token,
+                        int *reasonCode) {
+
+  QName localQName = *qname;
+  RName localRName = *rname;
+
+#ifdef METTLE
+  __asm(" ISGENQ MF=L" : "DS"(isgenqParmList));
+  isgenqParmList = GLBENQPL;
+#else
+  char isgenqParmList[512];
+#endif
+
+  int rc = 0, rsn = 0;
+  __asm(
+      ASM_PREFIX
+      "         PUSH USING                                                     \n"
+      "         DROP                                                           \n"
+      "ENQOBTSW LARL  2,ENQOBTSW                                               \n"
+      "         USING ENQOBTSW,2                                               \n"
+      "         ISGENQ   REQUEST=OBTAIN"
+      ",TEST=NO"
+      ",CONTENTIONACT=WAIT"
+      ",USERDATA=NO_USERDATA"
+      ",RESLIST=NO"
+      ",QNAME=(%2)"
+      ",RNAME=(%3)"
+      ",RNAMELEN=(%4)"
+      ",CONTROL=SHARED"
+      ",RESERVEVOLUME=NO"
+      ",SCOPE=VALUE"
+      ",SCOPEVAL=(%5)"
+      ",RNL=YES"
+      ",ENQTOKEN=(%6)"
+      ",COND=YES"
+      ",RETCODE=%0"
+      ",RSNCODE=%1"
+      ",PLISTVER=IMPLIED_VERSION"
+      ",MF=(E,(%7),COMPLETE)"
+      "                                                                        \n"
+      "         DROP                                                           \n"
+      "         POP USING                                                      \n"
+      : "=m"(rc), "=m"(rsn)
+      : "r"(&localQName.value), "r"(&localRName.value), "r"(&localRName.length),
+        "r"(&scope), "r"(token), "r"(&isgenqParmList)
+      : "r0", "r1", "r2", "r14", "r15"
+  );
+
+  if (reasonCode != NULL) {
+    *reasonCode = rsn;
+  }
+  return rc;
+}
+
 int isgenqTestLock(const QName *qname,
                    const RName *rname,
                    uint8_t scope,
@@ -176,6 +290,71 @@ int isgenqTestLock(const QName *qname,
       ",RNAME=(%3)"
       ",RNAMELEN=(%4)"
       ",CONTROL=EXCLUSIVE"
+      ",RESERVEVOLUME=NO"
+      ",SCOPE=VALUE"
+      ",SCOPEVAL=(%5)"
+      ",RNL=YES"
+      ",ENQTOKEN=(%6)"
+      ",COND=YES"
+      ",RETCODE=%0"
+      ",RSNCODE=%1"
+      ",PLISTVER=IMPLIED_VERSION"
+      ",MF=(E,(%7),COMPLETE)"
+      "                                                                        \n"
+      "         DROP                                                           \n"
+      "         POP USING                                                      \n"
+      : "=m"(rc), "=m"(rsn)
+      : "r"(&localQName.value), "r"(&localRName.value), "r"(&localRName.length),
+        "r"(&scope), "r"(&localToken), "r"(&isgenqParmList)
+      : "r0", "r1", "r2", "r14", "r15"
+  );
+
+  if (reasonCode != NULL) {
+    *reasonCode = rsn;
+  }
+  return rc;
+}
+
+int isgenqTestExclusiveLock(const QName *qname,
+                            const RName *rname,
+                            uint8_t scope,
+                            int *reasonCode) {
+
+  return isgenqTestLock(qname, rname, scope, reasonCode);
+
+}
+
+int isgenqTestSharedLock(const QName *qname,
+                         const RName *rname,
+                         uint8_t scope,
+                         int *reasonCode) {
+
+  QName localQName = *qname;
+  RName localRName = *rname;
+
+#ifdef METTLE
+  __asm(" ISGENQ MF=L" : "DS"(isgenqParmList));
+  isgenqParmList = GLBENQPL;
+#else
+  char isgenqParmList[512];
+#endif
+
+  ENQToken localToken;
+
+  int rc = 0, rsn = 0;
+  __asm(
+      ASM_PREFIX
+      "         PUSH USING                                                     \n"
+      "         DROP                                                           \n"
+      "ENQOBTST LARL  2,ENQOBTST                                               \n"
+      "         USING ENQOBTST,2                                               \n"
+      "         ISGENQ   REQUEST=OBTAIN"
+      ",TEST=YES"
+      ",RESLIST=NO"
+      ",QNAME=(%2)"
+      ",RNAME=(%3)"
+      ",RNAMELEN=(%4)"
+      ",CONTROL=SHARED"
       ",RESERVEVOLUME=NO"
       ",SCOPE=VALUE"
       ",SCOPEVAL=(%5)"
