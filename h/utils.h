@@ -31,6 +31,7 @@ extern "C" {
 #define strcopy_safe STRCPSAF
 #define indexOf INDEXOF
 #define indexOfString IDXSTR
+#define lastIndexOfString LIDXSTR
 #define indexOfStringInsensitive IDXSTRNS
 #endif
 
@@ -39,6 +40,7 @@ char * strcopy_safe(char * dest, const char * source, int dest_size);
 int indexOf(char *str, int len, char c, int startPos);
 int lastIndexOf(const char *str, int len, char c);
 int indexOfString(char *str, int len, char *searchString, int startPos);
+int lastIndexOfString(char *str, int len, char *searchString);
 int indexOfStringInsensitive(char *str, int len, char *searchString, int startPos);
 
 /* max() is not a standard macro.  Windows introduces this and they are wrong */
@@ -220,8 +222,23 @@ void SLHFree(ShortLivedHeap *slh);
 char *cleanURLParamValue(ShortLivedHeap *slh, char *value);
 int percentEncode(char *value, char *buffer, int len);
 
+#define BASE64_ENCODE_SIZE(SZ) (2 + 4 * ((SZ + 2) / 3))
+
 int decodeBase64(char *s, char *result);
-char *encodeBase64(ShortLivedHeap *slh, char *buf, int size, int *resultSize, int useEbcdic);
+char *encodeBase64(ShortLivedHeap *slh, const char buf[], int size, int *resultSize,
+                   int useEbcdic);
+void encodeBase64NoAlloc(const char buf[], int size, char result[], int *resultSize,
+                         int useEbcdic);
+/*
+ * Assumes "EBCDIC base64" on EBCDIC platforms
+ */
+int base64ToBase64url(char *s);
+
+/*
+ * Assumes "EBCDIC base64" on EBCDIC platforms
+ */
+int base64urlToBase64(char *s, int bufSize);
+
 char *destructivelyUnasciify(char *s);
 
 int base32Decode (int alphabet,

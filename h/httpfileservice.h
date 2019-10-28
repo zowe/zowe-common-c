@@ -16,26 +16,36 @@
 #include "httpserver.h"
 
 void response200WithMessage(HttpResponse *response, char *msg);
-int isDir(char *absolutePath);
-int tagFile(char *absolutePath, char *targetEncoding, int isBinary);
-int doesItExist(char *absolutePath);
+
+bool isDir(char *absolutePath);
+bool doesFileExist(char *absolutePath);
+
 static int createUnixDirectory(char *absolutePath, int forceCreate);
 void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, int forceCreate);
+
 static int deleteUnixDirectory(char *absolutePath);
 void deleteUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath);
+
 static int deleteUnixFile(char *absolutePath);
 void deleteUnixFileAndRespond(HttpResponse *response, char *absolutePath);
+
 static int renameUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int forceRename);
 void renameUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceRename);
+
 static int renameUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceRename);
 void renameUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceRename);
+
 static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int forceCopy);
 void copyUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceCopy);
+
 static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceCopy);
 void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceCopy);
+
 void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath);
+
 static int writeEmptyUnixFile(char *absolutePath, int forceWrite);
 void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite);
+
 int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLength);
 int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLength, int sourceEncoding, int targetEncoding);
 

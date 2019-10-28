@@ -49,6 +49,13 @@ int setKey(int key);
 int ddnameExists(char *ddname);
 int atomicIncrement(int *intPointer, int increment);
 
+typedef enum ExternalSecurityManager_t {
+  ZOS_ESM_RTSS,
+  ZOS_ESM_RACF,
+  ZOS_ESM_ACF2,
+  ZOS_ESM_NONE
+} ExternalSecurityManager;
+
 ZOWE_PRAGMA_PACK
 
 typedef struct cvtfix_tag{

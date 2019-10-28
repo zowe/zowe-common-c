@@ -86,7 +86,7 @@ typedef struct ZVT_tag {
 
   struct {
     PAD_LONG(10, ZVTEntry *zis);
-    PAD_LONG(11, ZVTEntry *reservedSlot1);
+    PAD_LONG(11, ZVTEntry *zssp);
     PAD_LONG(12, ZVTEntry *reservedSlot2);
     PAD_LONG(13, ZVTEntry *reservedSlot3);
     PAD_LONG(14, ZVTEntry *reservedSlot4);

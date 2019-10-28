@@ -18,6 +18,7 @@
  */
 
 #include "zowetypes.h"
+#include "utils.h"
 
 /* debugging switch */
 
@@ -44,8 +45,8 @@
 #define CCSID_UTF_8           1208
 
 /* The following two must be hex */
-#define CCSID_UNTAGGED        0x0000
-#define CCSID_BINARY          0xFFFF
+#define CCSID_UNTAGGED        (short)0x0000
+#define CCSID_BINARY          (short)0xFFFF
 
 #elif defined(__ZOWE_OS_WINDOWS)
 /* WINDOWS CCSID's that are not common 

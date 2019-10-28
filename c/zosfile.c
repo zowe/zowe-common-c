@@ -103,6 +103,9 @@
 #define BPXLST BPX1LST
 #endif
 
+#define MAX_ENTRY_BUFFER_SIZE 2550
+#define MAX_NUM_ENTRIES       1000
+
 static int fileTrace = FALSE;
 
 static const char* fileTypeString(char fileType) {
@@ -132,178 +135,6 @@ static const char* fileTypeString(char fileType) {
   default: break;
   }
   return result;
-}
-
-int tmpFileMake(const char *fileName) {
-#define TEMP_BUFFER_SIZE 1000
-
-  int returnCode = 0;
-  int reasonCode = 0;
-  int status = 0;
-
-  char tempBuffer[TEMP_BUFFER_SIZE];
-  strcpy(tempBuffer, fileName);
-  strcat(tempBuffer, ".tmp");
-
-  status = fileRename(fileName, tempBuffer, &returnCode, &reasonCode);
-  if (status == -1) {
-#ifdef DEBUG
-    printf("Could not rename file %s: (return = 0x%x, reason = 0x%x)\n", tempBuffer, returnCode, reasonCode);
-#endif
-    return -1;
-  }
-
-  return 0;
-}
-
-int tmpFileRecover(const char *fileName) {
-#define TEMP_BUFFER_SIZE 1000
-
-  FileInfo info;
-  int returnCode = 0;
-  int reasonCode = 0;
-  int status = 0;
-
-  char tempBuffer[TEMP_BUFFER_SIZE];
-  strcpy(tempBuffer, fileName);
-  strcat(tempBuffer, ".tmp");
-
-  status = fileRename(tempBuffer, fileName, &returnCode, &reasonCode);
-  if (status == -1) {
-#ifdef DEBUG
-    printf("Could not rename file %s: (return = 0x%x, reason = 0x%x)\n", tempBuffer, returnCode, reasonCode);
-#endif
-    return -1;
-  }
-
-  return 0;
-}
-
-int tmpFileDelete(const char *fileName) {
-#define TEMP_BUFFER_SIZE 1000
-
-  int status = 0;
-  int returnCode = 0;
-  int reasonCode = 0;
-
-  char tempBuffer[TEMP_BUFFER_SIZE];
-  strcpy(tempBuffer, fileName);
-  strcat(tempBuffer, ".tmp");
-
-  status = fileDelete(tempBuffer, &returnCode, &reasonCode);
-  if (status == -1) {
-#ifdef DEBUG
-    printf("Could not delete file %s: (return = 0x%x, reason = 0x%x)\n", tempBuffer, returnCode, reasonCode);
-#endif
-  }
-
-  return 0;
-}
-
-void tmpFileCleanup(const char *fileName) {
-  int status = 0;
-
-  status = tmpFileRecover(fileName);
-  if (status == -1) {
-#ifdef DEBUG
-    printf("Unable to recover file %s. Find it at %s.tmp\n", fileName, fileName);
-#endif
-    return;
-  }
-
-  status = tmpFileDelete(fileName);
-  if (status == -1) {
-#ifdef DEBUG
-    printf("Unable to delete file %s. Find it at %s.tmp\n", fileName, fileName);
-#endif
-    return;
-  }
-}
-
-int tmpDirMake(const char *dirName) {
-  #define TEMP_BUFFER_SIZE 1000
-
-  int returnCode = 0;
-  int reasonCode = 0;
-  int status = 0;
-
-  char tempBuffer[TEMP_BUFFER_SIZE];
-  strcpy(tempBuffer, dirName);
-  strcat(tempBuffer, ".tmp");
-
-  status = directoryRename(dirName, tempBuffer, &returnCode, &reasonCode);
-  if (status == -1) {
-#ifdef DEBUG
-    printf("Could not rename directory %s: (return = 0x%x, reason = 0x%x)\n", tempBuffer, returnCode, reasonCode);
-#endif
-    return -1;
-  }
-
-  return 0;
-}
-
-int tmpDirRecover(const char *dirName) {
-  #define TEMP_BUFFER_SIZE 1000
-
-  FileInfo info;
-  int returnCode = 0;
-  int reasonCode = 0;
-  int status = 0;
-
-  char tempBuffer[TEMP_BUFFER_SIZE];
-  strcpy(tempBuffer, dirName);
-  strcat(tempBuffer, ".tmp");
-
-  status = directoryRename(tempBuffer, dirName, &returnCode, &reasonCode);
-  if (status == -1) {
-#ifdef DEBUG
-    printf("Could not rename directory %s: (return = 0x%x, reason = 0x%x)\n", tempBuffer, returnCode, reasonCode);
-#endif
-    return -1;
-  }
-
-  return 0;
-}
-
-int tmpDirDelete(const char *dirName) {
-  #define TEMP_BUFFER_SIZE 1000
-
-  int status = 0;
-  int returnCode = 0;
-  int reasonCode = 0;
-
-  char tempBuffer[TEMP_BUFFER_SIZE];
-  strcpy(tempBuffer, dirName);
-  strcat(tempBuffer, ".tmp");
-
-  status = directoryDeleteRecursive(tempBuffer);
-  if (status == -1) {
-#ifdef DEBUG
-    printf("Could not delete directory %s\n", tempBuffer);
-#endif
-  }
-
-  return 0;
-}
-
-void tmpDirCleanup(const char *dirName) {
-  int status = 0;
-
-  status = tmpDirRecover(dirName);
-  if (status == -1) {
-#ifdef DEBUG
-  printf("Unable to recover directory %s. Find it at %s.tmp\n", dirName, dirName);
-#endif
-  return;
-  }
-
-  status = tmpDirDelete(dirName);
-  if (status == -1) {
-#ifdef DEBUG
-  printf("Unable to delete directory %s. Find it at %s.tmp\n", dirName, dirName);
-#endif
-  return;
-  }
 }
 
 int setFileTrace(int toWhat) {
@@ -668,162 +499,95 @@ int fileChangeTag(const char *fileName, int *returnCode, int *reasonCode, int cc
   return returnValue;
 }
 
-int fileCopy(const char *existingFile, const char *newFile, int forceCopy){
-#define FILE_BUFFER_SIZE 4000
+int fileCopy(const char *existingFileName, const char *newFileName, int *retCode, int *resCode) {
+  int returnCode = 0, reasonCode = 0, status = 0;
+  FileInfo info = {0};
 
-  FileInfo info;
-  int returnCode = 0;
-  int reasonCode = 0;
-  int status = 0;
+  status = fileInfo(existingFileName, &info, &returnCode, &reasonCode);
+  if (status == -1) {
+    *retCode = returnCode;
+    *resCode = reasonCode;
+    return -1;
+  }
+
+  short ccsid = info.ccsid;
+  
+  UnixFile *existingFile = fileOpen(existingFileName, FILE_OPTION_READ_ONLY, 0, 0, &returnCode, &reasonCode);
+  if (existingFile == NULL) {
+    *retCode = returnCode;
+    *resCode = reasonCode;
+    return -1;
+  }
+
+  UnixFile *newFile = fileOpen(newFileName,
+                               FILE_OPTION_WRITE_ONLY | FILE_OPTION_TRUNCATE | FILE_OPTION_CREATE,
+                               0700,
+                               0,
+                               &returnCode,
+                               &reasonCode);
+  if (newFile == NULL) {
+    *retCode = returnCode;
+    *resCode = reasonCode;
+    return -1;
+  }
+
+  if (ccsid != CCSID_UNTAGGED) {
+    status = fileChangeTag(newFileName, &returnCode, &reasonCode, ccsid);
+    if (status == -1) {
+      *retCode = returnCode;
+      *resCode = reasonCode;
+      return -1;
+    }
+  }
+
+  status = fileDisableConversion(existingFile, &returnCode, &reasonCode);
+  if (status != 0) {
+    *retCode = returnCode;
+    *resCode = reasonCode;
+    return -1;
+  }
+  
+  status = fileDisableConversion(newFile, &returnCode, &reasonCode);
+  if (status != 0) {
+    *retCode = returnCode;
+    *resCode = reasonCode;
+    return -1;
+  }
+
   int bytesRead = 0;
-  int fileExists = 0;
-  char buffer[FILE_BUFFER_SIZE];
-
-  status = fileInfo(existingFile, &info, &returnCode, &reasonCode);
-  if (status == -1) {
-#ifdef DEBUG
-    printf("File %s most likely does not exist, please check the provided file name: (return = 0x%x, reason = 0x%x)\n", existingFile, returnCode, reasonCode);
-#endif
-    return -1;
-  }
-
-  int ccsid = fileInfoCCSID(&info);
-
-  status = fileInfo(newFile, &info, &returnCode, &reasonCode);
-  if (status == 0) {
-    if (!forceCopy) {
-#ifdef DEBUG
-    printf("Copying has stopped because the file already exists and the force flag is off", newFile, returnCode, reasonCode);
-#endif
-      return -1;
-    }
-    fileExists = 1;
-  }
-
-  if (fileExists) {
-    status = tmpFileMake(newFile);
-    if (status == -1) {
-      return -1;
-    }
-  }
-
-  UnixFile *fileCheckFrom = fileOpen(existingFile, FILE_OPTION_READ_ONLY, 0, 0, &returnCode, &reasonCode);
-  if (fileCheckFrom == NULL) {
-#ifdef DEBUG
-    printf("Failed to open file %s: (return = 0x%x, reason = 0x%x)\n", existingFile, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      tmpFileCleanup(newFile);
-    }
-    return -1;
-  }
-
-  UnixFile *fileCheckTo = fileOpen(newFile,
-                                  FILE_OPTION_WRITE_ONLY | FILE_OPTION_CREATE,
-                                  0700,
-                                  0,
-                                  &returnCode,
-                                  &reasonCode);
-
-  if (fileCheckTo == NULL) {
-#ifdef DEBUG
-    printf("Failed to open file %s: (return = 0x%x, reason = 0x%x)\n", newFile, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      tmpFileCleanup(newFile);
-    }
-    return -1;
-  }
-
-  /* If the file is not untagged.
-   */
-  if (ccsid != 0) {
-    status = fileChangeTag(newFile, &returnCode, &reasonCode, ccsid);
-    if (status == -1) {
-#ifdef DEBUG
-      printf("Failed to change file tag for %s: (return = 0x%x, reason = 0x%x)\n", newFile, returnCode, reasonCode);
-#endif
-      if (fileExists) {
-        tmpFileCleanup(newFile);
-      }
-      else {
-        fileDelete(newFile, &returnCode, &reasonCode);
-      }
-    return -1;
-    }
-  }
-
-  /* Disable automatic conversion to prevent any wacky
-   * problems that may arise from auto convert.
-   */
-  status = fileDisableConversion(fileCheckTo, &returnCode, &reasonCode);
-  if (status != 0) {
-    printf("Failed to disable automatic conversion. Unexpected results may occur.\n");
-  }
-  status = fileDisableConversion(fileCheckFrom, &returnCode, &reasonCode);
-  if (status != 0) {
-    printf("Failed to disable automatic conversion. Unexpected results may occur.\n");
-  }
-
-  while (bytesRead = fileRead(fileCheckFrom, buffer, FILE_BUFFER_SIZE, &returnCode, &reasonCode)){
+  do {
+#define FILE_BUFFER_SIZE 4000
+    char fileBuffer[FILE_BUFFER_SIZE] = {0};
+    
+    bytesRead = fileRead(existingFile, fileBuffer, sizeof(fileBuffer), &returnCode, &reasonCode);
     if (bytesRead == -1) {
-#ifdef DEBUG
-      printf("Failed to read file %s: (return = 0x%x, reason = 0x%x)\n", existingFile, returnCode, reasonCode);
-#endif
-      if (fileExists) {
-        tmpFileCleanup(newFile);
-      }
-      else {
-        fileDelete(newFile, &returnCode, &reasonCode);
-      }
+      *retCode = returnCode;
+      *resCode = reasonCode;
       return -1;
     }
-    status = fileWrite(fileCheckTo, buffer, bytesRead, &returnCode, &reasonCode);
+    
+    status = fileWrite(newFile, fileBuffer, bytesRead, &returnCode, &reasonCode);
     if (status == -1) {
-#ifdef DEBUG
-      printf("Failed to write to file %s: (return = 0x%x, reason = 0x%x)\n", newFile, returnCode, reasonCode);
-#endif
-      if (fileExists) {
-        tmpFileCleanup(newFile);
-      }
-      else {
-        fileDelete(newFile, &returnCode, &reasonCode);
-      }
+      *retCode = returnCode;
+      *resCode = reasonCode;
       return -1;
-    }
-    memset(buffer, 0, FILE_BUFFER_SIZE);
-  }
+    } 
+  } while (bytesRead != 0);
 
-  status = fileClose(fileCheckTo, &returnCode, &reasonCode);
+  status = fileClose(existingFile, &returnCode, &reasonCode);
   if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to close file %s: (return = 0x%x, reason = 0x%x)\n", newFile, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      fileClose(fileCheckFrom, &returnCode, &reasonCode);
-      tmpFileCleanup(newFile);
-    }
-    else {
-      fileDelete(newFile, &returnCode, &reasonCode);
-    }
+    *retCode = returnCode;
+    *resCode = reasonCode;
     return -1;
   }
 
-  status = fileClose(fileCheckFrom, &returnCode, &reasonCode);
+  status = fileClose(newFile, &returnCode, &reasonCode);
   if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to close file %s: (return = 0x%x, reason = 0x%x)\n", existingFile, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      tmpFileCleanup(newFile);
-    }
-    else {
-      fileDelete(newFile, &returnCode, &reasonCode);
-    }
+    *retCode = returnCode;
+    *resCode = reasonCode;
     return -1;
   }
 
-  tmpFileDelete(newFile);
   return 0;
 }
 
@@ -1005,7 +769,6 @@ int symbolicFileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int
   }
   return returnValue;
 }
-
 
 int fileInfoIsDirectory(const FileInfo *info) {
   return (info->fileType == BPXSTA_FILETYPE_DIRECTORY ? TRUE: FALSE);
@@ -1315,309 +1078,185 @@ int directoryDelete(const char *pathName, int *returnCode, int *reasonCode){
   return returnValue;
 }
 
-int directoryDeleteRecursive(const char *pathName){
-#define ENTRY_BUFFER_SIZE 1000
-#define PATH_BUFFER_SIZE 1000
-
-  /* Abort mission */
-  if (!strcmp(pathName, "") || !strcmp(pathName, NULL)) {
-#ifdef DEBUG
-    printf("pathName is null or empty\n");
-#endif
-  }
-
-  FileInfo info;
-  int returnCode = 0;
-  int reasonCode = 0;
-  int status = 0;
-  int bytesRead = 0;
-
+static int getValidDirectoryEntries(int entries, char *entryBuffer, const char **entryArray) {
+  int entryOffset = 0;
+  int validEntries = 0;
+  for (int i = 0; i < entries; i++) {
+    const DirectoryEntry *de = (const DirectoryEntry *) (entryBuffer + entryOffset);
+    if (strcmp(".", de->name) && strcmp("..", de->name) && strcmp("", de->name)) {
+      entryArray[validEntries] = de->name;
+      validEntries++;
+    }
+    entryOffset += de->entryLength;
+  }  
+  return validEntries;
+}
+  
+int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode){
+  int returnCode = 0, reasonCode = 0, status = 0;
+  FileInfo info = {0};
+  
   status = fileInfo(pathName, &info, &returnCode, &reasonCode);
   if (status == -1){
+    *retCode = returnCode;
+    *resCode = reasonCode;
     return -1;
   }
 
   UnixFile *dir = directoryOpen(pathName, &returnCode, &reasonCode);
   if (dir == NULL) {
+    *retCode = returnCode;
+    *resCode = reasonCode;    
     return -1;
   }
 
-  char entryBuffer[ENTRY_BUFFER_SIZE];
-  int entries = directoryRead(dir, entryBuffer, ENTRY_BUFFER_SIZE, &returnCode, &reasonCode);
-  if (entries < 0) {
+  char entryBuffer[MAX_ENTRY_BUFFER_SIZE] = {0};
+  int entries = directoryRead(dir, entryBuffer, sizeof(entryBuffer), &returnCode, &reasonCode);
+  if (entries == -1) {
+    *retCode = returnCode;
+    *resCode = reasonCode;    
     return -1;
   }
-
-  /* directoryRead returns:
-   * "."
-   * ".."
-   * "NULL"
-   *
-   * To the entryBuffer.
-   *
-   * So, if it has three entries,
-   * we can be sure that the directory
-   * is empty.
-   */
-  if (entries == 3) {
-#ifdef DEBUG
-    printf("Deleting empty directory: %s\n", pathName);
-#endif
+  
+  const char *entryArray[MAX_NUM_ENTRIES] = {0};
+  int validEntries = getValidDirectoryEntries(entries, entryBuffer, entryArray);
+  if (validEntries <  1) {
     status = directoryDelete(pathName, &returnCode, &reasonCode);
     if (status == -1) {
-#ifdef DEBUG
-      printf("Failed to delete directory: %s\n", pathName);
-#endif
+      *retCode = returnCode;
+      *resCode = reasonCode;      
       return -1;
     }
     return 0;
   }
 
-  /* The last entry is always a null. Disregard it to prevent issues. */
-  int entryOffset = 0;
-  const char *entryArray[entries - 1];
-  for (int i = 0; i < entries - 1; i++) {
-    const DirectoryEntry *de = (const DirectoryEntry*) (entryBuffer + entryOffset);
-    entryArray[i] = de->name;
-#ifdef DEBUG
-    printf("%s in %s\n", entryArray[i], pathName);
-#endif
-    entryOffset += de->entryLength;
-  }
+  for (int i = 0; i < validEntries; i++) {
+    char pathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
+    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entryArray[i]);
 
-  /* The first two entries of directoryRead are the current directory
-   * and previous directory as stated above .*/
-  char pathBuffer[PATH_BUFFER_SIZE];
-  for (int i = 0; i < entries - 1; i++) {
-    if ((!strcmp(entryArray[i], ".")) || (!strcmp(entryArray[i], ".."))) {
-      continue;
+    status = fileInfo(pathBuffer, &info, &returnCode, &reasonCode);
+    if (status == -1){
+      *retCode = returnCode;
+      *resCode = reasonCode;
+      return -1;
     }
-    else {
-      strcpy(pathBuffer, pathName);
-      strcat(pathBuffer, "/");
-      strcat(pathBuffer, entryArray[i]);
 
-      status = fileInfo(pathBuffer, &info, &returnCode, &reasonCode);
-      if (status == -1){
+    if (fileInfoIsDirectory(&info)) {
+      status = directoryDeleteRecursive(pathBuffer, retCode, resCode);
+      if (status == -1) {
         return -1;
       }
-
-      if (fileInfoIsDirectory(&info)) {
-#ifdef DEBUG
-        printf("Deleting directory: %s\n", pathBuffer);
-#endif
-        directoryDeleteRecursive(pathBuffer);
+    }
+    else {
+      status = fileDelete(pathBuffer, &returnCode, &reasonCode);
+      if (status == -1) {
+        *retCode = returnCode;
+        *resCode = reasonCode;
+        return -1;
       }
-      else {
-#ifdef DEBUG
-        printf("Deleting file: %s\n", pathBuffer);
-#endif
-        status = fileDelete(pathBuffer, &returnCode, &reasonCode);
-        if (status == -1) {
-#ifdef DEBUG
-        printf("Failed to delete file: %s\n", pathBuffer);
-#endif
-        }
-      }
-      memset(pathBuffer, 0, PATH_BUFFER_SIZE);
     }
   }
 
-  /* Now we need to delete all the empty directories! */
-  directoryDeleteRecursive(pathName);
-
-  directoryClose(dir, &returnCode, &reasonCode);
+  directoryDeleteRecursive(pathName, retCode, resCode);
   if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to close file %s: (return = 0x%x, reason = 0x%x)\n", pathName, returnCode, reasonCode);
-#endif
     return -1;
   }
 
   return 0;
 }
 
-int directoryCopy(const char *existingPathName, const char *newPathName, int forceCopy){
-#define ENTRY_BUFFER_SIZE 1000
-#define PATH_BUFFER_SIZE 1000
-
-  FileInfo info;
-  int returnCode = 0;
-  int reasonCode = 0;
-  int status = 0;
-  int bytesRead = 0;
-  int fileExists = 0;
-  char entryBuffer[ENTRY_BUFFER_SIZE];
+int directoryCopy(const char *existingPathName, const char *newPathName, int *retCode, int *resCode) {
+  int returnCode = 0, reasonCode = 0, status = 0;
+  FileInfo info = {0};
 
   status = fileInfo(existingPathName, &info, &returnCode, &reasonCode);
-  if (status == -1){
-#ifdef DEBUG
-    printf("Directory %s most likely does not exist, please check the provided file name: (return = 0x%x, reason = 0x%x)\n", existingPathName, returnCode, reasonCode);
-#endif
+  if (status == -1) {
+    *retCode = returnCode;
+    *resCode = reasonCode;
     return -1;
   }
 
-  status = fileInfo(newPathName, &info, &returnCode, &reasonCode);
-  if (status == 0){
-    if (!forceCopy) {
-#ifdef DEBUG
-      printf("Copying has stopped because the directory already exists and the force flag is off\n");
-#endif
-      return -1;
-    }
-    fileExists = 1;
-  }
-
-  if (fileExists) {
-    status = tmpDirMake(newPathName);
-    if (status == -1) {
-      return -1;
-    }
-  }
-
-  UnixFile *dirCheckFrom = directoryOpen(existingPathName, &returnCode, &reasonCode);
-  if (dirCheckFrom == NULL) {
-#ifdef DEBUG
-    printf("Could not open directory %s: (return = 0x%x, reason = 0x%x)\n", existingPathName, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      tmpDirCleanup(newPathName);
-    }
+  UnixFile *existingDirectory = directoryOpen(existingPathName, &returnCode, &reasonCode);
+  if (existingDirectory == NULL) {
+    *retCode = returnCode;
+    *resCode = reasonCode;
     return -1;
   }
 
-  int entries = directoryRead(dirCheckFrom, entryBuffer, ENTRY_BUFFER_SIZE, &returnCode, &reasonCode);
-  if (entries < 0) {
-#ifdef DEBUG
-    printf("Could not read directory %s: (return = 0x%x, reason = 0x%x)\n", existingPathName, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      tmpDirCleanup(newPathName);
-    }
+  char entryBuffer[MAX_ENTRY_BUFFER_SIZE] = {0};
+  int entries = directoryRead(existingDirectory, entryBuffer, sizeof(entryBuffer), &returnCode, &reasonCode);
+  if (entries == -1) {
+    *retCode = returnCode;
+    *resCode = reasonCode;    
     return -1;
   }
-
+  
+  const char *entryArray[MAX_NUM_ENTRIES] = {0};
+  int validEntries = getValidDirectoryEntries(entries, entryBuffer, entryArray);
+  if (validEntries <  1) {
+    
+  }
+  
   status = directoryMake(newPathName,
-                        BPXOPN_MODE_USER_WRITE_PERMISSION | BPXOPN_MODE_USER_READ_PERMISSION | BPXOPN_MODE_USER_SEARCH_EXEC_PERMISSION,
-                        &returnCode,
-                        &reasonCode);
+                         0700,
+                         &returnCode,
+                         &reasonCode);
 
   if (status == -1) {
-#ifdef DEBUG
-    printf("Could not make directory %s: (return = 0x%x, reason = 0x%x)\n", newPathName, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      tmpDirCleanup(newPathName);
-    }
+    *retCode = returnCode;
+    *resCode = reasonCode;
     return -1;
   }
 
-  UnixFile *dirCheckTo = directoryOpen(newPathName, &returnCode, &reasonCode);
-  if (dirCheckTo == NULL) {
-#ifdef DEBUG
-    printf("Could not open directory %s: (return = 0x%x, reason = 0x%x)\n", newPathName, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      tmpDirCleanup(newPathName);
-    }
+  UnixFile *newDirectory = directoryOpen(newPathName, &returnCode, &reasonCode);
+  if (newDirectory == NULL) {
+    *retCode = returnCode;
+    *resCode = reasonCode;
     return -1;
   }
 
-  /* The last entry is always a null. Disregard it to prevent issues. */
-  int entryOffset = 0;
-  const char *entryArray[entries - 1];
-  for (int i = 0; i < entries - 1; i++) {
-    const DirectoryEntry *de = (const DirectoryEntry*) (entryBuffer + entryOffset);
-    entryArray[i] = de->name;
-#ifdef DEBUG
-    printf("%s in %s\n", entryArray[i], existingPathName);
-#endif
-    entryOffset += de->entryLength;
-  }
+  for (int i = 0; i < validEntries; i++) {
+    char existingPathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
+    snprintf(existingPathBuffer, sizeof(existingPathBuffer), "%s/%s", existingPathName, entryArray[i]);
+    
+    char newPathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
+    snprintf(newPathBuffer, sizeof(newPathBuffer), "%s/%s", newPathName, entryArray[i]);
 
-  /* The first two entries of directoryRead are the current directory and previous directory */
-  char newPathBuffer[PATH_BUFFER_SIZE];
-  char oldPathBuffer[PATH_BUFFER_SIZE];
-  for (int i = 0; i < entries - 1; i++) {
-    if ((!strcmp(entryArray[i], ".")) || (!strcmp(entryArray[i], ".."))) {
-      continue;
+    status = fileInfo(existingPathBuffer, &info, &returnCode, &reasonCode);
+    if (status == -1) {
+      *retCode = returnCode;
+      *resCode = reasonCode;
+      return -1;
     }
-    else {
-      strcpy(oldPathBuffer, existingPathName);
-      strcat(oldPathBuffer, "/");
-      strcat(oldPathBuffer, entryArray[i]);
-      strcpy(newPathBuffer, newPathName);
-      strcat(newPathBuffer, "/");
-      strcat(newPathBuffer, entryArray[i]);
-
-      status = fileInfo(oldPathBuffer, &info, &returnCode, &reasonCode);
+    
+    if (fileInfoIsDirectory(&info)) {
+      status = directoryCopy(existingPathBuffer, newPathBuffer, retCode, resCode);
       if (status == -1) {
-#ifdef DEBUG
-        printf("Directory / File %s most likely does not exist, please check the provided file name: (return = 0x%x, reason = 0x%x)\n", oldPathBuffer, returnCode, reasonCode);
-#endif
-        if (fileExists) {
-          tmpDirCleanup(newPathName);
-        }
         return -1;
       }
-
-      if (fileInfoIsDirectory(&info)) {
-#ifdef DEBUG
-        printf("Copying directory.\n");
-        printf("from: %s\n", oldPathBuffer);
-        printf("to: %s\n", newPathBuffer);
-#endif
-        status = directoryCopy(oldPathBuffer, newPathBuffer, forceCopy);
-        if (status == -1) {
-          if (fileExists) {
-            tmpDirCleanup(newPathName);
-          }
-          return -1;
-        }
+    }
+    else {
+      status = fileCopy(existingPathBuffer, newPathBuffer, retCode, resCode);
+      if (status == -1) {
+        return -1;
       }
-      else {
-#ifdef DEBUG
-        printf("Copying file.\n");
-        printf("from: %s\n", oldPathBuffer);
-        printf("to: %s\n", newPathBuffer);
-#endif
-        status = fileCopy(oldPathBuffer, newPathBuffer, forceCopy);
-        if (status == -1) {
-          if (fileExists) {
-            tmpDirCleanup(newPathName);
-          }
-          return -1;
-        }
-      }
-      memset(newPathBuffer, 0, PATH_BUFFER_SIZE);
-      memset(oldPathBuffer, 0, PATH_BUFFER_SIZE);
     }
   }
 
-  status = directoryClose(dirCheckTo, &returnCode, &reasonCode);
+  status = directoryClose(existingDirectory, &returnCode, &reasonCode);
   if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to close file %s: (return = 0x%x, reason = 0x%x)\n", newPathName, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      fileClose(dirCheckFrom, &returnCode, &reasonCode);
-      tmpFileCleanup(newPathName);
-    }
+    *retCode = returnCode;
+    *resCode = reasonCode;
     return -1;
   }
 
-  status = directoryClose(dirCheckFrom, &returnCode, &reasonCode);
+  status = directoryClose(newDirectory, &returnCode, &reasonCode);
   if (status == -1) {
-#ifdef DEBUG
-    printf("Failed to close file %s: (return = 0x%x, reason = 0x%x)\n", existingPathName, returnCode, reasonCode);
-#endif
-    if (fileExists) {
-      tmpDirCleanup(newPathName);
-    }
+    *retCode = returnCode;
+    *resCode = reasonCode;
     return -1;
   }
 
-  tmpDirDelete(newPathName);
   return 0;
 }
 
