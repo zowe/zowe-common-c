@@ -1009,6 +1009,38 @@ static int getTCBKey() {
   return key;
 }
 
+static uint64_t getCallersPSW(void) {
+
+  uint64_t psw;
+
+  __asm(
+      ASM_PREFIX
+      "         ESTA  6,7                                                      \n"
+      "         ST    6,%[psw]                                                 \n"
+      "         ST    7,4+%[psw]                                               \n"
+      : [psw]"=m"(psw)
+      : "NR:r7"(0x01) /* ESTA extraction code #1 - 8 byte PSW */
+      : "r6", "r7"
+  );
+
+  return psw;
+}
+
+static bool isCallerPrivileged(void) {
+
+#define CMS_PSW_USER_KEY_MASK       0x0080000000000000LLU
+#define CMS_PSW_PROBLEM_STATE_MASK  0x0001000000000000LLU
+
+  uint64_t psw = getCallersPSW();
+  bool isSystemKey        = (psw & CMS_PSW_USER_KEY_MASK)       ? false : true;
+  bool isSupervisorState  = (psw & CMS_PSW_PROBLEM_STATE_MASK)  ? false : true;
+
+#undef CMS_PSW_USER_KEY_MASK
+#undef CMS_PSW_PROBLEM_STATE_MASK
+
+  return isSystemKey || isSupervisorState;
+}
+
 __asm("GLBRLSTP RACROUTE REQUEST=LIST,MF=L" : "DS"(GLBRLSTP));
 
 static int racrouteLIST(char *className, int *racfRC, int *racfRSN) {
@@ -1107,7 +1139,14 @@ static bool isInternalPCSSCall(CrossMemoryServerGlobalArea *globalArea) {
   return globalArea->serverASID == getMyPASID() && globalArea->serverASID == getMySASID();
 }
 
-static bool isCallerAuthorized(CrossMemoryServerGlobalArea *globalArea) {
+static bool isCallerAuthorized(CrossMemoryServerGlobalArea *globalArea,
+                               bool noSAFRequested) {
+
+  if (noSAFRequested) {
+    if (isCallerPrivileged()) {
+      return TRUE;
+    }
+  }
 
   if (isSRBCaller()) {
     return TRUE;
@@ -1554,7 +1593,9 @@ static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
     return RC_CMS_FUNCTION_ID_OUT_OF_RANGE;
   }
 
-  if (isCallerAuthorized(globalArea) == FALSE) {
+  if (!isCallerAuthorized(globalArea,
+                          localParmList.flags & CMS_PARMLIST_FLAG_NO_SAF_CHECK))
+  {
     return RC_CMS_PERMISSION_DENIED;
   }
 
@@ -3987,7 +4028,10 @@ int cmsGetGlobalArea(const CrossMemoryServerName *serverName, CrossMemoryServerG
 #endif
 }
 
-static int callServiceInternal(CrossMemoryServerGlobalArea *globalArea, int serviceID, void *parmList, int *serviceRC) {
+static int callServiceInternal(CrossMemoryServerGlobalArea *globalArea,
+                               int serviceID, void *parmList,
+                               int flags,
+                               int *serviceRC) {
 
   if (!(globalArea->serverFlags & CROSS_MEMORY_SERVER_FLAG_READY)) {
     return RC_CMS_SERVER_NOT_READY;
@@ -4018,6 +4062,10 @@ static int callServiceInternal(CrossMemoryServerGlobalArea *globalArea, int serv
   cmsParmList.serviceID = serviceID;
   cmsParmList.serviceRC = 0;
   cmsParmList.callerData = parmList;
+
+  if (flags & CMS_CALL_FLAG_NO_SAF_CHECK) {
+    cmsParmList.flags |= CMS_PARMLIST_FLAG_NO_SAF_CHECK;
+  }
 
   int callRC = callPCRoutine(pcNumber, sequenceNumber, &cmsParmList);
   if (callRC != RC_CMS_OK) {
@@ -4051,7 +4099,8 @@ int cmsCallService(const CrossMemoryServerName *serverName, int serviceID, void 
     return RC_CMS_WRONG_SERVER_VERSION;
   }
 
-  return callServiceInternal(globalArea, serviceID, parmList, serviceRC);
+  return callServiceInternal(globalArea, serviceID, parmList,
+                             CMS_CALL_FLAG_NONE, serviceRC);
 }
 
 int cmsCallService2(CrossMemoryServerGlobalArea *cmsGlobalArea,
@@ -4065,7 +4114,23 @@ int cmsCallService2(CrossMemoryServerGlobalArea *cmsGlobalArea,
     return RC_CMS_WRONG_SERVER_VERSION;
   }
 
-  return callServiceInternal(cmsGlobalArea, serviceID, parmList, serviceRC);
+  return callServiceInternal(cmsGlobalArea, serviceID, parmList,
+                             CMS_CALL_FLAG_NONE, serviceRC);
+}
+
+int cmsCallService3(CrossMemoryServerGlobalArea *cmsGlobalArea,
+                    int serviceID, void *parmList, int flags, int *serviceRC) {
+
+  if (serviceID <= 0 || CROSS_MEMORY_SERVER_MAX_SERVICE_ID < serviceID) {
+    return RC_CMS_FUNCTION_ID_OUT_OF_RANGE;
+  }
+
+  if (cmsGlobalArea->version != CROSS_MEMORY_SERVER_VERSION) {
+    return RC_CMS_WRONG_SERVER_VERSION;
+  }
+
+  return callServiceInternal(cmsGlobalArea, serviceID, parmList, flags,
+                             serviceRC);
 }
 
 int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, ...) {
