@@ -675,12 +675,14 @@ int DeallocDDName(char *ddname);
  * and creation of dynamic DD names. */
 
 #define DATASET_NAME_LEN 44
+#define DATASET_MEMBER_NAME_LEN 8
 #define DD_NAME_LEN 8
 
 // Values for disposition field
 #define DISP_OLD 0x01
 #define DISP_MOD 0x02
 #define DISP_SHARE 0x08
+#define DISP_DELETE 0x04
 
 /* Use this structure to pass parameters to DYNALLOC functions.
  * Dsname should be padded by spaces. */

@@ -1082,17 +1082,16 @@ int dynallocAllocDataset(const DynallocDatasetName *dsn,
   return rc;
 }
 
-
-int dynallocUnallocDatasetByDDName(const DynallocDDName *ddName,
-                                   DynallocUnallocFlags flags,
-                                   int *sysRC, int *sysRSN) {
-
+static int dynallocUnallocDatasetByDDNameInternal(const DynallocDDName *ddName,
+                                                  DynallocUnallocFlags flags,
+                                                  int *sysRC, int *sysRSN,
+                                                  bool removeDataset) {
   ALLOC_STRUCT31(
     STRUCT31_NAME(below2G),
     STRUCT31_FIELDS(
       SVC99RequestBlock requestBlock;
       SVC99RequestBlock * __ptr32 requestBlockAddress;
-      TextUnit * __ptr32 textUnits[1];
+      TextUnit * __ptr32 textUnits[2];
     )
   );
 
@@ -1119,6 +1118,13 @@ int dynallocUnallocDatasetByDDName(const DynallocDDName *ddName,
     if (below2G->textUnits[0] == NULL) {
       break;
     }
+    
+    if (removeDataset) {
+      below2G->textUnits[1] = createCharTextUnit(DALNDISP, DISP_DELETE);
+      if (below2G->textUnits[1] == NULL) {
+        break;
+      }
+    }
 
     turn_on_HOB(below2G->textUnits[textUnitCount - 1]);
 
@@ -1143,6 +1149,19 @@ int dynallocUnallocDatasetByDDName(const DynallocDDName *ddName,
   );
 
   return rc;
+}
+
+int dynallocUnallocDatasetByDDName2(const DynallocDDName *ddName,
+                                    DynallocUnallocFlags flags,
+                                    int *sysRC, int *sysRSN,
+                                    bool removeDataset) {
+  return dynallocUnallocDatasetByDDNameInternal(ddName, flags, sysRC, sysRSN, removeDataset);
+}
+
+int dynallocUnallocDatasetByDDName(const DynallocDDName *ddName,
+                                   DynallocUnallocFlags flags,
+                                   int *sysRC, int *sysRSN) {
+  return dynallocUnallocDatasetByDDNameInternal(ddName, flags, sysRC, sysRSN, FALSE);
 }
 
 

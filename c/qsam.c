@@ -1065,6 +1065,36 @@ int getlineV(char *dcb, char *line, int *lengthRead){
 
 /***** BPAM STUFF ****/
 
+/* Deletes a PDS data set member. The member name MUST be allocated below the
+ * line. You can use malloc24() for this.
+ */
+int bpamDeleteMember(char * __ptr32 dcb, char * __ptr32 memberName, int *reasonCode) {
+  
+  int rc;
+  int rsn;
+
+  __asm(ASM_PREFIX
+#ifdef _LP64
+      " SAM31                 \n"
+      " SYSSTATE AMODE64=NO   \n"
+#endif
+      " STOW (%[dcb]),(%[name]),D     \n"
+#ifdef _LP64
+      " SAM64                 \n"
+      " SYSSTATE AMODE64=YES  \n"
+#else
+#ifndef METTLE
+        " NOPR  0     Avoid LE assembly errors due to the way the C compiler works \n"
+#endif
+#endif
+      :[rc]"=NR:r15"(rc), [rsn]"=NR:r0"(rsn)
+      :[dcb]"NR:r1"(&((dcbSAMwithPlist *)dcb)->dcb), [name]"NR:r0"(memberName)
+      :"r0", "r1", "r14", "r15");
+
+  *reasonCode = rsn & 0x00FF; /* The reason code is in the 2 low-order bytes. */
+  return rc;
+}
+
 int bpamFind(char * __ptr32 dcb, char * __ptr32 memberName, int *reasonCode){
 
   int rc;

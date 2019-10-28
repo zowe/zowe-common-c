@@ -354,6 +354,7 @@ void closeEXCP(char *dcb);
 
 int hasVaryingRecordLength(char *dcb);
 
+int bpamDeleteMember(char * __ptr32 dcb, char * __ptr32 memberName, int *reasonCode);
 int bpamFind(char * __ptr32 dcb, char * __ptr32 memberName, int *reasonCode);
 int bpamRead(void * __ptr32 dcb, void * __ptr32 buffer);
 int bpamRead2(void * __ptr32 dcb, void * __ptr32 buffer, int *lengthRead);
