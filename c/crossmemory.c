@@ -1028,15 +1028,12 @@ static uint64_t getCallersPSW(void) {
 
 static bool isCallerPrivileged(void) {
 
-#define CMS_PSW_USER_KEY_MASK       0x0080000000000000LLU
-#define CMS_PSW_PROBLEM_STATE_MASK  0x0001000000000000LLU
+static const uint64_t pswUserKeyMask        = 0x0080000000000000LLU;
+static const uint64_t pswProblemStateMask   = 0x0001000000000000LLU;
 
   uint64_t psw = getCallersPSW();
-  bool isSystemKey        = (psw & CMS_PSW_USER_KEY_MASK)       ? false : true;
-  bool isSupervisorState  = (psw & CMS_PSW_PROBLEM_STATE_MASK)  ? false : true;
-
-#undef CMS_PSW_USER_KEY_MASK
-#undef CMS_PSW_PROBLEM_STATE_MASK
+  bool isSystemKey        = (psw & pswUserKeyMask)      ? false : true;
+  bool isSupervisorState  = (psw & pswProblemStateMask) ? false : true;
 
   return isSystemKey || isSupervisorState;
 }
