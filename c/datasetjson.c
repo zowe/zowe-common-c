@@ -1131,7 +1131,10 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
     return;
   }
-  
+  if (isVsam(absolutePath)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "VSAM datasets not allowed for this method. Use the appropriate VSAM route");
+    return;	  
+  }
   DatasetName datasetName;
   DatasetMemberName memberName;
   extractDatasetAndMemberName(absolutePath, &datasetName, &memberName);
@@ -1255,6 +1258,100 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
  
   finishResponse(response);
   
+#endif /* __ZOWE_OS_ZOS */
+}
+
+
+bool isVsam(char* absolutePath) {
+  char vsamCSITypes[5] = {'C', 'D', 'G', 'I', 'R'};
+  
+  char *typesArg = defaultDatasetTypesAllowed;
+  int datasetTypeCount = (typesArg == NULL) ? 3 : strlen(typesArg);
+  int workAreaSizeArg = 0;
+  int fieldCount = defaultCSIFieldCount;
+  char **csiFields = defaultCSIFields;
+
+  csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
+
+  char tmpName[40] = "";
+  strcpy(tmpName, absolutePath);
+  char *token = strtok(tmpName, "'");
+  char justName[40] = "";
+  while (token != NULL)
+  {
+	strcpy(justName, token);
+	token = strtok(NULL, "'");
+  }
+  
+  EntryDataSet *entrySet = returnEntries(justName, typesArg, datasetTypeCount, 
+										 workAreaSizeArg, csiFields, fieldCount, 
+										 NULL, NULL, returnParms); 
+  EntryData *entry = entrySet->entries[0];
+  
+  bool boolVsam = false;
+  if(entry) {
+	for (int i = 0; i < sizeof(vsamCSITypes); i++) {
+		if (entry->type == vsamCSITypes[i]) {
+			boolVsam = true;
+		}
+	}
+  } else {
+	zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No entries for the dataset name found");
+  }
+  
+  return boolVsam;
+}
+
+void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
+#ifdef __ZOWE_OS_ZOS
+  HttpRequest *request = response->request;
+  
+  if (!isDatasetPathValid(absolutePath)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
+    return;
+  }
+  if (!isVsam(absolutePath)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, 
+					 "Non VSAM dataset detected. Please use regular dataset route");
+    return;
+  }
+  char tmpName[40] = "";
+  strcpy(tmpName, absolutePath);
+  char *token = strtok(tmpName, "'");
+  char justName[40] = "";
+  while (token != NULL)
+  {
+	strcpy(justName, token);
+	token = strtok(NULL, "'");
+  }
+  int rc = deleteCluster(justName);
+  printf("%d\n", rc);
+  if (rc == 0) {
+	jsonPrinter *p = respondWithJsonPrinter(response);
+    setResponseStatus(response, 200, "OK");
+    setDefaultJSONRESTHeaders(response);
+    writeHeader(response);
+    jsonStart(p);
+    jsonAddString(p, "Response", "VSAM dataset deleted");
+    jsonEnd(p);
+
+    finishResponse(response);  
+  } else {
+	jsonPrinter *p = respondWithJsonPrinter(response);
+    setResponseStatus(response, 400, "ERROR");
+    setDefaultJSONRESTHeaders(response);
+    writeHeader(response);
+    jsonStart(p);
+    jsonAddString(p, "Response", 
+				  "Error occurred with the id cams trying to delete the dataset. " + 
+				  "Maximum Condition Code of %d was returned\n", rc);
+    jsonEnd(p);
+
+    finishResponse(response);  
+	  
+  }
+
+
 #endif /* __ZOWE_OS_ZOS */
 }
 
