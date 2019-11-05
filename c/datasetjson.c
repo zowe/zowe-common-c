@@ -1133,7 +1133,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
   }
   if (isVsam(absolutePath)) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "VSAM datasets not allowed for this method. Use the appropriate VSAM route");
-    return;	  
+    return;   
   }
   DatasetName datasetName;
   DatasetMemberName memberName;
@@ -1279,24 +1279,24 @@ bool isVsam(char* absolutePath) {
   char justName[40] = "";
   while (token != NULL)
   {
-	strcpy(justName, token);
-	token = strtok(NULL, "'");
+    strcpy(justName, token);
+    token = strtok(NULL, "'");
   }
   
   EntryDataSet *entrySet = returnEntries(justName, typesArg, datasetTypeCount, 
-										 workAreaSizeArg, csiFields, fieldCount, 
-										 NULL, NULL, returnParms); 
+                                         workAreaSizeArg, csiFields, fieldCount, 
+                                         NULL, NULL, returnParms); 
   EntryData *entry = entrySet->entries[0];
   
   bool boolVsam = false;
   if(entry) {
-	for (int i = 0; i < sizeof(vsamCSITypes); i++) {
-		if (entry->type == vsamCSITypes[i]) {
-			boolVsam = true;
-		}
-	}
+    for (int i = 0; i < sizeof(vsamCSITypes); i++) {
+        if (entry->type == vsamCSITypes[i]) {
+            boolVsam = true;
+        }
+    }
   } else {
-	zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No entries for the dataset name found");
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No entries for the dataset name found");
   }
   
   return boolVsam;
@@ -1312,7 +1312,7 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
   }
   if (!isVsam(absolutePath)) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, 
-					 "Non VSAM dataset detected. Please use regular dataset route");
+                     "Non VSAM dataset detected. Please use regular dataset route");
     return;
   }
   char tmpName[40] = "";
@@ -1321,13 +1321,13 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
   char justName[40] = "";
   while (token != NULL)
   {
-	strcpy(justName, token);
-	token = strtok(NULL, "'");
+    strcpy(justName, token);
+    token = strtok(NULL, "'");
   }
   int rc = deleteCluster(justName);
   printf("%d\n", rc);
   if (rc == 0) {
-	jsonPrinter *p = respondWithJsonPrinter(response);
+    jsonPrinter *p = respondWithJsonPrinter(response);
     setResponseStatus(response, 200, "OK");
     setDefaultJSONRESTHeaders(response);
     writeHeader(response);
@@ -1337,18 +1337,18 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
 
     finishResponse(response);  
   } else {
-	jsonPrinter *p = respondWithJsonPrinter(response);
+    jsonPrinter *p = respondWithJsonPrinter(response);
     setResponseStatus(response, 400, "ERROR");
     setDefaultJSONRESTHeaders(response);
     writeHeader(response);
     jsonStart(p);
     jsonAddString(p, "Response", 
-				  "Error occurred with the id cams trying to delete the dataset. " + 
-				  "Maximum Condition Code of %d was returned\n", rc);
+                  "Error occurred with the id cams trying to delete the dataset. " + 
+                  "Maximum Condition Code of %d was returned\n", rc);
     jsonEnd(p);
 
     finishResponse(response);  
-	  
+      
   }
 
 
