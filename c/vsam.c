@@ -1117,17 +1117,6 @@ int deleteCluster(char *dsname) {
   return status;
 }
 
-//bool isVsam(char *dsname, unsigned int dsnameLength, char * volser, unsigned int volserLength, char * dscb1) {
-//	bool test = false;
-//	obtainDSCB1(dsname, dsnameLength, volser, volserLength, dscb1)
-//	int dsorgLow = dscb1[83-posOffset];
-//	if (dsorgLow & 0x08) {
-//		return true;
-//	} else {
-//		return false;
-//	}
-//}
-
 
 /*
   This program and the accompanying materials are
