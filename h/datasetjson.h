@@ -66,7 +66,7 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode);
 void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode);
 void deleteVSAMDataset(HttpResponse* response, char* absolutePath);
 void deleteDatasetOrMember(HttpResponse* response, char* absolutePath);
-bool isVsam(char* absolutePath);
+char getVsamType(char* absolutePath);
 #endif
 
 

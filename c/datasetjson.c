@@ -1131,7 +1131,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
     return;
   }
-  if (isVsam(absolutePath)) {
+  if (getVsamType(absolutePath) != '') {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "VSAM datasets not allowed for this method. Use the appropriate VSAM route");
     return;   
   }
@@ -1217,17 +1217,20 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
     /* Free member name and dcb as they are no longer needed */
     free24(belowMemberName, DATASET_MEMBER_NAME_LEN);
     closeSAM(dcb, 0);
+	
+	daReturnCode = dynallocUnallocDatasetByDDName(&daDDName, DYNALLOC_UNALLOC_FLAG_NONE,
+                                                  &daSysReturnCode, &daSysReasonCode); 
     
     if (stowReturnCode != 0) {
+	  char responseMessage[128];
+	  snprintf(responseMessage, sizeof(responseMessage), "Member %8.8s could not be deleted\n", daMemberName.name);
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
               "error: stowReturnCode=%d, stowReasonCode=%d\n",
               stowReturnCode, stowReasonCode);
-      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Member could not be deleted");
+      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, responseMessage);
       return;
     }
-    
-    daReturnCode = dynallocUnallocDatasetByDDName(&daDDName, DYNALLOC_UNALLOC_FLAG_NONE,
-                                                  &daSysReturnCode, &daSysReasonCode); 
+
     if (daReturnCode != RC_DYNALLOC_OK) {
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
               "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
@@ -1248,11 +1251,17 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
   writeHeader(response);
 
   jsonStart(p);
+  char responseMessage[128];
   if (isMemberEmpty) {
-    jsonAddString(p, "msg", "Data set was deleted successfully");
+	char* dsName;
+    dsName = absolutePath+3;
+    dsName[strlen(dsName) - 1] = '\0';
+	snprintf(responseMessage, sizeof(responseMessage), "Data set %s was deleted successfully", dsName);
+    jsonAddString(p, "msg", responseMessage);
   }
   else {
-    jsonAddString(p, "msg", "Data set member was deleted successfully");
+	snprintf(responseMessage, sizeof(responseMessage), "Data set member %8.8s was deleted successfully", daMemberName.name);
+    jsonAddString(p, "msg", responseMessage);
   }
   jsonEnd(p);
  
@@ -1262,8 +1271,8 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
 }
 
 
-bool isVsam(char* absolutePath) {
-  char vsamCSITypes[5] = {'C', 'D', 'G', 'I', 'R'};
+char getVsamType(char* absolutePath) {
+  char vsamCSITypes[5] = {'R', 'D', 'G', 'I', 'C'};
   
   char *typesArg = defaultDatasetTypesAllowed;
   int datasetTypeCount = (typesArg == NULL) ? 3 : strlen(typesArg);
@@ -1272,34 +1281,33 @@ bool isVsam(char* absolutePath) {
   char **csiFields = defaultCSIFields;
 
   csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
-
-  char tmpName[40] = "";
-  strcpy(tmpName, absolutePath);
-  char *token = strtok(tmpName, "'");
-  char justName[40] = "";
-  while (token != NULL)
-  {
-    strcpy(justName, token);
-    token = strtok(NULL, "'");
-  }
   
-  EntryDataSet *entrySet = returnEntries(justName, typesArg, datasetTypeCount, 
+  DatasetName datasetName;
+  DatasetMemberName memberName;
+  extractDatasetAndMemberName(absolutePath, &datasetName, &memberName);
+  
+  EntryDataSet *entrySet = returnEntries(datasetName.value, typesArg, datasetTypeCount, 
                                          workAreaSizeArg, csiFields, fieldCount, 
                                          NULL, NULL, returnParms); 
   EntryData *entry = entrySet->entries[0];
-  
-  bool boolVsam = false;
-  if(entry) {
-    for (int i = 0; i < sizeof(vsamCSITypes); i++) {
-        if (entry->type == vsamCSITypes[i]) {
-            boolVsam = true;
-        }
-    }
+  char CSIType = '';
+ 
+  if (entrySet->length <= 1) {
+	if(entry) {
+	  int index = indexOf(vsamCSITypes, strlen(vsamCSITypes), entry->type, 0);
+	  if (index != -1) {
+		CSIType = vsamCSITypes[index];
+	  } else {
+		zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No VSAM CSI type matched");
+	  }
+	} else {
+		zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No entries for the dataset name found");
+	}
   } else {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No entries for the dataset name found");
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "More than one entry found for dataset name");
   }
   
-  return boolVsam;
+  return CSIType;
 }
 
 void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
@@ -1310,41 +1318,37 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
     return;
   }
-  if (!isVsam(absolutePath)) {
+  if (getVsamType(absolutePath) == '') {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, 
                      "Non VSAM dataset detected. Please use regular dataset route");
     return;
   }
-  char tmpName[40] = "";
-  strcpy(tmpName, absolutePath);
-  char *token = strtok(tmpName, "'");
-  char justName[40] = "";
-  while (token != NULL)
-  {
-    strcpy(justName, token);
-    token = strtok(NULL, "'");
-  }
-  int rc = deleteCluster(justName);
-  printf("%d\n", rc);
+
+  char* dsName;
+  dsName = absolutePath+3;
+  dsName[strlen(dsName) - 1] = '\0';
+
+  int rc = deleteCluster(dsName);
+  char responseMessage[128];
   if (rc == 0) {
+	snprintf(responseMessage, sizeof(responseMessage), "VSAM dataset %s was successfully deleted", dsName);
     jsonPrinter *p = respondWithJsonPrinter(response);
     setResponseStatus(response, 200, "OK");
     setDefaultJSONRESTHeaders(response);
     writeHeader(response);
     jsonStart(p);
-    jsonAddString(p, "Response", "VSAM dataset deleted");
+    jsonAddString(p, "Response", responseMessage);
     jsonEnd(p);
 
     finishResponse(response);  
   } else {
+	snprintf(responseMessage, sizeof(responseMessage), "IDCAMS error with return code: %d", rc);
     jsonPrinter *p = respondWithJsonPrinter(response);
-    setResponseStatus(response, 400, "ERROR");
+    setResponseStatus(response, 500, "Internal Server Error");
     setDefaultJSONRESTHeaders(response);
     writeHeader(response);
     jsonStart(p);
-    jsonAddString(p, "Response", 
-                  "Error occurred with the id cams trying to delete the dataset. " + 
-                  "Maximum Condition Code of %d was returned\n", rc);
+    jsonAddString(p, "Response", responseMessage);
     jsonEnd(p);
 
     finishResponse(response);  
