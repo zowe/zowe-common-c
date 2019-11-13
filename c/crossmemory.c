@@ -1136,11 +1136,15 @@ static bool isInternalPCSSCall(CrossMemoryServerGlobalArea *globalArea) {
   return globalArea->serverASID == getMyPASID() && globalArea->serverASID == getMySASID();
 }
 
+static bool isAuthCheckRequired(const CrossMemoryServerGlobalArea *globalArea) {
+  return globalArea->serverFlags & CROSS_MEMORY_SERVER_FLAG_CHECKAUTH;
+}
+
 static bool isCallerAuthorized(CrossMemoryServerGlobalArea *globalArea,
                                bool noSAFRequested) {
 
   if (noSAFRequested) {
-    if (isCallerPrivileged()) {
+    if (isCallerPrivileged() && !isAuthCheckRequired(globalArea)) {
       return TRUE;
     }
   }
@@ -1938,6 +1942,9 @@ CrossMemoryServer *makeCrossMemoryServer2(
   }
   if (flags & CMS_SERVER_FLAG_COLD_START) {
     server->flags |= CROSS_MEMORY_SERVER_FLAG_COLD_START;
+  }
+  if (flags & CMS_SERVER_FLAG_CHECKAUTH) {
+    server->flags |= CROSS_MEMORY_SERVER_FLAG_CHECKAUTH;
   }
 
   int allocResourcesRC = allocServerResources(server);
