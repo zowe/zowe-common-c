@@ -1126,7 +1126,6 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
 void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
 #ifdef __ZOWE_OS_ZOS
   HttpRequest *request = response->request;
-  
   if (!isDatasetPathValid(absolutePath)) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
     return;
@@ -1138,7 +1137,6 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
   DatasetName datasetName;
   DatasetMemberName memberName;
   extractDatasetAndMemberName(absolutePath, &datasetName, &memberName);
-  
   DynallocDatasetName daDatasetName;
   DynallocMemberName daMemberName;
   memcpy(daDatasetName.name, datasetName.value, sizeof(daDatasetName.name));
@@ -1281,18 +1279,28 @@ char getVsamType(char* absolutePath) {
   char **csiFields = defaultCSIFields;
 
   csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
-  
+
   DatasetName datasetName;
   DatasetMemberName memberName;
   extractDatasetAndMemberName(absolutePath, &datasetName, &memberName);
-  
-  EntryDataSet *entrySet = returnEntries(datasetName.value, typesArg, datasetTypeCount, 
+
+  char dsName[45];
+  for (int i = 0; i < sizeof(datasetName.value); i++) {
+	if (datasetName.value[i] == ' ') {
+		dsName[i] = '\0';
+		break;
+	} else {
+		dsName[i] = datasetName.value[i];
+	}
+  }
+  EntryDataSet *entrySet = returnEntries(dsName, typesArg, datasetTypeCount, 
                                          workAreaSizeArg, csiFields, fieldCount, 
-                                         NULL, NULL, returnParms); 
+                                         NULL, NULL, returnParms);
+								 
   EntryData *entry = entrySet->entries[0];
   char CSIType = '';
- 
-  if (entrySet->length <= 1) {
+
+  if (entrySet->length == 1) {
     if(entry) {
       int index = indexOf(vsamCSITypes, strlen(vsamCSITypes), entry->type, 0);
       if (index != -1) {
@@ -1300,13 +1308,15 @@ char getVsamType(char* absolutePath) {
       } else {
         zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No VSAM CSI type matched");
       }
-    } else {
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No entries for the dataset name found");
-    }
+	} else {
+		zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error getting dataset entry");
+	}
+  } else if (entrySet->length == 0) {
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No entries for the dataset name found");
   } else {
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "More than one entry found for dataset name");
   }
-  
+
   return CSIType;
 }
 
