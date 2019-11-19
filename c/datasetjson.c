@@ -1337,7 +1337,8 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
   char* dsName;
   dsName = absolutePath+3;
   dsName[strlen(dsName) - 1] = '\0';
-
+  printf("%s\n", absolutePath);
+  printf("%s\n", dsName);
   int rc = deleteCluster(dsName);
   char responseMessage[128];
   if (rc == 0) {
