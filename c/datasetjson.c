@@ -1661,57 +1661,20 @@ void respondWithDatasetMetadata(HttpResponse *response) {
 
   char *username = response->request->username;
   int dsnLen = strlen(datasetOrMember);
-  int lParenIndex = indexOf(datasetOrMember, dsnLen, '(', 0);
-  char pdsDSN[45];
-  char pdsMember[100];
-  int memberNameLength = 0;
-  if (lParenIndex > 0){
-    int rParenIndex = lastIndexOf(datasetOrMember, dsnLen, ')');
-    int encodedMemberNameLength = rParenIndex-lParenIndex;
-    if(lParenIndex > 45){
-      respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Dataset name must be no longer than 44 characters");
-      return;
-    }
-    if (encodedMemberNameLength == 1) {
-      respondWithError(response,HTTP_STATUS_BAD_REQUEST,"No member name given within parenthesis");
-      return;
-    }
-    else if (encodedMemberNameLength > 100) {
-      respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Member name too long");
-      return;
-    }
-    else if (rParenIndex == dsnLen-1){/*paren must end the member listing*/
-      memcpy(pdsDSN,datasetOrMember,lParenIndex);
-      pdsDSN[lParenIndex] = '\0';
-      if (decodePercentByte(&datasetOrMember[lParenIndex+1],encodedMemberNameLength-1,pdsMember,&memberNameLength)) {
-        respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Malformed member name");
-        return;
-      }
-      int asteriskPos = indexOf(pdsMember,memberNameLength,'*',0);
-      if (asteriskPos == -1 && memberNameLength < 8) {
-        for (memberNameLength; memberNameLength < 8; memberNameLength++) {
-          pdsMember[memberNameLength] = ' ';
-        }
-      }
-    }
-    else{
-      respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Malformed dataset name");
-      return;
-      /*error*/
-    }
-  }
-  char *dsn;
-  if (lParenIndex > 0){
-    dsn = pdsDSN;
-    dsnLen = lParenIndex+1;
-  }
-  else if(dsnLen > 44){
-    respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Dataset name must be no longer than 44 characters");
+  int snRet;
+  char absDsnPath[dsnLen + 5]; //+5 because of two leading //, a pair of '', and null terminator
+  snRet = snprintf(absDsnPath, dsnLen + 5, "//'%s'", datasetOrMember);
+  if(!isDatasetPathValid(absDsnPath)){
+    respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Invalid dataset path");
     return;
   }
-  else {
-    dsn = datasetOrMember;
-  }
+  int lParenIndex = indexOf(datasetOrMember, dsnLen, '(', 0);
+  int memberNameLength = 0;
+  DatasetName dsnName;
+  DatasetMemberName memName;
+  extractDatasetAndMemberName(absDsnPath, &dsnName, &memName);
+  memberNameLength = strlen(memName.value);
+  dsnLen = strlen(dsnName.value);
   HttpRequestParam *detailParam = getCheckedParam(request,"detail");
   char *detailArg = (detailParam ? detailParam->stringValue : NULL);
 
@@ -1766,7 +1729,7 @@ void respondWithDatasetMetadata(HttpResponse *response) {
   char **csiFields = defaultCSIFields;
 
   csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
-  EntryDataSet *entrySet = returnEntries(dsn, typesArg,datasetTypeCount, workAreaSizeArg, csiFields, fieldCount, resumeNameArg, resumeCatalogNameArg, returnParms); 
+  EntryDataSet *entrySet = returnEntries(dsnName.value, typesArg,datasetTypeCount, workAreaSizeArg, csiFields, fieldCount, resumeNameArg, resumeCatalogNameArg, returnParms); 
   char *resumeName = returnParms->resume_name;
   char *catalogName = returnParms->catalog_name;
   int isResume = (returnParms->is_resume == 'Y');
@@ -1838,7 +1801,7 @@ void respondWithDatasetMetadata(HttpResponse *response) {
           if (!isMigrated || !strcmp(migratedArg, "true")){
             addMemberedDatasetMetadata(datasetName, datasetNameLength,
                                        volser, volserLength,
-                                       pdsMember, memberNameLength,
+                                       memName.value, memberNameLength,
                                        jPrinter, includeUnprintable);
           }
         }
