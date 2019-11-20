@@ -1668,6 +1668,10 @@ void respondWithDatasetMetadata(HttpResponse *response) {
   if (lParenIndex > 0){
     int rParenIndex = lastIndexOf(datasetOrMember, dsnLen, ')');
     int encodedMemberNameLength = rParenIndex-lParenIndex;
+    if(lParenIndex > 45){
+      respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Dataset name must be no longer than 44 characters");
+      return;
+    }
     if (encodedMemberNameLength == 1) {
       respondWithError(response,HTTP_STATUS_BAD_REQUEST,"No member name given within parenthesis");
       return;
@@ -1701,7 +1705,11 @@ void respondWithDatasetMetadata(HttpResponse *response) {
     dsn = pdsDSN;
     dsnLen = lParenIndex+1;
   }
-  else{
+  else if(dsnLen > 44){
+    respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Dataset name must be no longer than 44 characters");
+    return;
+  }
+  else {
     dsn = datasetOrMember;
   }
   HttpRequestParam *detailParam = getCheckedParam(request,"detail");
