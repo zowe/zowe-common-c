@@ -461,6 +461,8 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         BZ    RCVFRL5             NO, REMOVE AND LEAVE                 \n"
       "         LLGT  4,SDWAXPAD          LOAD EXTENSION POINTERS ADDRESS      \n"
       "         USING SDWAPTRS,4                                               \n"
+      "         LLGT  5,SDWASRVP          LOAD RECORDABLE EXTENSION            \n"
+      "         USING SDWARC1,5                                                \n"
       "         LLGT  4,SDWAXEME          LOAD 64-BIT EXTENSION                \n"
       "         LTR   4,4                 IS IT THERE?                         \n"
       "         BZ    RCVRET              NO, LEAVE                            \n"
@@ -470,6 +472,7 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         SRL   2,16                MOVE KEY TO BIT 24-27                \n"
       "         SPKA  0(2)                GO TO ORIGINAL KEY (PKM APPROVED)    \n"
       "         MVC   SDWAG64,RSTRGPR     MOVE OUR REGISTERS                   \n"
+      "         MVC   SDWALSLV,RSTLSTKN   MOVE LINKAGE STACK TOKEN             \n"
       "         LLGT  7,RSTRTRAD          LOAD RETRY ADDRESS                   \n"
       "         LGR   1,9                 RESTORE SDWA IN R1                   \n"
       "         TM    RSTFLG1,R@F1LREC    RECORD SDWA TO LOGREC?               \n"
@@ -662,7 +665,8 @@ void recoveryDESCTs(){
       "R@STENBL EQU   X'01'                                                    \n"
       "R@STABND EQU   X'02'                                                    \n"
       "R@STIREC EQU   X'04'                                                    \n"
-      "RSTRESRV DS    7X                                                       \n"
+      "RSTLSTKN DS    2X                                                       \n"
+      "RSTRESRV DS    5X                                                       \n"
       "RSTSDRC  DS    F                                                        \n"
       "RSTRGPR  DS    16D                                                      \n"
       "RSTCGPR  DS    16D                                                      \n"
@@ -1245,6 +1249,35 @@ static void removeRecoveryStateEntry(RecoveryContext *context) {
 
 #ifdef __ZOWE_OS_ZOS
 
+static int16_t getLinkageStackToken(void) {
+
+  int32_t rc = 0;
+  int16_t token = 0;
+
+  __asm(
+      ASM_PREFIX
+#ifdef _LP64
+      "         SAM31                                                          \n"
+      "         SYSSTATE AMODE64=NO                                            \n"
+#endif
+      "         IEALSQRY                                                       \n"
+#ifdef _LP64
+      "         SAM64                                                          \n"
+      "         SYSSTATE AMODE64=YES                                           \n"
+#endif
+
+      : "=NR:r0"(token), "=NR:r15"(rc)
+      :
+      : "r0", "r1", "r14", "r15"
+  );
+
+  if (rc != 0) {
+    return -1;
+  }
+
+  return token;
+}
+
 int recoveryPush(char *name, int flags, char *dumpTitle,
                  AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
                  CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
@@ -1254,10 +1287,17 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
     return RC_RCV_CONTEXT_NOT_FOUND;
   }
 
+  int16_t linkageStackToken = getLinkageStackToken();
+  if (linkageStackToken == -1) {
+    return RC_RCV_LNKSTACK_ERROR;
+  }
+
   RecoveryStateEntry *newEntry =
       addRecoveryStateEntry(context, name, flags, dumpTitle,
                             userAnalysisFunction, analysisFunctionUserData,
                             userCleanupFunction, cleanupFunctionUserData);
+
+  newEntry->linkageStackToken = linkageStackToken;
 
   __asm(
       ASM_PREFIX

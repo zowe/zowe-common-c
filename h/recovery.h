@@ -192,6 +192,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define RC_RCV_CONTEXT_NOT_FOUND  11
 #define RC_RCV_CONTEXT_NOT_SET    12
 #define RC_RCV_SIGACTION_FAILED   13
+#define RC_RCV_LNKSTACK_ERROR     14
 #define RC_RCV_ABENDED            100
 
 #ifdef __ZOWE_OS_ZOS
@@ -239,7 +240,8 @@ typedef struct RecoveryStateEntry_tag {
 #define RECOVERY_STATE_ENABLED          0x01
 #define RECOVERY_STATE_ABENDED          0x02
 #define RECOVERY_STATE_INFO_RECORDED    0x04
-  char reserved[7];
+  int16_t linkageStackToken;
+  char reserved[5];
   int sdumpxRC;
   long long retryGPRs[16];
   long long callerGRPs[16];   /* used for Metal 31/64 and LE 31 */
