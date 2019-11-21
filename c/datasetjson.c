@@ -1658,30 +1658,32 @@ void respondWithDatasetMetadata(HttpResponse *response) {
     respondWithError(response,HTTP_STATUS_BAD_REQUEST,"No dataset name given");
     return;
   }
-
   char *username = response->request->username;
   int dsnLen = strlen(datasetOrMember);
-  int snRet;
-  char absDsnPath[dsnLen + 5]; //+5 because of two leading //, a pair of '', and null terminator
-  snRet = snprintf(absDsnPath, dsnLen + 5, "//'%s'", datasetOrMember);
-  if(!isDatasetPathValid(absDsnPath)){
+  char *percentDecoded = cleanURLParamValue(response->slh, datasetOrMember);
+  char *absDsPath_temp = stringConcatenate(response->slh, "//'", percentDecoded);
+  char *absDsPath = stringConcatenate(response->slh, absDsPath_temp, "'");
+
+  if(!isDatasetPathValid(absDsPath)){
     respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Invalid dataset path");
     return;
   }
+
   int lParenIndex = indexOf(datasetOrMember, dsnLen, '(', 0);
-  int memberNameLength = 0;
   DatasetName dsnName;
   DatasetMemberName memName;
-  extractDatasetAndMemberName(absDsnPath, &dsnName, &memName);
-  memberNameLength = strlen(memName.value);
-  dsnLen = strlen(dsnName.value);
-  for(int i = 0; dsnName.value[i] != '\0' && i < dsnLen; i++){
-      if(dsnName.value[i] == ' '){
-        dsnName.value[i] = '\0';
-        break;
-      }
+  extractDatasetAndMemberName(absDsPath, &dsnName, &memName);
+  int memberNameLength = 0;
+
+  if (lParenIndex > 0){
+    nullTerminate(memName.value, sizeof(memName.value) - 1);
+    memberNameLength = sizeof(memName.value) - 1;
+  } else {
+    memberNameLength = 0;
+    memset(memName.value, '\0', sizeof(memName.value));
   }
-  //printf("dsnName: '%s' | len: %d \nmemName: '%s' | len: %d", dsnName.value, dsnLen, memName.value, memberNameLength);
+
+  nullTerminate(dsnName.value, sizeof(dsnName.value) - 1);
   HttpRequestParam *detailParam = getCheckedParam(request,"detail");
   char *detailArg = (detailParam ? detailParam->stringValue : NULL);
 
