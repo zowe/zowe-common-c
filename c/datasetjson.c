@@ -1675,6 +1675,13 @@ void respondWithDatasetMetadata(HttpResponse *response) {
   extractDatasetAndMemberName(absDsnPath, &dsnName, &memName);
   memberNameLength = strlen(memName.value);
   dsnLen = strlen(dsnName.value);
+  for(int i = 0; dsnName.value[i] != '\0' && i < dsnLen; i++){
+      if(dsnName.value[i] == ' '){
+        dsnName.value[i] = '\0';
+        break;
+      }
+  }
+  //printf("dsnName: '%s' | len: %d \nmemName: '%s' | len: %d", dsnName.value, dsnLen, memName.value, memberNameLength);
   HttpRequestParam *detailParam = getCheckedParam(request,"detail");
   char *detailArg = (detailParam ? detailParam->stringValue : NULL);
 
