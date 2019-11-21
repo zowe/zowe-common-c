@@ -69,14 +69,14 @@ bool isDir(char *absolutePath) {
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
-    return -1;
+    return false;
   }
 
   return (fileInfoIsDirectory(&info));
 }
 
 /* Returns a boolean value for whether or not
- * the specified file exists.
+ * the specified file/directory exists.
  */
 bool doesFileExist(char *absolutePath) {
   int returnCode = 0, reasonCode = 0, status = 0;  
@@ -84,10 +84,10 @@ bool doesFileExist(char *absolutePath) {
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
-    return FALSE;
+    return false;
   }
   
-  return TRUE;
+  return true;
 }
 
 /* Creates a new unix directory at the specified absolute
@@ -160,7 +160,7 @@ void deleteUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
     response200WithMessage(response, "Successfully deleted a directory");
   }
   else {
-    respondWithJsonError(response, "Failed to delete a directory", 500, "Internal Server Error");
+    respondWithJsonError(response, "Failed to delete a directory", 400, "Bad Request");
   }
 }
 
@@ -195,7 +195,7 @@ void deleteUnixFileAndRespond(HttpResponse *response, char *absolutePath) {
     response200WithMessage(response, "Successfully deleted a file");
   }
   else {
-    respondWithJsonError(response, "Failed to delete a file", 500, "Internal Server Error");
+    respondWithJsonError(response, "Failed to delete a file", 400, "Bad Request");
   }
 }
 
