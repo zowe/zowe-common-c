@@ -1676,8 +1676,11 @@ void respondWithDatasetMetadata(HttpResponse *response) {
   int memberNameLength = 0;
 
   if (lParenIndex > 0){
-    nullTerminate(memName.value, sizeof(memName.value) - 1);
-    memberNameLength = sizeof(memName.value) - 1;
+    for(memberNameLength; memberNameLength < 8; memberNameLength++){
+      if(memName.value[memberNameLength] == ' ' || memName.value[memberNameLength] == '\0'){
+        break;
+      }
+    }
   } else {
     memberNameLength = 0;
     memset(memName.value, '\0', sizeof(memName.value));
