@@ -284,6 +284,7 @@ typedef struct CrossMemoryServer_tag {
 #define CROSS_MEMORY_SERVER_FLAG_READY        0x00000002
 #define CROSS_MEMORY_SERVER_FLAG_TERM_STARTED 0x00000004
 #define CROSS_MEMORY_SERVER_FLAG_TERM_ENDED   0x00000008
+#define CROSS_MEMORY_SERVER_FLAG_CHECKAUTH    0x00000010
   STCBase * __ptr32 base;
   CMSStarCallback * __ptr32 startCallback;
   CMSStopCallback * __ptr32 stopCallback;
@@ -315,7 +316,10 @@ typedef struct CrossMemoryServerParmList_tag {
   CrossMemoryServerName serverName;
   int serviceID;
   int serviceRC;
-  int reserved;
+  char reserved[2];
+  uint16_t flags;
+#define CMS_PARMLIST_FLAG_NONE            0x0000
+#define CMS_PARMLIST_FLAG_NO_SAF_CHECK    0x0001
   PAD_LONG(1, void *callerData);
 } CrossMemoryServerParmList;
 
@@ -358,6 +362,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define cmsAddConfigParm CMADDPRM
 #define cmsCallService CMCMSRCS
 #define cmsCallService2 CMCALLS2
+#define cmsCallService3 CMCALLS3
 #define cmsPrintf CMCMSPRF
 #define cmsGetConfigParm CMGETPRM
 #define cmsGetPCLogLevel CMGETLOG
@@ -373,6 +378,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define CMS_SERVER_FLAG_NONE                  0x00000000
 #define CMS_SERVER_FLAG_COLD_START            0x00000001
 #define CMS_SERVER_FLAG_DEBUG                 0x00000002
+#define CMS_SERVER_FLAG_CHECKAUTH             0x00000004
 
 #define CMS_SERVICE_FLAG_NONE                 0x00000000
 #define CMS_SERVICE_FLAG_SPACE_SWITCH         0x00000001
@@ -409,10 +415,16 @@ void cmsAllocateECSAStorage2(CrossMemoryServerGlobalArea *globalArea,
 void cmsFreeECSAStorage2(CrossMemoryServerGlobalArea *globalArea,
                          void **dataPtr, unsigned int size);
 
+/* client side definitions */
+#define CMS_CALL_FLAG_NONE                0x00000000
+#define CMS_CALL_FLAG_NO_SAF_CHECK        0x00000001
+
 /* client side functions */
 int cmsCallService(const CrossMemoryServerName *serverName, int functionID, void *parmList, int *serviceRC);
 int cmsCallService2(CrossMemoryServerGlobalArea *cmsGlobalArea,
                     int serviceID, void *parmList, int *serviceRC);
+int cmsCallService3(CrossMemoryServerGlobalArea *cmsGlobalArea,
+                    int serviceID, void *parmList, int flags, int *serviceRC);
 int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, ...);
 int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,
                      CrossMemoryServerConfigParm *parm);
