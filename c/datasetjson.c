@@ -1185,6 +1185,52 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
     }  
   }
   else {
+    char *typesArg = defaultDatasetTypesAllowed;
+	  int datasetTypeCount = (typesArg == NULL) ? 3 : strlen(typesArg);
+	  int workAreaSizeArg = 0;
+	  int fieldCount = defaultCSIFieldCount;
+	  char **csiFields = defaultCSIFields;
+
+	  csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
+
+	  char dsName[45];
+	  for (int i = 0; i < sizeof(datasetName.value); i++) {
+		  if (datasetName.value[i] == ' ') {
+			  dsName[i] = '\0';
+			  break;
+		  } else {
+			  dsName[i] = datasetName.value[i];
+	    }
+	  }
+	  EntryDataSet *entrySet = returnEntries(dsName, typesArg, datasetTypeCount, 
+		                    								   workAreaSizeArg, csiFields, fieldCount, 
+										                       NULL, NULL, returnParms);
+								 
+	  EntryData *entry = entrySet->entries[0];
+  
+	  bool foundMember = false;
+	  StringList *memberList = getPDSMembers(dsName);
+	  int memberCount = stringListLength(memberList);
+	  if (memberCount > 0){
+		  StringListElt *stringElement = firstStringListElt(memberList);
+		  for (int i = 0; i < memberCount; i++){
+			  char *memName = stringElement->string;
+			  char dest[8];
+			  strncpy(dest, daMemberName.name, 8);
+			  if (strcmp(memName, dest) == 0) {
+				  foundMember = true;
+				  break;
+			  }
+			  stringElement = stringElement->next;
+		  }
+	  }
+	  SLHFree(memberList->slh);
+  
+	  if (!foundMember) {
+	    respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Data set member does not exist");
+      return;
+	  }
+
     char *dcb = openSAM(daDDName.name,      /* The data set must be opened by supplying a dd name */
                         OPEN_CLOSE_OUTPUT,  /* To delete a pds data set member, this option must be set */
                         FALSE,              /* Indicates that this data set is not QSAM */
