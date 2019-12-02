@@ -75,8 +75,7 @@ typedef struct Volser_tag {
 } Volser;
 
 static int getVolserForDataset(const DatasetName *dataset, Volser *volser);
-bool memberExists(char* dsName, DynallocMemberName daMemberName);
-void nullTermDSName(char* dsName, DatasetName datasetName);
+static bool memberExists(char* dsName, DynallocMemberName daMemberName);
 
 int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter *jPrinter){
 #ifdef __ZOWE_OS_ZOS
@@ -1187,14 +1186,13 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
     }  
   }
   else {
-  char dsName[DATASET_MEMBER_NAME_LEN];
-
-  nullTermDSName(dsName, datasetName);
+    char dsNameNullTerm[DATASET_NAME_LEN + 1] = {0};
+    memcpy(dsNameNullTerm, datasetName.value, sizeof(datasetName.value));
   
-  if (!memberExists(dsName, daMemberName)) {
-    respondWithError(response, HTTP_STATUS_NOT_FOUND, "Data set member does not exist");
-      return;
-  }
+    if (!memberExists(dsNameNullTerm, daMemberName)) {
+      respondWithError(response, HTTP_STATUS_NOT_FOUND, "Data set member does not exist");
+        return;
+    }
 
     char *dcb = openSAM(daDDName.name,      /* The data set must be opened by supplying a dd name */
                         OPEN_CLOSE_OUTPUT,  /* To delete a pds data set member, this option must be set */
@@ -1300,16 +1298,6 @@ bool memberExists(char* dsName, DynallocMemberName daMemberName) {
   return false;
 }
 
-void nullTermDSName(char *dsName, DatasetName datasetName) {
-  for (int i = 0; i < sizeof(datasetName.value); i++) {
-    if (datasetName.value[i] == ' ') {
-      dsName[i] = '\0';
-      break;
-    } else {
-      dsName[i] = datasetName.value[i];
-    }
-  }
-}
 
 char getVsamType(char* absolutePath) {
   char vsamCSITypes[5] = {'R', 'D', 'G', 'I', 'C'};
@@ -1326,10 +1314,10 @@ char getVsamType(char* absolutePath) {
   DatasetMemberName memberName;
   extractDatasetAndMemberName(absolutePath, &datasetName, &memberName);
 
-  char dsName[DATASET_MEMBER_NAME_LEN];
-  nullTermDSName(dsName, datasetName);
+  char dsNameNullTerm[DATASET_NAME_LEN + 1] = {0};
+  memcpy(dsNameNullTerm, datasetName.value, sizeof(datasetName.value));
 
-  EntryDataSet *entrySet = returnEntries(dsName, typesArg, datasetTypeCount, 
+  EntryDataSet *entrySet = returnEntries(dsNameNullTerm, typesArg, datasetTypeCount, 
                                          workAreaSizeArg, csiFields, fieldCount, 
                                          NULL, NULL, returnParms);
                  
@@ -1374,9 +1362,9 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
   dsName = absolutePath+3;
   dsName[strlen(dsName) - 1] = '\0';
   for (int i = 0; i < strlen(dsName); i++) {
-  if (isalpha(dsName[i])) {
-    dsName[i] = toupper(dsName[i]);
-  }
+    if (isalpha(dsName[i])) {
+      dsName[i] = toupper(dsName[i]);
+    }
   }
     
   int rc = deleteCluster(dsName);
