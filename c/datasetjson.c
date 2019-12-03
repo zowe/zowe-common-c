@@ -680,6 +680,12 @@ static void respondWithDYNALLOCError(HttpResponse *response,
                         "(%s)", dsn->name, member->name, site);
       return;
     }
+    if (sysRSN == 0x035C0003) {
+      respondWithMessage(response, HTTP_STATUS_NOT_FOUND,
+                        "Invalid member name \'%44.44s(%8.8s)\' "
+                        "(%s)", dsn->name, member->name, site);
+      return;
+    }
   }
 
   respondWithMessage(response, HTTP_STATUS_INTERNAL_SERVER_ERROR,
