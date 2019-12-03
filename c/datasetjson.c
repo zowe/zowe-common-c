@@ -674,7 +674,12 @@ static void respondWithDYNALLOCError(HttpResponse *response,
                         "(%s)", dsn->name, member->name, site);
       return;
     }
-
+    if (sysRSN == 0x17080002) {
+      respondWithMessage(response, HTTP_STATUS_NOT_FOUND,
+                        "Dataset or member does not exist \'%44.44s(%8.8s)\' "
+                        "(%s)", dsn->name, member->name, site);
+      return;
+    }
   }
 
   respondWithMessage(response, HTTP_STATUS_INTERNAL_SERVER_ERROR,
