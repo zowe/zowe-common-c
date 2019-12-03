@@ -241,7 +241,8 @@ typedef struct RecoveryStateEntry_tag {
 #define RECOVERY_STATE_ABENDED          0x02
 #define RECOVERY_STATE_INFO_RECORDED    0x04
   int16_t linkageStackToken;
-  char reserved[5];
+  int8_t key;
+  char reserved[4];
   int sdumpxRC;
   long long retryGPRs[16];
   long long callerGRPs[16];   /* used for Metal 31/64 and LE 31 */
