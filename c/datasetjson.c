@@ -1289,6 +1289,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
 }
 
 bool memberExists(char* dsName, DynallocMemberName daMemberName) {
+  bool found = false;
   StringList *memberList = getPDSMembers(dsName);
   int memberCount = stringListLength(memberList);
   if (memberCount > 0){
@@ -1299,14 +1300,13 @@ bool memberExists(char* dsName, DynallocMemberName daMemberName) {
       strncpy(dest, daMemberName.name, 8);
       dest[8] = '\0';
       if (strcmp(memName, dest) == 0) {
-        SLHFree(memberList->slh);
-        return true;
+        found = true;
       }
       stringElement = stringElement->next;
     }
   }
   SLHFree(memberList->slh);
-  return false;
+  return found;
 }
 
 
