@@ -75,7 +75,6 @@ typedef struct Volser_tag {
 } Volser;
 
 static int getVolserForDataset(const DatasetName *dataset, Volser *volser);
-static bool memberExists(char* dsName, DynallocMemberName daMemberName);
 
 int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter *jPrinter){
 #ifdef __ZOWE_OS_ZOS
@@ -680,12 +679,6 @@ static void respondWithDYNALLOCError(HttpResponse *response,
                         "(%s)", dsn->name, member->name, site);
       return;
     }
-    if (sysRSN == 0x035C0003) {
-      respondWithMessage(response, HTTP_STATUS_NOT_FOUND,
-                        "Invalid member name \'%44.44s(%8.8s)\' "
-                        "(%s)", dsn->name, member->name, site);
-      return;
-    }
   }
 
   respondWithMessage(response, HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -1158,7 +1151,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
   int daReturnCode = RC_DYNALLOC_OK, daSysReturnCode = 0, daSysReasonCode = 0;
   daReturnCode = dynallocAllocDataset(
               &daDatasetName,
-              IS_DAMEMBER_EMPTY(daMemberName) ? NULL : &daMemberName,
+              NULL,
               &daDDName,
               DYNALLOC_DISP_OLD,
               DYNALLOC_ALLOC_FLAG_NO_CONVERSION | DYNALLOC_ALLOC_FLAG_NO_MOUNT,
@@ -1199,11 +1192,6 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
   else {
     char dsNameNullTerm[DATASET_NAME_LEN + 1] = {0};
     memcpy(dsNameNullTerm, datasetName.value, sizeof(datasetName.value));
-  
-    if (!memberExists(dsNameNullTerm, daMemberName)) {
-      respondWithError(response, HTTP_STATUS_NOT_FOUND, "Data set member does not exist");
-        return;
-    }
 
     char *dcb = openSAM(daDDName.name,      /* The data set must be opened by supplying a dd name */
                         OPEN_CLOSE_OUTPUT,  /* To delete a pds data set member, this option must be set */
@@ -1216,7 +1204,17 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
       respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Data set could not be opened");
       return;
     }
-    
+
+    int reasonC = 0;
+
+    if (bpamFind(dcb, daMemberName.name, &reasonC) != 0) {
+      respondWithError(response, HTTP_STATUS_NOT_FOUND, "Data set member does not exist");
+      closeSAM(dcb, 0);
+      daReturnCode = dynallocUnallocDatasetByDDName(&daDDName, DYNALLOC_UNALLOC_FLAG_NONE,
+                                                    &daSysReturnCode, &daSysReasonCode);
+      return;
+    }
+
     char *belowMemberName = NULL;
     belowMemberName = malloc24(DATASET_MEMBER_NAME_LEN); /* This must be allocated below the line */
     
@@ -1287,28 +1285,6 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
   
 #endif /* __ZOWE_OS_ZOS */
 }
-
-bool memberExists(char* dsName, DynallocMemberName daMemberName) {
-  bool found = false;
-  StringList *memberList = getPDSMembers(dsName);
-  int memberCount = stringListLength(memberList);
-  if (memberCount > 0){
-    StringListElt *stringElement = firstStringListElt(memberList);
-    for (int i = 0; i < memberCount; i++){
-      char *memName = stringElement->string;
-      char dest[9];
-      strncpy(dest, daMemberName.name, 8);
-      dest[8] = '\0';
-      if (strcmp(memName, dest) == 0) {
-        found = true;
-      }
-      stringElement = stringElement->next;
-    }
-  }
-  SLHFree(memberList->slh);
-  return found;
-}
-
 
 char getVsamType(char* absolutePath) {
   char vsamCSITypes[5] = {'R', 'D', 'G', 'I', 'C'};
