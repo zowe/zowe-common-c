@@ -1136,7 +1136,12 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
     return;
   }
-  if (getVsamType(absolutePath) != '') {
+  char vsamType = getVsamType(absolutePath);
+  if (vsamType != '') {
+    if (vsamType == '0') {
+      respondWithError(response, HTTP_STATUS_NOT_FOUND, "No dataset found");
+      return;
+    }
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "VSAM datasets not allowed for this method. Use the appropriate VSAM route");
     return;   
   }
@@ -1346,10 +1351,11 @@ char getVsamType(char* absolutePath) {
       } else {
         zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No VSAM CSI type matched");
       }
-  } else {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error getting dataset entry");
-  }
+    } else {
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error getting dataset entry");
+    }
   } else if (entrySet->length == 0) {
+    CSIType = '0';
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No entries for the dataset name found");
   } else {
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "More than one entry found for dataset name");
@@ -1366,9 +1372,14 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
     return;
   }
-  if (getVsamType(absolutePath) == '') {
+  char vsamType = getVsamType(absolutePath);
+  if (vsamType == '') {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, 
                      "Non VSAM dataset detected. Please use regular dataset route");
+    return;
+  }
+  if (vsamType == '0') {
+    respondWithError(response, HTTP_STATUS_NOT_FOUND, "No dataset found");
     return;
   }
 
@@ -1383,6 +1394,7 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
     
   int rc = deleteCluster(dsName);
   char responseMessage[128];
+
   if (rc == 0) {
     snprintf(responseMessage, sizeof(responseMessage), "VSAM dataset %s was successfully deleted", dsName);
     jsonPrinter *p = respondWithJsonPrinter(response);
