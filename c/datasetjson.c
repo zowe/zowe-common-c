@@ -54,6 +54,7 @@ static char *defaultCSIFields[] ={ "NAME    ", "TYPE    ", "VOLSER  "};
 static int defaultCSIFieldCount = 3;
 static char *defaultVSAMCSIFields[] ={"AMDCIREC", "AMDKEY  ", "ASSOC   ", "VSAMTYPE"};
 static int defaultVSAMCSIFieldCount = 4;
+static char vsamCSITypes[5] = {'R', 'D', 'G', 'I', 'C'};
 
 static char getRecordLengthType(char *dscb);
 static int getMaxRecordLength(char *dscb);
@@ -75,6 +76,7 @@ typedef struct Volser_tag {
 } Volser;
 
 static int getVolserForDataset(const DatasetName *dataset, Volser *volser);
+static bool memberExists(char* dsName, DynallocMemberName daMemberName);
 
 int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter *jPrinter){
 #ifdef __ZOWE_OS_ZOS
@@ -1130,10 +1132,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
     return;
   }
-  if (getVsamType(absolutePath) != '') {
-    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "VSAM datasets not allowed for this method. Use the appropriate VSAM route");
-    return;   
-  }
+  
   DatasetName datasetName;
   DatasetMemberName memberName;
   extractDatasetAndMemberName(absolutePath, &datasetName, &memberName);
@@ -1142,11 +1141,24 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
   memcpy(daDatasetName.name, datasetName.value, sizeof(daDatasetName.name));
   memcpy(daMemberName.name, memberName.value, sizeof(daMemberName.name));
   DynallocDDName daDDName = {.name = "????????"};
-  
+
+  char CSIType = getCSIType(absolutePath);
+  if (CSIType == '') {
+    respondWithMessage(response, HTTP_STATUS_NOT_FOUND,
+                      "Dataset or member does not exist \'%44.44s(%8.8s)\' "
+                      "(%s)", daDatasetName.name, daMemberName.name, "r");
+    return;
+  }
+  if (isVsam(CSIType)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST,
+                     "VSAM dataset detected. Please use regular dataset route");
+    return;
+  }
+
   int daReturnCode = RC_DYNALLOC_OK, daSysReturnCode = 0, daSysReasonCode = 0;
   daReturnCode = dynallocAllocDataset(
               &daDatasetName,
-              IS_DAMEMBER_EMPTY(daMemberName) ? NULL : &daMemberName,
+              NULL,
               &daDDName,
               DYNALLOC_DISP_OLD,
               DYNALLOC_ALLOC_FLAG_NO_CONVERSION | DYNALLOC_ALLOC_FLAG_NO_MOUNT,
@@ -1185,6 +1197,9 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
     }  
   }
   else {
+    char dsNameNullTerm[DATASET_NAME_LEN + 1] = {0};
+    memcpy(dsNameNullTerm, datasetName.value, sizeof(datasetName.value));
+    
     char *dcb = openSAM(daDDName.name,      /* The data set must be opened by supplying a dd name */
                         OPEN_CLOSE_OUTPUT,  /* To delete a pds data set member, this option must be set */
                         FALSE,              /* Indicates that this data set is not QSAM */
@@ -1197,6 +1212,14 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
       return;
     }
     
+    if (!memberExists(dsNameNullTerm, daMemberName)) {
+      respondWithError(response, HTTP_STATUS_NOT_FOUND, "Data set member does not exist");
+      closeSAM(dcb, 0);
+      daReturnCode = dynallocUnallocDatasetByDDName(&daDDName, DYNALLOC_UNALLOC_FLAG_NONE,
+                                                    &daSysReturnCode, &daSysReasonCode); 
+      return;
+    }
+
     char *belowMemberName = NULL;
     belowMemberName = malloc24(DATASET_MEMBER_NAME_LEN); /* This must be allocated below the line */
     
@@ -1268,10 +1291,37 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
 #endif /* __ZOWE_OS_ZOS */
 }
 
+bool memberExists(char* dsName, DynallocMemberName daMemberName) {
+  bool found = false;
+  StringList *memberList = getPDSMembers(dsName);
+  int memberCount = stringListLength(memberList);
+  if (memberCount > 0){
+    StringListElt *stringElement = firstStringListElt(memberList);
+    for (int i = 0; i < memberCount; i++){
+      char *memName = stringElement->string;
+      char dest[9];
+      strncpy(dest, daMemberName.name, 8);
+      dest[8] = '\0';
+      if (strcmp(memName, dest) == 0) {
+        found = true;
+      }
+      stringElement = stringElement->next;
+    }
+  }
+  SLHFree(memberList->slh);
+  return found;
+}
 
-char getVsamType(char* absolutePath) {
-  char vsamCSITypes[5] = {'R', 'D', 'G', 'I', 'C'};
-  
+bool isVsam(char CSIType) {
+  int index = indexOf(vsamCSITypes, strlen(vsamCSITypes), CSIType, 0);
+  if (index == -1) {
+    return false;
+  } else {
+    return true;
+  }
+}
+
+char getCSIType(char* absolutePath) {
   char *typesArg = defaultDatasetTypesAllowed;
   int datasetTypeCount = (typesArg == NULL) ? 3 : strlen(typesArg);
   int workAreaSizeArg = 0;
@@ -1284,40 +1334,26 @@ char getVsamType(char* absolutePath) {
   DatasetMemberName memberName;
   extractDatasetAndMemberName(absolutePath, &datasetName, &memberName);
 
-  char dsName[45];
-  for (int i = 0; i < sizeof(datasetName.value); i++) {
-	if (datasetName.value[i] == ' ') {
-		dsName[i] = '\0';
-		break;
-	} else {
-		dsName[i] = datasetName.value[i];
-	}
-  }
-  EntryDataSet *entrySet = returnEntries(dsName, typesArg, datasetTypeCount, 
+  char dsNameNullTerm[DATASET_NAME_LEN + 1] = {0};
+  memcpy(dsNameNullTerm, datasetName.value, sizeof(datasetName.value));
+
+  EntryDataSet *entrySet = returnEntries(dsNameNullTerm, typesArg, datasetTypeCount, 
                                          workAreaSizeArg, csiFields, fieldCount, 
                                          NULL, NULL, returnParms);
-								 
+
   EntryData *entry = entrySet->entries[0];
-  char CSIType = '';
 
   if (entrySet->length == 1) {
-    if(entry) {
-      int index = indexOf(vsamCSITypes, strlen(vsamCSITypes), entry->type, 0);
-      if (index != -1) {
-        CSIType = vsamCSITypes[index];
-      } else {
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No VSAM CSI type matched");
-      }
-	} else {
-		zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error getting dataset entry");
-	}
+    if (entry) {
+        return entry->type;
+    }
   } else if (entrySet->length == 0) {
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No entries for the dataset name found");
   } else {
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "More than one entry found for dataset name");
   }
 
-  return CSIType;
+  return '';
 }
 
 void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
@@ -1328,8 +1364,15 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
     return;
   }
-  if (getVsamType(absolutePath) == '') {
-    respondWithError(response, HTTP_STATUS_BAD_REQUEST, 
+  char CSIType = getCSIType(absolutePath);
+
+  if (CSIType == '') {
+    respondWithError(response, HTTP_STATUS_NOT_FOUND, "Dataset not found");
+    return;
+  }
+
+  if (!isVsam(CSIType)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST,
                      "Non VSAM dataset detected. Please use regular dataset route");
     return;
   }
@@ -1338,13 +1381,14 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
   dsName = absolutePath+3;
   dsName[strlen(dsName) - 1] = '\0';
   for (int i = 0; i < strlen(dsName); i++) {
-	if (isalpha(dsName[i])) {
-		dsName[i] = toupper(dsName[i]);
-	}
+    if (isalpha(dsName[i])) {
+      dsName[i] = toupper(dsName[i]);
+    }
   }
     
   int rc = deleteCluster(dsName);
   char responseMessage[128];
+
   if (rc == 0) {
     snprintf(responseMessage, sizeof(responseMessage), "VSAM dataset %s was successfully deleted", dsName);
     jsonPrinter *p = respondWithJsonPrinter(response);
@@ -1359,7 +1403,7 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
   } else {
     snprintf(responseMessage, sizeof(responseMessage), "Invalid VSAM delete with IDCAMS with return code: %d", rc);
     jsonPrinter *p = respondWithJsonPrinter(response);
-    setResponseStatus(response, 400, "Bad Request");
+    setResponseStatus(response, 403, "Forbidden");
     setDefaultJSONRESTHeaders(response);
     writeHeader(response);
     jsonStart(p);
