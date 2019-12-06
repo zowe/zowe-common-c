@@ -1132,20 +1132,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
     return;
   }
-
-  char CSIType = getCSIType(absolutePath);
-  if (CSIType == '') {
-    respondWithMessage(response, HTTP_STATUS_NOT_FOUND,
-                      "Dataset or member does not exist \'%44.44s(%8.8s)\' "
-                      "(%s)", dsn->name, member->name, site);
-    return;
-  }
-  if (isVsam(CSIType)) {
-    respondWithError(response, HTTP_STATUS_BAD_REQUEST,
-                     "VSAM dataset detected. Please use regular dataset route");
-    return;
-  }
-
+  
   DatasetName datasetName;
   DatasetMemberName memberName;
   extractDatasetAndMemberName(absolutePath, &datasetName, &memberName);
@@ -1154,7 +1141,20 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
   memcpy(daDatasetName.name, datasetName.value, sizeof(daDatasetName.name));
   memcpy(daMemberName.name, memberName.value, sizeof(daMemberName.name));
   DynallocDDName daDDName = {.name = "????????"};
-  
+
+  char CSIType = getCSIType(absolutePath);
+  if (CSIType == '') {
+    respondWithMessage(response, HTTP_STATUS_NOT_FOUND,
+                      "Dataset or member does not exist \'%44.44s(%8.8s)\' "
+                      "(%s)", daDatasetName.name, daMemberName.name, "r");
+    return;
+  }
+  if (isVsam(CSIType)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST,
+                     "VSAM dataset detected. Please use regular dataset route");
+    return;
+  }
+
   int daReturnCode = RC_DYNALLOC_OK, daSysReturnCode = 0, daSysReasonCode = 0;
   daReturnCode = dynallocAllocDataset(
               &daDatasetName,
