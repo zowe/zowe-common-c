@@ -54,6 +54,7 @@ static char *defaultCSIFields[] ={ "NAME    ", "TYPE    ", "VOLSER  "};
 static int defaultCSIFieldCount = 3;
 static char *defaultVSAMCSIFields[] ={"AMDCIREC", "AMDKEY  ", "ASSOC   ", "VSAMTYPE"};
 static int defaultVSAMCSIFieldCount = 4;
+static char vsamCSITypes[5] = {'R', 'D', 'G', 'I', 'C'};
 
 static char getRecordLengthType(char *dscb);
 static int getMaxRecordLength(char *dscb);
@@ -1136,15 +1137,18 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
     return;
   }
-  char vsamType = getVsamType(absolutePath);
-  if (vsamType != '') {
-    if (vsamType == '0') {
-      respondWithError(response, HTTP_STATUS_NOT_FOUND, "No dataset found");
-      return;
-    }
-    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "VSAM datasets not allowed for this method. Use the appropriate VSAM route");
-    return;   
+
+  char CSIType = getCSIType(absolutePath);
+  if (CSIType == '') {
+    respondWithError(response, HTTP_STATUS_NOT_FOUND, "Dataset not found");
+    return;
   }
+  if (isVsam(CSIType)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST,
+                     "VSAM dataset detected. Please use regular dataset route");
+    return;
+  }
+
   DatasetName datasetName;
   DatasetMemberName memberName;
   extractDatasetAndMemberName(absolutePath, &datasetName, &memberName);
@@ -1210,12 +1214,6 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
       respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Data set could not be opened");
       return;
     }
-
-    int reasonC = 0;
-    
-    if (bpamFind(dcb, daMemberName.name, &reasonC) != 0) {
-
-    }
     
     if (!memberExists(dsNameNullTerm, daMemberName)) {
       respondWithError(response, HTTP_STATUS_NOT_FOUND, "Data set member does not exist");
@@ -1224,7 +1222,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
                                                     &daSysReturnCode, &daSysReasonCode); 
       return;
     }
-    
+
     char *belowMemberName = NULL;
     belowMemberName = malloc24(DATASET_MEMBER_NAME_LEN); /* This must be allocated below the line */
     
@@ -1317,10 +1315,16 @@ bool memberExists(char* dsName, DynallocMemberName daMemberName) {
   return found;
 }
 
+bool isVsam(char CSIType) {
+  int index = indexOf(vsamCSITypes, strlen(vsamCSITypes), CSIType, 0);
+  if (index == -1) {
+    return false;
+  } else {
+    return true;
+  }
+}
 
-char getVsamType(char* absolutePath) {
-  char vsamCSITypes[5] = {'R', 'D', 'G', 'I', 'C'};
-  
+char getCSIType(char* absolutePath) {
   char *typesArg = defaultDatasetTypesAllowed;
   int datasetTypeCount = (typesArg == NULL) ? 3 : strlen(typesArg);
   int workAreaSizeArg = 0;
@@ -1339,29 +1343,20 @@ char getVsamType(char* absolutePath) {
   EntryDataSet *entrySet = returnEntries(dsNameNullTerm, typesArg, datasetTypeCount, 
                                          workAreaSizeArg, csiFields, fieldCount, 
                                          NULL, NULL, returnParms);
-                 
+
   EntryData *entry = entrySet->entries[0];
-  char CSIType = '';
 
   if (entrySet->length == 1) {
-    if(entry) {
-      int index = indexOf(vsamCSITypes, strlen(vsamCSITypes), entry->type, 0);
-      if (index != -1) {
-        CSIType = vsamCSITypes[index];
-      } else {
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No VSAM CSI type matched");
-      }
-    } else {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error getting dataset entry");
+    if (entry) {
+        return entry->type;
     }
   } else if (entrySet->length == 0) {
-    CSIType = '0';
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No entries for the dataset name found");
   } else {
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "More than one entry found for dataset name");
   }
 
-  return CSIType;
+  return '';
 }
 
 void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
@@ -1372,14 +1367,16 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
     return;
   }
-  char vsamType = getVsamType(absolutePath);
-  if (vsamType == '') {
-    respondWithError(response, HTTP_STATUS_BAD_REQUEST, 
-                     "Non VSAM dataset detected. Please use regular dataset route");
+  char CSIType = getCSIType(absolutePath);
+
+  if (CSIType == '') {
+    respondWithError(response, HTTP_STATUS_NOT_FOUND, "Dataset not found");
     return;
   }
-  if (vsamType == '0') {
-    respondWithError(response, HTTP_STATUS_NOT_FOUND, "No dataset found");
+
+  if (!isVsam(CSIType)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST,
+                     "Non VSAM dataset detected. Please use regular dataset route");
     return;
   }
 
