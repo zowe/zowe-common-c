@@ -1403,7 +1403,7 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
   } else {
     snprintf(responseMessage, sizeof(responseMessage), "Invalid VSAM delete with IDCAMS with return code: %d", rc);
     jsonPrinter *p = respondWithJsonPrinter(response);
-    setResponseStatus(response, 403, "Bad Request");
+    setResponseStatus(response, 403, "Forbidden");
     setDefaultJSONRESTHeaders(response);
     writeHeader(response);
     jsonStart(p);
