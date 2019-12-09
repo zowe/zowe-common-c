@@ -42,6 +42,7 @@
 #include "dynalloc.h"
 #include "utils.h"
 #include "vsam.h"
+#include "qsam.h"
 
 #define INDEXED_DSCB 96
 
@@ -53,6 +54,7 @@ static char *defaultCSIFields[] ={ "NAME    ", "TYPE    ", "VOLSER  "};
 static int defaultCSIFieldCount = 3;
 static char *defaultVSAMCSIFields[] ={"AMDCIREC", "AMDKEY  ", "ASSOC   ", "VSAMTYPE"};
 static int defaultVSAMCSIFieldCount = 4;
+static char vsamCSITypes[5] = {'R', 'D', 'G', 'I', 'C'};
 
 static char getRecordLengthType(char *dscb);
 static int getMaxRecordLength(char *dscb);
@@ -74,6 +76,7 @@ typedef struct Volser_tag {
 } Volser;
 
 static int getVolserForDataset(const DatasetName *dataset, Volser *volser);
+static bool memberExists(char* dsName, DynallocMemberName daMemberName);
 
 int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter *jPrinter){
 #ifdef __ZOWE_OS_ZOS
@@ -1119,6 +1122,299 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
     respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"Could not translate character set to EBCDIC");    
   }
   safeFree(convertedBody,conversionBufferLength);
+#endif /* __ZOWE_OS_ZOS */
+}
+
+void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
+#ifdef __ZOWE_OS_ZOS
+  HttpRequest *request = response->request;
+  if (!isDatasetPathValid(absolutePath)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
+    return;
+  }
+  
+  DatasetName datasetName;
+  DatasetMemberName memberName;
+  extractDatasetAndMemberName(absolutePath, &datasetName, &memberName);
+  DynallocDatasetName daDatasetName;
+  DynallocMemberName daMemberName;
+  memcpy(daDatasetName.name, datasetName.value, sizeof(daDatasetName.name));
+  memcpy(daMemberName.name, memberName.value, sizeof(daMemberName.name));
+  DynallocDDName daDDName = {.name = "????????"};
+
+  char CSIType = getCSIType(absolutePath);
+  if (CSIType == '') {
+    respondWithMessage(response, HTTP_STATUS_NOT_FOUND,
+                      "Dataset or member does not exist \'%44.44s(%8.8s)\' "
+                      "(%s)", daDatasetName.name, daMemberName.name, "r");
+    return;
+  }
+  if (isVsam(CSIType)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST,
+                     "VSAM dataset detected. Please use regular dataset route");
+    return;
+  }
+
+  int daReturnCode = RC_DYNALLOC_OK, daSysReturnCode = 0, daSysReasonCode = 0;
+  daReturnCode = dynallocAllocDataset(
+              &daDatasetName,
+              NULL,
+              &daDDName,
+              DYNALLOC_DISP_OLD,
+              DYNALLOC_ALLOC_FLAG_NO_CONVERSION | DYNALLOC_ALLOC_FLAG_NO_MOUNT,
+              &daSysReturnCode, &daSysReasonCode
+              );
+  
+  if (daReturnCode != RC_DYNALLOC_OK) {
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
+            "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+            " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
+            daDatasetName.name, daMemberName.name, daDDName.name,
+            daReturnCode, daSysReturnCode, daSysReasonCode);
+    respondWithDYNALLOCError(response, daReturnCode, daSysReturnCode,
+                             daSysReasonCode, &daDatasetName, &daMemberName,
+                             "r");
+    return;
+  }
+  
+  bool isMemberEmpty = IS_DAMEMBER_EMPTY(daMemberName);
+  
+  if (isMemberEmpty) {
+    daReturnCode = dynallocUnallocDatasetByDDName2(&daDDName, DYNALLOC_UNALLOC_FLAG_NONE,
+                                                   &daSysReturnCode, &daSysReasonCode,
+                                                   TRUE /* Delete data set on deallocation */
+                                                   ); 
+    if (daReturnCode != RC_DYNALLOC_OK) {
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
+              "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+              " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
+              daDatasetName.name, daMemberName.name, daDDName.name,
+              daReturnCode, daSysReturnCode, daSysReasonCode);
+      respondWithDYNALLOCError(response, daReturnCode, daSysReturnCode,
+                               daSysReasonCode, &daDatasetName, &daMemberName,
+                               "r");
+      return;
+    }  
+  }
+  else {
+    char dsNameNullTerm[DATASET_NAME_LEN + 1] = {0};
+    memcpy(dsNameNullTerm, datasetName.value, sizeof(datasetName.value));
+    
+    char *dcb = openSAM(daDDName.name,      /* The data set must be opened by supplying a dd name */
+                        OPEN_CLOSE_OUTPUT,  /* To delete a pds data set member, this option must be set */
+                        FALSE,              /* Indicates that this data set is not QSAM */
+                        0,                  /* Record format (zero if unknown) */
+                        0,                  /* Record length (zero if unknown) */
+                        0);                 /* Block size (zero if unknown) */
+                      
+    if (dcb == NULL) {
+      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Data set could not be opened");
+      return;
+    }
+    
+    if (!memberExists(dsNameNullTerm, daMemberName)) {
+      respondWithError(response, HTTP_STATUS_NOT_FOUND, "Data set member does not exist");
+      closeSAM(dcb, 0);
+      daReturnCode = dynallocUnallocDatasetByDDName(&daDDName, DYNALLOC_UNALLOC_FLAG_NONE,
+                                                    &daSysReturnCode, &daSysReasonCode); 
+      return;
+    }
+
+    char *belowMemberName = NULL;
+    belowMemberName = malloc24(DATASET_MEMBER_NAME_LEN); /* This must be allocated below the line */
+    
+    if (belowMemberName == NULL) {
+      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Could not allocate member name");
+      closeSAM(dcb, 0);
+      return;
+    }
+    
+    memset(belowMemberName, ' ', DATASET_MEMBER_NAME_LEN);
+    memcpy(belowMemberName, memberName.value, DATASET_MEMBER_NAME_LEN);
+    
+    int stowReturnCode = 0, stowReasonCode = 0;  
+    stowReturnCode = bpamDeleteMember(dcb, belowMemberName, &stowReasonCode);
+    
+    /* Free member name and dcb as they are no longer needed */
+    free24(belowMemberName, DATASET_MEMBER_NAME_LEN);
+    closeSAM(dcb, 0);
+    
+    daReturnCode = dynallocUnallocDatasetByDDName(&daDDName, DYNALLOC_UNALLOC_FLAG_NONE,
+                                                  &daSysReturnCode, &daSysReasonCode); 
+    
+    if (stowReturnCode != 0) {
+      char responseMessage[128];
+      snprintf(responseMessage, sizeof(responseMessage), "Member %8.8s could not be deleted\n", daMemberName.name);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
+              "error: stowReturnCode=%d, stowReasonCode=%d\n",
+              stowReturnCode, stowReasonCode);
+      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, responseMessage);
+      return;
+    }
+
+    if (daReturnCode != RC_DYNALLOC_OK) {
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
+              "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+              " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
+              daDatasetName.name, daMemberName.name, daDDName.name,
+              daReturnCode, daSysReturnCode, daSysReasonCode);
+      respondWithDYNALLOCError(response, daReturnCode, daSysReturnCode,
+                               daSysReasonCode, &daDatasetName, &daMemberName,
+                               "r");
+      return;
+    }
+  }
+
+  jsonPrinter *p = respondWithJsonPrinter(response);
+  setResponseStatus(response, 200, "OK");
+  setDefaultJSONRESTHeaders(response);
+ 
+  writeHeader(response);
+
+  jsonStart(p);
+  char responseMessage[128];
+  if (isMemberEmpty) {
+    char* dsName;
+    dsName = absolutePath+3;
+    dsName[strlen(dsName) - 1] = '\0';
+    snprintf(responseMessage, sizeof(responseMessage), "Data set %s was deleted successfully", dsName);
+    jsonAddString(p, "msg", responseMessage);
+  }
+  else {
+    snprintf(responseMessage, sizeof(responseMessage), "Data set member %8.8s was deleted successfully", daMemberName.name);
+    jsonAddString(p, "msg", responseMessage);
+  }
+  jsonEnd(p);
+ 
+  finishResponse(response);
+  
+#endif /* __ZOWE_OS_ZOS */
+}
+
+bool memberExists(char* dsName, DynallocMemberName daMemberName) {
+  bool found = false;
+  StringList *memberList = getPDSMembers(dsName);
+  int memberCount = stringListLength(memberList);
+  if (memberCount > 0){
+    StringListElt *stringElement = firstStringListElt(memberList);
+    for (int i = 0; i < memberCount; i++){
+      char *memName = stringElement->string;
+      char dest[9];
+      strncpy(dest, daMemberName.name, 8);
+      dest[8] = '\0';
+      if (strcmp(memName, dest) == 0) {
+        found = true;
+      }
+      stringElement = stringElement->next;
+    }
+  }
+  SLHFree(memberList->slh);
+  return found;
+}
+
+bool isVsam(char CSIType) {
+  int index = indexOf(vsamCSITypes, strlen(vsamCSITypes), CSIType, 0);
+  if (index == -1) {
+    return false;
+  } else {
+    return true;
+  }
+}
+
+char getCSIType(char* absolutePath) {
+  char *typesArg = defaultDatasetTypesAllowed;
+  int datasetTypeCount = (typesArg == NULL) ? 3 : strlen(typesArg);
+  int workAreaSizeArg = 0;
+  int fieldCount = defaultCSIFieldCount;
+  char **csiFields = defaultCSIFields;
+
+  csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
+
+  DatasetName datasetName;
+  DatasetMemberName memberName;
+  extractDatasetAndMemberName(absolutePath, &datasetName, &memberName);
+
+  char dsNameNullTerm[DATASET_NAME_LEN + 1] = {0};
+  memcpy(dsNameNullTerm, datasetName.value, sizeof(datasetName.value));
+
+  EntryDataSet *entrySet = returnEntries(dsNameNullTerm, typesArg, datasetTypeCount, 
+                                         workAreaSizeArg, csiFields, fieldCount, 
+                                         NULL, NULL, returnParms);
+
+  EntryData *entry = entrySet->entries[0];
+
+  if (entrySet->length == 1) {
+    if (entry) {
+        return entry->type;
+    }
+  } else if (entrySet->length == 0) {
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "No entries for the dataset name found");
+  } else {
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "More than one entry found for dataset name");
+  }
+
+  return '';
+}
+
+void deleteVSAMDataset(HttpResponse* response, char* absolutePath) {
+#ifdef __ZOWE_OS_ZOS
+  HttpRequest *request = response->request;
+  
+  if (!isDatasetPathValid(absolutePath)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
+    return;
+  }
+  char CSIType = getCSIType(absolutePath);
+
+  if (CSIType == '') {
+    respondWithError(response, HTTP_STATUS_NOT_FOUND, "Dataset not found");
+    return;
+  }
+
+  if (!isVsam(CSIType)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST,
+                     "Non VSAM dataset detected. Please use regular dataset route");
+    return;
+  }
+
+  char* dsName;
+  dsName = absolutePath+3;
+  dsName[strlen(dsName) - 1] = '\0';
+  for (int i = 0; i < strlen(dsName); i++) {
+    if (isalpha(dsName[i])) {
+      dsName[i] = toupper(dsName[i]);
+    }
+  }
+    
+  int rc = deleteCluster(dsName);
+  char responseMessage[128];
+
+  if (rc == 0) {
+    snprintf(responseMessage, sizeof(responseMessage), "VSAM dataset %s was successfully deleted", dsName);
+    jsonPrinter *p = respondWithJsonPrinter(response);
+    setResponseStatus(response, 200, "OK");
+    setDefaultJSONRESTHeaders(response);
+    writeHeader(response);
+    jsonStart(p);
+    jsonAddString(p, "msg", responseMessage);
+    jsonEnd(p);
+
+    finishResponse(response);  
+  } else {
+    snprintf(responseMessage, sizeof(responseMessage), "Invalid VSAM delete with IDCAMS with return code: %d", rc);
+    jsonPrinter *p = respondWithJsonPrinter(response);
+    setResponseStatus(response, 403, "Forbidden");
+    setDefaultJSONRESTHeaders(response);
+    writeHeader(response);
+    jsonStart(p);
+    jsonAddString(p, "msg", responseMessage);
+    jsonEnd(p);
+
+    finishResponse(response);  
+      
+  }
+
+
 #endif /* __ZOWE_OS_ZOS */
 }
 
