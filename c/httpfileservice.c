@@ -164,6 +164,56 @@ void deleteUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
   }
 }
 
+
+/* Modifies the mode of files/directories */
+void directoryChangeModeAndRespond(HttpResponse *response, char *file, 
+                        char *cflag, char *cmode, char *compare) {
+  int returnCode = 0, reasonCode = 0;
+  int flag = 0; 
+  int mode;
+
+  if (!strcmp(strupcase(cflag), "TRUE")) {
+    flag = 1;
+  }
+
+  /* Find mode value */
+  char * first = cmode;
+  if ((first  = strpbrk(cmode, "oO")) == NULL){
+    first = cmode;
+    }
+  else {
+    first +=1;
+   }
+  
+  /* Verify at least 1 valid character, move to it */ 
+  if ( ((first  = strpbrk(cmode, "01234567")) == NULL)  ||
+       (strpbrk(cmode, "89") != NULL)) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+       "Failed to chnmod file %s: illegal mode %s\n", file, cmode);
+    respondWithJsonError(response, "Failed to chmod: mode illegal", 400, "Bad Request");
+    return -1;
+    }
+  sscanf (first, "%o", &mode); 
+  if (mode == 0) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+       "Failed to chnmod file %s: illegal mode %s\n", file, cmode);
+    respondWithJsonError(response, "Failed to chmod: mode = 0", 400, "Bad Request");
+    return -1;
+  }
+
+  /* Call recursive change mode */
+  if (!directoryChangeModeRecursive(file, flag,mode, compare, &returnCode, &reasonCode )) {
+    response200WithMessage(response, "Successfully Modify Modes");
+  }
+  else {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to chnmod file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            file, returnCode, reasonCode);
+    respondWithJsonError(response, "Failed to Modify file modes", 400, "Bad Request");
+  }
+  return 0;
+}
+
 /* Deletes a unix file at the specified absolute
  * path.
  */
