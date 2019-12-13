@@ -46,6 +46,8 @@ void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath);
 
 static int writeEmptyUnixFile(char *absolutePath, int forceWrite);
 void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite);
+void  directoryChangeModeAndRespond(HttpResponse *response, char * routeFileName,
+          char * Recursive, char * mode, char *compare);
 
 int directoryChangeTagAndRespond(HttpResponse *response, char *file,
             char *type, char *codepage, char *Recursive, char *pattern);
