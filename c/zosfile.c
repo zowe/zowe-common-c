@@ -509,7 +509,6 @@ int fileChangeMode(const char *fileName, int *returnCode, int *reasonCode, int m
   int *reasonCodePtr;
   int returnValue = 0;
   *returnCode = *reasonCode = 0;
-  int attributeLength = sizeof(BPXYATT);
 
 #ifndef _LP64
   reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
@@ -1482,7 +1481,7 @@ int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode) {
 
   return returnValue;
 }
-
+#ifndef METTLE
 /* Library does not support reverse string-string */
 static const char* strrstr(const char * base, const char * find) {
   const char * returnPtr = NULL;
@@ -1493,8 +1492,9 @@ static const char* strrstr(const char * base, const char * find) {
   }
   return returnPtr;
 }
+#endif
 
-static int directoryChangeModeFile (const char *fileName,
+static int patternChangeModeFile (const char *fileName,
                                  int mode, const char *compare,
                                  int *returnCode, int *reasonCode){
   int status;
@@ -1524,7 +1524,7 @@ static int directoryChangeModeFile (const char *fileName,
   return 0;
 }
 
-#define CHANGE_MODE_recursive  0x1
+#define CHANGE_MODE_RECURSIVE  0x1
  
 int directoryChangeModeRecursive(const char *pathName, int flag,
                int mode, const char * compare, int *retCode, int *resCode){
@@ -1543,7 +1543,7 @@ int directoryChangeModeRecursive(const char *pathName, int flag,
   /* Request is for a file. Handle it and exit */
   if (!fileInfoIsDirectory(&info)) {
     if (fileInfoIsRegularFile(&info)) {
-      if( -1 == directoryChangeModeFile (pathName, mode, compare,
+      if( -1 == patternChangeModeFile (pathName, mode, compare,
                                          &returnCode, &reasonCode)) {
         *retCode = returnCode;
         *resCode = reasonCode;
@@ -1553,8 +1553,18 @@ int directoryChangeModeRecursive(const char *pathName, int flag,
         *retCode = 0;
         *resCode = 0;
         returnValue = -1;
+    }
+    goto ExitCode;
+  } else {
+    if (!(flag & CHANGE_MODE_RECURSIVE)) { 
+      if( -1 == patternChangeModeFile (pathName, mode, compare,
+                                         &returnCode, &reasonCode)) {
+        *retCode = returnCode;
+        *resCode = reasonCode;
+        returnValue = -1;
       }
     goto ExitCode;
+    } 
   }
 
   UnixFile *dir = directoryOpen(pathName, &returnCode, &reasonCode);
@@ -1592,7 +1602,7 @@ int directoryChangeModeRecursive(const char *pathName, int flag,
 
     if (fileInfoIsDirectory(&info)) {
       /* Change mode of all sub-directories and files there-in */
-      if (flag & CHANGE_MODE_recursive) { 
+      if (flag & CHANGE_MODE_RECURSIVE) { 
         if (-1 ==  directoryChangeModeRecursive(
                                pathBuffer, flag, mode, compare,
                                &returnCode, &reasonCode) ){
@@ -1606,7 +1616,7 @@ int directoryChangeModeRecursive(const char *pathName, int flag,
     else {
       /* change mode of this file, not a directory */
       if (fileInfoIsRegularFile(&info)) {
-        if( -1 == directoryChangeModeFile (pathBuffer, mode, compare,
+        if( -1 == patternChangeModeFile (pathBuffer, mode, compare,
                                          &returnCode, &reasonCode)) { 
           *retCode = returnCode;
           *resCode = reasonCode;
@@ -1618,7 +1628,7 @@ int directoryChangeModeRecursive(const char *pathName, int flag,
   }
 
   /* Change mode of this directory */
-  if( -1 == directoryChangeModeFile (pathName, mode, compare,
+  if( -1 == patternChangeModeFile (pathName, mode, compare,
                                     &returnCode, &reasonCode)) { 
     *retCode = returnCode;
     *resCode = reasonCode;

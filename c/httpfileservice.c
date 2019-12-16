@@ -167,12 +167,12 @@ void deleteUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
 
 /* Modifies the mode of files/directories */
 void directoryChangeModeAndRespond(HttpResponse *response, char *file, 
-                        char *cflag, char *cmode, char *compare) {
+                        char *recursive, char *cmode, char *pattern) {
   int returnCode = 0, reasonCode = 0;
   int flag = 0; 
   int mode;
 
-  if (!strcmp(strupcase(cflag), "TRUE")) {
+  if (!strcmp(strupcase(recursive), "TRUE")) {
     flag = 1;
   }
 
@@ -190,26 +190,20 @@ void directoryChangeModeAndRespond(HttpResponse *response, char *file,
        (strpbrk(cmode, "89") != NULL)) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
        "Failed to chnmod file %s: illegal mode %s\n", file, cmode);
-    respondWithJsonError(response, "Failed to chmod: mode illegal", 400, "Bad Request");
+    respondWithJsonError(response, "failed to chmod: mode not octol", 400, "Bad Request");
     return -1;
     }
   sscanf (first, "%o", &mode); 
-  if (mode == 0) {
-    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-       "Failed to chnmod file %s: illegal mode %s\n", file, cmode);
-    respondWithJsonError(response, "Failed to chmod: mode = 0", 400, "Bad Request");
-    return -1;
-  }
 
   /* Call recursive change mode */
-  if (!directoryChangeModeRecursive(file, flag,mode, compare, &returnCode, &reasonCode )) {
-    response200WithMessage(response, "Successfully Modify Modes");
+  if (!directoryChangeModeRecursive(file, flag,mode, pattern, &returnCode, &reasonCode )) {
+    response200WithMessage(response, "successfully modify modes");
   }
   else {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
             "Failed to chnmod file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             file, returnCode, reasonCode);
-    respondWithJsonError(response, "Failed to Modify file modes", 400, "Bad Request");
+    respondWithJsonError(response, "failed to modify file modes", 404, "Bad Request");
   }
   return 0;
 }
