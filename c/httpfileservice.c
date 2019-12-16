@@ -203,7 +203,7 @@ void directoryChangeModeAndRespond(HttpResponse *response, char *file,
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
             "Failed to chnmod file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             file, returnCode, reasonCode);
-    respondWithJsonError(response, "failed to modify file modes", 404, "Bad Request");
+    respondWithJsonError(response, "failed to modify file modes", 500, "Bad Request");
   }
   return 0;
 }
