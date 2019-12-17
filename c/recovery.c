@@ -1308,7 +1308,7 @@ static RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char 
 
   newEntry->flags = flags;
   newEntry->state = (flags & RCVR_FLAG_DISABLE) ? RECOVERY_STATE_DISABLED : RECOVERY_STATE_ENABLED;
-  memset(newEntry->dumpTitle.title, ' ', sizeof(newEntry->dumpTitle));
+  memset(newEntry->dumpTitle.title, ' ', sizeof(newEntry->dumpTitle.title));
   newEntry->dumpTitle.length = 0;
   if (dumpTitle != NULL) {
     int titleLength = strlen(dumpTitle);
