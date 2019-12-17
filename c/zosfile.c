@@ -1165,6 +1165,69 @@ int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode){
   return 0;
 }
 
+#define PATH_MAX 256
+/* 
+ * Recursively, make directory tree 
+ */
+int directoryMakeDirectoryRecursive(const char *pathName, 
+                                   int recursive, int forceCreate){
+  int returnCode = 0, reasonCode = 0, status = 0;
+  int returnValue = 0;
+  const char * nextField, *tempField, *endField;
+  FileInfo info = {0};
+  int done = 0;
+  char Path[PATH_MAX];
+  char *path = Path;
+  path[0] = '\0';
+  nextField = pathName;
+
+  /* Determine if absolute path or relative path */
+  if (0 != strncmp (nextField,"/",1)) {
+    strcat(path, "./");
+    //nextField ++;
+  } else {
+    strcat(path, "/");
+    nextField ++;
+  }
+  endField  = NULL;
+
+  /* Cycle through path to find directory to make */
+  /* Check for recursive after first one is made  */
+  while (!done) {
+    /* Last field in path */
+    if ( !(tempField = strchr(nextField, '/'))) {
+      done = 1;
+      endField = &pathName[strlen(pathName)];
+
+    } else {
+      /* Still in the middle of the path */
+      if (endField != NULL) {
+        nextField = endField+1;
+      }
+      endField  = tempField;
+    } 
+
+    /* Copy next field onto path */
+    strncat (path, nextField, (size_t)(endField - nextField) );
+            
+    /* Create directory if does not exist */  
+    if( -1 == fileInfo(path, &info, &returnCode, &reasonCode)) {
+      returnValue = createUnixDirectory(path, forceCreate);
+      if ((returnValue ) || !recursive) {
+        goto ExitCode;
+      }
+    }
+
+    /* Update pointers */
+    strcat (path, "/");
+    nextField = endField + 1;
+  }
+
+ExitCode:
+  return returnValue;
+}
+
+
 int directoryCopy(const char *existingPathName, const char *newPathName, int *retCode, int *resCode) {
   int returnCode = 0, reasonCode = 0, status = 0;
   FileInfo info = {0};

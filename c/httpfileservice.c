@@ -94,7 +94,7 @@ bool doesFileExist(char *absolutePath) {
  * path. It will only overwrite an existing directory if
  * the forceCreate flag is on.
  */
-static int createUnixDirectory(char *absolutePath, int forceCreate) {
+int createUnixDirectory(char *absolutePath, int forceCreate) {
   int returnCode = 0, reasonCode = 0, status = 0;  
   FileInfo info = {0};
   
@@ -120,14 +120,17 @@ static int createUnixDirectory(char *absolutePath, int forceCreate) {
   return 0;
 }
 
-void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, int forceCreate) {
-  if (!createUnixDirectory(absolutePath, forceCreate)) {
-    response200WithMessage(response, "Successfully created a directory");
+void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, 
+            int recursive, int forceCreate) {
+
+  if (!directoryMakeDirectoryRecursive(absolutePath, recursive, forceCreate)) {
+    response200WithMessage(response, "Successfully created a directory(ies)");
   }
   else {
     respondWithJsonError(response, "Failed to create a directory", 500, "Internal Server Error");
   }
 }
+
 
 /* Deletes a unix directory at the specified absolute
  * path.

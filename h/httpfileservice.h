@@ -20,8 +20,9 @@ void response200WithMessage(HttpResponse *response, char *msg);
 bool isDir(char *absolutePath);
 bool doesFileExist(char *absolutePath);
 
-static int createUnixDirectory(char *absolutePath, int forceCreate);
-void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, int forceCreate);
+int createUnixDirectory(char *absolutePath, int forceCreate);
+void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, 
+                                   int recursive, int forceCreate);
 
 static int deleteUnixDirectory(char *absolutePath);
 void deleteUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath);
