@@ -1167,7 +1167,7 @@ int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode){
 
 #define PATH_MAX 256
 /* 
- * Recursively, make directory tree 
+ * Recursively, make directory tree.
  */
 int directoryMakeDirectoryRecursive(const char *pathName, 
                                    int recursive, int forceCreate){
