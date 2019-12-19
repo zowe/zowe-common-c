@@ -199,6 +199,7 @@ void deleteUnixFileAndRespond(HttpResponse *response, char *absolutePath) {
   }
 }
 
+
 /* Renames a unix directory at the specified absolute
  * path. It will only overwrite an existing directory
  * if the forceRename flag is on.
@@ -401,6 +402,39 @@ static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
 
   return 0;
 }
+
+/* Modifies the mode of files/directories */
+int directoryChangeTagAndRespond(HttpResponse *response, char *file,
+            char *type, char *codepage, char *Recursive, char *pattern) {
+  int returnCode = 0, reasonCode = 0;
+  int recursive = 0;
+  int ccsid;
+  bool pure;
+
+  if (!strcmp(strupcase(Recursive),"TRUE")) {
+    recursive = 1;
+  }
+
+  if (-1 ==  patternChangeTagTest(type, codepage, &pure, &ccsid)){
+    respondWithJsonError(response, "Bad Input", 404, "Bad Request");
+    return -1;
+  }
+
+  /* Call recursive change mode */
+  if (!directoryChangeTagRecursive(file, type, codepage, recursive, pattern,
+       &returnCode, &reasonCode )) {
+    response200WithMessage(response, "Successfully Modify Tags");
+
+  }
+  else {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to change tag file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            file, returnCode, reasonCode);
+    respondWithJsonError(response, "Failed to Change file tag", 500, "Bad Request");
+  }
+  return 0;
+}
+
 
 void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite) {
   if (!writeEmptyUnixFile(absolutePath, forceWrite)) {
