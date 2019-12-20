@@ -84,9 +84,12 @@ bool doesFileExist(char *absolutePath) {
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
-    return false;
+    /* Test whether it is a symbolic */
+    status = symbolicFileInfo(absolutePath, &info, &returnCode, &reasonCode);
+    if (status == -1) {
+      return false;
+    }
   }
-  
   return true;
 }
 
@@ -172,6 +175,10 @@ static int deleteUnixFile(char *absolutePath) {
   FileInfo info = {0};
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  /* if not a file, then check to see if it is a symbolic link */
+  if (status == -1) {
+    status = symbolicFileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  }
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
             "Failed to stat file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
