@@ -1,5 +1,4 @@
 
-
 /*
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
@@ -1278,7 +1277,7 @@ int directoryCopy(const char *existingPathName, const char *newPathName, int *re
 */
 #include "ccsidList.c"
 
-static int findCcsidId( const char *string){
+int findCcsidId( const char *string){
   int ccsid = -1;
   int i = 0;
   int tccsid;
@@ -1292,6 +1291,7 @@ static int findCcsidId( const char *string){
   /* search table for valid  */
   if (stringIsDigit(string)) {
     sscanf (string, "%d", &tccsid);
+
     while (ccsidList[i].idName != NULL) {
       if (ccsidList[i].ccsid == tccsid) {
         ccsid = tccsid;
@@ -1302,8 +1302,12 @@ static int findCcsidId( const char *string){
   } else {
     /* Search array for matching name */
     while (ccsidList[i].idName != NULL) {
-      if ((strlen(ccsidList[i].idName) == strlen(string)) &&
-          (strcmp (ccsidList[i].idName, string) == 0)) {
+      char tstring[40] = {0};
+      strncpy (tstring, string, sizeof(tstring) -1);
+
+      strupcase(tstring);
+      if ((strlen(ccsidList[i].idName) == strlen(tstring)) &&
+          (strcmp (ccsidList[i].idName, tstring) == 0)) {
         ccsid =ccsidList[i].ccsid;
         return ccsid;
       }
@@ -1313,8 +1317,8 @@ static int findCcsidId( const char *string){
   return -1;
 }
 
-int patternChangeTagTest(char *type, char *codePage, bool *pure, int *ccsid) {
-
+int patternChangeTagTest(char *message, int message_length, 
+                char *type, char *codePage, bool *pure, int *ccsid) {
   int lccsid =  findCcsidId(codePage);
 
   /* Switch to do proper change tag */
@@ -1322,6 +1326,8 @@ int patternChangeTagTest(char *type, char *codePage, bool *pure, int *ccsid) {
     *pure = FALSE;
     if (lccsid != 0) {
       *ccsid =  -1;
+      snprintf(message, message_length, "%s", 
+               "binary specified with codeset");
       return -1;
     }
     else {
@@ -1333,6 +1339,9 @@ int patternChangeTagTest(char *type, char *codePage, bool *pure, int *ccsid) {
   if  (!strcmp( strupcase(type), "TEXT"))  {
     *pure = TRUE;
     if (lccsid <= 0) {
+      snprintf(message, message_length, "%s", 
+               "text specified, undefined codeset");
+
       return -1;
     }
     else {
@@ -1346,6 +1355,8 @@ int patternChangeTagTest(char *type, char *codePage, bool *pure, int *ccsid) {
     *pure = FALSE;
     if (lccsid > 0) {
       *ccsid =  -1;
+      snprintf(message, message_length, "%s", 
+               "delete specified with codeset");
       return -1;
     }
     else {
@@ -1357,6 +1368,8 @@ int patternChangeTagTest(char *type, char *codePage, bool *pure, int *ccsid) {
   if  (!strcmp( strupcase(type), "MIXED"))  {
     *pure = FALSE;
     if (lccsid <= 0) {
+      snprintf(message, message_length, "%s", 
+               "mixed specified with undefined codeset");
       return -1;
     }
     else {
@@ -1376,6 +1389,7 @@ static int patternChangeTagCheck(const char *fileName, int *retCode,
 
   bool pure = FALSE;
   int ccsid;
+  char message[30];
 
   const char * baseName;
   int returnCode = 0, reasonCode = 0;
@@ -1392,7 +1406,8 @@ static int patternChangeTagCheck(const char *fileName, int *retCode,
     }
   }
 
-  if (-1 == patternChangeTagTest(type, codepage, &pure, &ccsid)) {
+  if (-1 == patternChangeTagTest(message, sizeof (message),
+                                type, codepage, &pure, &ccsid)) {
     returnValue = -1;
     goto ExitCode;
   } 
