@@ -138,8 +138,11 @@ void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, i
 static int deleteUnixDirectory(char *absolutePath) {
   int returnCode = 0, reasonCode = 0, status = 0;
   FileInfo info = {0};
-  
+ 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  if (status == -1) {
+    status = symbolicFileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  }
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
             "Failed to stat directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
