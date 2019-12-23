@@ -21,9 +21,9 @@
 #else
 #include <stdio.h>
 #include <string.h>
-
 #endif
 
+#include <limits.h>
 #include "zowetypes.h"
 #include "utils.h"
 #include "json.h"
@@ -44,6 +44,8 @@
 #warning ISO-8859-1 is not necessarily the default codepage on Linux
 #define DEFAULT_UMASK 0022
 #endif
+
+#define PATH_MAX   256
 
 /* A generic function to return a 200 OK to the caller.
  * It takes a msg and prints it to JSON.
@@ -122,12 +124,26 @@ int createUnixDirectory(char *absolutePath, int forceCreate) {
 
 void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, 
             int recursive, int forceCreate) {
+# define RETURN_MESSAGE_SIZE (PATH_MAX + 50)
+  char message[PATH_MAX];
+  char returnMessage[RETURN_MESSAGE_SIZE];
+  strncpy(message,"", PATH_MAX);
 
-  if (!directoryMakeDirectoryRecursive(absolutePath, recursive, forceCreate)) {
-    response200WithMessage(response, "Successfully created a directory(ies)");
+
+  if (!directoryMakeDirectoryRecursive(absolutePath, message, 
+                      sizeof (message),recursive, forceCreate)) {
+    strcpy(returnMessage, "Successfully created directory: ");
+    if (strlen(message) != 0) {
+      strncat (returnMessage, message, RETURN_MESSAGE_SIZE);
+    }
+    response200WithMessage(response, returnMessage);
   }
   else {
-    respondWithJsonError(response, "Failed to create a directory", 500, "Internal Server Error");
+    strcpy(returnMessage, "Failed to create directory, Created: ");
+    if (strlen(message) != 0) {
+      strncat (returnMessage, message, RETURN_MESSAGE_SIZE);
+    }
+    respondWithJsonError(response, returnMessage, 500, "Internal Server Error");
   }
 }
 

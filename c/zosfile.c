@@ -1170,6 +1170,7 @@ int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode){
  * Recursively, make directory tree.
  */
 int directoryMakeDirectoryRecursive(const char *pathName, 
+                                   char * message, int messageLength,
                                    int recursive, int forceCreate){
   int returnCode = 0, reasonCode = 0, status = 0;
   int returnValue = 0;
@@ -1218,7 +1219,9 @@ int directoryMakeDirectoryRecursive(const char *pathName,
       }
     }
 
-    /* Update pointers */
+    /* Update pointers                       */
+    /* Copy directory name to return message */
+    strncpy (message, path, messageLength);
     strcat (path, "/");
     nextField = endField + 1;
   }

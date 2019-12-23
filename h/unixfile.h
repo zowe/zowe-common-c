@@ -488,7 +488,8 @@ int fileClose(UnixFile *file, int *returnCode, int *reasonCode);
 int directoryMake(const char *pathName, int mode, int *returnCode, int *reasonCode);
 int directoryDelete(const char *pathName, int *returnCode, int *reasonCode);
 int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode);
-int directoryMakeDirectoryRecursive(const char *pathName, int recursive, int forceCreate);
+int directoryMakeDirectoryRecursive(const char *pathName, char *message,
+     int messageLength, int recursive, int forceCreate);
 int directoryCopy(const char *existingPathName, const char *newPathName, int *retCode, int *resCode);
 int directoryRename(const char *oldDirName, const char *newDirName, int *returnCode, int *reasonCode);
 UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonCode);
