@@ -45,6 +45,8 @@ void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath);
 
 static int writeEmptyUnixFile(char *absolutePath, int forceWrite);
 void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite);
+void  directoryChangeModeAndRespond(HttpResponse *response, char * routeFileName,
+          char * Recursive, char * mode, char *compare);
 
 int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLength);
 int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLength, int sourceEncoding, int targetEncoding);

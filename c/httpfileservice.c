@@ -164,6 +164,50 @@ void deleteUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
   }
 }
 
+
+/* Modifies the mode of files/directories */
+void directoryChangeModeAndRespond(HttpResponse *response, char *file, 
+                        char *recursive, char *cmode, char *pattern) {
+  int returnCode = 0, reasonCode = 0;
+  int flag = 0; 
+  int mode;
+
+  if (!strcmp(strupcase(recursive), "TRUE")) {
+    flag = 1;
+  }
+
+  /* Find mode value */
+  char * first = cmode;
+  if ((first  = strpbrk(cmode, "oO")) == NULL){
+    first = cmode;
+    }
+  else {
+    first +=1;
+   }
+  
+  /* Verify at least 1 valid character, move to it */ 
+  if ( ((first  = strpbrk(cmode, "01234567")) == NULL)  ||
+       (strpbrk(cmode, "89") != NULL)) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+       "Failed to chnmod file %s: illegal mode %s\n", file, cmode);
+    respondWithJsonError(response, "failed to chmod: mode not octol", 400, "Bad Request");
+    return -1;
+    }
+  sscanf (first, "%o", &mode); 
+
+  /* Call recursive change mode */
+  if (!directoryChangeModeRecursive(file, flag,mode, pattern, &returnCode, &reasonCode )) {
+    response200WithMessage(response, "successfully modify modes");
+  }
+  else {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to chnmod file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            file, returnCode, reasonCode);
+    respondWithJsonError(response, "failed to modify file modes", 500, "Bad Request");
+  }
+  return 0;
+}
+
 /* Deletes a unix file at the specified absolute
  * path.
  */
