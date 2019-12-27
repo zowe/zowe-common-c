@@ -1,5 +1,4 @@
 
-
 /*
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
@@ -446,8 +445,16 @@ int fileClose(UnixFile *file, int *returnCode, int *reasonCode) {
   return returnValue;
 }
 
+int fileChangeTagPure(const char *fileName, int *returnCode, int *reasonCode,
+                      int ccsid, bool pure);
 
 int fileChangeTag(const char *fileName, int *returnCode, int *reasonCode, int ccsid) {
+  bool pure = true;
+  fileChangeTagPure(fileName, returnCode, reasonCode, ccsid, pure);
+  }
+
+int fileChangeTagPure(const char *fileName, int *returnCode, int *reasonCode,
+                      int ccsid, bool pure) {
   int nameLength = strlen(fileName);
   int attributeLength = sizeof(BPXYATT);
   int *reasonCodePtr;
@@ -467,8 +474,8 @@ int fileChangeTag(const char *fileName, int *returnCode, int *reasonCode, int cc
 
   attributes.fileTagCCSID = ccsid;
 
-  if (ccsid != CCSID_BINARY) {
-    attributes.fileTagFlags = FILE_PURE_TEXT;
+  if (pure) {
+   attributes.fileTagFlags = FILE_PURE_TEXT;
   }
 
   BPXCHR(nameLength,
@@ -1312,6 +1319,262 @@ int directoryCopy(const char *existingPathName, const char *newPathName, int *re
 
   return 0;
 }
+
+/*
+ * Recursively, change the file tags of the requested file/tree 
+*/
+#include "ccsidList.c"
+
+int findCcsidId( const char *string){
+  int ccsid = -1;
+  int i = 0;
+  int tccsid;
+  char *pName;
+
+  /* Some type commands cannot specify ccsid */
+  if (string == NULL) {
+    return 0;
+  }
+
+  /* search table for valid  */
+  if (stringIsDigit(string)) {
+    sscanf (string, "%d", &tccsid);
+
+    while (ccsidList[i].idName != NULL) {
+      if (ccsidList[i].ccsid == tccsid) {
+        ccsid = tccsid;
+        return ccsid;
+      }
+      i ++;
+    }
+  } else {
+    /* Search array for matching name */
+    while (ccsidList[i].idName != NULL) {
+      char tstring[40] = {0};
+      strncpy (tstring, string, sizeof(tstring) -1);
+
+      strupcase(tstring);
+      if ((strlen(ccsidList[i].idName) == strlen(tstring)) &&
+          (strcmp (ccsidList[i].idName, tstring) == 0)) {
+        ccsid =ccsidList[i].ccsid;
+        return ccsid;
+      }
+      i ++;
+    }
+  }
+  return -1;
+}
+
+int patternChangeTagTest(char *message, int message_length, 
+                char *type, char *codePage, bool *pure, int *ccsid) {
+  int lccsid =  findCcsidId(codePage);
+
+  /* Switch to do proper change tag */
+  if  (!strcmp( strupcase(type), "BINARY"))  {
+    *pure = FALSE;
+    if (lccsid != 0) {
+      *ccsid =  -1;
+      snprintf(message, message_length, "%s", 
+               "binary specified with codeset");
+      return -1;
+    }
+    else {
+      *ccsid =  CCSID_BINARY;
+      return 0;
+    }
+  } 
+
+  if  (!strcmp( strupcase(type), "TEXT"))  {
+    *pure = TRUE;
+    if (lccsid <= 0) {
+      snprintf(message, message_length, "%s", 
+               "text specified, undefined codeset");
+
+      return -1;
+    }
+    else {
+      *ccsid =  lccsid;
+      return 0;
+    }
+  } 
+
+  if ((!strcmp( strupcase(type), "DELETE")) ||
+      (!strcmp( strupcase(type), "UNTAGGED"))) {
+    *pure = FALSE;
+    if (lccsid > 0) {
+      *ccsid =  -1;
+      snprintf(message, message_length, "%s", 
+               "delete specified with codeset");
+      return -1;
+    }
+    else {
+      *ccsid =  CCSID_UNTAGGED;
+      return 0;
+    }
+  } 
+
+  if  (!strcmp( strupcase(type), "MIXED"))  {
+    *pure = FALSE;
+    if (lccsid <= 0) {
+      snprintf(message, message_length, "%s", 
+               "mixed specified with undefined codeset");
+      return -1;
+    }
+    else {
+      *ccsid =  lccsid;
+      return 0;
+    }
+  } 
+
+  *pure = FALSE;
+  *ccsid = lccsid;
+  return 0;
+}
+
+/* Check to see if the code should change the tag field */
+static int patternChangeTagCheck(const char *fileName, int *retCode,
+       int *resCode, char *codepage, char * type, const char *pattern) {
+
+  bool pure = FALSE;
+  int ccsid;
+  char message[30];
+
+  const char * baseName;
+  int returnCode = 0, reasonCode = 0;
+  int returnValue = 0;
+
+  /* Test to see if a substring is part of base name */
+  /* If not, then return                             */
+  if (pattern != NULL) {
+    if ((baseName = strrstr(fileName, "/")) == NULL ) {
+      baseName = fileName;
+    }
+    if (strstr(baseName, pattern) == NULL) {
+       return 0;
+    }
+  }
+
+  if (-1 == patternChangeTagTest(message, sizeof (message),
+                                type, codepage, &pure, &ccsid)) {
+    returnValue = -1;
+    goto ExitCode;
+  } 
+
+  /* Change tag */
+  if (-1 == (fileChangeTagPure(fileName, &returnCode, &reasonCode, ccsid, pure))) {
+    returnValue = -1;
+    goto ExitCode;
+  }
+
+
+ExitCode:
+  *retCode = returnCode;
+  *resCode = reasonCode;
+  return     returnValue;
+}
+
+
+/* Recursively, trace down directory tree and change file tags */
+int directoryChangeTagRecursive(const char *pathName, char *type,
+          char *codepage, int recursive, char * pattern,
+          int *retCode, int *resCode){
+
+  int returnCode = 0, reasonCode = 0, status = 0;
+  int returnValue = 0;
+  FileInfo info = {0};
+  int CCSID = 0;
+
+  /* Find the ccsid for the codepage */
+  if (-1 == (CCSID = findCcsidId(codepage))) {
+    goto ExitCodeError;
+  }
+
+  /* Get initial file info*/
+  status = fileInfo(pathName, &info, &returnCode, &reasonCode);
+  if (status == -1){
+    goto ExitCodeError;
+  }
+
+  /* If directory and not recursive, just return */
+  if ((fileInfoIsDirectory(&info) && !recursive)) {
+    goto ExitCode;
+    }
+
+  /* Request is for a file. Handle it and exit */
+  if (fileInfoIsRegularFile(&info)) {
+    if( -1 == patternChangeTagCheck (pathName, &returnCode, 
+                            &reasonCode, codepage, type, pattern)) {
+      goto ExitCodeError;
+    } else {
+      goto ExitCode;
+    }
+  } 
+
+  /* Get list of files in this directory */
+  const char *entryArray[MAX_NUM_ENTRIES] = {0};
+  char entryBuffer[MAX_ENTRY_BUFFER_SIZE] = {0};
+  UnixFile *dir = directoryOpen(pathName, &returnCode, &reasonCode);
+  if (dir == NULL) {
+    goto ExitCodeError;
+  }
+
+  int entries = directoryRead(dir, entryBuffer, sizeof(entryBuffer),
+                              &returnCode, &reasonCode);
+  if (entries == -1) {
+    goto ExitCodeError;
+  }
+
+  int validEntries = getValidDirectoryEntries(entries, entryBuffer, 
+                                              entryArray);
+  /* Loop through all files in directory                     */
+  /* If a subdirectory found, recursively call this function */
+  /* At this point, we know recursive is true.               */
+  for (int i = 0; i < validEntries; i++) {
+    char pathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
+    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entryArray[i]);
+
+    if (-1 == (fileInfo(pathBuffer, &info, &returnCode, &reasonCode))){
+      returnValue = -1;
+      goto ExitCodeError;
+    }
+
+    if (fileInfoIsDirectory(&info)) {
+      /* Change tag of all sub-directories and files there-in */
+      if (-1 ==  directoryChangeTagRecursive(
+                         pathBuffer, type, codepage, recursive, pattern,
+                         &returnCode, &reasonCode) ){
+        goto ExitCodeError;
+      }
+    }
+    else {
+      /* change mode of this file, not a directory */
+      if (fileInfoIsRegularFile(&info)) {
+        if( -1 == patternChangeTagCheck (pathBuffer, &returnCode, &reasonCode, 
+                                  codepage, type, pattern)) {
+          goto ExitCodeError;
+        }
+      }
+    }
+  } /* End of for loop */
+
+  goto ExitCode;
+ExitCodeError:
+    returnValue = -1;
+ExitCode:
+    *retCode = returnCode;
+    *resCode = reasonCode;
+  if (fileTrace) {
+    if (returnValue  != 0) {
+      printf("directoryChangeModeRecursive: Failed\n");
+    }
+    else {
+      printf("directoryChangeModeRecursive: Passed\n");
+   }
+  }
+  return returnValue;
+}
+
+
 
 int directoryRename(const char *oldDirname, const char *newDirName, int *returnCode, int *reasonCode){
   int returnValue = fileRename(oldDirname, newDirName, returnCode, reasonCode);

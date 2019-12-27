@@ -48,6 +48,11 @@ void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, in
 void  directoryChangeModeAndRespond(HttpResponse *response, char * routeFileName,
           char * Recursive, char * mode, char *compare);
 
+int directoryChangeTagAndRespond(HttpResponse *response, char *file,
+            char *type, char *codepage, char *Recursive, char *pattern);
+int directoryChangeDeleteTagAndRespond(HttpResponse *response, char *file,
+            char *type, char *codepage, char *Recursive, char *pattern);
+
 int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLength);
 int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLength, int sourceEncoding, int targetEncoding);
 
