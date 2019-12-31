@@ -21,7 +21,7 @@
 #else
 #include <stdio.h>
 #include <string.h>
-
+#include <le/limits.h>
 #endif
 
 #include "zowetypes.h"
@@ -32,6 +32,14 @@
 #include "charsets.h"
 #include "unixfile.h"
 #include "httpfileservice.h"
+
+#ifndef PATH_MAX
+# ifdef _POSIX_PATH_MAX
+#   define PATH_MAX  _POSIX_PATH_MAX
+# else
+#   define PATH_MAX  255 
+# endif
+#endif
 
 #ifdef __ZOWE_OS_ZOS
 #define NATIVE_CODEPAGE CCSID_EBCDIC_1047
@@ -449,6 +457,76 @@ void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
   }
   else {
     respondWithUnixFileNotFound(response, TRUE);
+  }
+}
+
+void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
+        char *usrId, char *grpId, char *Recursive, char *pattern) {
+# define RETURN_MESSAGE_SIZE (PATH_MAX + 50)
+
+  char message[RETURN_MESSAGE_SIZE] = {0};
+  strncpy(message,"", RETURN_MESSAGE_SIZE);
+  UserInfo  userInfo = {0};
+  GroupInfo groupInfo = {0};
+
+  int returnCode = 0, reasonCode = 0;
+  int recursive = 0;
+  int userId, groupId, status;
+
+  if (!strcmp(strupcase(Recursive),"TRUE")) {
+    recursive = 1;
+  }
+
+  /* Evaluate user ID */
+  if (usrId == NULL) {
+    userId = -1;
+  }
+  else if (stringIsDigit(usrId)) {
+    userId = atoi(usrId);
+  }
+  else {
+    status = gidGetUserInfo(usrId, &userInfo, &returnCode, &reasonCode);
+    if (status == 0) {
+      userId = userInfoGetUserId ( &userInfo);
+    }
+    else {
+      sprintf(message, "Bad Input: User %s NOT found", usrId);
+      respondWithJsonError(response, message, 400, "Bad Request");
+      return;
+    }
+  }
+
+  /* Evaluate group ID */
+  if (grpId == NULL) {
+    groupId = -1;
+  }
+  else if (stringIsDigit(grpId)) {
+    groupId = atoi(grpId);
+  }
+  else {
+    status = gidGetGroupInfo(grpId, &groupInfo, &returnCode, &reasonCode);
+    if (status == 0) {
+      groupId = groupInfoGetGroupId ( &groupInfo);
+    }
+    else {
+      sprintf(message, "Bad Input: Group %s NOT found", grpId);
+      respondWithJsonError(response, message, 400, "Bad Request");
+      return;
+    }
+  }
+
+  /* Call recursive change mode */
+  if (!directoryChangeOwnerRecursive( message, sizeof(message),
+      path, userId, groupId, recursive, pattern,
+      &returnCode, &reasonCode )) {
+    response200WithMessage(response, "Successfully Modify ");
+
+  }
+  else {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to change file owner %s, (returnCode = 0x%x, reasonCode = 0x% x)\n",
+            path, returnCode, reasonCode);
+    respondWithJsonError(response, "Failed to Change Owner", 500, "Internal Server Error");
   }
 }
 

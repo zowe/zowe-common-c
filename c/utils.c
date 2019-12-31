@@ -2169,6 +2169,29 @@ static int incrementPlaceValues(int *placeValues,
 }
 
 
+bool stringIsDigit(const char * str){
+  bool returnValue = TRUE;
+  for (int i = 0; i < strlen(str); i ++) {
+    if (!isdigit(str[i])) {
+      returnValue = FALSE;
+      break;
+    }
+  }
+  return returnValue;
+}
+
+#ifndef METTLE
+/* Library does not support reverse string-string */
+const char* strrstr(const char * base, const char * find) {
+  const char * returnPtr = NULL;
+  const char * newPtr = base;
+  while ((strstr(newPtr, find)) != NULL) {
+    returnPtr = strstr(newPtr, find);
+    newPtr = returnPtr + 1;
+  }
+  return returnPtr;
+}
+#endif
 
 /*
   This program and the accompanying materials are

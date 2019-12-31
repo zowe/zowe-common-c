@@ -39,6 +39,7 @@
 #pragma linkage(BPX4REN,OS)
 #pragma linkage(BPX4CHR,OS)
 #pragma linkage(BPX4CLO,OS)
+#pragma linkage(BPX4LCO,OS)
 #pragma linkage(BPX4STA,OS)
 #pragma linkage(BPX4UNL,OS)
 #pragma linkage(BPX4OPD,OS)
@@ -49,6 +50,8 @@
 #pragma linkage(BPX4UMK,OS)
 #pragma linkage(BPX4FCT,OS)
 #pragma linkage(BPX4LST,OS)
+#pragma linkage(BPX4GGN,OS)
+#pragma linkage(BPX4GPN,OS)
 
 #define BPXRED BPX4RED
 #define BPXOPN BPX4OPN
@@ -56,6 +59,7 @@
 #define BPXREN BPX4REN
 #define BPXCHR BPX4CHR
 #define BPXCLO BPX4CLO
+#define BPXLCO BPX4LCO
 #define BPXSTA BPX4STA
 #define BPXUNL BPX4UNL
 #define BPXOPD BPX4OPD
@@ -66,14 +70,18 @@
 #define BPXUMK BPX4UMK
 #define BPXFCT BPX4FCT
 #define BPXLST BPX4LST
+#define BPXGGN BPX4GGN
+#define BPXGPN BPX4GPN
 
 #else
+
 #pragma linkage(BPX1RED,OS)
 #pragma linkage(BPX1OPN,OS)
 #pragma linkage(BPX1WRT,OS)
 #pragma linkage(BPX1REN,OS)
 #pragma linkage(BPX1CHR,OS)
 #pragma linkage(BPX1CLO,OS)
+#pragma linkage(BPX1LCO,OS)
 #pragma linkage(BPX1STA,OS)
 #pragma linkage(BPX1UNL,OS)
 #pragma linkage(BPX1OPD,OS)
@@ -84,6 +92,8 @@
 #pragma linkage(BPX1UMK,OS)
 #pragma linkage(BPX1FCT,OS)
 #pragma linkage(BPX1LST,OS)
+#pragma linkage(BPX1GGN,OS)
+#pragma linkage(BPX1GPN,OS)
 
 #define BPXRED BPX1RED
 #define BPXOPN BPX1OPN
@@ -91,6 +101,7 @@
 #define BPXREN BPX1REN
 #define BPXCHR BPX1CHR
 #define BPXCLO BPX1CLO
+#define BPXLCO BPX1LCO
 #define BPXSTA BPX1STA
 #define BPXUNL BPX1UNL
 #define BPXOPD BPX1OPD
@@ -101,6 +112,8 @@
 #define BPXUMK BPX1UMK
 #define BPXFCT BPX1FCT
 #define BPXLST BPX1LST
+#define BPXGGN BPX1GGN
+#define BPXGPN BPX1GPN
 #endif
 
 #define MAX_ENTRY_BUFFER_SIZE 2550
@@ -770,9 +783,165 @@ int symbolicFileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int
   return returnValue;
 }
 
+int fileChangeOwner(const char *fileName, int *returnCode, int *reasonCode, 
+                    int usrId, int grpId) {
+  int nameLength = strlen(fileName);
+  int *reasonCodePtr;
+  int returnValue = 0;
+  *returnCode = *reasonCode = 0;
+
+#ifndef _LP64
+  reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
+#else
+  reasonCodePtr = reasonCode;
+#endif
+
+  BPXLCO(&nameLength,
+         fileName,
+         usrId,
+         grpId,
+         &returnValue,
+         returnCode,
+         reasonCodePtr);
+
+  if (fileTrace) {
+    if (returnValue != 0) {
+#ifdef METTLE
+      printf("BPXLCO FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+             returnValue, *returnCode, *reasonCode);
+#else
+      printf("BPXLCO FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+             returnValue, *returnCode, *reasonCode, strerror(*returnCode));
+#endif
+    }
+    else {
+      printf("BPXLCO (%s) OK: returnValue: %d\n\n", fileName, returnValue);
+    }
+  }
+
+  if (returnValue != 0) {
+    returnValue = -1;
+  }
+  return returnValue;
+}
+
+int gidGetUserInfo(const char *userName,  UserInfo * info,
+                         int *returnCode, int *reasonCode) {
+  int nameLength = strlen(userName);
+  int *reasonCodePtr;
+  int returnValue;
+  int retValue = -1;
+
+  UserInfo *ptrInfo;
+
+#ifndef _LP64
+  reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
+#else
+  reasonCodePtr = reasonCode;
+#endif
+
+  BPXGPN(&nameLength,
+         userName,
+         &returnValue,
+         returnCode,
+         reasonCodePtr);
+
+  /* Copy returned structure */
+  if (returnValue != 0) {
+    memcpy (info, (char *)returnValue, sizeof (UserInfo));
+    retValue = 0;
+  }
+
+  if (fileTrace) {
+    if(returnValue == 0) {
+#ifdef METTLE
+      printf("BPXGPN (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+             userName, returnValue, *returnCode, *reasonCode);
+#else
+      printf("BPXGPN (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+             userName, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
+#endif
+    }
+    else {
+      printf("BPXGPN (%s) OK: returnVal: %d\n", userName, returnValue);
+    }
+  }
+
+  return retValue;
+}
+
+int gidGetGroupInfo(const char *groupName,  GroupInfo *info,
+                   int *returnCode, int *reasonCode) {
+  int groupLength = strlen(groupName);
+  int *reasonCodePtr;
+  int returnValue;
+  int retValue = -1;
+  *returnCode = *reasonCode = 0;
+
+#ifndef _LP64
+  reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
+#else
+  reasonCodePtr = reasonCode;
+#endif
+
+  BPXGGN(&groupLength,
+         groupName,
+         &returnValue,
+         returnCode,
+         reasonCodePtr);
+
+  /* Copy returned structure */
+  if (returnValue >  0) {
+    memcpy (info, (char *)returnValue, sizeof (GroupInfo));
+    retValue = 0;
+  }
+
+  if (fileTrace) {
+    if(returnValue == 0) {
+#ifdef METTLE
+      printf("BPXGGN (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+             groupName, returnValue, *returnCode, *reasonCode);
+#else
+      printf("BPXGGN (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+             groupName, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
+#endif
+    }
+    else {
+      printf("BPXGGN (%s) OK: returnVal: %d\n", groupName, returnValue);
+    }
+  }
+
+  return retValue;
+}
+
+int userInfoGetUserId (UserInfo *info) {
+  int *temp = (int *)info;
+  int unameLength = info->GIDN_U_LEN;
+  int unameLengthindex = (unameLength + 3) /4;
+  int userId = temp[unameLengthindex+ 2];
+  return userId;
+}
+
+int groupInfoGetGroupId (GroupInfo *info) {
+  int *temp = (int *)info;
+  int groupLength = info->GIDS_G_LEN;
+  int groupLengthindex = (groupLength + 3) /4;
+  int groupId = temp[groupLengthindex+ 2];
+  return groupId;
+}
+
 int fileInfoIsDirectory(const FileInfo *info) {
   return (info->fileType == BPXSTA_FILETYPE_DIRECTORY ? TRUE: FALSE);
 }
+
+int fileInfoIsRegularFile(const FileInfo *info) {
+  return (info->fileType == BPXSTA_FILETYPE_REGULAR ? TRUE: FALSE);
+}
+
+int fileInfoIsSymbolicLink(const FileInfo *info) {
+  return (info->fileType == BPXSTA_FILETYPE_SYMLINK ? TRUE: FALSE);
+}
+
 
 int fileInfoCCSID(const FileInfo *info) {
   return (int)(info->ccsid);
@@ -1429,6 +1598,121 @@ int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode) {
   return returnValue;
 }
 
+/* Check for pattern match */
+int fileChangeOwnerPatternCheck(const char *pathName, int *retCode,
+          int *resCode, char *pattern, int userId, int groupId) {
+  const char *baseName;
+  int  returnValue;
+
+  /* test to see if file name matches pattern if requested */
+  if (pattern != NULL) {
+    if ((baseName = strrstr(pathName, "/")) == NULL ) {
+      baseName = pathName;
+    }
+    if (strstr(baseName, pattern) == NULL) {
+       return 0;
+    }
+  }
+
+  returnValue = fileChangeOwner(pathName,  retCode, resCode, userId, groupId);
+  return returnValue;
+}
+
+/* Recursively, trace down directory tree and change file ownership */
+int directoryChangeOwnerRecursive(char * message, int messageLength,
+              const char *pathName, int userId, int groupId,
+              int recursive, char * pattern,
+              int *retCode, int *resCode){
+
+  int status = 0;
+  int returnValue = 0;
+  FileInfo info = {0};
+
+  /* Get initial file info*/
+  status = symbolicFileInfo(pathName, &info, retCode, resCode);
+  if (status == -1){
+    goto ExitCodeError;
+  }
+
+  /* Request is for a file or non recursive directory. Handle it and exit */
+  if (((fileInfoIsDirectory(&info)   && !recursive))  ||
+       fileInfoIsRegularFile(&info)  ||
+       fileInfoIsSymbolicLink(&info)) {
+    returnValue = fileChangeOwnerPatternCheck(pathName, retCode,
+                  resCode, pattern, userId, groupId);
+
+    if (returnValue != 0){
+      goto ExitCodeError;
+    }
+    else {
+      goto ExitCode;
+    }
+  }
+
+/* Get list of files in this directory */
+  const char *entryArray[MAX_NUM_ENTRIES] = {0};
+  char entryBuffer[MAX_ENTRY_BUFFER_SIZE] = {0};
+  UnixFile *dir = directoryOpen(pathName, retCode, resCode);
+  if (dir == NULL) {
+    goto ExitCodeError;
+  }
+  int entries = directoryRead(dir, entryBuffer, sizeof(entryBuffer),
+                              retCode, resCode);
+
+  /* Empty Directory.  Will be change on return */
+  if (entries == -1) {
+    goto ExitCode;
+  }
+
+  int validEntries = getValidDirectoryEntries(entries, entryBuffer,
+                                              entryArray);
+  /* Loop through all files in directory                     */
+  /* If a subdirectory found, recursively call this function */
+  /* At this point, we know recursive is true.               */
+  for (int i = 0; i < validEntries; i++) {
+    char pathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
+    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entryArray[i]);
+
+    if (-1 == (symbolicFileInfo(pathBuffer, &info, retCode, resCode))){
+      goto ExitCodeError;
+    }
+
+    if (fileInfoIsDirectory(&info)) {
+      /* Change ownership of all sub-directories and files there-in */
+      if (-1 ==  directoryChangeOwnerRecursive( message, messageLength,
+                         pathBuffer, userId, groupId, recursive, pattern,
+                         retCode, resCode) ){
+        goto ExitCodeError;
+      }
+    }
+
+    /* Change ownership of individual file or current directory */
+    if (fileInfoIsDirectory(&info)     ||
+        fileInfoIsRegularFile(&info)   ||
+        fileInfoIsSymbolicLink(&info))  {
+      returnValue = fileChangeOwnerPatternCheck(pathBuffer,  retCode, resCode,
+                 pattern, userId, groupId);
+      if (returnValue != 0){
+        goto ExitCodeError;
+      }
+    }
+  } /* End of for loop */
+
+
+  goto ExitCode;
+ExitCodeError:
+    returnValue = -1;
+ExitCode:
+  if (fileTrace) {
+    if (returnValue  != 0) {
+      printf("directoryChangeOwnerRecursive: Failed\n");
+    }
+    else {
+      printf("directoryChangeOwnerRecursive: Passed\n");
+   }
+  }
+  return returnValue;
+}
 
 /*
   This program and the accompanying materials are
