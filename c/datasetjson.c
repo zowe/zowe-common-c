@@ -572,7 +572,13 @@ static bool isDatasetPathValid(const char *path) {
 
   const char *leftParen = strchr(dsnStart, '(');
   const char *rightParen = strchr(dsnStart, ')');
+  const char *spacePram  = strchr(dsnStart, ' ');
+
   if (!leftParen ^ !rightParen) {
+    return false;
+  }
+
+  if (spacePram) {
     return false;
   }
 
@@ -1950,56 +1956,32 @@ void respondWithDatasetMetadata(HttpResponse *response) {
 #ifdef __ZOWE_OS_ZOS
   HttpRequest *request = response->request;
   char *datasetOrMember = stringListPrint(request->parsedFile, 2, 2, "?", 0); /*get search term*/
+
   if (datasetOrMember == NULL || strlen(datasetOrMember) < 1){
     respondWithError(response,HTTP_STATUS_BAD_REQUEST,"No dataset name given");
     return;
   }
-
   char *username = response->request->username;
   int dsnLen = strlen(datasetOrMember);
+  char *percentDecoded = cleanURLParamValue(response->slh, datasetOrMember);
+  char *absDsPathTemp = stringConcatenate(response->slh, "//'", percentDecoded);
+  char *absDsPath = stringConcatenate(response->slh, absDsPathTemp, "'");
+
+  if(!isDatasetPathValid(absDsPath)){
+    respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Invalid dataset path");
+    return;
+  }
+
+  /* From here on, we know we have a valid data path */
   int lParenIndex = indexOf(datasetOrMember, dsnLen, '(', 0);
-  char pdsDSN[45];
-  char pdsMember[100];
+  int rParenIndex = indexOf(datasetOrMember, dsnLen, ')', 0);
+  DatasetName dsnName;
+  DatasetMemberName memName;
   int memberNameLength = 0;
-  if (lParenIndex > 0){
-    int rParenIndex = lastIndexOf(datasetOrMember, dsnLen, ')');
-    int encodedMemberNameLength = rParenIndex-lParenIndex;
-    if (encodedMemberNameLength == 1) {
-      respondWithError(response,HTTP_STATUS_BAD_REQUEST,"No member name given within parenthesis");
-      return;
-    }
-    else if (encodedMemberNameLength > 100) {
-      respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Member name too long");
-      return;
-    }
-    else if (rParenIndex == dsnLen-1){/*paren must end the member listing*/
-      memcpy(pdsDSN,datasetOrMember,lParenIndex);
-      pdsDSN[lParenIndex] = '\0';
-      if (decodePercentByte(&datasetOrMember[lParenIndex+1],encodedMemberNameLength-1,pdsMember,&memberNameLength)) {
-        respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Malformed member name");
-        return;
-      }
-      int asteriskPos = indexOf(pdsMember,memberNameLength,'*',0);
-      if (asteriskPos == -1 && memberNameLength < 8) {
-        for (memberNameLength; memberNameLength < 8; memberNameLength++) {
-          pdsMember[memberNameLength] = ' ';
-        }
-      }
-    }
-    else{
-      respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Malformed dataset name");
-      return;
-      /*error*/
-    }
-  }
-  char *dsn;
-  if (lParenIndex > 0){
-    dsn = pdsDSN;
-    dsnLen = lParenIndex+1;
-  }
-  else{
-    dsn = datasetOrMember;
-  }
+
+  extractDatasetAndMemberName(absDsPath, &dsnName, &memName);
+  memberNameLength = (unsigned int)rParenIndex  - (unsigned int)lParenIndex -1; 
+
   HttpRequestParam *detailParam = getCheckedParam(request,"detail");
   char *detailArg = (detailParam ? detailParam->stringValue : NULL);
 
@@ -2054,7 +2036,7 @@ void respondWithDatasetMetadata(HttpResponse *response) {
   char **csiFields = defaultCSIFields;
 
   csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
-  EntryDataSet *entrySet = returnEntries(dsn, typesArg,datasetTypeCount, workAreaSizeArg, csiFields, fieldCount, resumeNameArg, resumeCatalogNameArg, returnParms); 
+  EntryDataSet *entrySet = returnEntries(dsnName.value, typesArg,datasetTypeCount, workAreaSizeArg, csiFields, fieldCount, resumeNameArg, resumeCatalogNameArg, returnParms); 
   char *resumeName = returnParms->resume_name;
   char *catalogName = returnParms->catalog_name;
   int isResume = (returnParms->is_resume == 'Y');
@@ -2126,7 +2108,7 @@ void respondWithDatasetMetadata(HttpResponse *response) {
           if (!isMigrated || !strcmp(migratedArg, "true")){
             addMemberedDatasetMetadata(datasetName, datasetNameLength,
                                        volser, volserLength,
-                                       pdsMember, memberNameLength,
+                                       memName.value, memberNameLength,
                                        jPrinter, includeUnprintable);
           }
         }
