@@ -17,11 +17,12 @@
 #include <metal/stdlib.h>
 #include <metal/string.h>
 #include "metalio.h"
+#include <metal/limits.h>
 
 #else
 #include <stdio.h>
 #include <string.h>
-#include <le/limits.h>
+#include <limits.h>
 #endif
 
 #include "zowetypes.h"
@@ -465,7 +466,6 @@ void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
 # define RETURN_MESSAGE_SIZE (PATH_MAX + 50)
 
   char message[RETURN_MESSAGE_SIZE] = {0};
-  strncpy(message,"", RETURN_MESSAGE_SIZE);
   UserInfo  userInfo = {0};
   GroupInfo groupInfo = {0};
 
@@ -473,7 +473,7 @@ void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
   int recursive = 0;
   int userId, groupId, status;
 
-  if (!strcmp(strupcase(Recursive),"TRUE")) {
+  if (( Recursive != NULL) && !strcmp(strupcase(Recursive),"TRUE")) {
     recursive = 1;
   }
 
@@ -490,7 +490,8 @@ void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
       userId = userInfoGetUserId ( &userInfo);
     }
     else {
-      sprintf(message, "Bad Input: User %s NOT found", usrId);
+      snprintf(message, sizeof (message), 
+               "Bad Input: User %s NOT found", usrId);
       respondWithJsonError(response, message, 400, "Bad Request");
       return;
     }
@@ -509,7 +510,8 @@ void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
       groupId = groupInfoGetGroupId ( &groupInfo);
     }
     else {
-      sprintf(message, "Bad Input: Group %s NOT found", grpId);
+      snprintf(message, sizeof(message), 
+               "Bad Input: Group %s NOT found", grpId);
       respondWithJsonError(response, message, 400, "Bad Request");
       return;
     }
@@ -526,7 +528,8 @@ void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
             "Failed to change file owner %s, (returnCode = 0x%x, reasonCode = 0x% x)\n",
             path, returnCode, reasonCode);
-    respondWithJsonError(response, "Failed to Change Owner", 500, "Internal Server Error");
+    respondWithJsonError(response, "Failed to Change Owner", 500, 
+               "Internal Server Error");
   }
 }
 
