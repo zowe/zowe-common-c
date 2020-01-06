@@ -200,22 +200,24 @@ int convertCharset(char *input,
 }
 
 int getCharsetCode(char *charsetName) {
-  if (!strcmp(charsetName, "ISO-8859-1")) {
+  if ((!strcmp(strupcase(charsetName), "ISO-8859-1"))  ||
+      (!strcmp(strupcase(charsetName), "ISO8859-1")))
+     {
     return CCSID_ISO_8859_1;
   }
-  else if (!strcmp(charsetName, "IBM-1047")) {
+  else if (!strcmp(strupcase(charsetName), "IBM-1047")) {
     return CCSID_IBM1047;
   }
-  else if (!strcmp(charsetName, "UTF-8")) {
+  else if (!strcmp(strupcase(charsetName), "UTF-8")) {
     return CCSID_UTF_8;
   }
-  else if (!strcmp(charsetName, "UTF-16")) {
+  else if (!strcmp(strupcase(charsetName), "UTF-16")) {
     return CCSID_UTF_16;
   }
-  else if (!strcmp(charsetName, "UTF-16BE")) {
+  else if (!strcmp(strupcase(charsetName), "UTF-16BE")) {
     return CCSID_UTF_16_BE;
   }
-  else if (!strcmp(charsetName, "UTF-16LE")) {
+  else if (!strcmp(strupcase(charsetName), "UTF-16LE")) {
     return CCSID_UTF_16_LE;
   }
   else {
