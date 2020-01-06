@@ -29,6 +29,8 @@
 #include <windows.h>
 #endif
 
+#include <zosaccounts.h>
+
 /*
   "Unix" files are regular character-oriented files that
   have on Unix the classic fopen/fread/fwrite/fclose/etc API.
@@ -280,35 +282,9 @@ typedef struct BPXYATT_tag {
   /* End of Version 3*/
 } BPXYATT;
 
-
-typedef struct BPXYGIDS_tag {
-  int     GIDS_G_LEN;        // Group name length
-  char    GIDS_G_NAME;       // Group name
-  int     GIDS_G_LEN_ID;     // Group ID length
-  int     GIDS_GROUPID;      // Group ID
-  int     GIDS_COUNT;        // Count of array element
-  int     GIDS_M_LEN;        // Length of member names
-  char    GIDS_M_NAME;       // Name of members
-}BPXYGIDS;
-
-typedef struct BPXYGIDN_tag {
-  int     GIDN_U_LEN;        // User name length
-  char    GIDN_U_NAME;       // User name
-  int     GIDN_U_LEN_ID;     // User ID length
-  int     GIDN_USERID;       // User ID
-  int     GIDN_G_LEN;        // Group name length
-  int     GIDN_GROUPID;      // Group ID
-  int     GIDN_D_LEN;        // Length of GIDN_D_NAME
-  char    GIDN_D_NAME;       // Initial working directory name
-  int     GIDN_P_LEN;        // Length of GIDN_P_NAME
-  char    GIDN_P_NAME;       // Initial user program name
-}BPXYGIDN;
-
 typedef BPXYSTAT FileInfo;
 typedef BPXYDIRE DirectoryEntry;
 typedef BPXYATT  FileAttributes;
-typedef BPXYGIDS GroupInfo;
-typedef BPXYGIDN UserInfo;
 
 #define FILE_OPTION_READ_ONLY              BPXOPN_OPTION_READ_ONLY
 #define FILE_OPTION_NOLARGEFILE            BPXOPN_OPTION_NOLARGEFILE

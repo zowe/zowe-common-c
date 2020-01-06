@@ -462,7 +462,7 @@ void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
 }
 
 void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
-        char *usrId, char *grpId, char *Recursive, char *pattern) {
+        char *user, char *group, char *Recursive, char *pattern) {
 # define RETURN_MESSAGE_SIZE (PATH_MAX + 50)
 
   char message[RETURN_MESSAGE_SIZE] = {0};
@@ -478,43 +478,19 @@ void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
   }
 
   /* Evaluate user ID */
-  if (usrId == NULL) {
-    userId = -1;
-  }
-  else if (stringIsDigit(usrId)) {
-    userId = atoi(usrId);
-  }
-  else {
-    status = gidGetUserInfo(usrId, &userInfo, &returnCode, &reasonCode);
-    if (status == 0) {
-      userId = userInfoGetUserId ( &userInfo);
-    }
-    else {
-      snprintf(message, sizeof (message), 
-               "Bad Input: User %s NOT found", usrId);
-      respondWithJsonError(response, message, 400, "Bad Request");
-      return;
-    }
+  if (-1 == (userId = userIdGet(user, &returnCode, &reasonCode))) {
+    snprintf(message, sizeof (message),
+               "Bad Input: User %s NOT found", user);
+    respondWithJsonError(response, message, 400, "Bad Request");
+    return;
   }
 
   /* Evaluate group ID */
-  if (grpId == NULL) {
-    groupId = -1;
-  }
-  else if (stringIsDigit(grpId)) {
-    groupId = atoi(grpId);
-  }
-  else {
-    status = gidGetGroupInfo(grpId, &groupInfo, &returnCode, &reasonCode);
-    if (status == 0) {
-      groupId = groupInfoGetGroupId ( &groupInfo);
-    }
-    else {
-      snprintf(message, sizeof(message), 
-               "Bad Input: Group %s NOT found", grpId);
-      respondWithJsonError(response, message, 400, "Bad Request");
-      return;
-    }
+  if (-1 == (groupId = groupIdGet(group, &returnCode, &reasonCode))) {
+    snprintf(message, sizeof (message),
+               "Group %s NOT found", group);
+    respondWithJsonError(response, message, 400, "Bad Request");
+    return;
   }
 
   /* Call recursive change mode */
@@ -532,6 +508,7 @@ void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
                "Internal Server Error");
   }
 }
+
 
 /* Writes binary data to a unix file by:
  *
