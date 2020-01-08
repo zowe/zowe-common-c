@@ -201,15 +201,14 @@ int convertCharset(char *input,
 
 #define CHARSETNAME_SIZE 15
 int getCharsetCode(const char *charsetName) {
-  char localArray[CHARSETNAME_SIZE] = {0};
+  char localArray[CHARSETNAME_SIZE + 1] = {0};
 
   /* Make sure last element is 0 */
   if (strlen(charsetName) > CHARSETNAME_SIZE) {
     return -1;
   }
 # undef CHARSETNAME_SIZE
-
-  strncpy( localArray, charsetName, sizeof (localArray) -1);
+  strcpy( localArray, charsetName);
   strupcase (localArray);
 
   if ((!strcmp(localArray, "ISO-8859-1"))  ||
