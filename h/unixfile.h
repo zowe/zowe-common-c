@@ -499,10 +499,6 @@ int directoryChangeOwner(char * message, int messageLength, char *directory,
             int userId, int groupId, bool recursion, char * pattern,
             int *returnCode, int *reasonCode);
 
-int  userInfoGetUserId   (UserInfo  *info);
-int  groupInfoGetGroupId (GroupInfo *info);
-int  gidGetUserInfo(const char *userName,  UserInfo *info, int *returnCode, int *reasonCode);
-int  gidGetGroupInfo(const char *groupName,  GroupInfo *info, int *returnCode, int *reasonCode);
 
 int setUmask(int mask);
 int getUmask();
