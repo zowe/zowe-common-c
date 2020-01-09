@@ -212,8 +212,7 @@ int getCharsetCode(const char *charsetName) {
   strupcase (localArray);
 
   if ((!strcmp(localArray, "ISO-8859-1"))  ||
-      (!strcmp(localArray, "ISO8859-1")))
-     {
+      (!strcmp(localArray, "ISO8859-1"))) {
     return CCSID_ISO_8859_1;
   }
   else if (!strcmp(localArray, "IBM-1047")) {
