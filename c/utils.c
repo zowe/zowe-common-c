@@ -2168,7 +2168,6 @@ static int incrementPlaceValues(int *placeValues,
   return canIncrement;
 }
 
-
 bool stringIsDigit(const char * str){
   bool returnValue = TRUE;
   for (int i = 0; i < strlen(str); i ++) {

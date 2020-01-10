@@ -173,6 +173,50 @@ void deleteUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
   }
 }
 
+
+/* Modifies the mode of files/directories */
+void directoryChangeModeAndRespond(HttpResponse *response, char *file, 
+                        char *recursive, char *cmode, char *pattern) {
+  int returnCode = 0, reasonCode = 0;
+  int flag = 0; 
+  int mode;
+
+  if (!strcmp(strupcase(recursive), "TRUE")) {
+    flag = 1;
+  }
+
+  /* Find mode value */
+  char * first = cmode;
+  if ((first  = strpbrk(cmode, "oO")) == NULL){
+    first = cmode;
+    }
+  else {
+    first +=1;
+   }
+  
+  /* Verify at least 1 valid character, move to it */ 
+  if ( ((first  = strpbrk(cmode, "01234567")) == NULL)  ||
+       (strpbrk(cmode, "89") != NULL)) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+       "Failed to chnmod file %s: illegal mode %s\n", file, cmode);
+    respondWithJsonError(response, "failed to chmod: mode not octol", 400, "Bad Request");
+    return;
+    }
+  sscanf (first, "%o", &mode); 
+
+  /* Call recursive change mode */
+  if (!directoryChangeModeRecursive(file, flag,mode, pattern, &returnCode, &reasonCode )) {
+    response200WithMessage(response, "successfully modify modes");
+  }
+  else {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to chnmod file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            file, returnCode, reasonCode);
+    respondWithJsonError(response, "failed to modify file modes", 500, "Bad Request");
+  }
+  return;
+}
+
 /* Deletes a unix file at the specified absolute
  * path.
  */
@@ -207,6 +251,7 @@ void deleteUnixFileAndRespond(HttpResponse *response, char *absolutePath) {
     respondWithJsonError(response, "Failed to delete a file", 400, "Bad Request");
   }
 }
+
 
 /* Renames a unix directory at the specified absolute
  * path. It will only overwrite an existing directory
@@ -410,6 +455,56 @@ static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
 
   return 0;
 }
+
+#define CCSID_MESSAGE_LENGTH  60
+/* Modifies the mode of files/directories */
+int directoryChangeDeleteTagAndRespond(HttpResponse *response, char *file,
+            char *type, char *codepage, char *Recursive, char *pattern) {
+
+  int ccsid;
+  ccsid =  findCcsidId(codepage);
+  if (codepage != NULL){
+    respondWithJsonError(response, "DELETE request with codeset", 400, "Bad Request");
+    return 0;
+  }
+  return directoryChangeTagAndRespond(response, file,
+               type, codepage, Recursive, pattern); 
+}
+
+/* Change Tag Recursively */
+int directoryChangeTagAndRespond(HttpResponse *response, char *file,
+            char *type, char *codepage, char *Recursive, char *pattern) {
+  int returnCode = 0, reasonCode = 0;
+  int recursive = 0;
+  int ccsid;
+  bool pure;
+  char message[CCSID_MESSAGE_LENGTH] = {0};
+
+  if (!strcmp(strupcase(Recursive),"TRUE")) {
+    recursive = 1;
+  }
+
+  if (-1 ==  patternChangeTagTest(message, sizeof (message),
+                     type, codepage, &pure, &ccsid)){
+    respondWithJsonError(response, message, 400, "Bad Request");
+    return 0;
+  }
+
+  /* Call recursive change mode */
+  if (!directoryChangeTagRecursive(file, type, codepage, recursive, pattern,
+      &returnCode, &reasonCode )) {
+    response200WithMessage(response, "Successfully Modify Tags");
+
+  }
+  else {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to change tag file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            file, returnCode, reasonCode);
+    respondWithJsonError(response, "Failed to Change file tag", 500, "Bad Request");
+  }
+  return 0;
+}
+
 
 void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite) {
   if (!writeEmptyUnixFile(absolutePath, forceWrite)) {
