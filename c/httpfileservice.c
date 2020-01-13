@@ -197,7 +197,7 @@ void directoryChangeModeAndRespond(HttpResponse *response, char *file,
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
        "Failed to chnmod file %s: illegal mode %s\n", file, cmode);
     respondWithJsonError(response, "failed to chmod: mode not octol", 400, "Bad Request");
-    return -1;
+    return;
     }
   sscanf (first, "%o", &mode); 
 
@@ -211,7 +211,7 @@ void directoryChangeModeAndRespond(HttpResponse *response, char *file,
             file, returnCode, reasonCode);
     respondWithJsonError(response, "failed to modify file modes", 500, "Bad Request");
   }
-  return 0;
+  return;
 }
 
 /* Deletes a unix file at the specified absolute
