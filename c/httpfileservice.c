@@ -86,9 +86,12 @@ bool doesFileExist(char *absolutePath) {
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
-    return false;
+    /* Test whether it is a symbolic */
+    status = symbolicFileInfo(absolutePath, &info, &returnCode, &reasonCode);
+    if (status == -1) {
+      return false;
+    }
   }
-  
   return true;
 }
 
@@ -154,8 +157,11 @@ void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath,
 static int deleteUnixDirectory(char *absolutePath) {
   int returnCode = 0, reasonCode = 0, status = 0;
   FileInfo info = {0};
-  
+ 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  if (status == -1) {
+    status = symbolicFileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  }
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
             "Failed to stat directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
@@ -210,7 +216,7 @@ void directoryChangeModeAndRespond(HttpResponse *response, char *file,
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
        "Failed to chnmod file %s: illegal mode %s\n", file, cmode);
     respondWithJsonError(response, "failed to chmod: mode not octol", 400, "Bad Request");
-    return -1;
+    return;
     }
   sscanf (first, "%o", &mode); 
 
@@ -224,7 +230,7 @@ void directoryChangeModeAndRespond(HttpResponse *response, char *file,
             file, returnCode, reasonCode);
     respondWithJsonError(response, "failed to modify file modes", 500, "Bad Request");
   }
-  return 0;
+  return;
 }
 
 /* Deletes a unix file at the specified absolute
@@ -235,6 +241,10 @@ static int deleteUnixFile(char *absolutePath) {
   FileInfo info = {0};
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  /* if not a file, then check to see if it is a symbolic link */
+  if (status == -1) {
+    status = symbolicFileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  }
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
             "Failed to stat file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",

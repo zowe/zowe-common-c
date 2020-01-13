@@ -199,23 +199,40 @@ int convertCharset(char *input,
   }
 }
 
-int getCharsetCode(char *charsetName) {
-  if (!strcmp(charsetName, "ISO-8859-1")) {
+#define CHARSETNAME_SIZE 15
+int getCharsetCode(const char *charsetName) {
+  char localArray[CHARSETNAME_SIZE + 1] = {0};
+
+  /* Check for null pointer */
+  if (charsetName == NULL) {
+    return -1;
+  }
+
+  /* Make sure last element is 0 */
+  if (strlen(charsetName) > CHARSETNAME_SIZE) {
+    return -1;
+  }
+# undef CHARSETNAME_SIZE
+  strcpy( localArray, charsetName);
+  strupcase (localArray);
+
+  if ((!strcmp(localArray, "ISO-8859-1"))  ||
+      (!strcmp(localArray, "ISO8859-1"))) {
     return CCSID_ISO_8859_1;
   }
-  else if (!strcmp(charsetName, "IBM-1047")) {
+  else if (!strcmp(localArray, "IBM-1047")) {
     return CCSID_IBM1047;
   }
-  else if (!strcmp(charsetName, "UTF-8")) {
+  else if (!strcmp(localArray, "UTF-8")) {
     return CCSID_UTF_8;
   }
-  else if (!strcmp(charsetName, "UTF-16")) {
+  else if (!strcmp(localArray, "UTF-16")) {
     return CCSID_UTF_16;
   }
-  else if (!strcmp(charsetName, "UTF-16BE")) {
+  else if (!strcmp(localArray, "UTF-16BE")) {
     return CCSID_UTF_16_BE;
   }
-  else if (!strcmp(charsetName, "UTF-16LE")) {
+  else if (!strcmp(localArray, "UTF-16LE")) {
     return CCSID_UTF_16_LE;
   }
   else {
