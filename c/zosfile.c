@@ -1153,10 +1153,14 @@ static int getValidDirectoryEntries(int entries, char *entryBuffer, const char *
 }
   
 int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode){
-  int returnCode = 0, reasonCode = 0, status = 0;
-  FileInfo info = {0};
-  
+  int returnCode = 0, reasonCode = 0, status = 0, symstatus = 0;
+  FileInfo    info = {0};
+  FileInfo syminfo = {0};
+ 
   status = fileInfo(pathName, &info, &returnCode, &reasonCode);
+  if (status == -1) {
+    status = symbolicFileInfo(pathName, &info, &returnCode, &reasonCode);
+  }
   if (status == -1){
     *retCode = returnCode;
     *resCode = reasonCode;
@@ -1194,14 +1198,18 @@ int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode){
     char pathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
     snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entryArray[i]);
 
-    status = fileInfo(pathBuffer, &info, &returnCode, &reasonCode);
-    if (status == -1){
+    status    = fileInfo(pathBuffer, &info, &returnCode, &reasonCode);
+    symstatus = symbolicFileInfo(pathName, &syminfo, &returnCode, &reasonCode);
+
+    if ((status == -1) && (symstatus == -1)){
       *retCode = returnCode;
       *resCode = reasonCode;
       return -1;
     }
 
-    if (fileInfoIsDirectory(&info)) {
+    /* If pathBuffer is directory, then recursively call.    */
+    /* Note: system marks symbolic as a directory            */
+    if ((status != -1 ) && fileInfoIsDirectory(&info)) {
       status = directoryDeleteRecursive(pathBuffer, retCode, resCode);
       if (status == -1) {
         return -1;
