@@ -212,7 +212,7 @@ int fileRead(UnixFile *file, char *buffer, int desiredBytes,
              int *returnCode, int *reasonCode) {
   if (file == NULL) {
     if (fileTrace) {
-      printf("File is null\n");
+      printf("fileRead: File is null\n");
     }
 #ifdef METTLE
     *returnCode = -1;
@@ -277,7 +277,7 @@ int fileWrite(UnixFile *file, const char *buffer, int desiredBytes,
               int *returnCode, int *reasonCode) {
   if (file == NULL) {
     if (fileTrace) {
-      printf("File is null\n");
+      printf("fileWrite: File is null\n");
     }
 #ifdef METTLE
     *returnCode = -1;
@@ -380,7 +380,7 @@ int fileGetChar(UnixFile *file, int *returnCode, int *reasonCode) {
 int fileClose(UnixFile *file, int *returnCode, int *reasonCode) {
   if (file == NULL) {
     if (fileTrace) {
-      printf("File is null\n");
+      printf("fileClose: File is null\n");
     }
 #ifdef METTLE
     *returnCode = -1;
@@ -450,6 +450,7 @@ int fileChangeTagPure(const char *fileName, int *returnCode, int *reasonCode,
 
 int fileChangeTag(const char *fileName, int *returnCode, int *reasonCode, int ccsid) {
   bool pure = true;
+
   fileChangeTagPure(fileName, returnCode, reasonCode, ccsid, pure);
   }
 

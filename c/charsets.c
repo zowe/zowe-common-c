@@ -203,6 +203,11 @@ int convertCharset(char *input,
 int getCharsetCode(const char *charsetName) {
   char localArray[CHARSETNAME_SIZE + 1] = {0};
 
+  /* Check for null pointer */
+  if (charsetName == NULL) {
+    return -1;
+  }
+
   /* Make sure last element is 0 */
   if (strlen(charsetName) > CHARSETNAME_SIZE) {
     return -1;
