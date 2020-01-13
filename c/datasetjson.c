@@ -572,13 +572,8 @@ static bool isDatasetPathValid(const char *path) {
 
   const char *leftParen = strchr(dsnStart, '(');
   const char *rightParen = strchr(dsnStart, ')');
-  const char *spacePram  = strchr(dsnStart, ' ');
 
   if (!leftParen ^ !rightParen) {
-    return false;
-  }
-
-  if (spacePram) {
     return false;
   }
 
