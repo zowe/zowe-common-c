@@ -1962,6 +1962,7 @@ void respondWithDatasetMetadata(HttpResponse *response) {
 
   /* From here on, we know we have a valid data path */
   int lParenIndex = indexOf(datasetOrMember, dsnLen, '(', 0);
+<<<<<<< HEAD
   int rParenIndex = indexOf(datasetOrMember, dsnLen, ')', 0);
   DatasetName dsnName;
   DatasetMemberName memName;
@@ -1969,6 +1970,57 @@ void respondWithDatasetMetadata(HttpResponse *response) {
 
   extractDatasetAndMemberName(absDsPath, &dsnName, &memName);
   memberNameLength = (unsigned int)rParenIndex  - (unsigned int)lParenIndex -1; 
+=======
+  if(lParenIndex > 44 || dsnLen > 44){
+    respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Dataset name longer than 44 chars");
+    return;
+  }
+  char pdsDSN[45];
+  char pdsMember[100];
+  int memberNameLength = 0;
+  if (lParenIndex > 0){
+    int rParenIndex = lastIndexOf(datasetOrMember, dsnLen, ')');
+    int encodedMemberNameLength = rParenIndex-lParenIndex;
+    if (encodedMemberNameLength == 1) {
+      respondWithError(response,HTTP_STATUS_BAD_REQUEST,"No member name given within parenthesis");
+      return;
+    }
+    else if (encodedMemberNameLength > 100) {
+      respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Member name too long");
+      return;
+    }
+    else if (rParenIndex == dsnLen-1){/*paren must end the member listing*/
+      memcpy(pdsDSN,datasetOrMember,lParenIndex);
+      pdsDSN[lParenIndex] = '\0';
+      if (decodePercentByte(&datasetOrMember[lParenIndex+1],encodedMemberNameLength-1,pdsMember,&memberNameLength)) {
+        respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Malformed member name");
+        return;
+      }
+      int asteriskPos = indexOf(pdsMember,memberNameLength,'*',0);
+      if (asteriskPos == -1 && memberNameLength < 8) {
+        for (memberNameLength; memberNameLength < 8; memberNameLength++) {
+          pdsMember[memberNameLength] = ' ';
+        }
+      }
+    }
+    else{
+      respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Malformed dataset name");
+      return;
+      /*error*/
+    }
+  }
+  char *dsn;
+  if (lParenIndex > 0){
+    dsn = pdsDSN;
+    dsnLen = lParenIndex+1;
+  }
+  else{
+    dsn = datasetOrMember;
+  }
+
+  HttpRequestParam *addQualifiersParam = getCheckedParam(request,"addQualifiers");
+  char *addQualifiersArg = (addQualifiersParam ? addQualifiersParam->stringValue : NULL);
+>>>>>>> e5f8c84... Added logic for 3.4-like searching.
 
   HttpRequestParam *detailParam = getCheckedParam(request,"detail");
   char *detailArg = (detailParam ? detailParam->stringValue : NULL);
@@ -2022,7 +2074,32 @@ void respondWithDatasetMetadata(HttpResponse *response) {
 
   int fieldCount = defaultCSIFieldCount;
   char **csiFields = defaultCSIFields;
-
+  int addQualifiers = !strcmp(addQualifiersArg, "true");
+#define DSN_MAX_LEN 44
+  if (addQualifiers && dsnLen < DSN_MAX_LEN) {
+    int asteriskPos = lastIndexOf(dsn,dsnLen,'*');
+    int dblAsteriskPos = indexOfString(dsn, dsnLen, "**", 0); //"**" is only valid at the end of a query, cannot appear in the middle of a search
+    int periodPos = lastIndexOf(dsn, dsnLen, '.');
+    int newDsnLen = dsnLen + 4;
+    int count;
+    char newDsn[DSN_MAX_LEN];
+    // printf("dsn: %s\nperiod pos: %d\nasterisk pos: %d\ndblAsterisk pos: %d\n dsn len: %d\n", dsn, periodPos, asteriskPos, dblAsteriskPos, dsnLen);
+    if (asteriskPos < 0 && dblAsteriskPos < 0) {
+      if(periodPos < 0 || periodPos != dsnLen - 1){ //-1 for null terminator.  Query in form of hlq1.hlq2
+        count = snprintf(dsn, DSN_MAX_LEN + 1, "%s.**", dsn);
+      }else if(periodPos == dsnLen - 1){ //not sure if this case is ever valid, trailing periods seem to be truncated
+        count = snprintf(dsn, DSN_MAX_LEN + 1, "%s**", dsn);
+      }
+    } else {
+      if (asteriskPos == dsnLen - 1 && periodPos != asteriskPos - 1 && dblAsteriskPos < 0) { //query in form of hlq1.hlq2*
+        count = snprintf(dsn, DSN_MAX_LEN + 1, "%s.**", dsn);
+      } else if(asteriskPos == dsnLen - 1 && periodPos == asteriskPos - 1) {
+        count = snprintf(dsn, DSN_MAX_LEN + 1, "%s*", dsn);
+      }
+    }
+    // printf("new dsn: %s\nnew dsn len: %d\n", dsn, strlen(dsn));
+  }
+#undef DSN_MAX_LEN
   csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
   EntryDataSet *entrySet = returnEntries(dsnName.value, typesArg,datasetTypeCount, workAreaSizeArg, csiFields, fieldCount, resumeNameArg, resumeCatalogNameArg, returnParms); 
   char *resumeName = returnParms->resume_name;
