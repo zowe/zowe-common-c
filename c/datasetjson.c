@@ -2076,25 +2076,29 @@ void respondWithDatasetMetadata(HttpResponse *response) {
   char **csiFields = defaultCSIFields;
   int addQualifiers = !strcmp(addQualifiersArg, "true");
 #define DSN_MAX_LEN 44
+  char dsnNameNullTerm[DSN_MAX_LEN] = {0};
+  memcpy(dsnNameNullTerm, dsnName.value, sizeof(dsnName.value));
+  nullTerminate(dsnNameNullTerm, sizeof(dsnNameNullTerm) - 1);
   if (addQualifiers && dsnLen < DSN_MAX_LEN) {
-    int asteriskPos = lastIndexOf(dsn,dsnLen,'*');
-    int dblAsteriskPos = indexOfString(dsn, dsnLen, "**", 0); //"**" is only valid at the end of a query, cannot appear in the middle of a search
-    int periodPos = lastIndexOf(dsn, dsnLen, '.');
+    int asteriskPos = lastIndexOf(dsnNameNullTerm, dsnLen,'*');
+    int dblAsteriskPos = indexOfString(dsnNameNullTerm, dsnLen, "**", 0); //"**" is only valid at the end of a query, cannot appear in the middle of a search
+    int periodPos = lastIndexOf(dsnNameNullTerm, dsnLen, '.');
     char newDsn[DSN_MAX_LEN];
     if (asteriskPos < 0 && dblAsteriskPos < 0) {
       if(periodPos < 0 || periodPos != dsnLen - 1){ //-1 for null terminator.  Query in form of hlq1.hlq2
-        snprintf(dsn, DSN_MAX_LEN + 1, "%s.**", dsn);
+        snprintf(dsnNameNullTerm, DSN_MAX_LEN + 1, "%s.**", dsnNameNullTerm);
       }else if(periodPos == dsnLen - 1){ //not sure if this case is ever valid, trailing periods seem to be truncated
-        snprintf(dsn, DSN_MAX_LEN + 1, "%s**", dsn);
+        snprintf(dsnNameNullTerm, DSN_MAX_LEN + 1, "%s**", dsnNameNullTerm);
       }
     } else {
       if (asteriskPos == dsnLen - 1 && periodPos != asteriskPos - 1 && dblAsteriskPos < 0) { //query in form of hlq1.hlq2*
-        snprintf(dsn, DSN_MAX_LEN + 1, "%s.**", dsn);
+        snprintf(dsnNameNullTerm, DSN_MAX_LEN + 1, "%s.**", dsnNameNullTerm);
       } else if(asteriskPos == dsnLen - 1 && periodPos == asteriskPos - 1) {
-        snprintf(dsn, DSN_MAX_LEN + 1, "%s*", dsn);
+        snprintf(dsnNameNullTerm, DSN_MAX_LEN + 1, "%s*", dsnNameNullTerm);
       }
     }
   }
+  memcpy(dsnName.value, dsnNameNullTerm, strlen(dsnNameNullTerm));
 #undef DSN_MAX_LEN
   csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
   EntryDataSet *entrySet = returnEntries(dsnName.value, typesArg,datasetTypeCount, workAreaSizeArg, csiFields, fieldCount, resumeNameArg, resumeCatalogNameArg, returnParms); 
