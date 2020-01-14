@@ -17,11 +17,12 @@
 #include <metal/stdlib.h>
 #include <metal/string.h>
 #include "metalio.h"
+#include <metal/limits.h>
 
 #else
 #include <stdio.h>
 #include <string.h>
-
+#include <limits.h>
 #endif
 
 #include "zowetypes.h"
@@ -32,6 +33,14 @@
 #include "charsets.h"
 #include "unixfile.h"
 #include "httpfileservice.h"
+
+#ifndef PATH_MAX
+# ifdef _POSIX_PATH_MAX
+#   define PATH_MAX  _POSIX_PATH_MAX
+# else
+#   define PATH_MAX  255 
+# endif
+#endif
 
 #ifdef __ZOWE_OS_ZOS
 #define NATIVE_CODEPAGE CCSID_EBCDIC_1047
@@ -556,6 +565,55 @@ void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
     respondWithUnixFileNotFound(response, TRUE);
   }
 }
+
+void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
+        char *user, char *group, char *Recursive, char *pattern) {
+# define RETURN_MESSAGE_SIZE (PATH_MAX + 50)
+
+  char message[RETURN_MESSAGE_SIZE] = {0};
+  UserInfo  userInfo = {0};
+  GroupInfo groupInfo = {0};
+
+  int returnCode = 0, reasonCode = 0;
+  int recursive = 0;
+  int userId, groupId, status;
+
+  if (( Recursive != NULL) && !strcmp(strupcase(Recursive),"TRUE")) {
+    recursive = 1;
+  }
+
+  /* Evaluate user ID */
+  if (-1 == (userId = userIdGet(user, &returnCode, &reasonCode))) {
+    snprintf(message, sizeof (message),
+               "Bad Input: User %s NOT found", user);
+    respondWithJsonError(response, message, 400, "Bad Request");
+    return;
+  }
+
+  /* Evaluate group ID */
+  if (-1 == (groupId = groupIdGet(group, &returnCode, &reasonCode))) {
+    snprintf(message, sizeof (message),
+               "Group %s NOT found", group);
+    respondWithJsonError(response, message, 400, "Bad Request");
+    return;
+  }
+
+  /* Call recursive change mode */
+  if (!directoryChangeOwnerRecursive( message, sizeof(message),
+      path, userId, groupId, recursive, pattern,
+      &returnCode, &reasonCode )) {
+    response200WithMessage(response, "Successfully Modify ");
+
+  }
+  else {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to change file owner %s, (returnCode = 0x%x, reasonCode = 0x% x)\n",
+            path, returnCode, reasonCode);
+    respondWithJsonError(response, "Failed to Change Owner", 500, 
+               "Internal Server Error");
+  }
+}
+
 
 /* Writes binary data to a unix file by:
  *

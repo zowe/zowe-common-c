@@ -2179,7 +2179,6 @@ bool stringIsDigit(const char * str){
   return returnValue;
 }
 
-#ifndef METTLE
 /* Library does not support reverse string-string */
 const char* strrstr(const char * base, const char * find) {
   const char * returnPtr = NULL;
@@ -2190,10 +2189,6 @@ const char* strrstr(const char * base, const char * find) {
   }
   return returnPtr;
 }
-#endif
-
-
-
 
 /*
   This program and the accompanying materials are
