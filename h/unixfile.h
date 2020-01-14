@@ -29,6 +29,8 @@
 #include <windows.h>
 #endif
 
+#include <zosaccounts.h>
+
 /*
   "Unix" files are regular character-oriented files that
   have on Unix the classic fopen/fread/fwrite/fclose/etc API.
@@ -500,6 +502,10 @@ int directoryChangeModeRecursive(const char *pathName, int flag,
 UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonCode);
 int directoryRead(UnixFile *directory, char *entryBuffer, int entryBufferLength, int *returnCode, int *reasonCode);
 int directoryClose(UnixFile *directory, int *returnCode, int *reasonCode);
+int directoryChangeOwner(char * message, int messageLength, char *directory,
+            int userId, int groupId, bool recursion, char * pattern,
+            int *returnCode, int *reasonCode);
+
 
 int setUmask(int mask);
 int getUmask();
