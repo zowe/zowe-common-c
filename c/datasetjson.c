@@ -2066,24 +2066,20 @@ void respondWithDatasetMetadata(HttpResponse *response) {
     int asteriskPos = lastIndexOf(dsn,dsnLen,'*');
     int dblAsteriskPos = indexOfString(dsn, dsnLen, "**", 0); //"**" is only valid at the end of a query, cannot appear in the middle of a search
     int periodPos = lastIndexOf(dsn, dsnLen, '.');
-    int newDsnLen = dsnLen + 4;
-    int count;
     char newDsn[DSN_MAX_LEN];
-    // printf("dsn: %s\nperiod pos: %d\nasterisk pos: %d\ndblAsterisk pos: %d\n dsn len: %d\n", dsn, periodPos, asteriskPos, dblAsteriskPos, dsnLen);
     if (asteriskPos < 0 && dblAsteriskPos < 0) {
       if(periodPos < 0 || periodPos != dsnLen - 1){ //-1 for null terminator.  Query in form of hlq1.hlq2
-        count = snprintf(dsn, DSN_MAX_LEN + 1, "%s.**", dsn);
+        snprintf(dsn, DSN_MAX_LEN + 1, "%s.**", dsn);
       }else if(periodPos == dsnLen - 1){ //not sure if this case is ever valid, trailing periods seem to be truncated
-        count = snprintf(dsn, DSN_MAX_LEN + 1, "%s**", dsn);
+        snprintf(dsn, DSN_MAX_LEN + 1, "%s**", dsn);
       }
     } else {
       if (asteriskPos == dsnLen - 1 && periodPos != asteriskPos - 1 && dblAsteriskPos < 0) { //query in form of hlq1.hlq2*
-        count = snprintf(dsn, DSN_MAX_LEN + 1, "%s.**", dsn);
+        snprintf(dsn, DSN_MAX_LEN + 1, "%s.**", dsn);
       } else if(asteriskPos == dsnLen - 1 && periodPos == asteriskPos - 1) {
-        count = snprintf(dsn, DSN_MAX_LEN + 1, "%s*", dsn);
+        snprintf(dsn, DSN_MAX_LEN + 1, "%s*", dsn);
       }
     }
-    // printf("new dsn: %s\nnew dsn len: %d\n", dsn, strlen(dsn));
   }
 #undef DSN_MAX_LEN
   csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
