@@ -490,6 +490,8 @@ int fileClose(UnixFile *file, int *returnCode, int *reasonCode);
 int directoryMake(const char *pathName, int mode, int *returnCode, int *reasonCode);
 int directoryDelete(const char *pathName, int *returnCode, int *reasonCode);
 int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode);
+int directoryMakeDirectoryRecursive(const char *pathName, char *message,
+     int messageLength, int recursive, int forceCreate);
 int directoryChangeTagRecursive(const char *pathName, char *type,
           char *codepage, int recursive, char * pattern, 
           int *retCode, int *resCode);

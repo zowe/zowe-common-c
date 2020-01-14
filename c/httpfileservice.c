@@ -25,6 +25,7 @@
 #include <limits.h>
 #endif
 
+#include <limits.h>
 #include "zowetypes.h"
 #include "utils.h"
 #include "json.h"
@@ -53,6 +54,8 @@
 #warning ISO-8859-1 is not necessarily the default codepage on Linux
 #define DEFAULT_UMASK 0022
 #endif
+
+#define PATH_MAX   256
 
 /* A generic function to return a 200 OK to the caller.
  * It takes a msg and prints it to JSON.
@@ -106,7 +109,7 @@ bool doesFileExist(char *absolutePath) {
  * path. It will only overwrite an existing directory if
  * the forceCreate flag is on.
  */
-static int createUnixDirectory(char *absolutePath, int forceCreate) {
+int createUnixDirectory(char *absolutePath, int forceCreate) {
   int returnCode = 0, reasonCode = 0, status = 0;  
   FileInfo info = {0};
   
@@ -132,14 +135,31 @@ static int createUnixDirectory(char *absolutePath, int forceCreate) {
   return 0;
 }
 
-void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, int forceCreate) {
-  if (!createUnixDirectory(absolutePath, forceCreate)) {
-    response200WithMessage(response, "Successfully created a directory");
+void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, 
+            int recursive, int forceCreate) {
+# define RETURN_MESSAGE_SIZE (PATH_MAX + 50)
+  char message[PATH_MAX];
+  char returnMessage[RETURN_MESSAGE_SIZE];
+  strncpy(message,"", PATH_MAX);
+
+
+  if (!directoryMakeDirectoryRecursive(absolutePath, message, 
+                      sizeof (message),recursive, forceCreate)) {
+    strcpy(returnMessage, "Successfully created directory: ");
+    if (strlen(message) != 0) {
+      strncat (returnMessage, message, RETURN_MESSAGE_SIZE);
+    }
+    response200WithMessage(response, returnMessage);
   }
   else {
-    respondWithJsonError(response, "Failed to create a directory", 500, "Internal Server Error");
+    strcpy(returnMessage, "Failed to create directory, Created: ");
+    if (strlen(message) != 0) {
+      strncat (returnMessage, message, RETURN_MESSAGE_SIZE);
+    }
+    respondWithJsonError(response, returnMessage, 500, "Internal Server Error");
   }
 }
+
 
 /* Deletes a unix directory at the specified absolute
  * path.
