@@ -18,6 +18,7 @@
 #include "json.h"
 #include "xml.h"
 #include "jcsi.h"
+#include "qsam.h"
 
 #define DATA_STREAM_BUFFER_SIZE 4096
 
@@ -62,6 +63,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
 void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode);
 void respondWithDatasetMetadata(HttpResponse *response);
 void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQueryCache);
+int qsamAllocFile( qsamFileRequest *request, char* message, int messageLength);
 void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode);
 void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode);
 void deleteVSAMDataset(HttpResponse* response, char* absolutePath);

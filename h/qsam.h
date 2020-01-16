@@ -359,7 +359,45 @@ int bpamFind(char * __ptr32 dcb, char * __ptr32 memberName, int *reasonCode);
 int bpamRead(void * __ptr32 dcb, void * __ptr32 buffer);
 int bpamRead2(void * __ptr32 dcb, void * __ptr32 buffer, int *lengthRead);
 
-#endif
+/*
+ The following definitions are used to create a qsam file using BPXWDYN.
+ */
+#define QSAM_DEFAULT_DDNAME       "DUMMY"
+#define QSAM_DEFAULT_ORGANIZATION "PS"
+#define QSAM_DEFAULT_RECORDFORMAT "F,B"
+#define QSAM_DEFAULT_RECORDLENGTH  80
+#define QSAM_DEFAULT_BLKSIZE       32720
+#define QSAM_DEFAULT_EXTENT        1
+#define QSAM_DEFAULT_FILEDATA     "TEXT" 
+#define QSAM_DEFAULT_VOLUME
+
+typedef struct qsamFileRequest_tag {
+  char   *ddName;
+  char   *daName;        /* Name of file */
+  char   *manageClass;
+  char   *storageClass;    
+  char   *fileData;      /* Data type: TEXT or BINARY ??? */
+  char   *volume;
+  char   *dsnType;       /* LIBRARY,LIBRAY1,PDS,HFS,EXTREQ,EXTPREF,BASIC,LARGE*/
+  char   *eattr;         /* extended attribute: true/false */
+
+  char   *organization;  /* PS, PO, DA */
+  char   *recordFormat;  /* F - fixed,  */
+  int     recordLength;
+  int     blkSize;
+  int     primary;        
+  int     secondary;
+  int     fileSize;      /* Size of file*/
+  int     numGenerations;
+  int     avrBlockLength;
+  char   *dataClass;
+  char   *averageRecord;   /* M, K or U */
+  char   *expiration;
+  char   *spaceUnit;      /* BLKS, TRKS, CYCLS, KB, MB, BYTES */
+  int     dirBlk;
+  } qsamFileRequest;
+
+#endif  /* End  __QSAM__ */
 
 
 /*
