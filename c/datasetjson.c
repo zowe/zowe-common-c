@@ -2036,13 +2036,12 @@ void respondWithDatasetMetadata(HttpResponse *response) {
     char dsnNameNullTerm[DSN_MAX_LEN + 1] = {0}; //+1 for null term
     memcpy(dsnNameNullTerm, dsnName.value, sizeof(dsnName.value));
     nullTerminate(dsnNameNullTerm, sizeof(dsnNameNullTerm) - 1);
-    printf("dsnName.value: %s\n", dsnName.value);
     if (addQualifiers && dsnLen <= DSN_MAX_LEN) {
       int asteriskPos = lastIndexOf(dsnNameNullTerm, dsnLen,'*');
       int dblAsteriskPos = indexOfString(dsnNameNullTerm, dsnLen, "**", 0); //"**" is only valid at the end of a query, cannot appear in the middle of a search
       int periodPos = lastIndexOf(dsnNameNullTerm, dsnLen, '.');
       if (asteriskPos < 0 && dblAsteriskPos < 0) {
-        if(dsnLen <= DSN_MAX_LEN - 3 && (periodPos < 0 || periodPos != dsnLen - 1)){ //dsnLen - 1 for null terminator.  Query in form of hlq1.hlq2
+        if(dsnLen <= DSN_MAX_LEN - 3 && (periodPos < 0 || periodPos != dsnLen - 1)){ //Query in form of hlq1.hlq2
           snprintf(dsnNameNullTerm, DSN_MAX_LEN + 1, "%s.**", dsnNameNullTerm);
         }
       } else {
@@ -2054,7 +2053,6 @@ void respondWithDatasetMetadata(HttpResponse *response) {
       }
     }
     memcpy(dsnName.value, dsnNameNullTerm, strlen(dsnNameNullTerm));
-    printf("new dsnName.value: %s\n", dsnName.value);
 #undef DSN_MAX_LEN
   }
 
