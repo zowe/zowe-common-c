@@ -29,6 +29,7 @@
 #include "zowetypes.h"
 #include "alloc.h"
 #include "dynalloc.h"
+#include "logging.h"
 
 #define TEXT_UNIT_ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
 
@@ -1163,6 +1164,274 @@ int dynallocUnallocDatasetByDDName(const DynallocDDName *ddName,
                                    int *sysRC, int *sysRSN) {
   return dynallocUnallocDatasetByDDNameInternal(ddName, flags, sysRC, sysRSN, FALSE);
 }
+
+/*************************/
+#define FIELD_MAX_LENGTH    1024
+#define REQUEST_MAX_LENGTH  2048
+typedef int EXTF();
+#pragma linkage(EXTF,OS_UPSTACK)
+
+static int allocDataSetOpenString(dataSetRequest *request, char *buffer,
+                             int bufferSize ) {
+  char * ptr;
+  char field[FIELD_MAX_LENGTH];
+  int  status = 0, value;
+  char *baseRequest = "alloc new catalog msg(2) ";
+  char tempString[20] = {0};
+
+  /* setup initial request string */
+  strncpy(buffer, baseRequest, bufferSize);
+
+  /* Initialize the DD/FI field */
+  ptr = (request->ddName == NULL ?  DATASET_DEFAULT_DDNAME: request->ddName);
+  snprintf(field, sizeof(field)-1, "FI(%s) ", ptr);
+  strncat(buffer, field, bufferSize - strlen(buffer));
+
+  /* Initialize daName */
+  snprintf(field, sizeof(field)-1, "DA(%s) ", request->daName);
+  strncat(buffer, field, bufferSize - strlen(buffer));
+
+  /* Initialize data set type */
+  if ((ptr = request->dsnType) != NULL) {
+    snprintf(field, sizeof(field)-1, "DSNTYPE(%s) ", ptr);
+    strncat(buffer, field, bufferSize - strlen(buffer));
+  }
+
+  /* Initialize organization */
+  if (request->organization != NULL) {
+    snprintf(field, sizeof(field)-1, "DSORG(%s) ", request->organization);
+    strncat(buffer, field, bufferSize - strlen(buffer));
+  }
+
+  /* Initialize record format */
+  if (request->recordFormat != NULL) {
+    snprintf(field, sizeof(field)-1, "RECFM(%s) ", request->recordFormat);
+    strncat(buffer, field, bufferSize - strlen(buffer));
+  }
+
+  /* Initialize record length */
+  if (request->recordLength != 0) {
+    snprintf(field, sizeof(field)-1, "LRECL(%d) ", request->recordLength);
+    strncat(buffer, field, bufferSize - strlen(buffer));
+  }
+
+  /* Initialize block size*/
+  if (request->blkSize != 0) {
+    snprintf(field, sizeof(field)-1, "BLKSIZE(%d) ", request->blkSize);
+    strncat(buffer, field, bufferSize - strlen(buffer));
+  }
+
+  /* Initialize storage type */
+  if (request->storageClass != NULL) {
+    snprintf(field, sizeof(field)-1, "STORCLAS(%s) ", request->storageClass);
+    strncat(buffer, field, bufferSize - strlen(buffer));
+  }
+
+  /* Initialize  data type */
+  if (request->fileData != NULL) {
+    snprintf(field, sizeof(field)-1, "FILEDATA(%s) ", request->fileData);
+    strncat(buffer, field, bufferSize - strlen(buffer));
+  }
+
+  /* Initialize extended attribute */
+  if (request->eattr != NULL) {
+    strncpy(tempString, request->eattr, sizeof (tempString) -1);
+    strupcase(tempString);
+    if (strncmp(tempString, "TRUE", 5)) {
+      snprintf(field, sizeof(field)-1, "EATTR(OPT) ");
+      strncat(buffer, field, bufferSize - strlen(buffer));
+    }
+  }
+
+  /* Initialize number of generations */
+  if (request->numGenerations != 0) {
+    snprintf(field, sizeof(field)-1, "MAXGENS(%d) ", request->numGenerations);
+    strncat(buffer, field, bufferSize - strlen(buffer));
+  }
+
+  /* Initialize volumn if defined */
+  if (request->volume != NULL) {
+    snprintf(field, sizeof(field)-1, "VOL(%s) ", request->volume);
+    strncat(buffer, field, bufferSize - strlen(buffer));
+  }
+
+  /* Initialize dataClass if defined */
+  if (request->dataClass != NULL) {
+    snprintf(field, sizeof(field)-1, "DATACLAS(%s) ", request->dataClass);
+    strncat(buffer, field, bufferSize - strlen(buffer));
+  }
+
+  /* Initialize management class if defined */
+  if (request->manageClass != NULL) {
+    snprintf(field, sizeof(field)-1, "MGMTCLAS(%s) ", request->manageClass);
+    strncat(buffer, field, bufferSize - strlen(buffer));
+  }
+
+  /* Initialize management class if defined */
+  if (request->averageRecord != NULL) {
+    snprintf(field, sizeof(field)-1, "AVGREC(%s) ", request->averageRecord);
+    strncat(buffer, field, bufferSize - strlen(buffer));
+  }
+
+  /* Initialize expiration data  */
+  if (request->expiration != NULL) {
+    snprintf(field, sizeof(field)-1, "EXPDL(%s) ", request->expiration);
+    strncat(buffer, field, bufferSize - strlen(buffer));
+  }
+
+  /* Initialize expiration data  */
+  if (request->spaceUnit != NULL) {
+    snprintf(field, sizeof(field)-1, "SPACE(%s) ", request->spaceUnit);
+    strncat(buffer, field, bufferSize - strlen(buffer));
+  }
+  return status;
+}
+
+static void  allocDataSetCloseString(dataSetRequest *request, char *buffer,
+                             int bufferSize ) {
+  char * ptr;
+  char *freeRequest = "free  ";
+  char field[FIELD_MAX_LENGTH];
+  char tempString[20] = {0};
+
+  strncpy( buffer, freeRequest, bufferSize);
+
+  /* Initialize the DD/FI field */
+  ptr = (request->ddName == NULL ?  DATASET_DEFAULT_DDNAME: request->ddName);
+  snprintf(field, sizeof(field)-1, "fi(%s) ", ptr);
+  strncat(buffer, field, bufferSize - strlen(buffer));
+
+  /* Initialize daName */
+  snprintf(field, sizeof(field)-1, "da(%s) ", request->daName);
+  strncat(buffer, field, bufferSize - strlen(buffer));
+}
+
+static void allocDataSetInterpretError(char *requestBuffer,
+       int errorStatus, char *outBuffer, int bufferSize){
+
+  char field[FIELD_MAX_LENGTH];
+  int cause = 0, reasonIndex;
+  char *reason;
+
+  /* errorStatus between -20 and -9999 represents Key errors. */
+  /* The key index is (-errorStatus -20)                      */
+  /* errorStatus below -10000 has the IEFDB476 return code in */
+  /* lower 2 digits (decimal) of the errorStatus.             */
+  /* Status code between  -1610612737 and -2147483648    */
+  /* contains the S99ERROR code.                         */
+# define KEY_ERROR_BEGIN        20
+# define KEY_ERROR_END        9999
+# define KEY_ERROR_MOD         100
+# define IEF_ERROR_BEGIN (-32*1024)
+# define IEF_ERROR_END     (-10000)
+# define IEF_ERROR_MOD          100
+# define S99_ERROR_BEGIN   (-1610612737)
+# define S99_ERROR_END     (-2147483648)
+  reason = strtok(requestBuffer, " ");
+  sprintf(field,"", "");
+  if ((errorStatus <= -KEY_ERROR_BEGIN) &&
+      (errorStatus >= -KEY_ERROR_END)) {
+    cause = (-errorStatus - KEY_ERROR_BEGIN) % KEY_ERROR_MOD;
+    for (int i=0; i < cause -1; i ++) {
+      reason = strtok(NULL, " ");
+      if (reason == NULL) {
+        break;
+      }
+    }
+    if (reason != NULL) {
+      int reasondIndex = -errorStatus / KEY_ERROR_MOD;
+      snprintf(field, sizeof(field)-1, " Field %s Error: Code %d",
+               reason, reasondIndex);
+    }
+  }
+  if ((IEF_ERROR_BEGIN <= errorStatus) && (errorStatus < IEF_ERROR_END)) {
+    cause = (-errorStatus - 20) %IEF_ERROR_MOD;
+    snprintf(field, sizeof(field)-1, "IEFDB476 Error Code %d", cause);
+  }
+  if ((errorStatus <= S99_ERROR_BEGIN)  && (errorStatus >= S99_ERROR_END)) {
+    snprintf(field, sizeof(field)-1, "S99INFO Error Code %08x", errorStatus);
+  }
+
+  /* Write error message if one found */
+  if ((outBuffer != NULL) && strlen(field)) {
+    strncpy(outBuffer, field, bufferSize);
+  }
+}
+
+int allocDataSet( dataSetRequest *request, char* message, int messageLength){
+#ifdef __ZOWE_OS_ZOS
+  char *baseRequest = "alloc new catalog msg(2) ";
+  char tempString[20] = {0};
+  char field[FIELD_MAX_LENGTH];
+  int  status, value;
+  char *ptr;
+
+  /* Must supply daName */
+  if (request->daName == NULL) {
+    return -1;
+  }
+
+  /* Allocate structure in A31 space */
+  EXTF *bpxwdyn=(EXTF *)fetch("BPXWDYN");
+  if (bpxwdyn == NULL) {
+    strncpy(message, "Unable to fetch system function",  messageLength);
+    return -1;
+  }
+
+  ALLOC_STRUCT31(
+    STRUCT31_NAME(below2G),
+    STRUCT31_FIELDS(
+      char  request[REQUEST_MAX_LENGTH];
+    )
+  );
+
+  status = allocDataSetOpenString(request, below2G->request,
+                          sizeof(below2G->request));
+  if (status < 0) {
+
+    /* Write error message if one found */
+    if ((message != NULL) && strlen(field)) {
+      strncpy(message, "Bad input value",  messageLength);
+    }
+    goto freeStruct;
+  }
+
+  /****************************/
+  /* Create the data set      */
+  /****************************/
+  //printf (" REQUEST: %s\n",  below2G->request);
+  status = bpxwdyn(below2G->request);
+
+  /* If error, don't try to free, decipher error code */
+  if (status != 0) {
+    allocDataSetInterpretError(below2G->request, status, message,
+                 messageLength);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE,
+            "Create File %s Failed:: %s\n", request->daName, message);
+    goto freeStruct;
+  }
+
+  zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO,
+            "Create File:: Request: %s\n",below2G->request);
+
+  /* If created the data set, then free/close it up */
+  allocDataSetCloseString(request, below2G->request,
+                             sizeof (below2G->request));
+  status = bpxwdyn(below2G->request);
+
+  /* free the structure */
+freeStruct:
+  release ((void (*)())bpxwdyn);
+  FREE_STRUCT31(
+    STRUCT31_NAME(below2G)
+  );
+
+  return status;
+#endif /* __ZOWE_OS_ZOS */
+}
+#undef FIELD_MAX_LENGTH
+#undef REQUEST_MAX_LENGTH
+
 
 
 /*
