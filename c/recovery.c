@@ -31,6 +31,10 @@
 #include "recovery.h"
 #include "utils.h"
 
+#ifdef RCVR_CPOOL_STATES
+#include "cellpool.h"
+#endif
+
 #ifdef __ZOWE_OS_ZOS
 #include "zos.h"
 #include "qsam.h"
@@ -358,6 +362,66 @@ static void storageRelease(void *data, int size){
   );
 }
 
+#ifdef RCVR_CPOOL_STATES
+
+  #ifndef RCVR_STATE_POOL_SUBPOOL
+  #define RCVR_STATE_POOL_SUBPOOL 0
+  #endif
+
+  #ifndef RCVR_STATE_POOL_PRIMARY_COUNT
+  #define RCVR_STATE_POOL_PRIMARY_COUNT    32
+  #endif
+
+  #ifndef RCVR_STATE_POOL_SECONDARY_COUNT
+  #define RCVR_STATE_POOL_SECONDARY_COUNT  4
+  #endif
+
+#endif /* RCVR_CPOOL_STATES */
+
+static RecoveryStateEntry *allocRecoveryStateEntry(RecoveryContext *context) {
+
+  RecoveryStateEntry *entry;
+
+#ifdef RCVR_CPOOL_STATES
+  bool isLocked = context->flags & RCVR_ROUTER_FLAG_LOCKED;
+  entry = cellpoolGet(context->statePool, isLocked);
+#else
+  entry = storageObtain(sizeof(RecoveryStateEntry));
+#endif /* RCVR_CPOOL_STATES */
+
+  if (entry == NULL) {
+    return NULL;
+  }
+
+  memset(entry, 0, sizeof(RecoveryStateEntry));
+  memcpy(entry->eyecatcher, "RSRSENTR", sizeof(entry->eyecatcher));
+
+#ifdef RCVR_CPOOL_STATES
+  entry->flags |= RCVR_FLAG_CPOOL_BASED;
+#endif
+
+  return entry;
+}
+
+static void freeRecoveryStateEntry(RecoveryContext *context,
+                                   RecoveryStateEntry *entry) {
+
+#ifdef RCVR_CPOOL_STATES
+
+  if (entry->flags & RCVR_FLAG_CPOOL_BASED) {
+    return cellpoolFree(context->statePool, entry);
+  } else {
+    return storageRelease(entry, sizeof(RecoveryStateEntry));
+  }
+
+#else
+
+  return storageRelease(entry, sizeof(RecoveryStateEntry));
+
+#endif /* RCVR_CPOOL_STATES */
+
+}
+
 static void * __ptr32 getRecoveryRouterAddress() {
 
   void * __ptr32 address = NULL;
@@ -373,7 +437,7 @@ static void * __ptr32 getRecoveryRouterAddress() {
 
       /*
        * Register usage:
-       * R1-R7    - work registers (router work registers and passing parms to
+       * R0-R7    - work registers (router work registers and passing parms to
        *            LE and Metal functions)
        * R8       - recovery state
        * R9       - SDWA
@@ -386,15 +450,14 @@ static void * __ptr32 getRecoveryRouterAddress() {
 
       "         PUSH  USING                                                    \n"
       "         DROP                                                           \n"
+      "         SYSSTATE OSREL=ZOSV1R6                                         \n"
       "         BAKR  14,0                                                     \n"
       "         LARL  10,RCVEXIT                                               \n"
       "         USING RCVEXIT,10                                               \n"
       /* validate input */
-      "         LT    2,X'21C'            CHECK IF WE HAVE TCB                 \n"
-      "         BZ    RCVLSDWA            NO, SKIP SDWA CHECK                  \n"
-      "         CHI   0,12                HAVE SDWA?                           \n"
+      "         CHI   0,12                HAVE SDWA (CAN BE 12 IN TCB ONLY)?   \n"
       "         JE    RCVRET              NO, LEAVE                            \n"
-      "RCVLSDWA DS    0H                                                       \n"
+      "         DS    0H                                                       \n"
       "         LGR   9,1                 SDWA WILL BE IN R9                   \n"
       "         USING SDWA,9                                                   \n"
       "         LTGF  2,SDWAPARM          LOAD RECOVERY PARMS HANDLE           \n"
@@ -434,6 +497,22 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         BNZ   RCVFRL05            NO, GO CHECK FLAGS                   \n"
       "         LA    1,RCVXINF           LOAD ROUTER SERVICE INFO             \n"
       "         BRAS  14,RCVSIFLB         RECORD IT, REMOVE CONTEXT, PERCOLATE \n"
+      "         TM    RCXFLAG1,R@CF1USP   USER STATE POOL?                     \n"
+      "         BZ    RCVFRL04            NO, DO NOT FREE IT                   \n"
+      "         LT    2,RCXSCPID          CELL POOL ZERO?                      \n"
+      "         BZ    RCVFRL04            YES, DO NOT FREE IT                  \n"
+#ifdef _LP64
+      "         SAM31                                                          \n"
+      "         SYSSTATE AMODE64=NO                                            \n"
+#endif
+      "         CPOOL DELETE,CPID=(2)     FREE THE STATE CELL POOL             \n"
+#ifdef _LP64
+      "         SAM64                                                          \n"
+      "         SYSSTATE AMODE64=YES                                           \n"
+#endif
+      "RCVFRL04 DS    0H                                                       \n"
+      "         TM    RCXFLAG1,R@CF1UCX   USER CONTEXT?                        \n"
+      "         BNZ   RCVRET              YES, DO NOT FREE                     \n"
       "         LA    4,RCXLEN            LENGTH OF CONTEXT                    \n"
       "         STORAGE RELEASE,LENGTH=(4),ADDR=(11),SP=132,CALLRKY=YES        \n"
       "         B     RCVRET                                                   \n"
@@ -484,10 +563,8 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         TM    RSTFLG1,R@F1SDMP    DUMP FLAG SET?                       \n"
       "         BZ    RCVFRL3             NO, SKIP                             \n"
       "         LA    5,RSTDMTLT          DUMP TITLE                           \n"
-      "         TM    RCXFLAG1,R@CF1PCC   IS THIS PC?                          \n"
+      "         TM    RCXFLAG1,R@CF1PCC+R@CF1SRB+R@CF1LCK PC, SRB, OR LOCKED?  \n"
       "         BNZ   RCVFRL25            YES, USE A SPECIAL SDUMPX CALL       \n"
-      "         LT    2,X'21C'            ARE WE SRB?                          \n"
-      "         BZ    RCVFRL25            YES, USE A SPECIAL SDUMPX CALL       \n"
       "         SDUMPX  PLISTVER=3,HDRAD=(5),TYPE=FAILRC,"
       ",SDATA=("
       "ALLNUC,ALLPSA,COUPLE,CSA,"
@@ -586,6 +663,22 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         BRAS  14,RCVSIFLB         GO RECORD                            \n"
       "RCVFRL55 DS    0H                                                       \n"
       "         MVC   RCXRSC,RSTNEXT      REMOVE ENTRY FROM CHAIN              \n"
+      "         TM    RSTFLG1,R@F1CELL    CELL POOL BASED?                     \n"
+      "         BZ    RCVFRL57            NO, DO STORAGE RELEASE               \n"
+      /* CPOOL FREE */
+      "         LA    13,RCXSDPSA         SAVE AREA FOR CPOOL                  \n"
+#ifdef _LP64
+      "         SAM31                                                          \n"
+      "         SYSSTATE AMODE64=NO                                            \n"
+#endif
+      "         CPOOL FREE,CPID=RCXSCPID,CELL=(8),REGS=SAVE                    \n"
+#ifdef _LP64
+      "         SAM64                                                          \n"
+      "         SYSSTATE AMODE64=YES                                           \n"
+#endif
+      "         B     RCVFRL0             GO LOOK FOR NEXT ENTRY               \n"
+      /* STORAGE RELEASE */
+      "RCVFRL57 DS    0H                                                       \n"
       "         LA    4,RSTLEN            LENGTH OF RECOVERY STATE ENTRY       \n"
       "         STORAGE RELEASE,LENGTH=(4),ADDR=(8),SP=132,CALLRKY=YES         \n"
       "         B     RCVFRL0             GO LOOK FOR NEXT ENTRY               \n"
@@ -719,12 +812,18 @@ void recoveryDESCTs(){
       "R@CF1NIN EQU   X'01'                                                    \n"
       "R@CF1PCC EQU   X'02'                                                    \n"
       "R@CF1TRM EQU   X'04'                                                    \n"
+      "R@CF1UCX EQU   X'08'                                                    \n"
+      "R@CF1USP EQU   X'10'                                                    \n"
+      "R@CF1SRB EQU   X'20'                                                    \n"
+      "R@CF1LCK EQU   X'40'                                                    \n"
+      "R@CF1FRR EQU   X'80'                                                    \n"
       "RCXFLAG2 DS    X                                                        \n"
       "RCXFLAG3 DS    X                                                        \n"
       "RCXFLAG4 DS    X                                                        \n"
       "RCXPRTK  DS    F                                                        \n"
       "RCXPRKEY DS    X                                                        \n"
-      "RCXPRSV1 DS    7X                                                       \n"
+      "RCXPRSV1 DS    3X                                                       \n"
+      "RCXSCPID DS    F                                                        \n"
       "RCXRSC   DS    A                                                        \n"
       "RCXCAA   DS    A                                                        \n"
       "RCVXINF  DS    CL(RCVSINFL)                                             \n"
@@ -750,6 +849,7 @@ void recoveryDESCTs(){
       "R@F1DORT EQU   X'04'                                                    \n"
       "R@F1LREC EQU   X'08'                                                    \n"
       "R@F1LDSB EQU   X'10'                                                    \n"
+      "R@F1CELL EQU   X'20'                                                    \n"
       "RSTFLG2  DS    X                                                        \n"
       "RSTFLG3  DS    X                                                        \n"
       "RSTFLG4  DS    X                                                        \n"
@@ -929,15 +1029,63 @@ static StackedState getStackedState(StackedStateExtractionCode code) {
   return state;
 }
 
-int recoveryEstablishRouter(int flags) {
+#ifdef RCVR_CPOOL_STATES
+
+static RecoveryStatePool makeStatePool(unsigned int primaryCellCount,
+                                       unsigned int secondaryCellCount,
+                                       int storageSubpool) {
+
+  StackedState stackedState = getStackedState(STACKED_STATE_EXTRACTION_CODE_01);
+  uint8_t pswKey = (stackedState.state01.psw & 0x00F0000000000000LLU) >> 52;
+
+  unsigned alignedCellSize =
+      cellpoolGetDWordAlignedSize(sizeof(RecoveryStateEntry));
+  RecoveryStatePool poolID = cellpoolBuild(primaryCellCount,
+                                           secondaryCellCount,
+                                           alignedCellSize,
+                                           RCVR_STATE_POOL_SUBPOOL, pswKey,
+                                           &(CPHeader){"ZWESRECOVERYSTATEPOOL   "});
+
+  return poolID;
+}
+
+static void removeStatePool(RecoveryStatePool pool) {
+  cellpoolDelete(pool);
+}
+
+#endif /* RCVR_CPOOL_STATES */
+
+static int establishRouterInternal(RecoveryContext *userContext,
+                                   RecoveryStatePool userStatePool,
+                                   int flags) {
 
   /* Which DU are we? */
-  bool isTCB = getTCB() ? true : false;
+  bool isSRB = isCallerSRB();
+  if (isSRB) {
+    flags |= RCVR_ROUTER_FLAG_SRB;
+  }
+
+  /* Are we holding a lock? */
+  bool lockHeld = isCallerLocked();
+  if (lockHeld) {
+    /* Return an error code if user storage has not been provided or
+     * compiled without cell pool support  */
+#ifdef RCVR_CPOOL_STATES
+    if (userContext == NULL || userStatePool == RCVR_STATE_POOL_NULL) {
+      return RC_RCV_LOCKED_ENV;
+    }
+#else
+    return RC_RCV_LOCKED_ENV;
+#endif
+    flags |= RCVR_ROUTER_FLAG_LOCKED;
+  }
+
+  bool frrRequired = isSRB || lockHeld;
 
   /* set dummy ESPIE */
   bool isESPIERequired = false;
   if (!(flags & RCVR_ROUTER_FLAG_PC_CAPABLE)) {
-    if (isTCB) {
+    if (!isSRB) {
       isESPIERequired = true;
     }
   }
@@ -947,19 +1095,45 @@ int recoveryEstablishRouter(int flags) {
     previousESPIEToken = setDummyESPIE();
   }
 
+  int rc = RC_RCV_OK;
+
   /* init recovery block */
-  RecoveryContext *context = (RecoveryContext *)storageObtain(sizeof(RecoveryContext));
+  RecoveryContext *context = NULL;
+  if (userContext == NULL) {
+    context = (RecoveryContext *)storageObtain(sizeof(RecoveryContext));
+    if (context == NULL) {
+      rc = RC_RCV_ALLOC_FAILED;
+      goto failure;
+    }
+  } else {
+    flags |= RCVR_ROUTER_FLAG_USER_CONTEXT;
+    context = userContext;
+  }
+
   int setRC = setRecoveryContext(context);
   if (setRC != RC_RCV_OK) {
-    storageRelease((char *)context, sizeof(RecoveryContext));
-    context = NULL;
-    return RC_RCV_CONTEXT_NOT_SET;
+    rc = RC_RCV_CONTEXT_NOT_SET;
+    goto failure;
   }
 
   memset(context, 0, sizeof(RecoveryContext));
   memcpy(context->eyecatcher, "RSRCVCTX", sizeof(context->eyecatcher));
-  context->flags = flags;
   context->previousESPIEToken = previousESPIEToken;
+
+#ifdef RCVR_CPOOL_STATES
+  if (userStatePool != RCVR_STATE_POOL_NULL) {
+    context->statePool = userStatePool;
+    flags |= RCVR_ROUTER_FLAG_USER_STATE_POOL;
+  } else {
+    context->statePool = makeStatePool(RCVR_STATE_POOL_PRIMARY_COUNT,
+                                       RCVR_STATE_POOL_SECONDARY_COUNT,
+                                       RCVR_STATE_POOL_SUBPOOL);
+    if (context->statePool == RCVR_STATE_POOL_NULL) {
+      rc = RC_RCV_ALLOC_FAILED;
+      goto failure;
+    }
+  }
+#endif /* RCVR_CPOOL_STATES */
 
   StackedState stackedState = getStackedState(STACKED_STATE_EXTRACTION_CODE_01);
   context->routerPSWKey = (stackedState.state01.psw & 0x00F0000000000000LLU) >> 48;
@@ -972,7 +1146,7 @@ int recoveryEstablishRouter(int flags) {
   );
 
 
-  if (isTCB) {
+  if (!frrRequired) {
 
     /* ESTAEX */
     char estaexFlags = 0;
@@ -986,28 +1160,97 @@ int recoveryEstablishRouter(int flags) {
     ESTAEXFeedback feedback = setESTAEX(getRecoveryRouterAddress(), context,
                                         estaexFlags);
     if (feedback.returnCode != 0) {
+
+      /* Check ESTAEX RC. If it is 0x30, it means there's already an FRR set,
+       * so we must use an FRR instead of an ESTAEX.*/
+      if (feedback.returnCode == 0x30) {
+        frrRequired = true;
+      } else {
 #if RECOVERY_TRACING
+<<<<<<< HEAD
     zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "error: set ESTAEX RC = %d, RSN = %d\n",
              feedback.returnCode, feedback.reasonCode);
+=======
+        printf("error: set ESTAEX RC = %d, RSN = %d\n",
+               feedback.returnCode, feedback.reasonCode);
+>>>>>>> 4cfcc5e... Use cell pools in recovery to support locked callers.
 #endif
-      if (previousESPIEToken != 0) {
-        resetESPIE(previousESPIEToken);
-        previousESPIEToken = 0;
+        rc = RC_RCV_SET_ESTAEX_FAILED;
+        goto failure;
       }
-      storageRelease((char *)context, sizeof(RecoveryContext));
-      context = NULL;
-      return RC_RCV_SET_ESTAEX_FAILED;
+
     }
-
-  } else {
-
-    setFRR(getRecoveryRouterAddress(), context,
-           flags & RCVR_ROUTER_FLAG_NON_INTERRUPTIBLE);
 
   }
 
+  if (frrRequired) {
+
+    /* FRR */
+    setFRR(getRecoveryRouterAddress(), context,
+           flags & RCVR_ROUTER_FLAG_NON_INTERRUPTIBLE);
+    flags |= RCVR_ROUTER_FLAG_FRR;
+
+  }
+
+  context->flags = flags;
+
   return RC_RCV_OK;
+
+  failure:
+  {
+
+    if (context != NULL) {
+
+#ifdef RCVR_CPOOL_STATES
+      if (userStatePool == RCVR_STATE_POOL_NULL &&
+          context->statePool != RCVR_STATE_POOL_NULL) {
+        removeStatePool(context->statePool);
+        context->statePool = RCVR_STATE_POOL_NULL;
+      }
+#endif
+
+      if (userContext == NULL) {
+        storageRelease((char *)context, sizeof(RecoveryContext));
+        context = NULL;
+      }
+
+    }
+
+    if (previousESPIEToken != 0) {
+      resetESPIE(previousESPIEToken);
+      previousESPIEToken = 0;
+    }
+
+  }
+
+  return rc;
 }
+
+int recoveryEstablishRouter(int flags) {
+  return establishRouterInternal(NULL, 0, flags);
+}
+
+#ifdef RCVR_CPOOL_STATES
+
+RecoveryStatePool recoveryMakeStatePool(unsigned int primaryCellCount,
+                                        unsigned int secondaryCellCount) {
+  return makeStatePool(primaryCellCount,
+                       secondaryCellCount,
+                       RCVR_STATE_POOL_SUBPOOL);
+}
+
+void recoveryRemoveStatePool(RecoveryStatePool statePool) {
+  removeStatePool(statePool);
+}
+
+int recoveryEstablishRouter2(RecoveryContext *userContext,
+                             RecoveryStatePool userStatePool,
+                             int flags) {
+  return establishRouterInternal(userContext, userStatePool, flags);
+}
+
+#endif /* RCVR_CPOOL_STATES */
+
 
 #elif defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_LINUX)
 
@@ -1164,10 +1407,7 @@ int recoveryRemoveRouter() {
 
   int returnCode = RC_RCV_OK;
 
-  /* Which DU are we? */
-  bool isTCB = getTCB() ? true : false;
-
-  if (isTCB) {
+  if (!(context->flags & RCVR_ROUTER_FLAG_FRR)) {
 
   ESTAEXFeedback feedback = deleteESTAEX();
   if (feedback.returnCode != 0) {
@@ -1191,12 +1431,22 @@ int recoveryRemoveRouter() {
   RecoveryStateEntry *currentEntry = context->recoveryStateChain;
   for (int i = 0; i < 32768 && currentEntry != NULL; i++) {
     RecoveryStateEntry *nextEntry = currentEntry->next;
-    storageRelease(currentEntry, sizeof(RecoveryStateEntry));
+    freeRecoveryStateEntry(context, currentEntry);
     currentEntry = nextEntry;
   }
   context->recoveryStateChain = NULL;
 
-  storageRelease((char *)context, sizeof(RecoveryContext));
+#ifdef RCVR_CPOOL_STATES
+  if (!(context->flags & RCVR_ROUTER_FLAG_USER_STATE_POOL)) {
+    removeStatePool(context->statePool);
+    context->statePool = RCVR_STATE_POOL_NULL;
+  }
+#endif /* RCVR_CPOOL_STATES */
+
+  if (!(context->flags & RCVR_ROUTER_FLAG_USER_CONTEXT)) {
+    storageRelease((char *)context, sizeof(RecoveryContext));
+  }
+
   context = NULL;
   if (setRecoveryContext(NULL) != RC_RCV_OK) {
     returnCode = (returnCode != RC_RCV_OK) ? returnCode : RC_RCV_CONTEXT_NOT_SET;
@@ -1276,9 +1526,10 @@ static RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char 
                                                  AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
                                                  CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
 
-  RecoveryStateEntry *newEntry = storageObtain(sizeof(RecoveryStateEntry));
-  memset(newEntry, 0, sizeof(RecoveryStateEntry));
-  memcpy(newEntry->eyecatcher, "RSRSENTR", sizeof(newEntry->eyecatcher));
+  RecoveryStateEntry *newEntry = allocRecoveryStateEntry(context);
+  if (newEntry == NULL) {
+    return NULL;
+  }
 
 #if !defined(METTLE) && defined(_LP64)
   if (userAnalysisFunction != NULL) {
@@ -1306,7 +1557,7 @@ static RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char 
     memcpy(newEntry->serviceInfo.stateName, name, stateNameLength);
   }
 
-  newEntry->flags = flags;
+  newEntry->flags |= flags;
   newEntry->state = (flags & RCVR_FLAG_DISABLE) ? RECOVERY_STATE_DISABLED : RECOVERY_STATE_ENABLED;
   memset(newEntry->dumpTitle.title, ' ', sizeof(newEntry->dumpTitle.title));
   newEntry->dumpTitle.length = 0;
@@ -1327,9 +1578,11 @@ static void removeRecoveryStateEntry(RecoveryContext *context) {
   RecoveryStateEntry *entryToRemove = context->recoveryStateChain;
   if (entryToRemove != NULL) {
     context->recoveryStateChain = entryToRemove->next;
+  } else {
+    return;
   }
 
-  storageRelease((char *)entryToRemove, sizeof(RecoveryStateEntry));
+  freeRecoveryStateEntry(context, entryToRemove);
   entryToRemove = NULL;
 }
 
@@ -1425,6 +1678,9 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
       addRecoveryStateEntry(context, name, flags, dumpTitle,
                             userAnalysisFunction, analysisFunctionUserData,
                             userCleanupFunction, cleanupFunctionUserData);
+  if (newEntry == NULL) {
+    return RC_RCV_ALLOC_FAILED;
+  }
 
   newEntry->linkageStackToken = linkageStackToken;
 
