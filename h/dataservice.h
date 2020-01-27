@@ -68,7 +68,7 @@ typedef struct DataService_tag {
   WebPlugin *plugin;
 } DataService;
 
-WebPlugin *makeWebPlugin(char *baseDir, struct JsonObject_tag *pluginDefintion, InternalAPIMap *internalAPIMap,
+WebPlugin *makeWebPlugin(char *baseDir, struct JsonObject_tag *pluginDefinition, InternalAPIMap *internalAPIMap,
                          unsigned int *idMultiplier, int pluginLogLevel);
 void initalizeWebPlugin(WebPlugin *plugin, HttpServer *server);
 

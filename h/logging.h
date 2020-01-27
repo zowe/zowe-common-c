@@ -298,13 +298,18 @@ bool logShouldTraceInternal(LoggingContext *context, uint64 componentID, int lev
 /* this log message will be sent to the destination associated to the component 
  */
 
-void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...);
+//void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...);
+void _zowelog(LoggingContext *context, uint64 compID, char* path, int line, int level, char *formatString, ...);
 void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize);
 
 #define LOGCHECK(context,component,level) \
   ((component > MAX_LOGGING_COMPONENTS) ? \
    (context->applicationComponents[component].level >= level) : \
    (context->coreComponents[component].level >= level) )
+   
+
+#define zowelog(context, compID, level, formatString, ...) \
+        _zowelog(context, compID, __FILE__, __LINE__, level, formatString, ##__VA_ARGS__);   
 
 LoggingDestination *logConfigureDestination(LoggingContext *context,
                                             unsigned int id,
