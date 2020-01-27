@@ -41,6 +41,7 @@
 #include "zos.h"
 #include "openprims.h"
 #include "zssLogging.h"
+#include <pthread.h>
 
 #ifdef __ZOWE_OS_ZOS
 #include "le.h"
