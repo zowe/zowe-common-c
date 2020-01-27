@@ -739,7 +739,7 @@ static void getLocationData(char *path, int line, char **locationInfo, uint64 co
   else if (compID >= LOG_PROD_ZSS && compID < LOG_PROD_PLUGINS ) {
     snprintf(prefix,5,"_zss"); 
     switch (id) {
-      case 0x10000: snprintf(suffix,11,"zss");
+      case 0x10000: snprintf(suffix,4,"zss");
                     break;
       case 0x20000: snprintf(suffix,5,"ctds");
                     break;
