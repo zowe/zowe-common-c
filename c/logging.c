@@ -727,15 +727,19 @@ static void getLocationData(char *path, int line, char **locationInfo, uint64 co
                     break;
       case 0xD0000: snprintf(suffix,4,"lpa");
                     break;
+      case 0xE0000: snprintf(suffix,12,"restdataset");
+                    break;
+      case 0xF0000: snprintf(suffix,9,"restfile");
+                    break;
     }
   }
   else if (compID >= LOG_PROD_ZIS && compID < LOG_PROD_ZSS) {
     snprintf(prefix,5,"_zis");
-      }
+  }
   else if (compID >= LOG_PROD_ZSS && compID < LOG_PROD_PLUGINS ) {
     snprintf(prefix,5,"_zss"); 
     switch (id) {
-      case 0x10000: snprintf(suffix,11,"mvd_server");
+      case 0x10000: snprintf(suffix,11,"zss");
                     break;
       case 0x20000: snprintf(suffix,5,"ctds");
                     break;
