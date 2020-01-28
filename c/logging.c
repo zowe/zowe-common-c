@@ -36,6 +36,10 @@
 #include "utils.h"
 #include "logging.h"
 #include "printables_for_dump.h"
+#include "timeutls.h"
+#include "zos.h"
+#include "openprims.h"
+#include "zssLogging.h"
 
 #ifdef __ZOWE_OS_ZOS
 #include "le.h"
@@ -647,8 +651,118 @@ int logGetLevel(LoggingContext *context, uint64 compID){
   return component ? component->currentDetailLevel : ZOWE_LOG_NA;
 }
 
-void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...){
+// creates a formatted timestamp to be used in zowe log
+static void getLogTimestamp(char *date) {
+   int64 stck = 0;      
+   char timestamp[14]; // unformated time
+   uint32 out_secs = 0;
+   uint32 out_micros = 0;
 
+   getSTCK(&stck);
+   int64 unixTime = stckToUnix(stck); // gets unixTime
+   stckToUnixSecondsAndMicros(stck, &out_secs, &out_micros); // calculates microseconds
+   out_micros = out_micros/1000;
+   unixToTimestamp((uint64) unixTime, timestamp);
+
+   // format: 2019-03-19 11:23:57.776
+   snprintf(date,24, "%.4s-%.2s-%.2s %.2s:%.2s:%.2s.%.3d"
+      ,timestamp, timestamp+4,timestamp+6,timestamp+8,timestamp+10,timestamp+12,(unsigned int) out_micros);
+}
+
+static void getLevel(int level, char *logLevel) {
+
+  switch(level) {
+    case 0: snprintf(logLevel,7,"SEVERE");
+            break;
+    case 1: snprintf(logLevel,8,"WARN");
+            break;
+    case 2: snprintf(logLevel,5,"INFO"); 
+            break;
+    case 3: snprintf(logLevel,5,"DEBUG");
+            break;
+    case 4: snprintf(logLevel,6,"DEBUG");
+            break;
+    case 5: snprintf(logLevel,7,"TRACE");
+            break;
+  }
+}
+
+static void getLocationData(char *path, int line, char **locationInfo, uint64 compID, LoggingComponent *component) {
+
+  char prefix[128]; 
+  char suffix[128]; 
+
+  unsigned int id = compID & 0xFFFFFFFF;
+  if(compID >= LOG_PROD_COMMON && compID < LOG_PROD_ZIS) {
+    snprintf(prefix,5,"_zcc");
+    switch (id) { // most of these don't actally log, but are defined in logging.h
+      case 0x10000: snprintf(suffix,6,"alloc");
+                    break;
+      case 0x20000: snprintf(suffix,6,"utils");
+                    break;
+      case 0x30000: snprintf(suffix,12,"collections");    
+                    break;
+      case 0x40000: snprintf(suffix,14,"serialization");
+                    break;
+      case 0x50000: snprintf(suffix,9,"zlparser");
+                    break;
+      case 0x60000: snprintf(suffix,11,"zlcompiler");
+                    break;
+      case 0x70000: snprintf(suffix,10,"zlruntime"); 
+                    break;
+      case 0x80000: snprintf(suffix,8,"stcbase");
+                    break;
+      case 0x90000: snprintf(suffix,11,"httpserver");
+                    break;
+      case 0xA0000: snprintf(suffix,10,"discovery");
+                    break;
+      case 0xB0000: snprintf(suffix,12,"dataservice");
+                    break;
+      case 0xC0000: snprintf(suffix,4,"cms");
+                    break;
+      case 0xC0001: snprintf(suffix,4,"cms");
+                    break;
+      case 0xC0002: snprintf(suffix,6,"cmspc");
+                    break;
+      case 0xD0000: snprintf(suffix,4,"lpa");
+                    break;
+      case 0xE0000: snprintf(suffix,12,"restdataset");
+                    break;
+      case 0xF0000: snprintf(suffix,9,"restfile");
+                    break;
+    }
+  }
+  else if (compID >= LOG_PROD_ZIS && compID < LOG_PROD_ZSS) {
+    snprintf(prefix,5,"_zis");
+  }
+  else if (compID >= LOG_PROD_ZSS && compID < LOG_PROD_PLUGINS ) {
+    snprintf(prefix,5,"_zss"); 
+    switch (id) {
+      case 0x10000: snprintf(suffix,4,"zss");
+                    break;
+      case 0x20000: snprintf(suffix,5,"ctds");
+                    break;
+      case 0x30000: snprintf(suffix,9,"security");
+                    break;
+      case 0x40000: snprintf(suffix,9, "unixfile");
+                    break;
+    }
+  }
+  else if (compID > LOG_PROD_PLUGINS) {
+    snprintf(suffix,strlen(component->name),"%s",(strrchr(component->name, '/')+1)); // given more characters than it writes
+    snprintf(prefix,strlen(component->name)-strlen(suffix),"%s",component->name);
+  }
+
+  char *filename;
+  filename = strrchr(path, '/'); // returns a pointer to the last occurence of '/'
+  filename+=1; 
+  //               formatting + prefix + suffix + filename + line number
+  int locationSize =  7  + strlen(prefix) + strlen(suffix) + strlen(filename) + 5; 
+  *locationInfo = (char*) safeMalloc(locationSize,"locationInfo");
+  snprintf(*locationInfo,locationSize+1," (%s:%s,%s:%d) ",prefix,suffix,filename,line); 
+}
+
+void _zowelog(LoggingContext *context, uint64 compID, char* path, int line, int level, char *formatString, ...){
   if (logShouldTrace(context, compID, level) == FALSE) {
     return;
   }
@@ -664,7 +778,6 @@ void zowelog(LoggingContext *context, uint64 compID, int level, char *formatStri
   }
 
   if (maxDetailLevel >= level){
-    va_list argPointer;
 
     LoggingDestination *destination = &getDestinationTable(context, compID)[component->destination];
 //    printf("log.2 comp.dest=%d\n",component->destination);fflush(stdout);
@@ -685,12 +798,41 @@ void zowelog(LoggingContext *context, uint64 compID, int level, char *formatStri
       lastResortLog(message);
       return;
     }
+
+    ACEE *acee;
+    acee = getAddressSpaceAcee();
+    char user[7] = { 0 }; // wil this always be 7?
+    snprintf(user,7,acee->aceeuser+1);
+
+    char *locationInfo; // largest possible variation in size
+    getLocationData(path,line,&locationInfo,compID,component); // location info is allocated in getLocationData
+
+    char logLevel[8] = { 0 }; // logLevel will be a max of 8 characters
+    getLevel(level, logLevel);
+
+    char timestamp[24] = { 0 }; // formatted date is 24 characters
+    getLogTimestamp(timestamp); // UTC time
+
+    pthread_t threadID = pthread_self();
+    char thread[10];
+    snprintf(thread,10,"%d",threadID);
+
+    //    timestamp + " <ZWESA1:thread> " + user + log level + locationInfo + " " + format string
+    int newSize = 24 + 11 + 10 + 7 + strlen(logLevel) + strlen(locationInfo) + 1 + strlen(formatString); //accounts for formatting I know it's garbage
+    char *newFormatString = (char *) safeMalloc(sizeof(char) * newSize,"newFormatString");
+    snprintf(newFormatString, newSize,"%s <ZWESA1:%s> %s %s%s%s",timestamp,thread,user,logLevel,locationInfo,formatString); // final format string
+
+    va_list argPointer;
+
     /* here, pass to a var-args handler */
     va_start(argPointer, formatString);
 
-    destination->handler(context,component,destination->data,formatString,argPointer);
+    destination->handler(context,component,destination->data,newFormatString,argPointer);
  
     va_end(argPointer);
+
+    safeFree(locationInfo,sizeof(locationInfo));
+    safeFree(newFormatString,sizeof(char) * newSize);
   }
 
 }
