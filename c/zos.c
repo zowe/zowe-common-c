@@ -1452,13 +1452,136 @@ char *getASCBJobname(ASCB *ascb){
   }
 }
 
+bool isCallerLocked(void) {
+
+  int rc = 0;
+
+  __asm(
+      ASM_PREFIX
+#ifdef _LP64
+      "         SAM31                                                          \n"
+      "         SYSSTATE AMODE64=NO                                            \n"
+#endif
+      "         SETLOCK TEST,TYPE=CPU                                          \n"
+#ifdef _LP64
+      "         SAM64                                                          \n"
+      "         SYSSTATE AMODE64=YES                                           \n"
+#endif
+#ifndef METTLE
+      "* Prevent LE compiler errors caused by the way XL C treats __asm        \n"
+      "         NOPR  0                                                        \n"
+#endif
+      : "=NR:r15"(rc)
+      :
+      : "r1"
+  );
+
+  if (rc == 0) {
+    return true;
+  }
+
+  __asm(
+      ASM_PREFIX
+#ifdef _LP64
+      "         SAM31                                                          \n"
+      "         SYSSTATE AMODE64=NO                                            \n"
+#endif
+      "         SETLOCK TEST,TYPE=ALOCAL                                       \n"
+#ifdef _LP64
+      "         SAM64                                                          \n"
+      "         SYSSTATE AMODE64=YES                                           \n"
+#endif
+#ifndef METTLE
+      "* Prevent LE compiler errors caused by the way XL C treats __asm        \n"
+      "         NOPR  0                                                        \n"
+#endif
+      : "=NR:r15"(rc)
+      :
+      : "r1"
+  );
+
+  if (rc == 0) {
+    return true;
+  }
+
+  return false;
+}
+
+bool isCallerSRB(void) {
+
+  void *tcb = *(void * __ptr32 *)CURRENT_TCB;
+
+  if (tcb == NULL) {
+    return true;
+  }
+
+  return false;
+}
+
+bool isCallerCrossMemory(void) {
+
+  int rc = 0;
+
+  __asm(
+      ASM_PREFIX
+      /* generate unique branch labels */
+      "&LX      SETA  &LX+1                                                    \n"
+      "&LXMEM   SETC  'LXMEM&LX'                                               \n"
+      "&LEXIT   SETC  'LEXIT&LX'                                               \n"
+      "         PUSH  USING                                                    \n"
+      /* assume not cross-memory */
+      "         LA    15,0                                                     \n"
+      /* get HASN */
+      "         LA    1,0                                                      \n"
+      "         USING PSA,1                                                    \n"
+      "         L     1,PSAAOLD                                                \n"
+      "         USING ASCB,1                                                   \n"
+      "         LLH   1,ASCBASID                                               \n"
+      "         DROP  1                                                        \n"
+      /* get PASN and compare with HASN */
+      "         LA    2,0                                                      \n"
+      "         EPAR  2                                                        \n"
+      "         CLR   1,2                                                      \n"
+      "         JNE   &LXMEM                                                   \n"
+      /* get SASN and compare with HASN */
+      "         LA    2,0                                                      \n"
+      "         ESAR  2                                                        \n"
+      "         CLR   1,2                                                      \n"
+      "         JNE   &LXMEM                                                   \n"
+      /* we're not in xmem */
+      "         J     &LEXIT                                                   \n"
+      /* exit */
+      "&LXMEM   DS    0H                                                       \n"
+      "         LA    15,1                                                     \n"
+      "&LEXIT   DS    0H                                                       \n"
+      "         POP   USING                                                    \n"
+#ifndef METTLE
+      "* Prevent LE compiler errors caused by the way XL C treats __asm        \n"
+      "         NOPR  0                                                        \n"
+#endif
+      : "=NR:r15"(rc)
+      :
+      : "r1", "r2"
+  );
+
+  if (rc != 0) {
+    return true;
+  }
+
+  return false;
+}
+
 #ifdef METTLE
 #pragma insert_asm(" CVT DSECT=YES,LIST=NO ")
 #pragma insert_asm(" IEFJESCT ")
+#pragma insert_asm(" IHAPSA   ") /* for the isCallerLocked function */
+#pragma insert_asm(" IHAASCB  ") /* for the isCallerCrossMemory function */
 #else
 void gen_dsects_only_os_c(void) { // Required for __asm invoked macros to be able to compile
   __asm(" CVT DSECT=YES,LIST=NO \n"
         " IEFJESCT \n"
+        " IHAPSA   \n"
+        " IHAASCB  \n"
         );
 }
 #endif
