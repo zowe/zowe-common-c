@@ -814,8 +814,7 @@ void _zowelog(LoggingContext *context, uint64 compID, char* path, int line, int 
     char timestamp[24] = { 0 }; // formatted date is 24 characters
     getLogTimestamp(timestamp); // UTC time
 
-    // pthread_t threadID = pthread_self();
-    int threadID = pthread_self();
+    pthread_t threadID = pthread_self();
     char thread[10];
     snprintf(thread,10,"%d",threadID);
 
