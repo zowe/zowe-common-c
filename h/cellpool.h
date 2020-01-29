@@ -45,7 +45,7 @@ typedef struct CPHeader_tag {
 
 ZOWE_PRAGMA_PACK_RESET
 
-#define CPID_NULL -1
+#define CPID_NULL 0
 
 /**
  * @brief Helper function to convert a size to its next 8-byte aligned value.
