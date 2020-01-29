@@ -301,6 +301,8 @@ xlc "-Wa,goff" \
 -DCELLPOOL_TEST -I ../h -o cellpool \
 alloc.c \
 cellpool.c \
+timeutls.c \
+utils.c \
 zos.c \
 
 Metal:
