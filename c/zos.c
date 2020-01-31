@@ -1532,19 +1532,20 @@ bool isCallerCrossMemory(void) {
       /* assume not cross-memory */
       "         LA    15,0                                                     \n"
       /* get HASN */
-      "         LA    1,0                                                      \n"
-      "         USING PSA,1                                                    \n"
+      "         USING PSA,0                                                    \n"
+#ifdef _LP64
+      "         LLGT  1,PSAAOLD                                                \n"
+#else
       "         L     1,PSAAOLD                                                \n"
+#endif
       "         USING ASCB,1                                                   \n"
       "         LLH   1,ASCBASID                                               \n"
       "         DROP  1                                                        \n"
       /* get PASN and compare with HASN */
-      "         LA    2,0                                                      \n"
       "         EPAR  2                                                        \n"
       "         CLR   1,2                                                      \n"
       "         JNE   &LXMEM                                                   \n"
       /* get SASN and compare with HASN */
-      "         LA    2,0                                                      \n"
       "         ESAR  2                                                        \n"
       "         CLR   1,2                                                      \n"
       "         JNE   &LXMEM                                                   \n"
