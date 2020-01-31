@@ -40,6 +40,10 @@
 #define loadByName LOADBYNAM
 #define loadByNameLocally LOADBNML
 
+#define isCallerLocked        ZOSCLCKD
+#define isCallerSRB           ZOSCSRB
+#define isCallerCrossMemory   ZOSCXMEM
+
 #endif
 
 
@@ -1212,6 +1216,24 @@ void *loadByName(char *moduleName, int *statusPtr);
 void *loadByNameLocally(char *moduleName, int *statusPtr);
 
 char *getASCBJobname(ASCB *ascb);
+
+/**
+ * @brief Determine if the caller is in locked state.
+ * @return True if the caller holds a CPU, CMS, CML or local lock.
+ */
+bool isCallerLocked(void);
+
+/**
+ * @brief Determine if the caller is running in SRB mode.
+ * @return True if the caller is in SRB mode.
+ */
+bool isCallerSRB(void);
+
+/**
+ * @brief Determine if the caller is running in cross-memory mode.
+ * @return False if the caller's HASN=PASN=SASN, otherwise true.
+ */
+bool isCallerCrossMemory(void);
 
 #endif
 
