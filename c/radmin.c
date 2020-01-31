@@ -346,8 +346,7 @@ static RadminAPIStatus extractProfileInternal(
 
   RadminXTRParmList parmList = {0};
   parmList.header.profileNameLength = profileNameLength;
-  parmList.header.flag = RADMIN_XTR_HDR_FLAG_BASE_SEG_ONLY |
-                         RADMIN_XTR_HDR_FLAG_BYPASS_AUTH_CHECK;
+  parmList.header.flag = RADMIN_XTR_HDR_FLAG_BASE_SEG_ONLY;
   if (*isProfileGeneric == true) {
     parmList.header.flag |= RADMIN_XTR_HDR_FLAG_GENERIC;
   }
