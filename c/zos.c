@@ -1539,12 +1539,10 @@ bool isCallerCrossMemory(void) {
       "         LLH   1,ASCBASID                                               \n"
       "         DROP  1                                                        \n"
       /* get PASN and compare with HASN */
-      "         LA    2,0                                                      \n"
       "         EPAR  2                                                        \n"
       "         CLR   1,2                                                      \n"
       "         JNE   &LXMEM                                                   \n"
       /* get SASN and compare with HASN */
-      "         LA    2,0                                                      \n"
       "         ESAR  2                                                        \n"
       "         CLR   1,2                                                      \n"
       "         JNE   &LXMEM                                                   \n"
