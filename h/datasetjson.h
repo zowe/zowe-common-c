@@ -64,6 +64,10 @@ void respondWithDatasetMetadata(HttpResponse *response);
 void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQueryCache);
 void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode);
 void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode);
+void deleteVSAMDataset(HttpResponse* response, char* absolutePath);
+void deleteDatasetOrMember(HttpResponse* response, char* absolutePath);
+char getCSIType(char* absolutePath);
+bool isVsam(char CSIType);
 #endif
 
 

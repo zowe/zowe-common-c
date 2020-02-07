@@ -398,6 +398,12 @@ void convertUnixToISO(int unixTime, ISOTime *timeStamp); /* Converts output of f
 int matchWithWildcards(char *pattern, int patternLen,
                        char *s, int len, int flags);
 
+bool stringIsDigit(const char * str);
+
+#ifndef METTLE
+const char* strrstr(const char * base, const char * find);
+#endif
+
 #if defined(__cplusplus)                                                        
 }           /* end of extern "C" */
 #endif                                                                          

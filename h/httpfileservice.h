@@ -20,8 +20,12 @@ void response200WithMessage(HttpResponse *response, char *msg);
 bool isDir(char *absolutePath);
 bool doesFileExist(char *absolutePath);
 
-static int createUnixDirectory(char *absolutePath, int forceCreate);
-void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, int forceCreate);
+int createUnixDirectory(char *absolutePath, int forceCreate);
+void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, 
+                                   int recursive, int forceCreate);
+
+void directoryChangeOwnerAndRespond(HttpResponse *response, char *absolutePath,
+        char *userId, char *groupId, char *recursive, char *pattern);
 
 static int deleteUnixDirectory(char *absolutePath);
 void deleteUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath);
@@ -45,6 +49,13 @@ void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath);
 
 static int writeEmptyUnixFile(char *absolutePath, int forceWrite);
 void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite);
+void  directoryChangeModeAndRespond(HttpResponse *response, char * routeFileName,
+          char * Recursive, char * mode, char *compare);
+
+int directoryChangeTagAndRespond(HttpResponse *response, char *file,
+            char *type, char *codepage, char *Recursive, char *pattern);
+int directoryChangeDeleteTagAndRespond(HttpResponse *response, char *file,
+            char *type, char *codepage, char *Recursive, char *pattern);
 
 int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLength);
 int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLength, int sourceEncoding, int targetEncoding);

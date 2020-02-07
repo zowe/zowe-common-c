@@ -17,13 +17,15 @@
 #include <metal/stdlib.h>
 #include <metal/string.h>
 #include "metalio.h"
+#include <metal/limits.h>
 
 #else
 #include <stdio.h>
 #include <string.h>
-
+#include <limits.h>
 #endif
 
+#include <limits.h>
 #include "zowetypes.h"
 #include "utils.h"
 #include "json.h"
@@ -32,6 +34,14 @@
 #include "charsets.h"
 #include "unixfile.h"
 #include "httpfileservice.h"
+
+#ifndef PATH_MAX
+# ifdef _POSIX_PATH_MAX
+#   define PATH_MAX  _POSIX_PATH_MAX
+# else
+#   define PATH_MAX  255 
+# endif
+#endif
 
 #ifdef __ZOWE_OS_ZOS
 #define NATIVE_CODEPAGE CCSID_EBCDIC_1047
@@ -44,6 +54,8 @@
 #warning ISO-8859-1 is not necessarily the default codepage on Linux
 #define DEFAULT_UMASK 0022
 #endif
+
+#define PATH_MAX   256
 
 /* A generic function to return a 200 OK to the caller.
  * It takes a msg and prints it to JSON.
@@ -84,9 +96,12 @@ bool doesFileExist(char *absolutePath) {
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
-    return false;
+    /* Test whether it is a symbolic */
+    status = symbolicFileInfo(absolutePath, &info, &returnCode, &reasonCode);
+    if (status == -1) {
+      return false;
+    }
   }
-  
   return true;
 }
 
@@ -94,7 +109,7 @@ bool doesFileExist(char *absolutePath) {
  * path. It will only overwrite an existing directory if
  * the forceCreate flag is on.
  */
-static int createUnixDirectory(char *absolutePath, int forceCreate) {
+int createUnixDirectory(char *absolutePath, int forceCreate) {
   int returnCode = 0, reasonCode = 0, status = 0;  
   FileInfo info = {0};
   
@@ -120,14 +135,31 @@ static int createUnixDirectory(char *absolutePath, int forceCreate) {
   return 0;
 }
 
-void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, int forceCreate) {
-  if (!createUnixDirectory(absolutePath, forceCreate)) {
-    response200WithMessage(response, "Successfully created a directory");
+void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, 
+            int recursive, int forceCreate) {
+# define RETURN_MESSAGE_SIZE (PATH_MAX + 50)
+  char message[PATH_MAX];
+  char returnMessage[RETURN_MESSAGE_SIZE];
+  strncpy(message,"", PATH_MAX);
+
+
+  if (!directoryMakeDirectoryRecursive(absolutePath, message, 
+                      sizeof (message),recursive, forceCreate)) {
+    strcpy(returnMessage, "Successfully created directory: ");
+    if (strlen(message) != 0) {
+      strncat (returnMessage, message, RETURN_MESSAGE_SIZE);
+    }
+    response200WithMessage(response, returnMessage);
   }
   else {
-    respondWithJsonError(response, "Failed to create a directory", 500, "Internal Server Error");
+    strcpy(returnMessage, "Failed to create directory, Created: ");
+    if (strlen(message) != 0) {
+      strncat (returnMessage, message, RETURN_MESSAGE_SIZE);
+    }
+    respondWithJsonError(response, returnMessage, 500, "Internal Server Error");
   }
 }
+
 
 /* Deletes a unix directory at the specified absolute
  * path.
@@ -135,8 +167,11 @@ void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, i
 static int deleteUnixDirectory(char *absolutePath) {
   int returnCode = 0, reasonCode = 0, status = 0;
   FileInfo info = {0};
-  
+ 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  if (status == -1) {
+    status = symbolicFileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  }
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
             "Failed to stat directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
@@ -164,6 +199,50 @@ void deleteUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
   }
 }
 
+
+/* Modifies the mode of files/directories */
+void directoryChangeModeAndRespond(HttpResponse *response, char *file, 
+                        char *recursive, char *cmode, char *pattern) {
+  int returnCode = 0, reasonCode = 0;
+  int flag = 0; 
+  int mode;
+
+  if (!strcmp(strupcase(recursive), "TRUE")) {
+    flag = 1;
+  }
+
+  /* Find mode value */
+  char * first = cmode;
+  if ((first  = strpbrk(cmode, "oO")) == NULL){
+    first = cmode;
+    }
+  else {
+    first +=1;
+   }
+  
+  /* Verify at least 1 valid character, move to it */ 
+  if ( ((first  = strpbrk(cmode, "01234567")) == NULL)  ||
+       (strpbrk(cmode, "89") != NULL)) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+       "Failed to chnmod file %s: illegal mode %s\n", file, cmode);
+    respondWithJsonError(response, "failed to chmod: mode not octol", 400, "Bad Request");
+    return;
+    }
+  sscanf (first, "%o", &mode); 
+
+  /* Call recursive change mode */
+  if (!directoryChangeModeRecursive(file, flag,mode, pattern, &returnCode, &reasonCode )) {
+    response200WithMessage(response, "successfully modify modes");
+  }
+  else {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to chnmod file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            file, returnCode, reasonCode);
+    respondWithJsonError(response, "failed to modify file modes", 500, "Bad Request");
+  }
+  return;
+}
+
 /* Deletes a unix file at the specified absolute
  * path.
  */
@@ -172,6 +251,10 @@ static int deleteUnixFile(char *absolutePath) {
   FileInfo info = {0};
 
   status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  /* if not a file, then check to see if it is a symbolic link */
+  if (status == -1) {
+    status = symbolicFileInfo(absolutePath, &info, &returnCode, &reasonCode);
+  }
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
             "Failed to stat file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
@@ -198,6 +281,7 @@ void deleteUnixFileAndRespond(HttpResponse *response, char *absolutePath) {
     respondWithJsonError(response, "Failed to delete a file", 400, "Bad Request");
   }
 }
+
 
 /* Renames a unix directory at the specified absolute
  * path. It will only overwrite an existing directory
@@ -402,6 +486,56 @@ static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
   return 0;
 }
 
+#define CCSID_MESSAGE_LENGTH  60
+/* Modifies the mode of files/directories */
+int directoryChangeDeleteTagAndRespond(HttpResponse *response, char *file,
+            char *type, char *codepage, char *Recursive, char *pattern) {
+
+  int ccsid;
+  ccsid =  findCcsidId(codepage);
+  if (codepage != NULL){
+    respondWithJsonError(response, "DELETE request with codeset", 400, "Bad Request");
+    return 0;
+  }
+  return directoryChangeTagAndRespond(response, file,
+               type, codepage, Recursive, pattern); 
+}
+
+/* Change Tag Recursively */
+int directoryChangeTagAndRespond(HttpResponse *response, char *file,
+            char *type, char *codepage, char *Recursive, char *pattern) {
+  int returnCode = 0, reasonCode = 0;
+  int recursive = 0;
+  int ccsid;
+  bool pure;
+  char message[CCSID_MESSAGE_LENGTH] = {0};
+
+  if (!strcmp(strupcase(Recursive),"TRUE")) {
+    recursive = 1;
+  }
+
+  if (-1 ==  patternChangeTagTest(message, sizeof (message),
+                     type, codepage, &pure, &ccsid)){
+    respondWithJsonError(response, message, 400, "Bad Request");
+    return 0;
+  }
+
+  /* Call recursive change mode */
+  if (!directoryChangeTagRecursive(file, type, codepage, recursive, pattern,
+      &returnCode, &reasonCode )) {
+    response200WithMessage(response, "Successfully Modify Tags");
+
+  }
+  else {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to change tag file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+            file, returnCode, reasonCode);
+    respondWithJsonError(response, "Failed to Change file tag", 500, "Bad Request");
+  }
+  return 0;
+}
+
+
 void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite) {
   if (!writeEmptyUnixFile(absolutePath, forceWrite)) {
     response200WithMessage(response, "Successfully wrote a file");
@@ -451,6 +585,55 @@ void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
     respondWithUnixFileNotFound(response, TRUE);
   }
 }
+
+void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
+        char *user, char *group, char *Recursive, char *pattern) {
+# define RETURN_MESSAGE_SIZE (PATH_MAX + 50)
+
+  char message[RETURN_MESSAGE_SIZE] = {0};
+  UserInfo  userInfo = {0};
+  GroupInfo groupInfo = {0};
+
+  int returnCode = 0, reasonCode = 0;
+  int recursive = 0;
+  int userId, groupId, status;
+
+  if (( Recursive != NULL) && !strcmp(strupcase(Recursive),"TRUE")) {
+    recursive = 1;
+  }
+
+  /* Evaluate user ID */
+  if (-1 == (userId = userIdGet(user, &returnCode, &reasonCode))) {
+    snprintf(message, sizeof (message),
+               "Bad Input: User %s NOT found", user);
+    respondWithJsonError(response, message, 400, "Bad Request");
+    return;
+  }
+
+  /* Evaluate group ID */
+  if (-1 == (groupId = groupIdGet(group, &returnCode, &reasonCode))) {
+    snprintf(message, sizeof (message),
+               "Group %s NOT found", group);
+    respondWithJsonError(response, message, 400, "Bad Request");
+    return;
+  }
+
+  /* Call recursive change mode */
+  if (!directoryChangeOwnerRecursive( message, sizeof(message),
+      path, userId, groupId, recursive, pattern,
+      &returnCode, &reasonCode )) {
+    response200WithMessage(response, "Successfully Modify ");
+
+  }
+  else {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
+            "Failed to change file owner %s, (returnCode = 0x%x, reasonCode = 0x% x)\n",
+            path, returnCode, reasonCode);
+    respondWithJsonError(response, "Failed to Change Owner", 500, 
+               "Internal Server Error");
+  }
+}
+
 
 /* Writes binary data to a unix file by:
  *

@@ -237,6 +237,93 @@ static ESTAEXFeedback deleteESTAEX() {
   return localFeedback;
 }
 
+static void setFRR(void * __ptr32 userExit, void *userData,
+                   bool nonInterruptible) {
+
+  int wasProblem = supervisorMode(TRUE);
+  int oldKey = setKey(0);
+
+  union {
+    void *userData;
+    char data[24];
+  } * __ptr32 parmArea = NULL;
+
+  if (nonInterruptible) {
+
+    __asm(
+        ASM_PREFIX
+        "         SYSSTATE PUSH                                                  \n"
+        "         SYSSTATE OSREL=ZOSV1R8                                         \n"
+        "         SETFRR A"
+        ",FRRAD=(%[frr])"
+        ",WRKREGS=(9,10)"
+        ",PARMAD=%[parm]"
+        ",CANCEL=NO"
+        ",MODE=FULLXM"
+        ",SDWALOC31=YES                                                          \n"
+        "         SYSSTATE POP                                                   \n"
+        : [parm]"=m"(parmArea)
+        : [frr]"r"(userExit)
+        : "r9", "r10"
+    );
+
+  } else {
+
+    __asm(
+        ASM_PREFIX
+        "         SYSSTATE PUSH                                                  \n"
+        "         SYSSTATE OSREL=ZOSV1R8                                         \n"
+        "         SETFRR A"
+        ",FRRAD=(%[frr])"
+        ",WRKREGS=(9,10)"
+        ",PARMAD=%[parm]"
+        ",CANCEL=YES"
+        ",MODE=FULLXM"
+        ",SDWALOC31=YES                                                          \n"
+        "         SYSSTATE POP                                                   \n"
+        : [parm]"=m"(parmArea)
+        : [frr]"r"(userExit)
+        : "r9", "r10"
+    );
+
+  }
+
+  parmArea->userData = userData;
+
+  setKey(oldKey);
+  if (wasProblem) {
+    supervisorMode(FALSE);
+  }
+
+}
+
+static void deleteFRR(void) {
+
+  int wasProblem = supervisorMode(TRUE);
+  int oldKey = setKey(0);
+
+  __asm(
+      ASM_PREFIX
+      "         SYSSTATE PUSH                                                  \n"
+      "         SYSSTATE OSREL=ZOSV1R8                                         \n"
+      "         SETFRR D,WRKREGS=(9,10)                                        \n"
+#ifndef METTLE
+      "* Prevent LE compiler errors caused by the way XL C treats __asm        \n"
+      "         NOPR  0                                                        \n"
+#endif
+      "         SYSSTATE POP                                                   \n"
+      :
+      :
+      : "r9", "r10"
+  );
+
+  setKey(oldKey);
+  if (wasProblem) {
+    supervisorMode(FALSE);
+  }
+
+}
+
 static void *storageObtain(int size){
   char * __ptr32 data = NULL;
   __asm(
@@ -303,8 +390,11 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         LARL  10,RCVEXIT                                               \n"
       "         USING RCVEXIT,10                                               \n"
       /* validate input */
+      "         LT    2,X'21C'            CHECK IF WE HAVE TCB                 \n"
+      "         BZ    RCVLSDWA            NO, SKIP SDWA CHECK                  \n"
       "         CHI   0,12                HAVE SDWA?                           \n"
       "         JE    RCVRET              NO, LEAVE                            \n"
+      "RCVLSDWA DS    0H                                                       \n"
       "         LGR   9,1                 SDWA WILL BE IN R9                   \n"
       "         USING SDWA,9                                                   \n"
       "         LTGF  2,SDWAPARM          LOAD RECOVERY PARMS HANDLE           \n"
@@ -396,6 +486,8 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         LA    5,RSTDMTLT          DUMP TITLE                           \n"
       "         TM    RCXFLAG1,R@CF1PCC   IS THIS PC?                          \n"
       "         BNZ   RCVFRL25            YES, USE A SPECIAL SDUMPX CALL       \n"
+      "         LT    2,X'21C'            ARE WE SRB?                          \n"
+      "         BZ    RCVFRL25            YES, USE A SPECIAL SDUMPX CALL       \n"
       "         SDUMPX  PLISTVER=3,HDRAD=(5),TYPE=FAILRC,"
       ",SDATA=("
       "ALLNUC,ALLPSA,COUPLE,CSA,"
@@ -459,29 +551,32 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "RCVFRL4  DS    0H                  RETRY PROCESSING                     \n"
       "         TM    RSTFLG1,R@F1RTRY    ARE WE RETRYING?                     \n"
       "         BZ    RCVFRL5             NO, REMOVE AND LEAVE                 \n"
-      "         LLGT  4,SDWAXPAD          LOAD EXTENSION POINTERS ADDRESS      \n"
-      "         USING SDWAPTRS,4                                               \n"
-      "         LLGT  4,SDWAXEME          LOAD 64-BIT EXTENSION                \n"
-      "         LTR   4,4                 IS IT THERE?                         \n"
-      "         BZ    RCVRET              NO, LEAVE                            \n"
-      "         USING SDWARC4,4                                                \n"
       "         LA    3,1                 STACKED STATE 1                      \n"
       "         ESTA  2,3                 GET STATE                            \n"
       "         SRL   2,16                MOVE KEY TO BIT 24-27                \n"
       "         SPKA  0(2)                GO TO ORIGINAL KEY (PKM APPROVED)    \n"
+      "         LLGT  4,SDWAXPAD          LOAD EXTENSION POINTERS ADDRESS      \n"
+      "         USING SDWAPTRS,4                                               \n"
+      "         LLGT  5,SDWASRVP          LOAD RECORDABLE EXTENSION            \n"
+      "         USING SDWARC1,5                                                \n"
+      "         LLGT  4,SDWAXEME          LOAD 64-BIT EXTENSION                \n"
+      "         LTR   4,4                 IS IT THERE?                         \n"
+      "         BZ    RCVRET              NO, LEAVE                            \n"
+      "         USING SDWARC4,4                                                \n"
       "         MVC   SDWAG64,RSTRGPR     MOVE OUR REGISTERS                   \n"
+      "         MVC   SDWALSLV,RSTLSTKN   MOVE LINKAGE STACK TOKEN             \n"
       "         LLGT  7,RSTRTRAD          LOAD RETRY ADDRESS                   \n"
       "         LGR   1,9                 RESTORE SDWA IN R1                   \n"
       "         TM    RSTFLG1,R@F1LREC    RECORD SDWA TO LOGREC?               \n"
       "         BZ    RCVFRL48            NO, USE SETRP WITHOUT RECORD=YES     \n"
       "RCVFRL47 DS    0H                  SETRP WITH LOGREC                    \n"
       "         SETRP RC=4,RECORD=YES"
-      ",DUMP=NO,RETREGS=64,FRESDWA=YES"
+      ",DUMP=NO,RETREGS=64,RETRY15=YES,FRESDWA=YES"
       ",RETADDR=(7)                                                            \n"
       "         B     RCVRET              LEAVE                                \n"
       "RCVFRL48 DS    0H                  SETRP WITHOUT LOGREC                 \n"
       "         SETRP RC=4,RECORD=NO"
-      ",DUMP=NO,RETREGS=64,FRESDWA=YES"
+      ",DUMP=NO,RETREGS=64,RETRY15=YES,FRESDWA=YES"
       ",RETADDR=(7)                                                            \n"
       "         B     RCVRET              LEAVE                                \n"
       "RCVFRL5  DS    0H                  ENTRY REMOVAL                        \n"
@@ -662,7 +757,9 @@ void recoveryDESCTs(){
       "R@STENBL EQU   X'01'                                                    \n"
       "R@STABND EQU   X'02'                                                    \n"
       "R@STIREC EQU   X'04'                                                    \n"
-      "RSTRESRV DS    7X                                                       \n"
+      "RSTLSTKN DS    2X                                                       \n"
+      "RSTKEY   DS    1X                                                       \n"
+      "RSTRESRV DS    4X                                                       \n"
       "RSTSDRC  DS    F                                                        \n"
       "RSTRGPR  DS    16D                                                      \n"
       "RSTCGPR  DS    16D                                                      \n"
@@ -675,6 +772,10 @@ void recoveryDESCTs(){
 
       "         DS    0H                                                       \n"
       "         IHASDWA                                                        \n"
+      "         EJECT ,                                                        \n"
+      "         IHAFRRS                                                        \n"
+      "         EJECT ,                                                        \n"
+      "         IHAPSA                                                         \n"
       "         EJECT ,                                                        \n"
 #ifndef METTLE
       "         DS    0H                                                       \n"
@@ -830,8 +931,17 @@ static StackedState getStackedState(StackedStateExtractionCode code) {
 
 int recoveryEstablishRouter(int flags) {
 
+  /* Which DU are we? */
+  bool isTCB = getTCB() ? true : false;
+
   /* set dummy ESPIE */
-  bool isESPIERequired = flags & RCVR_ROUTER_FLAG_PC_CAPABLE ? false : true;
+  bool isESPIERequired = false;
+  if (!(flags & RCVR_ROUTER_FLAG_PC_CAPABLE)) {
+    if (isTCB) {
+      isESPIERequired = true;
+    }
+  }
+
   int previousESPIEToken = 0;
   if (isESPIERequired) {
     previousESPIEToken = setDummyESPIE();
@@ -861,27 +971,39 @@ int recoveryEstablishRouter(int flags) {
       :
   );
 
-  /* ESTAEX */
-  char estaexFlags = 0;
-  if (flags & RCVR_ROUTER_FLAG_NON_INTERRUPTIBLE) {
-    estaexFlags |= RCVR_ESTAEX_FLAG_NON_INTERRUPTIBLE;
-  }
-  if (flags & RCVR_ROUTER_FLAG_RUN_ON_TERM) {
-    estaexFlags |= RCVR_ESTAEX_FLAG_RUN_ON_TERM;
-  }
 
-  ESTAEXFeedback feedback = setESTAEX(getRecoveryRouterAddress(), context, estaexFlags);
-  if (feedback.returnCode != 0) {
-#if RECOVERY_TRACING
-    printf("error: set ESTAEX RC = %d, RSN = %d\n", feedback.returnCode, feedback.reasonCode);
-#endif
-    if (previousESPIEToken != 0) {
-      resetESPIE(previousESPIEToken);
-      previousESPIEToken = 0;
+  if (isTCB) {
+
+    /* ESTAEX */
+    char estaexFlags = 0;
+    if (flags & RCVR_ROUTER_FLAG_NON_INTERRUPTIBLE) {
+      estaexFlags |= RCVR_ESTAEX_FLAG_NON_INTERRUPTIBLE;
     }
-    storageRelease((char *)context, sizeof(RecoveryContext));
-    context = NULL;
-    return RC_RCV_SET_ESTAEX_FAILED;
+    if (flags & RCVR_ROUTER_FLAG_RUN_ON_TERM) {
+      estaexFlags |= RCVR_ESTAEX_FLAG_RUN_ON_TERM;
+    }
+
+    ESTAEXFeedback feedback = setESTAEX(getRecoveryRouterAddress(), context,
+                                        estaexFlags);
+    if (feedback.returnCode != 0) {
+#if RECOVERY_TRACING
+      printf("error: set ESTAEX RC = %d, RSN = %d\n",
+             feedback.returnCode, feedback.reasonCode);
+#endif
+      if (previousESPIEToken != 0) {
+        resetESPIE(previousESPIEToken);
+        previousESPIEToken = 0;
+      }
+      storageRelease((char *)context, sizeof(RecoveryContext));
+      context = NULL;
+      return RC_RCV_SET_ESTAEX_FAILED;
+    }
+
+  } else {
+
+    setFRR(getRecoveryRouterAddress(), context,
+           flags & RCVR_ROUTER_FLAG_NON_INTERRUPTIBLE);
+
   }
 
   return RC_RCV_OK;
@@ -1042,12 +1164,23 @@ int recoveryRemoveRouter() {
 
   int returnCode = RC_RCV_OK;
 
+  /* Which DU are we? */
+  bool isTCB = getTCB() ? true : false;
+
+  if (isTCB) {
+
   ESTAEXFeedback feedback = deleteESTAEX();
   if (feedback.returnCode != 0) {
 #if RECOVERY_TRACING
     printf("error: delete ESTAEX RC = %d, RSN = %d\n", feedback.returnCode, feedback.reasonCode);
 #endif
     returnCode = RC_RCV_DEL_ESTAEX_FAILED;
+  }
+
+  } else {
+
+    deleteFRR();
+
   }
 
   if (context->previousESPIEToken != 0) {
@@ -1175,7 +1308,7 @@ static RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char 
 
   newEntry->flags = flags;
   newEntry->state = (flags & RCVR_FLAG_DISABLE) ? RECOVERY_STATE_DISABLED : RECOVERY_STATE_ENABLED;
-  memset(newEntry->dumpTitle.title, ' ', sizeof(newEntry->dumpTitle));
+  memset(newEntry->dumpTitle.title, ' ', sizeof(newEntry->dumpTitle.title));
   newEntry->dumpTitle.length = 0;
   if (dumpTitle != NULL) {
     int titleLength = strlen(dumpTitle);
@@ -1245,6 +1378,35 @@ static void removeRecoveryStateEntry(RecoveryContext *context) {
 
 #ifdef __ZOWE_OS_ZOS
 
+static int16_t getLinkageStackToken(void) {
+
+  int32_t rc = 0;
+  int16_t token = 0;
+
+  __asm(
+      ASM_PREFIX
+#ifdef _LP64
+      "         SAM31                                                          \n"
+      "         SYSSTATE AMODE64=NO                                            \n"
+#endif
+      "         IEALSQRY                                                       \n"
+#ifdef _LP64
+      "         SAM64                                                          \n"
+      "         SYSSTATE AMODE64=YES                                           \n"
+#endif
+
+      : "=NR:r0"(token), "=NR:r15"(rc)
+      :
+      : "r0", "r1", "r14", "r15"
+  );
+
+  if (rc != 0) {
+    return -1;
+  }
+
+  return token;
+}
+
 int recoveryPush(char *name, int flags, char *dumpTitle,
                  AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
                  CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
@@ -1254,21 +1416,48 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
     return RC_RCV_CONTEXT_NOT_FOUND;
   }
 
+  int16_t linkageStackToken = getLinkageStackToken();
+  if (linkageStackToken == -1) {
+    return RC_RCV_LNKSTACK_ERROR;
+  }
+
   RecoveryStateEntry *newEntry =
       addRecoveryStateEntry(context, name, flags, dumpTitle,
                             userAnalysisFunction, analysisFunctionUserData,
                             userCleanupFunction, cleanupFunctionUserData);
 
+  newEntry->linkageStackToken = linkageStackToken;
+
+  /* Extract key from the newly created stacked state. IPK cannot be used
+   * as it requires the extract-authority set.
+   * This value will be used to restore the current's recovery state key if
+   * it changes during the recovery process - this usually happens under an SRB
+   * when SETRP retry with key 0. */
+  StackedState stackedState = getStackedState(STACKED_STATE_EXTRACTION_CODE_01);
+  newEntry->key = (stackedState.state01.psw & 0x00F0000000000000LLU) >> 48;
+
   __asm(
+
+      /*
+       * Register use:
+       *
+       * R2       - work register (addressability, key for SPKA)
+       * R9       - recovery state
+       * R10,R11  - address and size of the stack frame buffer for MVCL
+       * R14,R15  - address and size of the stack frame for MVCL
+       *
+       */
+
       ASM_PREFIX
       "&LX      SETA  &LX+1                                                    \n"
-      "&L1      SETC  'RETRY&LX'                                               \n"
-      "&L2      SETC  'EXIT&LX'                                                \n"
-      "         LLGTR 9,%0               LOAD NEW RECOVERY STATE ENTRY         \n"
+      "&LRETRY  SETC  'RETRY&LX'                                               \n"
+      "&LRSTORE SETC  'RSTR&LX'                                                \n"
+      "&LEXIT   SETC  'EXIT&LX'                                                \n"
+      "&LRSEYE  SETC  'RSEC&LX'                                                \n"
       "         PUSH  USING                                                    \n"
       "         DROP                                                           \n"
       "         USING RCVSTATE,9                                               \n"
-      "         LARL  10,&L1             GET RETRY ADDRESS                     \n"
+      "         LARL  10,&LRETRY         GET RETRY ADDRESS                     \n"
       "         ST    10,RSTRTRAD        STORE RETRY ADDRESS FOR SETRP         \n"
       "         LA    10,RSTSTFR         ADDRESS OF STACK FRAME BUFFER         \n"
       "         LA    11,L'RSTSTFR       SIZE OF STACK FRAME BUFFER            \n"
@@ -1287,10 +1476,17 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
       "         LG    10,128(13)         ADDRESS OF PREVIOUS SAVE AREA         \n"
       "         MVC   RSTCGPR(120),8(10) CALLER'S REGISTERS                    \n"
 #endif
-      "         LARL  9,&L2              EXIT ADDRESS                          \n"
-      "         B     0(9)               BRANCH AROUND RETRY BLOCK             \n"
+      "         J     &LEXIT             BRANCH AROUND RETRY BLOCK             \n"
       /* retry block */
-      "&L1      DS    0H                                                       \n"
+      "&LRETRY  DS    0H                                                       \n"
+      "         LARL  2,&LRSEYE          LOAD EYECATCHER CONSTANT ADDRESS      \n"
+      "         CLC   RSTEYECT,0(2)      STATE EYECATCHER IS VALID?            \n"
+      "         JE    &LRSTORE           YES, CONTINUE                         \n"
+      "         ABEND 1                  SOMETHING WENT TERRIBLY WRONG         \n"
+      "&LRSEYE  DC    CL8'RSRSENTR'      STATE EYECATCHER CONSTANT             \n"
+      "&LRSTORE DS    0H                                                       \n"
+      "         LLC   2,RSTKEY           LOAD KEY TO R2                        \n"
+      "         SPKA  0(2)               RESTORE KEY                           \n"
       "         MVCL  14,10              RESTORE STACK FRAME ON RETRY          \n"
 #if !defined(_LP64)
       "         L     10,4(13)           ADDRESS OF PREVIOUS SAVE AREA         \n"
@@ -1300,11 +1496,15 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
       "         MVC   8(120,10),RSTCGPR  RESTORE CALLER'S REGISTERS            \n"
 #endif
       /* exit */
-      "&L2      DS    0H                                                       \n"
+      "&LEXIT   DS    0H                                                       \n"
       "         POP   USING                                                    \n"
+#ifndef METTLE
+      "* Prevent LE compiler errors caused by the way XL C treats __asm        \n"
+      "         NOPR  0                                                        \n"
+#endif
       :
-      : "r"(newEntry)
-      : "r9", "r10", "r11", "r14", "r15"
+      : "NR:r9"(newEntry)
+      : "r2", "r10", "r11", "r14", "r15"
   );
 
   if (newEntry->state & RECOVERY_STATE_ABENDED) {
