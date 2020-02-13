@@ -22,7 +22,6 @@
 #include <stdint.h>
 #endif
 
-#include "zos.h"
 #include "zowetypes.h"
 
 #ifndef __LONGNAME__

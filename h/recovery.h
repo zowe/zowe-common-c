@@ -27,6 +27,8 @@
 
 #ifdef __ZOWE_OS_ZOS
 
+#include "cellpool.h"
+
 ZOWE_PRAGMA_PACK
 
 typedef struct SDWAARC4_tag{
@@ -221,6 +223,9 @@ typedef struct RecoveryServiceInfo_tag {
 } RecoveryServiceInfo;
 
 typedef struct RecoveryStateEntry_tag {
+
+#define RCVR_STATE_VERSION        2
+
   char eyecatcher[8]; /* RSRSENTR */
   struct RecoveryStateEntry_tag * __ptr32 next;
   void * __ptr32 retryAddress;
@@ -245,7 +250,8 @@ typedef struct RecoveryStateEntry_tag {
 #define RECOVERY_STATE_INFO_RECORDED    0x04
   int16_t linkageStackToken;
   int8_t key;
-  char reserved[4];
+  uint8_t structVersion;
+  char reserved[3];
   int sdumpxRC;
   long long retryGPRs[16];
   long long callerGRPs[16];   /* used for Metal 31/64 and LE 31 */
@@ -261,11 +267,10 @@ typedef struct RecoveryStateEntry_tag {
 
 } RecoveryStateEntry;
 
-typedef uint32_t RecoveryStatePool;
-
-#define RCVR_STATE_POOL_NULL 0
-
 typedef struct RecoveryContext_tag {
+
+#define RCVR_CONTEXT_VERSION      2
+
   char eyecatcher[8]; /* RSRCVCTX */
   int flags;
 #define RCVR_ROUTER_FLAG_NONE                 0x00000000
@@ -279,14 +284,18 @@ typedef struct RecoveryContext_tag {
 #define RCVR_ROUTER_FLAG_FRR                  0x80000000
   int previousESPIEToken;
   unsigned char routerPSWKey;
-  char reserved1[3];
-  RecoveryStatePool statePool;
+  uint8_t structVersion;
+  char reserved1[2];
+  CPID stateCellPool;
   RecoveryStateEntry * __ptr32 recoveryStateChain;
   void * __ptr32 caa;
   RecoveryServiceInfo serviceInfo;
-  char sdumpxParmList[256];
+  char sdumpxParmList[200]; /* 184 is used by PLISTVER=3 */
+  char reserved2[56];
   char sdumpxSaveArea[72];
 } RecoveryContext;
+
+typedef struct RecoveryStatePool_tag RecoveryStatePool;
 
 ZOWE_PRAGMA_PACK_RESET
 
@@ -392,7 +401,7 @@ int recoveryEstablishRouter(int flags);
 *   of the RC_RCV_xxxx error codes.
 *****************************************************************************/
 int recoveryEstablishRouter2(RecoveryContext *userContext,
-                             RecoveryStatePool userStatePool,
+                             RecoveryStatePool *userStatePool,
                              int flags);
 
 /*****************************************************************************
@@ -401,15 +410,12 @@ int recoveryEstablishRouter2(RecoveryContext *userContext,
 * The function creates a pool for recovery states.
 *
 * Parameters:
-*   primaryCellCount          - primary state count
-*   secondaryCellCount        - secondary state count used when no states are
-*                               left
+*   stateCount                - the number of cells to be allocated
 *
 * Return value:
-*   State pool structure on success or RCVR_STATE_POOL_NULL on failure.
+*   State pool structure on success or NULL on failure.
 *****************************************************************************/
-RecoveryStatePool recoveryMakeStatePool(unsigned int primaryCellCount,
-                                        unsigned int secondaryCellCount);
+RecoveryStatePool *recoveryMakeStatePool(unsigned int stateCount);
 
 /*****************************************************************************
 * Remove a user state pool.
@@ -422,7 +428,7 @@ RecoveryStatePool recoveryMakeStatePool(unsigned int primaryCellCount,
 * Return value:
 *   N/A
 *****************************************************************************/
-void recoveryRemoveStatePool(RecoveryStatePool statePool);
+void recoveryRemoveStatePool(RecoveryStatePool *statePool);
 
 #endif /* RCVR_CPOOL_STATES */
 
