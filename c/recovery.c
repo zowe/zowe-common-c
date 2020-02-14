@@ -1060,7 +1060,7 @@ static CPID makeRecoveryStatePool(unsigned int primaryCellCount,
   return poolID;
 }
 
-static void removeStatePool(CPID pool) {
+static void removeRecoveryStatePool(CPID pool) {
   cellpoolDelete(pool);
 }
 
@@ -1211,7 +1211,7 @@ static int establishRouterInternal(RecoveryContext *userContext,
 #ifdef RCVR_CPOOL_STATES
       if (userStatePool == NULL &&
           context->stateCellPool != CPID_NULL) {
-        removeStatePool(context->stateCellPool);
+        removeRecoveryStatePool(context->stateCellPool);
         context->stateCellPool = CPID_NULL;
       }
 #endif
@@ -1262,7 +1262,7 @@ RecoveryStatePool *recoveryMakeStatePool(unsigned int stateCount) {
 }
 
 void recoveryRemoveStatePool(RecoveryStatePool *statePool) {
-  removeStatePool(statePool->cellPool);
+  removeRecoveryStatePool(statePool->cellPool);
   storageRelease(statePool, sizeof(RecoveryStatePool));
 }
 
@@ -1461,7 +1461,7 @@ int recoveryRemoveRouter() {
 
 #ifdef RCVR_CPOOL_STATES
   if (!(context->flags & RCVR_ROUTER_FLAG_USER_STATE_POOL)) {
-    removeStatePool(context->stateCellPool);
+    removeRecoveryStatePool(context->stateCellPool);
     context->stateCellPool = CPID_NULL;
   }
 #endif /* RCVR_CPOOL_STATES */
