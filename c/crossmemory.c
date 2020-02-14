@@ -473,6 +473,13 @@ typedef struct CrossMemoryServerLogServiceParm_tag {
   int messageLength;
 } CrossMemoryServerLogServiceParm;
 
+typedef struct CrossMemoryServerMsgQueueElement_tag {
+  QueueElement queueElement;
+  CPID cellPool;
+  char filler0[4];
+  CrossMemoryServerLogServiceParm logServiceParm;
+} CrossMemoryServerMsgQueueElement;
+
 typedef struct CrossMemoryServerConfigServiceParm_tag {
   char eyecatcher[8];
 #define CMS_CONFIG_SERVICE_PARM_EYECATCHER "RSCMSCSY"
@@ -1199,6 +1206,11 @@ ZOWE_PRAGMA_PACK_RESET
 #define CMS_STACK_SIZE                      65536
 #define CMS_STACK_SUBPOOL                   132
 
+#define CMS_MSG_QUEUE_MAIN_POOL_PSIZE       32768
+#define CMS_MSG_QUEUE_MAIN_POOL_SSIZE       4096
+#define CMS_MSG_QUEUE_FALLBACK_POOL_PSIZE   16384
+#define CMS_MSG_QUEUE_SUBPOOL               132
+
 #ifdef _LP64
 
 #pragma prolog(handlePCSS,\
@@ -1511,24 +1523,78 @@ void post(ECB * __ptr32 ecb, int code) {
   );
 }
 
+static int allocateMsgQueueElement(CrossMemoryServer *server,
+                                   CrossMemoryServerMsgQueueElement **result) {
+
+  CPID cpid = CPID_NULL;
+  CrossMemoryServerMsgQueueElement *element = NULL;
+  bool isConditional = isCallerLocked();
+
+  int recoveryRC = recoveryPush(
+      "allocateMsgQueueElement()",
+      RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY,
+      "ABEND in CPOOL GET for msg queue element",
+      NULL, NULL,
+      NULL, NULL
+  );
+
+  if (recoveryRC == RC_RCV_OK) {
+
+    cpid = server->messageQueueMainPool;
+    element = cellpoolGet(cpid, isConditional);
+
+    if (element == NULL) {
+      cpid = server->messageQueueFallbackPool;
+      element = cellpoolGet(cpid, true);
+    }
+
+  }
+
+  if (recoveryRC == RC_RCV_OK) {
+    recoveryPop();
+  }
+
+  if (element) {
+    memset(element, 0, sizeof(*element));
+    element->cellPool = cpid;
+  } else {
+    return RC_CMS_NO_STORAGE_FOR_MSG;
+  }
+
+  *result = element;
+
+  return RC_CMS_OK;
+}
+
+static void freeMsgQueueElement(CrossMemoryServerMsgQueueElement *element) {
+  cellpoolFree(element->cellPool, element);
+}
+
 static int handleLogService(CrossMemoryServer *server, CrossMemoryServerLogServiceParm *callerParm) {
 
   if (callerParm == NULL) {
     return RC_CMS_STDSVC_PARM_NULL;
   }
 
-  CrossMemoryServerLogServiceParm *localParm =
-      (CrossMemoryServerLogServiceParm *)safeMalloc31(sizeof(CrossMemoryServerLogServiceParm), "CrossMemoryServerLogServiceParm");
-  cmCopyFromSecondaryWithCallerKey(localParm, callerParm,
+  CrossMemoryServerLogServiceParm localParm;
+  cmCopyFromSecondaryWithCallerKey(&localParm, callerParm,
                                    sizeof(CrossMemoryServerLogServiceParm));
 
-  if (memcmp(localParm->eyecatcher, CMS_LOG_SERVICE_PARM_EYECATCHER,
-             sizeof(localParm->eyecatcher))) {
+  if (memcmp(localParm.eyecatcher, CMS_LOG_SERVICE_PARM_EYECATCHER,
+             sizeof(localParm.eyecatcher))) {
     return RC_CMS_STDSVC_PARM_BAD_EYECATCHER;
   }
 
+  CrossMemoryServerMsgQueueElement *newElement = NULL;
+  int allocRC = allocateMsgQueueElement(server, &newElement);
+  if (allocRC != RC_CMS_OK) {
+    return allocRC;
+  }
+
+  newElement->logServiceParm = localParm;
+
   /* log service is always space switch */
-  qInsert(server->messageQueue, localParm);
+  qEnqueue(server->messageQueue, &newElement->queueElement);
 
   return RC_CMS_OK;
 }
@@ -1862,6 +1928,32 @@ static int allocServerResources(CrossMemoryServer *server) {
       break;
     }
 
+    unsigned msgQueueCellSize =
+        cellpoolGetDWordAlignedSize(sizeof(CrossMemoryServerMsgQueueElement));
+    server->messageQueueMainPool =
+        cellpoolBuild(CMS_MSG_QUEUE_MAIN_POOL_PSIZE,
+                      CMS_MSG_QUEUE_MAIN_POOL_SSIZE,
+                      msgQueueCellSize,
+                      CMS_MSG_QUEUE_SUBPOOL,
+                      CROSS_MEMORY_SERVER_KEY,
+                      &(CPHeader){"ZWESCMSMSGMCELLPOOL     "});
+    if (server->messageQueueMainPool == CPID_NULL) {
+      status = RC_CMS_MSG_QUEUE_NOT_CREATED;
+      break;
+    }
+
+    server->messageQueueFallbackPool =
+        cellpoolBuild(CMS_MSG_QUEUE_FALLBACK_POOL_PSIZE,
+                      0,
+                      msgQueueCellSize,
+                      CMS_MSG_QUEUE_SUBPOOL,
+                      CROSS_MEMORY_SERVER_KEY,
+                      &(CPHeader){"ZWESCMSMSGFCELLPOOL     "});
+    if (server->messageQueueFallbackPool == CPID_NULL) {
+      status = RC_CMS_MSG_QUEUE_NOT_CREATED;
+      break;
+    }
+
     server->configParms = htCreate(PARM_HT_BACKBONE_SIZE,
                                    stringHash, stringCompare,
                                    NULL, NULL);
@@ -1877,6 +1969,16 @@ static int allocServerResources(CrossMemoryServer *server) {
     if (server->configParms != NULL) {
       htDestroy(server->configParms);
       server->configParms = NULL;
+    }
+
+    if (server->messageQueueFallbackPool != CPID_NULL) {
+      cellpoolDelete(server->messageQueueFallbackPool);
+      server->messageQueueFallbackPool = CPID_NULL;
+    }
+
+    if (server->messageQueueMainPool != CPID_NULL) {
+      cellpoolDelete(server->messageQueueMainPool);
+      server->messageQueueMainPool = CPID_NULL;
     }
 
     if (server->messageQueue != NULL) {
@@ -1900,6 +2002,16 @@ static void releaseServerResources(CrossMemoryServer *server) {
      htDestroy(server->configParms);
      server->configParms = NULL;
    }
+
+  if (server->messageQueueFallbackPool != CPID_NULL) {
+    cellpoolDelete(server->messageQueueFallbackPool);
+    server->messageQueueFallbackPool = CPID_NULL;
+  }
+
+  if (server->messageQueueMainPool != CPID_NULL) {
+    cellpoolDelete(server->messageQueueMainPool);
+    server->messageQueueMainPool = CPID_NULL;
+  }
 
    if (server->messageQueue != NULL) {
      qRemove(server->messageQueue);
@@ -2635,8 +2747,12 @@ static int establishPCRoutines(CrossMemoryServer *server) {
 
 static void flushDebugMessages(CrossMemoryServer *server) {
 
-  CrossMemoryServerLogServiceParm *msg = qRemove(server->messageQueue);
-  while (msg != NULL) {
+  CrossMemoryServerMsgQueueElement *element =
+      (CrossMemoryServerMsgQueueElement *)qDequeue(server->messageQueue);
+
+  while (element != NULL) {
+
+    CrossMemoryServerLogServiceParm *msg = &element->logServiceParm;
 
     if (memcmp(msg->eyecatcher, CMS_LOG_SERVICE_PARM_EYECATCHER, sizeof(msg->eyecatcher))) {
       zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_INVALID_EYECATCHER_MSG, "log parm", msg);
@@ -2647,8 +2763,8 @@ static void flushDebugMessages(CrossMemoryServer *server) {
       zowelog(NULL, LOG_COMP_CMS, ZOWE_LOG_INFO, "%.*s", msg->messageLength > sizeof(msg->message) ? sizeof(msg->message) : msg->messageLength, msg->message);
     }
 
-    safeFree31((char *)msg, sizeof(CrossMemoryServerLogServiceParm));
-    msg = qRemove(server->messageQueue);
+    freeMsgQueueElement(element);
+    element = (CrossMemoryServerMsgQueueElement *)qDequeue(server->messageQueue);
 
     if (server->flags & CROSS_MEMORY_SERVER_FLAG_TERM_STARTED) {
       break;

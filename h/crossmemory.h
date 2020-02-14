@@ -311,6 +311,8 @@ typedef struct CrossMemoryServer_tag {
   ENQToken serverENQToken;
   ShortLivedHeap * __ptr32 slh;
   Queue * __ptr32 messageQueue;
+  CPID messageQueueMainPool;
+  CPID messageQueueFallbackPool;
   hashtable * __ptr32 configParms;
   LPMEA lpaCodeInfo;
   ELXLIST pcELXList;
