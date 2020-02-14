@@ -80,6 +80,8 @@ typedef struct ESTAEXFeedback_tag {
   int reasonCode;
 } ESTAEXFeedback;
 
+#define RCVR_ESTAEX_FRR_EXISTS  0x30
+
 ZOWE_PRAGMA_PACK_RESET
 
 static void resetESPIE(int token) {
@@ -1040,9 +1042,9 @@ typedef struct RecoveryStatePool_tag {
 
 #ifdef RCVR_CPOOL_STATES
 
-static CPID makeStatePool(unsigned int primaryCellCount,
-                          unsigned int secondaryCellCount,
-                          int storageSubpool) {
+static CPID makeRecoveryStatePool(unsigned int primaryCellCount,
+                                  unsigned int secondaryCellCount,
+                                  int storageSubpool) {
 
   StackedState stackedState = getStackedState(STACKED_STATE_EXTRACTION_CODE_01);
   uint8_t pswKey = (stackedState.state01.psw & 0x00F0000000000000LLU) >> 52;
@@ -1052,7 +1054,7 @@ static CPID makeStatePool(unsigned int primaryCellCount,
   CPID poolID = cellpoolBuild(primaryCellCount,
                               secondaryCellCount,
                               alignedCellSize,
-                              RCVR_STATE_POOL_SUBPOOL, pswKey,
+                              storageSubpool, pswKey,
                               &(CPHeader){"ZWESRECOVERYSTATEPOOL   "});
 
   return poolID;
@@ -1135,8 +1137,9 @@ static int establishRouterInternal(RecoveryContext *userContext,
     context->stateCellPool = userStatePool->cellPool;
     flags |= RCVR_ROUTER_FLAG_USER_STATE_POOL;
   } else {
-    context->stateCellPool = makeStatePool(RCVR_STATE_POOL_PRIMARY_COUNT, 0,
-                                           RCVR_STATE_POOL_SUBPOOL);
+    context->stateCellPool =
+        makeRecoveryStatePool(RCVR_STATE_POOL_PRIMARY_COUNT, 0,
+                              RCVR_STATE_POOL_SUBPOOL);
     if (context->stateCellPool == CPID_NULL) {
       rc = RC_RCV_ALLOC_FAILED;
       goto failure;
@@ -1172,7 +1175,7 @@ static int establishRouterInternal(RecoveryContext *userContext,
 
       /* Check ESTAEX RC. If it is 0x30, it means there's already an FRR set,
        * so we must use an FRR instead of an ESTAEX.*/
-      if (feedback.returnCode == 0x30) {
+      if (feedback.returnCode == RCVR_ESTAEX_FRR_EXISTS) {
         frrRequired = true;
       } else {
 #if RECOVERY_TRACING
@@ -1254,7 +1257,7 @@ RecoveryStatePool *recoveryMakeStatePool(unsigned int stateCount) {
          sizeof(pool->eyecatcher));
   pool->version = RCVR_STATE_POOL_VERSION;
 
-  pool->cellPool = makeStatePool(stateCount, 0, RCVR_STATE_POOL_SUBPOOL);
+  pool->cellPool = makeRecoveryStatePool(stateCount, 0, RCVR_STATE_POOL_SUBPOOL);
   if (pool->cellPool == CPID_NULL) {
     storageRelease(pool, sizeof(RecoveryStatePool));
     pool = NULL;
