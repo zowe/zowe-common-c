@@ -349,14 +349,24 @@ zos.o \
 #define CELLPOOL_TEST_STATUS_OK        0
 #define CELLPOOL_TEST_STATUS_FAILURE   8
 
+#define CELLPOOL_TEST_PRIMARY_SIZE      10
+#define CELLPOOL_TEST_SECONDARY_SIZE    2
+#define CELLPOOL_TEST_CELL_SIZE         512
+#define CELLPOOL_TEST_SUBPOOL           132
+#define CELLPOOL_TEST_KEY               8
+#define CELLPOOL_TEST_HEADER_STR        "TEST-CP-HEADER"
+
 static int testUnconditionalCellPoolGet(void) {
 
-  unsigned psize = 10;
-  unsigned ssize = 2;
-  unsigned cellSize = 512;
-  int sp = 132, key = 8;
-  CPHeader header = {"TEST-CP-HEADER"};
-  bool isConditional = false;
+  unsigned psize = CELLPOOL_TEST_PRIMARY_SIZE;
+  unsigned ssize = CELLPOOL_TEST_SECONDARY_SIZE;
+  unsigned cellSize = CELLPOOL_TEST_CELL_SIZE;
+  const int sp = CELLPOOL_TEST_SUBPOOL;
+  const int key = CELLPOOL_TEST_KEY;
+  const CPHeader header = {CELLPOOL_TEST_HEADER_STR};
+  const bool isConditional = false;
+
+  const int testGetCount = 100;
 
   CPID id = cellpoolBuild(psize, ssize, cellSize, sp, key, &header);
   if (id == CPID_NULL) {
@@ -366,7 +376,7 @@ static int testUnconditionalCellPoolGet(void) {
 
   int status = CELLPOOL_TEST_STATUS_OK;
 
-  for (int i = 0; i < 100; i++) {
+  for (int i = 0; i < testGetCount; i++) {
     void *cell = cellpoolGet(id, isConditional);
     if (cell == NULL) {
       printf("error: cellpoolGet(unconditional) test failed, cell #%d\n", i);
@@ -382,12 +392,13 @@ static int testUnconditionalCellPoolGet(void) {
 
 static int testConditionalCellPoolGet(void) {
 
-  unsigned psize = 10;
-  unsigned ssize = 2;
-  unsigned cellSize = 512;
-  int sp = 132, key = 8;
-  CPHeader header = {"TEST-CP-HEADER"};
-  bool isConditional = true;
+  unsigned psize = CELLPOOL_TEST_PRIMARY_SIZE;
+  unsigned ssize = CELLPOOL_TEST_SECONDARY_SIZE;
+  unsigned cellSize = CELLPOOL_TEST_CELL_SIZE;
+  const int sp = CELLPOOL_TEST_SUBPOOL;
+  const int key = CELLPOOL_TEST_KEY;
+  const CPHeader header = {CELLPOOL_TEST_HEADER_STR};
+  const bool isConditional = true;
 
   CPID id = cellpoolBuild(psize, ssize, cellSize, sp, key, &header);
   if (id == CPID_NULL) {
@@ -416,12 +427,13 @@ static int testConditionalCellPoolGet(void) {
 
 static int testCellPoolFree(void) {
 
-  unsigned psize = 10;
-  unsigned ssize = 2;
-  unsigned cellSize = 512;
-  int sp = 132, key = 8;
-  CPHeader header = {"TEST-CP-HEADER"};
-  bool isConditional = true;
+  unsigned psize = CELLPOOL_TEST_PRIMARY_SIZE;
+  unsigned ssize = CELLPOOL_TEST_SECONDARY_SIZE;
+  unsigned cellSize = CELLPOOL_TEST_CELL_SIZE;
+  const int sp = CELLPOOL_TEST_SUBPOOL;
+  const int key = CELLPOOL_TEST_KEY;
+  const CPHeader header = {CELLPOOL_TEST_HEADER_STR};
+  const bool isConditional = true;
 
   void *cells[10] = {0};
 
