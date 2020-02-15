@@ -1138,16 +1138,13 @@ static int compareAndSwapTriple(long *oldCounter, long newCounter, long *counter
   return status;
 }
 
-void qInsert(Queue *q, void *newData){
+void qEnqueue(Queue *q, QueueElement *newElement) {
 
   union {
     long long alignit;
     CSTSTParms parms;
   };
 
-  QueueElement *newElement = NULL;
-  newElement = (QueueElement*)safeMalloc(sizeof(QueueElement),"Q Element");
-  newElement->data = newData;
   newElement->next = NULL;
 
   /* Note: The PLO compare value must alway be the first data fetched when
@@ -1238,7 +1235,17 @@ void qInsert(Queue *q, void *newData){
   return;
 }
 
-void *qRemove(Queue *q){
+void qInsert(Queue *q, void *newData) {
+
+  QueueElement *newElement = NULL;
+  newElement = (QueueElement *)safeMalloc(sizeof(QueueElement), "Q Element");
+  newElement->data = newData;
+
+  qEnqueue(q, newElement);
+
+}
+
+QueueElement *qDequeue(Queue *q) {
 
   union {
     long long alignit;
@@ -1344,11 +1351,17 @@ void *qRemove(Queue *q){
         break;
     }
   }
+
+  return currentHead;
+}
+
+void *qRemove(Queue *q) {
+
   void *result = NULL;
-  if (currentHead)
-  {
-    result = currentHead->data;
-    safeFree31((char*)currentHead,sizeof(QueueElement));
+  QueueElement *element = qDequeue(q);
+  if (element) {
+    result = element->data;
+    safeFree((char *)element, sizeof(QueueElement));
   }
 
   return result;
