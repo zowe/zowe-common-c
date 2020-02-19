@@ -27,6 +27,8 @@
 
 #ifdef __ZOWE_OS_ZOS
 
+#include "cellpool.h"
+
 ZOWE_PRAGMA_PACK
 
 typedef struct SDWAARC4_tag{
@@ -193,6 +195,8 @@ ZOWE_PRAGMA_PACK_RESET
 #define RC_RCV_CONTEXT_NOT_SET    12
 #define RC_RCV_SIGACTION_FAILED   13
 #define RC_RCV_LNKSTACK_ERROR     14
+#define RC_RCV_ALLOC_FAILED       15
+#define RC_RCV_LOCKED_ENV         16
 #define RC_RCV_ABENDED            100
 
 #ifdef __ZOWE_OS_ZOS
@@ -219,6 +223,9 @@ typedef struct RecoveryServiceInfo_tag {
 } RecoveryServiceInfo;
 
 typedef struct RecoveryStateEntry_tag {
+
+#define RCVR_STATE_VERSION        2
+
   char eyecatcher[8]; /* RSRSENTR */
   struct RecoveryStateEntry_tag * __ptr32 next;
   void * __ptr32 retryAddress;
@@ -235,6 +242,7 @@ typedef struct RecoveryStateEntry_tag {
 #define RCVR_FLAG_DELETE_ON_RETRY       0x04000000
 #define RCVR_FLAG_SDWA_TO_LOGREC        0x08000000
 #define RCVR_FLAG_DISABLE               0x10000000
+#define RCVR_FLAG_CPOOL_BASED           0x20000000
   volatile char state;
 #define RECOVERY_STATE_DISABLED         0x00
 #define RECOVERY_STATE_ENABLED          0x01
@@ -242,7 +250,8 @@ typedef struct RecoveryStateEntry_tag {
 #define RECOVERY_STATE_INFO_RECORDED    0x04
   int16_t linkageStackToken;
   int8_t key;
-  char reserved[4];
+  uint8_t structVersion;
+  char reserved[3];
   int sdumpxRC;
   long long retryGPRs[16];
   long long callerGRPs[16];   /* used for Metal 31/64 and LE 31 */
@@ -259,21 +268,34 @@ typedef struct RecoveryStateEntry_tag {
 } RecoveryStateEntry;
 
 typedef struct RecoveryContext_tag {
+
+#define RCVR_CONTEXT_VERSION      2
+
   char eyecatcher[8]; /* RSRCVCTX */
   int flags;
 #define RCVR_ROUTER_FLAG_NONE                 0x00000000
 #define RCVR_ROUTER_FLAG_NON_INTERRUPTIBLE    0x01000000
 #define RCVR_ROUTER_FLAG_PC_CAPABLE           0x02000000
 #define RCVR_ROUTER_FLAG_RUN_ON_TERM          0x04000000
+#define RCVR_ROUTER_FLAG_USER_CONTEXT         0x08000000
+#define RCVR_ROUTER_FLAG_USER_STATE_POOL      0x10000000
+#define RCVR_ROUTER_FLAG_SRB                  0x20000000
+#define RCVR_ROUTER_FLAG_LOCKED               0x40000000
+#define RCVR_ROUTER_FLAG_FRR                  0x80000000
   int previousESPIEToken;
   unsigned char routerPSWKey;
-  char reserved1[7];
+  uint8_t structVersion;
+  char reserved1[2];
+  CPID stateCellPool;
   RecoveryStateEntry * __ptr32 recoveryStateChain;
   void * __ptr32 caa;
   RecoveryServiceInfo serviceInfo;
-  char sdumpxParmList[256];
+  char sdumpxParmList[200]; /* 184 is used by PLISTVER=3 */
+  char reserved2[56];
   char sdumpxSaveArea[72];
 } RecoveryContext;
+
+typedef struct RecoveryStatePool_tag RecoveryStatePool;
 
 ZOWE_PRAGMA_PACK_RESET
 
@@ -336,8 +358,8 @@ typedef struct RecoveryContext_tag {
 /*****************************************************************************
 * Establish a new recovery router.
 *
-* The function overrides an existing ESPIE (if any) and sets an ESTAE.
-* The ESTAE recovery routine handles all present recovery states.
+* The function overrides an existing ESPIE (if any) and sets an ESTAE or FRR.
+* The ESTAE/FRR recovery routine handles all present recovery states.
 *
 * Parameters:
 *   flags                     - control flags
@@ -353,6 +375,62 @@ typedef struct RecoveryContext_tag {
 *   of the RC_RCV_xxxx error codes.
 *****************************************************************************/
 int recoveryEstablishRouter(int flags);
+
+#ifdef RCVR_CPOOL_STATES
+
+/*****************************************************************************
+* Establish a new recovery router with the ability to pass user storage for
+* the context and state pool.
+*
+* The function overrides an existing ESPIE (if any) and sets an ESTAE or FRR.
+* The ESTAE/FRR recovery routine handles all present recovery states.
+*
+* Parameters:
+*   userContext               - user storage for the recovery context
+*   userStatePool             - user provided recovery state pool
+*   flags                     - control flags
+*     RCVR_ROUTER_FLAG_NONE               - no flags
+*     RCVR_ROUTER_FLAG_NON_INTERRUPTIBLE  - cancel or detach will not
+*                                           interrupted recovery process
+*     RCVR_ROUTER_FLAG_PC_CAPABALE        - should be set when the recovery
+*                                           needs to used in PC calls
+*
+* Return value:
+*   When a router has successfully been established, the function returns
+*   RC_RCV_OK. In case of an error, the function returns one
+*   of the RC_RCV_xxxx error codes.
+*****************************************************************************/
+int recoveryEstablishRouter2(RecoveryContext *userContext,
+                             RecoveryStatePool *userStatePool,
+                             int flags);
+
+/*****************************************************************************
+* Make a user state pool.
+*
+* The function creates a pool for recovery states.
+*
+* Parameters:
+*   stateCount                - the number of cells to be allocated
+*
+* Return value:
+*   State pool structure on success or NULL on failure.
+*****************************************************************************/
+RecoveryStatePool *recoveryMakeStatePool(unsigned int stateCount);
+
+/*****************************************************************************
+* Remove a user state pool.
+*
+* The function removes a state pool.
+*
+* Parameters:
+*   statePool                 - pool to be removed
+*
+* Return value:
+*   N/A
+*****************************************************************************/
+void recoveryRemoveStatePool(RecoveryStatePool *statePool);
+
+#endif /* RCVR_CPOOL_STATES */
 
 /*****************************************************************************
 * Remove the recovery router.
