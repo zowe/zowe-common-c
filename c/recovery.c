@@ -1096,7 +1096,7 @@ static int establishRouterInternal(RecoveryContext *userContext,
   /* set dummy ESPIE */
   bool isESPIERequired = false;
   if (!(flags & RCVR_ROUTER_FLAG_PC_CAPABLE)) {
-    if (!isSRB) {
+    if (!isSRB && !lockHeld) {
       isESPIERequired = true;
     }
   }
