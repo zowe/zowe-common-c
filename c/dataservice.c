@@ -300,6 +300,8 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
     zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "Plugin=%s, found %d data service(s)\n", plugin->identifier, plugin->dataServiceCount);
     if (plugin->dataServiceCount > 0) {
       plugin->dataServices = (DataService**)safeMalloc(sizeof(DataService*) * plugin->dataServiceCount,"DataServices");
+    } else {
+      plugin->dataServices = NULL;
     }
     int k = 0;
     for (int i = 0; i < jsonArrayGetCount(dataServices); i++) {
