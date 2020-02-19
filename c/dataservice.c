@@ -312,6 +312,8 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
     zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "Plugin=%s, found %d data service(s)\n", plugin->identifier, plugin->dataServiceCount);
     if (plugin->dataServiceCount > 0) {
       plugin->dataServices = (DataService**)safeMalloc(sizeof(DataService*) * plugin->dataServiceCount,"DataServices");
+    } else {
+      plugin->dataServices = NULL;
     }
 >>>>>>> f808cdc... Use zowelog instead of printf, reduce useless messages
     int k = 0;
