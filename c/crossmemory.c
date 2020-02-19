@@ -1935,7 +1935,7 @@ static int allocServerResources(CrossMemoryServer *server) {
                       CMS_MSG_QUEUE_MAIN_POOL_SSIZE,
                       msgQueueCellSize,
                       CMS_MSG_QUEUE_SUBPOOL,
-                      CROSS_MEMORY_SERVER_KEY,
+                      getCurrentKey(),
                       &(CPHeader){"ZWESCMSMSGMCELLPOOL     "});
     if (server->messageQueueMainPool == CPID_NULL) {
       status = RC_CMS_MSG_QUEUE_NOT_CREATED;
@@ -1947,7 +1947,7 @@ static int allocServerResources(CrossMemoryServer *server) {
                       0,
                       msgQueueCellSize,
                       CMS_MSG_QUEUE_SUBPOOL,
-                      CROSS_MEMORY_SERVER_KEY,
+                      getCurrentKey(),
                       &(CPHeader){"ZWESCMSMSGFCELLPOOL     "});
     if (server->messageQueueFallbackPool == CPID_NULL) {
       status = RC_CMS_MSG_QUEUE_NOT_CREATED;
