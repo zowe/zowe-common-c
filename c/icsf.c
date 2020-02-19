@@ -33,7 +33,6 @@
 #include "bpxnet.h"
 #include "bigint.h"
 #include "icsf.h"
-#include "logging.h"
 
 #ifndef _LP64
 #pragma linkage(CSNBOWH,OS)
@@ -124,7 +123,9 @@ int icsfDigestInit(ICSFDigest *digest, int type){
     digest->hashLength = 20;
     break;
   default:
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "unimplemented\n");
+    if (digestTrace){
+      printf("unimplemented\n");
+    }
     return 8;
   }
   int returnCode;
@@ -148,7 +149,7 @@ int icsfDigestInit(ICSFDigest *digest, int type){
 	  &contextLength,digest->context,	  
 	  &digest->hashLength,digest->hash);
   if (digestTrace){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "CSNBOWH (FIRST) retcode=%d reason=%d leftoverFill=%d\n",
+    printf("CSNBOWH (FIRST) retcode=%d reason=%d leftoverFill=%d\n",
 	   returnCode,reasonCode,digest->leftoverFill);
   }
 
@@ -166,7 +167,9 @@ int icsfDigestUpdate(ICSFDigest *digest, char *data, int len){
     digest->ruleArray = "SHA-1   MIDDLE  ";
     break;
   default:
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "unimplemented ICSF Digest type\n");
+    if (digestTrace){
+      printf("unimplemented ICSF Digest type\n");
+    }
     return 8;
   }
   int returnCode;
@@ -178,13 +181,13 @@ int icsfDigestUpdate(ICSFDigest *digest, char *data, int len){
 
   int newFill = digest->leftoverFill + len;
   if (digestTrace){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "update, leftoverFill=%d len=%d newFill = %d\n",digest->leftoverFill,len,newFill);
+    printf("update, leftoverFill=%d len=%d newFill = %d\n",digest->leftoverFill,len,newFill);
   }
   if (newFill < ICSF_HASH_BLOCK_LENGTH){
     memcpy(digest->leftovers+digest->leftoverFill,data,len);
     digest->leftoverFill += len;
     if (digestTrace){
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "hash update case 1, leftoverFill = %d\n",digest->leftoverFill);
+      printf("hash update case 1, leftoverFill = %d\n",digest->leftoverFill);
       dumpbuffer(digest->leftovers,digest->leftoverFill);
     }
     return 0;
@@ -198,7 +201,7 @@ int icsfDigestUpdate(ICSFDigest *digest, char *data, int len){
 
     memset(temp,0,64);
     if (digestTrace){
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "update, blocksToHash = %d\n",blocksToHash);
+      printf("update, blocksToHash = %d\n",blocksToHash);
     }
     for (i=0; i<blocksToHash; i++){
       if (i==0){
@@ -222,13 +225,13 @@ int icsfDigestUpdate(ICSFDigest *digest, char *data, int len){
 	      &contextLength,digest->context,	  
 	      &digest->hashLength,digest->hash);
       if (digestTrace){
-        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "CSNBOWH retcode=%d reason=%d\n",returnCode,reasonCode);
+	printf("CSNBOWH retcode=%d reason=%d\n",returnCode,reasonCode);
       }
     }
     memcpy(digest->leftovers,data+(len-newLeftoverFill),newLeftoverFill);
     digest->leftoverFill = newLeftoverFill;
     if (digestTrace){
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "hash update case 2, leftoverFill = %d\n",digest->leftoverFill);
+      printf("hash update case 2, leftoverFill = %d\n",digest->leftoverFill);
       dumpbuffer(digest->leftovers,digest->leftoverFill);
     }
     return returnCode;  
@@ -246,7 +249,9 @@ int icsfDigestFinish(ICSFDigest *digest, char *hash){
     digest->ruleArray = "SHA-1   LAST    ";
     break;
   default:
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "unimplemented\n");
+    if (digestTrace){
+      printf("unimplemented\n");
+    }
     return 8;
   }
   int returnCode;
@@ -270,7 +275,7 @@ int icsfDigestFinish(ICSFDigest *digest, char *hash){
 	  &contextLength,digest->context,	  
 	  &digest->hashLength,digest->hash);
   if (digestTrace){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "CSNBOWH (LAST) retcode=%d reason=%d\n",returnCode,reasonCode);
+    printf("CSNBOWH (LAST) retcode=%d reason=%d\n",returnCode,reasonCode);
   }
   memcpy(hash,digest->hash,digest->hashLength);
   return returnCode;  
@@ -318,7 +323,9 @@ int icsfDigestFully(char *digestType, char *s, int len){
 	  &md5HashLength,
 	  hash);
 
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "called ICSF MD5 ret=0x%x reason=0x%x\n",returnCode,reasonCode);
+  if (digestTrace){
+    printf("called ICSF MD5 ret=0x%x reason=0x%x\n",returnCode,reasonCode);
+  }
   dumpbuffer(hash,16);
 	  
   return returnCode;
@@ -564,4 +571,3 @@ int icsfGenerateRandomNumber(void *result, int resultLength, int *reasonCode) {
   
   Copyright Contributors to the Zowe Project.
 */
-

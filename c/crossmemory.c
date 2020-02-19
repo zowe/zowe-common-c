@@ -290,7 +290,7 @@ void cmsInitializeLogging() {
   logConfigureComponent(NULL, LOG_COMP_STCBASE, "STCBASE", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
   logConfigureComponent(NULL, LOG_COMP_ID_CMS, "CIDB", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
   logConfigureComponent(NULL, LOG_COMP_ID_CMSPC, "CIDB CM", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
-  zowelog(NULL, LOG_COMP_CMS, ZOWE_LOG_INFO, "DATESTAMP              JOBNAME  ASCB    (ASID) TCB       MSGID     MSGTEXT\n");
+  printf("DATESTAMP              JOBNAME  ASCB    (ASID) TCB       MSGID     MSGTEXT\n");
 
 }
 
@@ -526,7 +526,7 @@ static void printWithPrefix(LoggingContext *context, LoggingComponent *component
     if (lineIdx == 0) {
       initLogMessagePrefix(&prefix);
     }
-    zowelog(NULL, LOG_COMP_CMS, ZOWE_LOG_INFO, "%.*s%.*s\n", sizeof(prefix.text), prefix.text, nextLineLength, nextLine);
+    printf("%.*s%.*s\n", sizeof(prefix.text), prefix.text, nextLineLength, nextLine);
     nextLine += (nextLineLength + 1);
   }
 
@@ -1935,7 +1935,7 @@ static int allocServerResources(CrossMemoryServer *server) {
                       CMS_MSG_QUEUE_MAIN_POOL_SSIZE,
                       msgQueueCellSize,
                       CMS_MSG_QUEUE_SUBPOOL,
-                      CROSS_MEMORY_SERVER_KEY,
+                      getCurrentKey(),
                       &(CPHeader){"ZWESCMSMSGMCELLPOOL     "});
     if (server->messageQueueMainPool == CPID_NULL) {
       status = RC_CMS_MSG_QUEUE_NOT_CREATED;
@@ -1947,7 +1947,7 @@ static int allocServerResources(CrossMemoryServer *server) {
                       0,
                       msgQueueCellSize,
                       CMS_MSG_QUEUE_SUBPOOL,
-                      CROSS_MEMORY_SERVER_KEY,
+                      getCurrentKey(),
                       &(CPHeader){"ZWESCMSMSGFCELLPOOL     "});
     if (server->messageQueueFallbackPool == CPID_NULL) {
       status = RC_CMS_MSG_QUEUE_NOT_CREATED;
@@ -2760,7 +2760,7 @@ static void flushDebugMessages(CrossMemoryServer *server) {
     }
 
     if (logShouldTraceInternal(NULL, LOG_COMP_ID_CMSPC, ZOWE_LOG_INFO)) {
-      zowelog(NULL, LOG_COMP_CMS, ZOWE_LOG_INFO, "%.*s", msg->messageLength > sizeof(msg->message) ? sizeof(msg->message) : msg->messageLength, msg->message);
+      printf("%.*s", msg->messageLength > sizeof(msg->message) ? sizeof(msg->message) : msg->messageLength, msg->message);
     }
 
     freeMsgQueueElement(element);

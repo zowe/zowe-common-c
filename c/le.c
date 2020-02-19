@@ -42,7 +42,6 @@
 #include "collections.h"
 #include "alloc.h"
 #include "le.h"
-#include "logging.h"
 
 #ifdef __ZOWE_OS_ZOS
 #include "zos.h"
@@ -117,7 +116,7 @@ void abortIfUnsupportedCAA() {
   unsigned int zosVersion = ecvt->ecvtpseq;
 #ifndef METTLE
   if (zosVersion > LE_MAX_SUPPORTED_ZOS) {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: z/OS version = 0x%08X, max supported version = 0x%08X - "
+    printf("error: z/OS version = 0x%08X, max supported version = 0x%08X - "
            "CAA fields require verification\n", zosVersion, LE_MAX_SUPPORTED_ZOS);
     abort();
   }
@@ -166,18 +165,18 @@ static LibraryFunction *findLibraryFunction(int rtlVectorOffset){
 void showRTL(){
   CAA *caa = (CAA*)getCAA();
   void **rtlVector = caa->runtimeLibraryVectorTable;
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "RTL Vector at 0x%x\n",rtlVector);
+  printf("RTL Vector at 0x%x\n",rtlVector);
   dumpbuffer((char*)rtlVector,ESTIMATED_RTL_VECTOR_SIZE);
   int estimatedEntries = ESTIMATED_RTL_VECTOR_SIZE / 4;
   for (int i=2; i<estimatedEntries; i++){
     char *stub = rtlVector[i];
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "i = %d offset=0x%03x at 0x%x\n",i,i*sizeof(int),stub);
+    printf("i = %d offset=0x%03x at 0x%x\n",i,i*sizeof(int),stub);
     dumpbuffer(stub,0x40);
 
     int offset = i * 4;
     LibraryFunction *function = findLibraryFunction(offset);
     if (function){
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "FOUND %s\n",function->name);
+      printf("FOUND %s\n",function->name);
     }
   }
 }
@@ -267,7 +266,7 @@ void initRLEEnvironment(RLEAnchor *anchor) {
 
   int recoveryRC = recoveryEstablishRouter(RCVR_ROUTER_FLAG_NONE);
   if (recoveryRC != RC_RCV_OK) {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "le.c: error - recovery router not established\n");
+    printf("le.c: error - recovery router not established\n"); // TODO: Needs message ID
   }
 
 }
@@ -292,4 +291,3 @@ void termRLEEnvironment() {
   
   Copyright Contributors to the Zowe Project.
 */
-

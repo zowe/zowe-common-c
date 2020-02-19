@@ -379,6 +379,7 @@ static int testUnconditionalCellPoolGet(void) {
 
   CPID id = cellpoolBuild(psize, ssize, cellSize, sp, key, &header);
   if (id == CPID_NULL) {
+<<<<<<< HEAD
     zowelog(NULL, LOG_COMP_CELLPOOL, ZOWE_LOG_SEVERE, "error: cellpoolBuild failed\n");
 =======
 static int testUnconditionalCellPoolGet(void) {
@@ -394,6 +395,9 @@ static int testUnconditionalCellPoolGet(void) {
   if (id == CPID_NULL) {
     printf("error: cellpoolBuild failed\n");
 >>>>>>> 96d076a... Add wrappers for CPOOL.
+=======
+    printf("error: cellpoolBuild failed\n");
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
     return CELLPOOL_TEST_STATUS_FAILURE;
   }
 
@@ -403,6 +407,7 @@ static int testUnconditionalCellPoolGet(void) {
   for (int i = 0; i < testGetCount; i++) {
     void *cell = cellpoolGet(id, isConditional);
     if (cell == NULL) {
+<<<<<<< HEAD
       zowelog(NULL, LOG_COMP_CELLPOOL, ZOWE_LOG_SEVERE, "error: cellpoolGet(unconditional) test failed, cell #%d\n", i);
 =======
   for (int i = 0; i < 100; i++) {
@@ -410,6 +415,9 @@ static int testUnconditionalCellPoolGet(void) {
     if (cell == NULL) {
       printf("error: cellpoolGet(unconditional) test failed, cell #%d\n", i);
 >>>>>>> 96d076a... Add wrappers for CPOOL.
+=======
+      printf("error: cellpoolGet(unconditional) test failed, cell #%d\n", i);
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
       status = CELLPOOL_TEST_STATUS_FAILURE;
       break;
     }
@@ -433,6 +441,7 @@ static int testConditionalCellPoolGet(void) {
 
   CPID id = cellpoolBuild(psize, ssize, cellSize, sp, key, &header);
   if (id == CPID_NULL) {
+<<<<<<< HEAD
     zowelog(NULL, LOG_COMP_CELLPOOL, ZOWE_LOG_SEVERE, "error: cellpoolBuild failed\n");
 =======
   unsigned psize = 10;
@@ -446,6 +455,9 @@ static int testConditionalCellPoolGet(void) {
   if (id == CPID_NULL) {
     printf("error: cellpoolBuild failed\n");
 >>>>>>> 96d076a... Add wrappers for CPOOL.
+=======
+    printf("error: cellpoolBuild failed\n");
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
     return CELLPOOL_TEST_STATUS_FAILURE;
   }
 
@@ -461,10 +473,14 @@ static int testConditionalCellPoolGet(void) {
 
   if (status != CELLPOOL_TEST_STATUS_OK) {
 <<<<<<< HEAD
+<<<<<<< HEAD
     zowelog(NULL, LOG_COMP_CELLPOOL, ZOWE_LOG_SEVERE, "error: cellpoolGet(conditional) test failed\n");
 =======
     printf("error: cellpoolGet(conditional) test failed\n");
 >>>>>>> 96d076a... Add wrappers for CPOOL.
+=======
+    printf("error: cellpoolGet(conditional) test failed\n");
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
   }
 
   cellpoolDelete(id);
@@ -496,10 +512,14 @@ static int testCellPoolFree(void) {
   CPID id = cellpoolBuild(psize, ssize, cellSize, sp, key, &header);
   if (id == CPID_NULL) {
 <<<<<<< HEAD
+<<<<<<< HEAD
     zowelog(NULL, LOG_COMP_CELLPOOL, ZOWE_LOG_SEVERE, "error: cellpoolBuild failed\n");
 =======
     printf("error: cellpoolBuild failed\n");
 >>>>>>> 96d076a... Add wrappers for CPOOL.
+=======
+    printf("error: cellpoolBuild failed\n");
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
     return CELLPOOL_TEST_STATUS_FAILURE;
   }
 
@@ -509,10 +529,14 @@ static int testCellPoolFree(void) {
     cells[i] = cellpoolGet(id, isConditional);
     if (cells[i] == NULL) {
 <<<<<<< HEAD
+<<<<<<< HEAD
       zowelog(NULL, LOG_COMP_CELLPOOL, ZOWE_LOG_SEVERE, "error: cellpoolFree test failed (alloc 1), cell #%d\n", i);
 =======
       printf("error: cellpoolFree test failed (alloc 1), cell #%d\n", i);
 >>>>>>> 96d076a... Add wrappers for CPOOL.
+=======
+      printf("error: cellpoolFree test failed (alloc 1), cell #%d\n", i);
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
       status = CELLPOOL_TEST_STATUS_FAILURE;
       break;
     }
@@ -529,10 +553,14 @@ static int testCellPoolFree(void) {
       cells[i] = cellpoolGet(id, isConditional);
       if (cells[i] == NULL) {
 <<<<<<< HEAD
+<<<<<<< HEAD
         zowelog(NULL, LOG_COMP_CELLPOOL, ZOWE_LOG_SEVERE, "error: cellpoolFree test failed (alloc 2), cell #%d\n", i);
 =======
         printf("error: cellpoolFree test failed (alloc 2), cell #%d\n", i);
 >>>>>>> 96d076a... Add wrappers for CPOOL.
+=======
+        printf("error: cellpoolFree test failed (alloc 2), cell #%d\n", i);
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
         status = CELLPOOL_TEST_STATUS_FAILURE;
         break;
       }
@@ -572,16 +600,21 @@ static int notMain() {
 #endif
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   zowelog(NULL, LOG_COMP_CELLPOOL, ZOWE_LOG_INFO, "info: starting cellpool test\n");
 =======
   printf("info: starting cellpool test\n");
 >>>>>>> 96d076a... Add wrappers for CPOOL.
+=======
+  printf("info: starting cellpool test\n");
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
 
   int status = CELLPOOL_TEST_STATUS_OK;
 
   status = testCellPool();
 
   if (status == CELLPOOL_TEST_STATUS_OK) {
+<<<<<<< HEAD
 <<<<<<< HEAD
     zowelog(NULL, LOG_COMP_CELLPOOL, ZOWE_LOG_INFO, "info: SUCCESS, tests have passed\n");
   } else {
@@ -591,6 +624,11 @@ static int notMain() {
   } else {
     printf("error: FAILURE, some tests have failed\n");
 >>>>>>> 96d076a... Add wrappers for CPOOL.
+=======
+    printf("info: SUCCESS, tests have passed\n");
+  } else {
+    printf("error: FAILURE, some tests have failed\n");
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
   }
 
   return status;
@@ -605,4 +643,3 @@ static int notMain() {
 
   Copyright Contributors to the Zowe Project.
 */
-

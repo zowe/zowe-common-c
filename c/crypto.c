@@ -84,8 +84,8 @@ int digestContextInit(DigestContext *context, CryptoDigestType digestType){
     wprintf(L"**** Error 0x%x returned by BCryptOpenAlgorithmProvider\n", status);
     return CRYPTO_GENERAL_FAILURE;
   }
-  
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "halgorithm handle=0x%x\n",hAlgorithm);
+
+  printf("halgorithm handle=0x%x\n",hAlgorithm);
   fflush(stdout);
   /* calculate the size of the buffer to hold the hash object 
      
@@ -111,7 +111,7 @@ int digestContextInit(DigestContext *context, CryptoDigestType digestType){
     wprintf(L"**** Error 0x%x returned by BCryptGetProperty\n", status);
     return CRYPTO_GENERAL_FAILURE;
   }
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "cbHashObject=%d cbData=%d\n",cbHashObject,cbData);
+  printf("cbHashObject=%d cbData=%d\n",cbHashObject,cbData);
   fflush(stdout);
 
   /* allocate the hash object on the heap */
@@ -134,7 +134,7 @@ int digestContextInit(DigestContext *context, CryptoDigestType digestType){
     }
     return CRYPTO_GENERAL_FAILURE;
   }
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "gotHashLength %d\n",(int)cbHash);
+  printf("gotHashLength %d\n",(int)cbHash);
   fflush(stdout);
   context->outputHashLength = (int)cbHash;
 
@@ -286,4 +286,3 @@ int digestContextFinish(DigestContext *context, char *outputDigestBuffer){
   
   Copyright Contributors to the Zowe Project.
 */
-

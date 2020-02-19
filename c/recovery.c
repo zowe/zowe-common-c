@@ -1180,9 +1180,12 @@ static int establishRouterInternal(RecoveryContext *userContext,
       } else {
 #if RECOVERY_TRACING
 <<<<<<< HEAD
+<<<<<<< HEAD
     zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "error: set ESTAEX RC = %d, RSN = %d\n",
              feedback.returnCode, feedback.reasonCode);
 =======
+=======
+>>>>>>> a0cab90... refactored [d-p]*.c minus data*, disc*, httpfile*, imper*, *jcsi, le.c
         printf("error: set ESTAEX RC = %d, RSN = %d\n",
                feedback.returnCode, feedback.reasonCode);
 >>>>>>> 4cfcc5e... Use cell pools in recovery to support locked callers.
@@ -1440,7 +1443,7 @@ int recoveryRemoveRouter() {
   ESTAEXFeedback feedback = deleteESTAEX();
   if (feedback.returnCode != 0) {
 #if RECOVERY_TRACING
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "error: delete ESTAEX RC = %d, RSN = %d\n", feedback.returnCode, feedback.reasonCode);
+    printf("error: delete ESTAEX RC = %d, RSN = %d\n", feedback.returnCode, feedback.reasonCode);
 #endif
     returnCode = RC_RCV_DEL_ESTAEX_FAILED;
   }
@@ -2035,4 +2038,3 @@ void recoveryGetABENDCode(SDWA *sdwa, int *completionCode, int *reasonCode) {
   
   Copyright Contributors to the Zowe Project.
 */
-

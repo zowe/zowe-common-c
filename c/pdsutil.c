@@ -204,7 +204,7 @@ StringList *getPDSMembers(char *pdsName){
   in = fopen(filenameBuffer,"rb");
   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "fopen in=0x%x errno=%d\n",in);
   if (in == 0){
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Error encountered on reading PDS member, returning empty list\n");
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, ZCC_LOG_PDS_READ_ERR);
     fflush(stdout);
     return list;
   }
@@ -218,7 +218,7 @@ StringList *getPDSMembers(char *pdsName){
     blockCount++;
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "PDS BLOCK %d, bytesRead=%d\n",blockCount,bytesRead);
     if (bytesRead == 0){
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Error encountered reading PDS member, returning current list\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, ZCC_LOG_PDS_READ_ERR_CURRENT);
       fflush(stdout);
       return list;
     }
@@ -316,9 +316,9 @@ int memberExistsInDDName(char *ddname){
 
   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "after GETDSAB rc=%d, dsab at 0x%x\n",
          rc,dsab);
-  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "plist:\n");
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "plist:\n");
   dumpbuffer(plist,16);
-  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "dd:\n");
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "dd:\n");
   dsabHandle = (DSAB**)((int*)plist)[3];
   /* int foo = ((int*)dsabHandle)[0]; */
   int foo = 0;
