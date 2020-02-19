@@ -217,7 +217,7 @@ static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonOb
 void initalizeWebPlugin(WebPlugin *plugin, HttpServer *server) {
   int i = 0;
   int count = plugin->dataServiceCount;
-  printf("%s begin, count=%d\n", __FUNCTION__,count);
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2, "%s begin, count=%d\n", __FUNCTION__,count);  
   for (i = 0; i < count; i++) {
     DataService *service = plugin->dataServices[i];
     if (service->initializer){
@@ -226,7 +226,7 @@ void initalizeWebPlugin(WebPlugin *plugin, HttpServer *server) {
       printf("*** PANIC *** service %s has no installer\n",service->identifier);
     }
   }
-  printf("%s end\n", __FUNCTION__);
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2, "%s end\n", __FUNCTION__);
 }
 
 static void freeWebPlugin(WebPlugin *plugin) {
@@ -260,7 +260,7 @@ static bool isValidServiceDef(JsonObject *serviceDef) {
 
 WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, InternalAPIMap *internalAPIMap,
                          unsigned int *idMultiplier, int pluginLogLevel) {
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s begin\n", __FUNCTION__);
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2, "%s begin\n", __FUNCTION__);
   WebPlugin *plugin = (WebPlugin*)safeMalloc(sizeof(WebPlugin),"WebPlugin");
   memset(plugin, 0, sizeof (WebPlugin));
   plugin->pluginLocation = pluginLocation;
@@ -297,8 +297,10 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
       }
     }
 
-    printf("For plugin=%s, found %d data service(s)\n", plugin->identifier, plugin->dataServiceCount);
-    plugin->dataServices = (DataService**)safeMalloc(sizeof(DataService*) * plugin->dataServiceCount,"DataServices");
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "Plugin=%s, found %d data service(s)\n", plugin->identifier, plugin->dataServiceCount);
+    if (plugin->dataServiceCount > 0) {
+      plugin->dataServices = (DataService**)safeMalloc(sizeof(DataService*) * plugin->dataServiceCount,"DataServices");
+    }
     int k = 0;
     for (int i = 0; i < jsonArrayGetCount(dataServices); i++) {
       JsonObject *serviceDef = jsonArrayGetObject(dataServices, i);
@@ -323,7 +325,7 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
       }
     }
   }
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s end\n", __FUNCTION__);
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2, "%s end\n", __FUNCTION__);
   return plugin;
 }
 
@@ -333,7 +335,7 @@ HttpService *makeHttpDataService(DataService *dataService, HttpServer *server) {
   HttpService *httpService = NULL;
   result = makeHttpDataServiceUrlMask(dataService, urlMask, sizeof(urlMask), server->defaultProductURLPrefix);
   if (result != -1) {
-    printf("installing service %s at URI %s\n", dataService->identifier, urlMask);
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "Installing dataservice %s to URI %s\n", dataService->identifier, urlMask);
     httpService = makeGeneratedService(dataService->identifier, urlMask);
     httpService->authType = SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN; /* The default */
     registerHttpService(server, httpService);
