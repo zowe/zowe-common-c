@@ -1317,7 +1317,11 @@ void freeSocketAddr(SocketAddress *address){
 }
 
 void freeSocketSet(SocketSet *set){
+<<<<<<< HEAD
   zowelog(NULL, LOG_COMP_NETWORK, ZOWE_LOG_DEBUG, "implement me - freeSocketSet\n");
+=======
+  printf("freeSocketSet: NYI\n");
+>>>>>>> f808cdc... Use zowelog instead of printf, reduce useless messages
   return;
 }
 
