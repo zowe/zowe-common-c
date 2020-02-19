@@ -1316,7 +1316,7 @@ void freeSocketAddr(SocketAddress *address){
 }
 
 void freeSocketSet(SocketSet *set){
-  printf("implement me - freeSocketSet\n");
+  printf("freeSocketSet: NYI\n");
   return;
 }
 
