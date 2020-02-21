@@ -26,6 +26,7 @@
 #include "copyright.h"
 #include "zowetypes.h"
 #include "alloc.h"
+#include "logging.h"
 /* #include "utils.h" */
 
 static int MALLOC_TRACE_LEVEL = 0;
@@ -139,7 +140,7 @@ char *allocECSA(int size, int key){
   case 2:
     return getmain31Key2(size,241);
   default:
-    printf("PANIC cannot allocate ECSA in key=%d\n",key);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "PANIC cannot allocate ECSA in key=%d\n", key);
     return NULL;
   }
 }
@@ -151,7 +152,7 @@ int freeECSA(char *data, int size, int key){
   case 2:
     return freemain31Key2(data,size,241);
   default:
-    printf("PANIC cannot free ECSA in key=%d\n",key);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "PANIC cannot free ECSA in key=%d\n", key);
     return 12;
   }
 
@@ -267,17 +268,17 @@ static int   allocationLengths[ALLOCATIONS_TO_TRACK];
 int showOutstanding(){
   int i;
 
-  printf("total allocations done = %d\n",allocationsTracked);
+  zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "total allocations done = %d\n", allocationsTracked);
 /*  dumpbuffer ((char *) allocations, 1024);*/
   for (i=0; i<allocationsTracked; i++){
     char *ptr = allocations[i];
     if ((ptr != NULL) &&
         (ptr != (char*)(-1)))
     {
-      printf("never freed allocNum=%d, size=%d at=0x%x '%s'\n",i,allocationLengths[i],ptr,allocationNames[i]);
+	  zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_WARNING, "never freed allocNum=%d, size=%d at=0x%x '%s'\n",i,allocationLengths[i],ptr,allocationNames[i]);
     } else if (0 != allocationLengths[i])
     {
-      printf("%d outstanding bytes in NULL or free'd slot alloc=%d at=0x%x '%s'\n",
+	  zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_WARNING, "%d outstanding bytes in NULL or free'd slot alloc=%d at=0x%x '%s'\n",
               allocationLengths[i],i,ptr,allocationNames[i]);
     }
   }
@@ -311,7 +312,7 @@ static void trackFree(char *ptr, int length){
       if ((length != allocationLengths[i]) &&
           ((272 == length) || (296 == length)))
       {
-        printf("bad attempt to free 272 or 296 at addr: %p\n", ptr);
+	    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_WARNING, "bad attempt to free 272 or 296 at addr: %p\n", ptr);
         /* memset((void*)0, 0x0, 1);*/ /* cause a crash */
       }
       allocations[i] = (char*)(-1);
@@ -379,15 +380,15 @@ char *safeMalloc(int size, char *site){
   char *res = NULL;
   if (size > BIG_MALLOC_THRESHOLD){
     if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: big alloc coming %d from %s\n",size,site);
+      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "MALLOC: big alloc coming %d from %s\n",size,site);
     }
   } else if (size == 0){
     if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: zero alloc from %s\n",site);
+      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "MALLOC: zero alloc from %s\n",site);
     }
   } else if (size < 0){
     if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: negative malloc %d from %s\n",size,site);
+      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_WARNING, "MALLOC: negative malloc %d from %s\n",size,site);
     }
   }
 #if defined ( METTLE )
@@ -410,7 +411,7 @@ char *safeMalloc(int size, char *site){
       abend(MALLOC_ABEND_CODE, MALLOC_ABEND_REASON);
     }
 #endif
-    printf("MALLOC failed, got NULL for size %d at site %s\n",size, site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "MALLOC failed, got NULL for size %d at site %s\n",size, site);
   }
 #ifdef TRACK_MEMORY
   safeBytes += size;
@@ -423,15 +424,15 @@ char *safeMalloc2(int size, char *site, int *indicator){
   char *res = NULL;
   if (size > BIG_MALLOC_THRESHOLD){
     if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: big alloc coming %d from %s\n",size,site);
+      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "MALLOC: big alloc coming %d from %s\n",size,site);
     }
   } else if (size == 0){
     if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: zero alloc from %s\n",site);
+      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "MALLOC: zero alloc from %s\n",site);
     }
   } else if (size < 0){
     if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: negative malloc %d from %s\n",size,site);
+      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_WARNING, "MALLOC: negative malloc %d from %s\n",size,site);
     }
   }
 #if defined ( METTLE )
@@ -453,7 +454,7 @@ char *safeMalloc2(int size, char *site, int *indicator){
     memset(res,0,size);
     *indicator = 0x884;
   } else{
-    printf("MALLOC failed, got NULL for size %d at site %s\n",size, site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "MALLOC failed, got NULL for size %d at site %s\n",size, site);
   }
 #ifdef TRACK_MEMORY
   safeBytes += size;
@@ -468,15 +469,15 @@ char *safeMalloc31(int size, char *site){
   char *res = NULL;
   if (size > BIG_MALLOC_THRESHOLD){ /* 1 meg, roughly */
     if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: big alloc coming %d from %s\n",size,site);
+      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "MALLOC: big alloc coming %d from %s\n",size,site);
     }
   } else if (size == 0){
     if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: zero alloc from %s\n",site);
+      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "MALLOC: zero alloc from %s\n",site);
     }
   } else if (size < 0){
     if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: negative malloc %d from %s\n",size,site);
+      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_WARNING, "MALLOC: negative malloc %d from %s\n",size,site);
     }
   }
 #ifdef METTLE 
@@ -487,7 +488,7 @@ char *safeMalloc31(int size, char *site){
   if (res != NULL){
     memset(res,0,size);
   } else{
-    printf("MALLOC failed, got NULL for size %d at site %s\n",size, site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "MALLOC failed, got NULL for size %d at site %s\n",size, site);
   }
 #ifdef TRACK_MEMORY
   safeBytes += size;
@@ -502,11 +503,11 @@ static char *safeMalloc64Internal(int size, char *site, long long token){
   int sizeInMegabytes = 0;
 
   if (size > BIG_MALLOC64_THRESHOLD){ /* 1 meg, roughly */
-    printf("MALLOC: big alloc coming %d from %s\n",size,site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "MALLOC: big alloc coming %d from %s\n",size,site);
   } else if (size == 0){
-    printf("MALLOC: zero alloc from %s\n",site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "MALLOC: zero alloc from %s\n",site);
   } else if (size < 0){
-    printf("MALLOC: negative malloc %d from %s\n",size,site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_WARNING, "MALLOC: negative malloc %d from %s\n",size,site);
   }
 
 
@@ -525,7 +526,7 @@ static char *safeMalloc64Internal(int size, char *site, long long token){
   if (res != NULL){
     memset(res,0,size);
   } else{
-    printf("MALLOC failed, got NULL for size %d at site %s\n",size, site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "MALLOC failed, got NULL for size %d at site %s\n",size, site);
   }
 #ifdef TRACK_MEMORY
   safeBytes += size;
@@ -549,11 +550,11 @@ char *safeMalloc31Key8(int size, char *site){
 #endif
   char *res = NULL;
   if (size > BIG_MALLOC_THRESHOLD){ /* 10 meg, roughly */
-    printf("MALLOC: big alloc coming %d from %s\n",size,site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "MALLOC: big alloc coming %d from %s\n",size,site);
   } else if (size == 0){
-    printf("MALLOC: zero alloc from %s\n",site);
+	zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "MALLOC: zero alloc from %s\n",site);
   } else if (size < 0){
-    printf("MALLOC: negative malloc %d from %s\n",size,site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_WARNING, "MALLOC: negative malloc %d from %s\n",size,site);
   }
 #ifdef METTLE 
   res = getmain31Key8(size,SUBPOOL);
@@ -563,7 +564,7 @@ char *safeMalloc31Key8(int size, char *site){
   if (res != NULL){
     memset(res,0,size);
   } else{
-    printf("MALLOC failed, got NULL for size %d at site %s\n",size, site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "MALLOC failed, got NULL for size %d at site %s\n",size, site);
   }
   return res;
 }
@@ -774,9 +775,9 @@ char *safeMalloc64v2(unsigned long long size, int zeroOut, char *site,
                      int *returnCode, int *sysRC, int *sysRSN) {
 
   if (size > BIG_MALLOC64_THRESHOLD){ /* 1 meg, roughly */
-    printf("MALLOC: big alloc coming %llu from %s\n",size,site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "MALLOC: big alloc coming %llu from %s\n",size,site);
   } else if (size == 0){
-    printf("MALLOC: zero alloc from %s\n",site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "MALLOC: zero alloc from %s\n",site);
   }
 
   char *data = NULL;
@@ -796,7 +797,7 @@ char *safeMalloc64v2(unsigned long long size, int zeroOut, char *site,
     /* this is to insure that getTCBTokenRC doesn't get compiled out
      * and in case of an error we can access it in the SVC dump */
     if (FALSE) {
-      printf("safeMalloc64v2: job step TCB, rc=%d\n", getTCBTokenRC);
+      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "safeMalloc64v2: job step TCB, rc=%d\n", getTCBTokenRC);
     }
 
     int rc = 0, rsn = 0;
@@ -843,7 +844,7 @@ char *safeMalloc64v2(unsigned long long size, int zeroOut, char *site,
       memset(data, 0, size);
     }
   } else{
-    printf("MALLOC failed, got NULL for size %llu at site %s\n",size, site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "MALLOC failed, got NULL for size %llu at site %s\n",size, site);
   }
 #ifdef TRACK_MEMORY
   safeBytes += size;
@@ -868,7 +869,7 @@ int safeFree64v2(void *data, unsigned long long size, int *sysRC, int *sysRSN) {
     memset(tcbToken, 0, sizeof(tcbToken));
     int getTCBTokenRC = getJobstepTCBToken(tcbToken);
     if (FALSE) {
-      printf("safeFree64v2: job step TCB, rc=%d\n", getTCBTokenRC);
+      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "safeFree64v2: job step TCB, rc=%d\n", getTCBTokenRC);
     }
 
     int rc = 0, rsn = 0;
@@ -992,9 +993,9 @@ char *safeMalloc64v3(unsigned long long size, int zeroOut, char *site,
                      int *returnCode, int *sysRC, int *sysRSN) {
 
   if (size > BIG_MALLOC64_THRESHOLD){ /* 1 meg, roughly */
-    printf("MALLOC: big alloc coming %llu from %s\n",size,site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "MALLOC: big alloc coming %llu from %s\n",size,site);
   } else if (size == 0){
-    printf("MALLOC: zero alloc from %s\n",site);
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "MALLOC: zero alloc from %s\n",site);
   }
 
   char *data = NULL;
@@ -1052,7 +1053,7 @@ char *safeMalloc64v3(unsigned long long size, int zeroOut, char *site,
       memset(data, 0, size);
     }
   } else{
-    printf("MALLOC failed, got NULL for size %llu at site %s\n",size, site);
+	zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "MALLOC failed, got NULL for size %llu at site %s\n",size, site);
   }
 #ifdef TRACK_MEMORY
   safeBytes += size;

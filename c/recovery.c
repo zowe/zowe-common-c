@@ -987,7 +987,7 @@ int recoveryEstablishRouter(int flags) {
                                         estaexFlags);
     if (feedback.returnCode != 0) {
 #if RECOVERY_TRACING
-      printf("error: set ESTAEX RC = %d, RSN = %d\n",
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "error: set ESTAEX RC = %d, RSN = %d\n",
              feedback.returnCode, feedback.reasonCode);
 #endif
       if (previousESPIEToken != 0) {
@@ -1172,7 +1172,7 @@ int recoveryRemoveRouter() {
   ESTAEXFeedback feedback = deleteESTAEX();
   if (feedback.returnCode != 0) {
 #if RECOVERY_TRACING
-    printf("error: delete ESTAEX RC = %d, RSN = %d\n", feedback.returnCode, feedback.reasonCode);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "error: delete ESTAEX RC = %d, RSN = %d\n", feedback.returnCode, feedback.reasonCode);
 #endif
     returnCode = RC_RCV_DEL_ESTAEX_FAILED;
   }

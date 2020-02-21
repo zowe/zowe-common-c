@@ -316,9 +316,9 @@ int memberExistsInDDName(char *ddname){
 
   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "after GETDSAB rc=%d, dsab at 0x%x\n",
          rc,dsab);
-  printf("plist:\n");
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "plist:\n");
   dumpbuffer(plist,16);
-  printf("dd:\n");
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "dd:\n");
   dsabHandle = (DSAB**)((int*)plist)[3];
   /* int foo = ((int*)dsabHandle)[0]; */
   int foo = 0;

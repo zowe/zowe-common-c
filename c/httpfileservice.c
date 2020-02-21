@@ -677,7 +677,7 @@ int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLen
          dataToWrite += writtenLength;
        }
        else {
-         printf("Error writing to file: return: %d, rsn: %d.\n", returnCode, reasonCode);
+         zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, "Error writing to file: return: %d, rsn: %d.\n", returnCode, reasonCode);
          safeFree(resultBuffer, resultBufferSize);
          safeFree(convertBuffer, convertBufferSize);
          return -1;
@@ -685,14 +685,14 @@ int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLen
      }
    }
    else {
-     printf("Error decoding BASE64.\n");
+     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, "Error decoding BASE64.\n");
      safeFree(resultBuffer, resultBufferSize);
      safeFree(convertBuffer, convertBufferSize);
      return -1;
    }
   }
   else {
-    printf("Error converting to EBCDIC.\n");
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, "Error converting to EBCDIC.\n");
     safeFree(resultBuffer, resultBufferSize);
     safeFree(convertBuffer, convertBufferSize);
     return -1;
@@ -742,7 +742,7 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
       */
      status = fileDisableConversion(file, &returnCode, &reasonCode);
      if (status != 0) {
-       printf("Failed to disable automatic conversion. Unexpected results may occur.\n");
+       zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, "Failed to disable automatic conversion. Unexpected results may occur.\n");
      }
      status = convertCharset(resultBuffer,
                              decodedLength,
@@ -763,7 +763,7 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
            dataToWrite -= writtenLength;
          }
          else {
-           printf("Error writing to file: return: %d, rsn: %d.\n", returnCode, reasonCode);
+           zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, "Error writing to file: return: %d, rsn: %d.\n", returnCode, reasonCode);
            safeFree(resultBuffer, resultBufferSize);
            safeFree(dataToWrite, dataToWriteSize);
            return -1;
@@ -771,21 +771,21 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
        }
      }
      else {
-       printf("Unsupported encoding specified.\n");
+       zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING, "Unsupported encoding specified.\n");
        safeFree(resultBuffer, resultBufferSize);
        safeFree(dataToWrite, dataToWriteSize);
        return -1;
      }
    }
    else {
-     printf("Error decoding BASE64.\n");
+     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, "Error decoding BASE64.\n");
      safeFree(resultBuffer, resultBufferSize);
      safeFree(dataToWrite, dataToWriteSize);
      return -1;
    }
   }
   else {
-    printf("Error converting to EBCDIC.\n");
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, "Error converting to EBCDIC.\n");
     safeFree(resultBuffer, resultBufferSize);
     safeFree(dataToWrite, dataToWriteSize);
     return -1;

@@ -370,7 +370,7 @@ static int testUnconditionalCellPoolGet(void) {
 
   CPID id = cellpoolBuild(psize, ssize, cellSize, sp, key, &header);
   if (id == CPID_NULL) {
-    printf("error: cellpoolBuild failed\n");
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "error: cellpoolBuild failed\n");
     return CELLPOOL_TEST_STATUS_FAILURE;
   }
 
@@ -379,7 +379,7 @@ static int testUnconditionalCellPoolGet(void) {
   for (int i = 0; i < testGetCount; i++) {
     void *cell = cellpoolGet(id, isConditional);
     if (cell == NULL) {
-      printf("error: cellpoolGet(unconditional) test failed, cell #%d\n", i);
+      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "error: cellpoolGet(unconditional) test failed, cell #%d\n", i);
       status = CELLPOOL_TEST_STATUS_FAILURE;
       break;
     }
@@ -402,7 +402,7 @@ static int testConditionalCellPoolGet(void) {
 
   CPID id = cellpoolBuild(psize, ssize, cellSize, sp, key, &header);
   if (id == CPID_NULL) {
-    printf("error: cellpoolBuild failed\n");
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "error: cellpoolBuild failed\n");
     return CELLPOOL_TEST_STATUS_FAILURE;
   }
 
@@ -417,7 +417,7 @@ static int testConditionalCellPoolGet(void) {
   }
 
   if (status != CELLPOOL_TEST_STATUS_OK) {
-    printf("error: cellpoolGet(conditional) test failed\n");
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "error: cellpoolGet(conditional) test failed\n");
   }
 
   cellpoolDelete(id);
@@ -439,7 +439,7 @@ static int testCellPoolFree(void) {
 
   CPID id = cellpoolBuild(psize, ssize, cellSize, sp, key, &header);
   if (id == CPID_NULL) {
-    printf("error: cellpoolBuild failed\n");
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "error: cellpoolBuild failed\n");
     return CELLPOOL_TEST_STATUS_FAILURE;
   }
 
@@ -448,7 +448,7 @@ static int testCellPoolFree(void) {
   for (int i = 0; i < sizeof(cells) / sizeof(cells[0]); i++) {
     cells[i] = cellpoolGet(id, isConditional);
     if (cells[i] == NULL) {
-      printf("error: cellpoolFree test failed (alloc 1), cell #%d\n", i);
+      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "error: cellpoolFree test failed (alloc 1), cell #%d\n", i);
       status = CELLPOOL_TEST_STATUS_FAILURE;
       break;
     }
@@ -464,7 +464,7 @@ static int testCellPoolFree(void) {
     for (int i = 0; i < sizeof(cells) / sizeof(cells[0]); i++) {
       cells[i] = cellpoolGet(id, isConditional);
       if (cells[i] == NULL) {
-        printf("error: cellpoolFree test failed (alloc 2), cell #%d\n", i);
+        zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_SEVERE, "error: cellpoolFree test failed (alloc 2), cell #%d\n", i);
         status = CELLPOOL_TEST_STATUS_FAILURE;
         break;
       }
@@ -503,16 +503,16 @@ int main() {
 static int notMain() {
 #endif
 
-  printf("info: starting cellpool test\n");
+  zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "info: starting cellpool test\n");
 
   int status = CELLPOOL_TEST_STATUS_OK;
 
   status = testCellPool();
 
   if (status == CELLPOOL_TEST_STATUS_OK) {
-    printf("info: SUCCESS, tests have passed\n");
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "info: SUCCESS, tests have passed\n");
   } else {
-    printf("error: FAILURE, some tests have failed\n");
+    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "error: FAILURE, some tests have failed\n");
   }
 
   return status;

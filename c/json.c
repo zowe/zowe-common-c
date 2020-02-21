@@ -47,6 +47,7 @@
 #include "unixfile.h"
 #include "json.h"
 #include "charsets.h"
+#include "logging.h"
 
 /*
  * 
@@ -986,7 +987,7 @@ static int readFileCharacterMethod(CharStream *s, int trace){
   UnixFile *file = (UnixFile*)s->internalStream;
   int c = fileGetChar(file, &returnCode, &reasonCode);
   if (trace) {
-    printf("readFileCharacter '%c'(0x%x)\n", c, c);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "readFileCharacter '%c'(0x%x)\n", c, c);
   }
   return c;
 }
@@ -2061,10 +2062,10 @@ JsonObject *jsonObjectProperty(JsonObject *object, char *propertyName, int *stat
 void reportJSONDataProblem(void *jsonObject, int status, char *propertyName){
   switch (status){
   case JSON_PROPERTY_NOT_FOUND:
-    printf("JSON property '%s' not found in object at 0x%x\n",propertyName,jsonObject);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "JSON property '%s' not found in object at 0x%x\n",propertyName,jsonObject);
     break;
   case JSON_PROPERTY_UNEXPECTED_TYPE:
-    printf("JSON property '%s' has wrong type in object at 0x%x\n",propertyName,jsonObject);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "JSON property '%s' has wrong type in object at 0x%x\n",propertyName,jsonObject);
     break;
   }
 }
@@ -2082,10 +2083,10 @@ void testParser() {
     jsonPrint(printer, json);
     freeJsonPrinter(printer);
   } else {
-    printf("%s\n", errorBuffer);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "%s\n", errorBuffer);
   }
   SLHFree(slh);
-  printf("\n");
+  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "\n");
 }
 
 void testFileParser(char *filename) {
@@ -2097,10 +2098,10 @@ void testFileParser(char *filename) {
     jsonPrint(printer, json);
     freeJsonPrinter(printer);
   } else {
-    printf("%s\n", errorBuffer);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "%s\n", errorBuffer);
   }
   SLHFree(slh);
-  printf("\n");
+  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "\n");
 }
 
 int main(int argc, char *argv[]) {

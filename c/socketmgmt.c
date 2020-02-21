@@ -102,7 +102,7 @@ SocketExtension *makeSocketExtension(Socket *socket,
   socketExtension->readBufferLength = readBufferLength;
   socketExtension->readBuffer = SLHAlloc(slh,readBufferLength);
 #if SOCKETMGMT_TRACE > 0
-  printf("SocketMgmt.madeSocketExtension\n");
+  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "SocketMgmt.madeSocketExtension\n");
 #endif
   socketExtension->isServerSocket = socket->isServer;
 #if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
@@ -149,7 +149,7 @@ int sxUpdateTLSInfo(SocketExtension *sext, int onceOnly)
       sext->tlsFlags = sext->tlsFlags | RS_TTLS_IOCTL_DONE;
 
 #ifdef DEBUG
-      printf("contents of TTLS_IOCTL struct:\n");
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_DEBUG, "contents of TTLS_IOCTL struct:\n");
       dumpbuffer((char*) &ioc, sizeof(struct TTLS_IOCTL));
 #endif
       if (TTLS_CONN_SECURE == ioc.TTLSi_Stat_Conn)
@@ -164,7 +164,7 @@ int sxUpdateTLSInfo(SocketExtension *sext, int onceOnly)
         sext->peerCertificateLength = ioc.TTLSi_Cert_Len;
         sext->tlsFlags = sext->tlsFlags | RS_TLS_HAVE_PEERCERT;
 #ifdef DEBUG
-        printf("copied peer certificate (%d bytes):\n", sext->peerCertificateLength);
+        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_DEBUG, "copied peer certificate (%d bytes):\n", sext->peerCertificateLength);
         dumpbuffer(sext->peerCertificate, sext->peerCertificateLength);
 #endif
       }
@@ -173,7 +173,7 @@ int sxUpdateTLSInfo(SocketExtension *sext, int onceOnly)
     {
       /* error from tcpIOControl */
 #ifdef DEBUG
-      printf("sxUpdateTTLSInfo: error from tcpIOControl (sts=%d,rc=%d,rsn=0x%x)\n",
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "sxUpdateTTLSInfo: error from tcpIOControl (sts=%d,rc=%d,rsn=0x%x)\n",
              sts, bpxrc, bpxrsn);
 #endif
     }
