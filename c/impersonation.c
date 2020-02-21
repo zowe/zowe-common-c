@@ -29,6 +29,7 @@
 
 #include "zowetypes.h"
 #include "utils.h"
+#include "logging.h"
 
 #ifdef __ZOWE_OS_ZOS
 #include "zos.h"
@@ -40,7 +41,7 @@ int startNativeImpersonation(char *username, void *userPointer, void *resultPoin
 #ifdef __ZOWE_OS_ZOS
   return startSafImpersonation(username, (ACEE**)userPointer);
 #else
-  printf("Implement me: impersonation code for this platform\n");
+  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_DEBUG, "Implement me: impersonation code for this platform\n");
   return TRUE;
 #endif
 }
@@ -48,7 +49,7 @@ int endNativeImpersonation(char *username, void *userPointer, void *resultPointe
 #ifdef __ZOWE_OS_ZOS
   return endSafImpersonation((ACEE**)userPointer);
 #else
-  printf("Implement me: impersonation code for this platform\n");
+  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_DEBUG, "Implement me: impersonation code for this platform\n");
   return TRUE;
 #endif
 }
@@ -64,12 +65,12 @@ int startSafImpersonation(char *username, ACEE **newACEE) {
                           newACEE,
                           &racfStatus,
                           &racfReason);
-  printf("VERIFY call on %s safStatus %x racfStatus %x reason %x\n",username,safStatus,racfStatus,racfReason);
+  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "VERIFY call on %s safStatus %x racfStatus %x reason %x\n",username,safStatus,racfStatus,racfReason);
   if (!safStatus){
     impersonationBegan = TRUE;
   }
   else {
-    printf("Failed to do saf Verify\n");
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "Failed to do saf Verify\n");
     int safStatus = safVerify(VERIFY_DELETE,NULL,NULL,newACEE,&racfStatus,&racfReason);    
   }  
   return impersonationBegan;
@@ -81,7 +82,7 @@ int endSafImpersonation(ACEE **acee) {
   int safStatus = safVerify(VERIFY_DELETE,NULL,NULL,acee,&racfStatus,&racfReason);    
   endedImpersonation = !safStatus;
   if (!endedImpersonation) {
-    printf("**PANIC: Could not end impersonation!\n");
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "**PANIC: Could not end impersonation!\n");
   }
   return endedImpersonation;
 }
@@ -145,11 +146,11 @@ int bpxImpersonate(char *userid, char *passwordOrNull, int start, int trace) {
             reasonCodePtr);
   }
   if (returnValue != 0) {
-    printf("BPXTLS failed: rc=%d, return code=%d, reason code=0x%08x\n",
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "BPXTLS failed: rc=%d, return code=%d, reason code=0x%08x\n",
             returnValue, returnCode, reasonCode);
   } else {
     if (trace) {
-      printf("BPXTLS OK\n");
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXTLS OK\n");
     }
   }
   return returnValue;
@@ -173,7 +174,7 @@ int tlsImpersonate(char *userid, char *passwordOrNull, int start, int trace) {
   reasonCodePtr = &reasonCode;
 #endif /*_LP64 */
   if (trace) {
-    printf ("begin %s userid '%s' start %s\n", __FUNCTION__, userid, start ? "TRUE" : "FALSE");
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "begin %s userid '%s' start %s\n", __FUNCTION__, userid, start ? "TRUE" : "FALSE");
   }
   if (start) {
     options = VERIFY_CREATE;
@@ -183,7 +184,7 @@ int tlsImpersonate(char *userid, char *passwordOrNull, int start, int trace) {
     safStatus = safVerify(options, userid, passwordOrNull, &acee, &racfStatus, &racfReason);
     if (!safStatus) {
       if (trace) {
-        printf("SAF VERIFY CREATE OK\n");
+        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "SAF VERIFY CREATE OK\n");
       }
       setTaskAcee(acee);
       int wasProblemState = supervisorMode(TRUE);
@@ -200,15 +201,15 @@ int tlsImpersonate(char *userid, char *passwordOrNull, int start, int trace) {
         supervisorMode(FALSE);
       }
       if (returnValue != 0) {
-        printf("BPXTLS TLS_TASK_ACEE failed: rc=%d, return code=%d, reason code=0x%08x\n",
+	    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "BPXTLS TLS_TASK_ACEE failed: rc=%d, return code=%d, reason code=0x%08x\n",
                 returnValue, returnCode, reasonCode);
       } else {
         if (trace) {
-          printf("BPXTLS TLS_TASK_ACEE OK\n");
+          zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXTLS TLS_TASK_ACEE OK\n");
         }
       }
     } else {
-      printf("SAF VERIFY CREATE failed: safStatus %d racf status 0x%08x reason 0x%08x\n",
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "SAF VERIFY CREATE failed: safStatus %d racf status 0x%08x reason 0x%08x\n",
               safStatus, racfStatus, racfReason);
       returnValue = -1;
     }
@@ -221,27 +222,27 @@ int tlsImpersonate(char *userid, char *passwordOrNull, int start, int trace) {
             &returnCode,
             reasonCodePtr);
     if (returnValue != 0) {
-      printf("BPXTLS DELETE_SECURITY_ENV failed: rc=%d, return code=%d, reason code=0x%08x\n",
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "BPXTLS DELETE_SECURITY_ENV failed: rc=%d, return code=%d, reason code=0x%08x\n",
               returnValue, returnCode, reasonCode);
     } else {
       if (trace) {
-        printf("BPXTLS DELETE_SECURITY_ENV OK\n");
+        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXTLS DELETE_SECURITY_ENV OK\n");
       }
     }
     int safStatus = safVerify(VERIFY_DELETE, userid, NULL, &acee, &racfStatus, &racfReason);
     if (!safStatus) {
       if (trace) {
-        printf("SAF VERIFY DELETE OK\n");
+        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "SAF VERIFY DELETE OK\n");
       }
       setTaskAcee(acee);
     } else {
-      printf("SAF VERIFY DELETE failed: safStatus %d racf status 0x%08x reason 0x%08x\n",
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "SAF VERIFY DELETE failed: safStatus %d racf status 0x%08x reason 0x%08x\n",
               safStatus, racfStatus, racfReason);
       returnValue = -1;
     }
   }
   if (trace) {
-    printf ("end %s returnValue %d\n", __FUNCTION__, returnValue);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "end %s returnValue %d\n", __FUNCTION__, returnValue);
   }
   return returnValue;
 }

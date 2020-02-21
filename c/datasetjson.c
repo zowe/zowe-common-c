@@ -193,9 +193,9 @@ int streamVSAMDataset(HttpResponse* response, char *acb, int maxRecordLength, in
     } else {
       contentLength = contentLength + bytesRead;
       if (rpl->keyLen) {
-        printf("found (\"%s\",\"%s\") Total bytes = %d.\n", keyBuffer, buffer, contentLength);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "found (\"%s\",\"%s\") Total bytes = %d.\n", keyBuffer, buffer, contentLength);
       } else{
-        printf("found (0x%08x,\"%s\") Total bytes = %d.\n", *(int *)keyBuffer, buffer, contentLength);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "found (0x%08x,\"%s\") Total bytes = %d.\n", *(int *)keyBuffer, buffer, contentLength);
       }
       encodedRecord = encodeBase64(NULL, buffer, bytesRead, &encodedLength, 1);
       encodedKey = encodeBase64(NULL, keyBuffer, keyLen ? keyLen : 4, &encodedKeyLength, 1);

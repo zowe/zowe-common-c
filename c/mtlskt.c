@@ -23,6 +23,7 @@
 #include "alloc.h"
 #include "utils.h"
 #include "bpxnet.h"
+#include "logging.h"
 
 #if defined(SRB_READY) && defined(_LP64)
 #define BPXSOC ZOWESOC
@@ -153,7 +154,7 @@ SocketAddress *makeSocketAddr(InetAddr *addr,
   SocketAddress *address = (SocketAddress*)safeMalloc31(sizeof(SocketAddress),"SocketAddress");
   memset(address,0,sizeof(SocketAddress));
   if (socketTrace){
-    printf("socket address at 0x%x\n",address);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "socket address at 0x%x\n",address);
   }
   address->length = 14;
   address->family = AF_INET;
@@ -164,7 +165,7 @@ SocketAddress *makeSocketAddr(InetAddr *addr,
     address->v4Address = 0; /* 0.0.0.0 */
   }
   if (socketTrace){
-    printf("about to return socket address at 0x%x\n",address);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "about to return socket address at 0x%x\n",address);
   }
   return address;
 }
@@ -173,7 +174,7 @@ SocketAddress *makeSocketAddrIPv6(InetAddr *addr, unsigned short port){
   SocketAddress *address = (SocketAddress*)safeMalloc31(sizeof(SocketAddress),"SocketAddress");
   memset(address,0,sizeof(SocketAddress));
   if (socketTrace){
-    printf("socket address at 0x%x\n",address);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "socket address at 0x%x\n",address);
   }
   address->length = 26;
   address->family = AF_INET6;
@@ -182,7 +183,7 @@ SocketAddress *makeSocketAddrIPv6(InetAddr *addr, unsigned short port){
     address->data6 = addr->data.data6;
   }
   if (socketTrace){
-    printf("about to return socket address at 0x%x\n",address);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "about to return socket address at 0x%x\n",address);
   }
   return address;
 }
@@ -335,11 +336,11 @@ int setSocketOption(Socket *socket, int level, int optionName, int optionDataLen
          returnCode,
          reasonCodePtr);
   if (returnValue < 0){
-    printf("set sockopt failed, level=0x%x, option=0x%x ret code %d reason 0x%x\n",level,optionName,*returnCode,*reasonCode);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "set sockopt failed, level=0x%x, option=0x%x ret code %d reason 0x%x\n",level,optionName,*returnCode,*reasonCode);
     return -1;
   } else {
     if (socketTrace){
-      printf("read %d bytes\n",returnValue);
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "read %d bytes\n",returnValue);
     }
     *returnCode = 0;
     *reasonCode = 0;
@@ -382,13 +383,13 @@ Socket *tcpClient3(SocketAddress *socketAddress,
                   returnCode,
                   reasonCodePtr);
   if (socketTrace){
-    printf("BPX1SOC status %d returnValue %d returnCode %d reasonCode %d\n",
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPX1SOC status %d returnValue %d returnCode %d reasonCode %d\n",
      status,returnValue,*returnCode,*reasonCode);
-    printf("socketVector[0] = %d\n",socketVector[0]);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "socketVector[0] = %d\n",socketVector[0]);
   }
   if (returnValue != 0){
     if (socketTrace){
-      printf("Failed to create socket\n");
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "Failed to create socket\n");
     }
     return NULL;
   } else{
@@ -405,7 +406,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
               returnCode,
               reasonCodePtr);
       if (socketTrace) {
-        printf("BPXCON status %d returnValue %d returnCode %x reasonCode %x\n",
+        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXCON status %d returnValue %d returnCode %x reasonCode %x\n",
                 status, returnValue, *returnCode, *reasonCode);
       }
       /* EINPROGRESS is the expected return code here but we are just being careful by checking 
@@ -419,7 +420,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
         if (status == SD_STATUS_TIMEOUT) {
           int sd = socketVector[0];
           if (socketTrace) {
-            printf("Failed to connect socket, will clean up sd=%d\n", sd);
+            zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "Failed to connect socket, will clean up sd=%d\n", sd);
           }
           returnValue = 0;
           *returnCode = 0;
@@ -429,7 +430,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
                   returnCode,
                   reasonCodePtr);
           if (socketTrace) {
-            printf("BPXCLO for time out connect status %d returnValue %d returnCode %d reasonCode %d\n",
+            zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "BPXCLO for time out connect status %d returnValue %d returnCode %d reasonCode %d\n",
                     status, returnValue, *returnCode, *reasonCode);
           }
           return NULL;
@@ -445,7 +446,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
         if( optionData > 0 )
         {
           if (socketTrace){
-            printf("Failed to connect socket, returnCode %d\n", optionData);
+            zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "Failed to connect socket, returnCode %d\n", optionData);
           }
           *returnCode = optionData;
           returnValue = -1;
@@ -464,7 +465,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
               returnCode,
               reasonCodePtr);
       if (socketTrace){
-        printf("BPXCON status %d returnValue %d returnCode %x reasonCode %x\n",
+        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXCON status %d returnValue %d returnCode %x reasonCode %x\n",
            status,returnValue,*returnCode,*reasonCode);
       }
     }
@@ -472,7 +473,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
       int sd = socketVector[0];
 
       if (socketTrace){
-        printf("Failed to connect socket, will clean up sd=%d\n",sd);
+        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "Failed to connect socket, will clean up sd=%d\n",sd);
       }
       *returnCode  = 0;
       *reasonCode  = 0; 
@@ -481,7 +482,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
           returnCode,
           reasonCodePtr);
       if (socketTrace){
-        printf("BPXCLO for failed connect status %d returnValue %d returnCode %d reasonCode %d\n",
+        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "BPXCLO for failed connect status %d returnValue %d returnCode %d reasonCode %d\n",
           status,returnValue,*returnCode,*reasonCode);
       }
       return NULL;
@@ -546,7 +547,7 @@ Socket *tcpServer2(InetAddr *addr,
     if (*returnCode == EAFNOSUPPORT) {
       /* Fall back to IPv4 - see https://www-304.ibm.com/servers/resourcelink/svc00100.nsf/pages/zosv2r3sc273663/$file/hale001_v2r3.pdf */
       if (socketTrace) {
-        printf("IPv6 is not enabled on this system.  Trying an IPv4 socket.\n");
+        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "IPv6 is not enabled on this system.  Trying an IPv4 socket.\n");
       }
       inet = AF_INET;
       *returnCode = 0; *reasonCode = 0;
@@ -561,12 +562,12 @@ Socket *tcpServer2(InetAddr *addr,
     }
     if (returnValue != 0) {
       if (socketTrace) {
-        printf("Failed to create socket\n");
+        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "Failed to create socket\n");
       }
       return NULL;
     } else {
       if (socketTrace) {
-        printf("Socket created successfully!\n");
+        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "Socket created successfully!\n");
       }
     }
   }
@@ -581,7 +582,7 @@ Socket *tcpServer2(InetAddr *addr,
     inetAddr.port = (unsigned short)port;
     inetAddr.data.data4.addrBytes = 0;
     if (socketTrace){
-      printf("server SocketAddress = %d\n",sd);
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "server SocketAddress = %d\n",sd);
       dumpbuffer((char*)socketAddress,sizeof(SocketAddress));
       dumpbuffer((char*)&inetAddr,sizeof(InetAddr));
     }
@@ -600,7 +601,7 @@ Socket *tcpServer2(InetAddr *addr,
                              sizeof(int), (char*)&enable,
                              returnCode, reasonCode);
 #ifdef DEBUG
-    printf("before bind, setsocketOption for SOCK_SO_REUSEADDR returned %d\n", status);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "before bind, setsocketOption for SOCK_SO_REUSEADDR returned %d\n", status);
 #endif
 
     status = BPXBND(&sd,
@@ -611,7 +612,7 @@ Socket *tcpServer2(InetAddr *addr,
                     reasonCodePtr);
     if (returnValue != 0){
       if (socketTrace){
-        printf("Failed to bind server socket errno=%d reason=0x%x\n",
+        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "Failed to bind server socket errno=%d reason=0x%x\n",
                *returnCode,*reasonCode);
       }
       safeFree31((char*)socketAddress,sizeof(SocketAddress));
@@ -625,7 +626,7 @@ Socket *tcpServer2(InetAddr *addr,
                       reasonCodePtr);
       if (returnValue){
         if (socketTrace){
-          printf("Failed to start server socket listen errno=%d reason=0x%x\n",
+          zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "Failed to start server socket listen errno=%d reason=0x%x\n",
                  *returnCode,*reasonCode);
         }
         return NULL;
@@ -634,7 +635,7 @@ Socket *tcpServer2(InetAddr *addr,
         *returnCode = 0;
         *reasonCode = 0;
         if (socketTrace) {
-          printf("Immediately before return from tcpServer, socket contains:\n");
+          zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "Immediately before return from tcpServer, socket contains:\n");
           dumpbuffer((char*)socket, sizeof(Socket));
         }
 
@@ -671,13 +672,13 @@ Socket *udpPeer(SocketAddress *socketAddress,
                   returnCode,
                   reasonCodePtr);
   if (socketTrace){
-    printf("BPXSOC status %d returnValue %d returnCode %d reasonCode %d\n",
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXSOC status %d returnValue %d returnCode %d reasonCode %d\n",
 	   status,returnValue,*returnCode,*reasonCode);
-    printf("socketVector[0] = %d\n",socketVector[0]);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "socketVector[0] = %d\n",socketVector[0]);
   }
   if (returnValue != 0){
     if (socketTrace){
-      printf("Failed to create socket\n");
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "Failed to create socket\n");
     }
     return NULL;
   } else{
@@ -689,8 +690,8 @@ Socket *udpPeer(SocketAddress *socketAddress,
                     &returnValue,
                     returnCode,
                     reasonCodePtr);
-    if (socketTrace) {
-      printf("BPXBND status %d returnValue %d returnCode %x reasonCode %x\n",
+    if (socketTrace){
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXBND status %d returnValue %d returnCode %x reasonCode %x\n",
              status, returnValue, *returnCode, *reasonCode);
     }
     if (returnValue != 0){
@@ -739,7 +740,7 @@ Socket *socketAccept(Socket *serverSocket, int *returnCode, int *reasonCode){
                   reasonCodePtr);
   if (returnValue == -1){
     if (socketTrace){
-      printf("Failed to accept new socket errno=%d reasonCode=0x%x\n",
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "Failed to accept new socket errno=%d reasonCode=0x%x\n",
              *returnCode,*reasonCode);
     }
     return NULL;
@@ -864,7 +865,7 @@ char* getV4HostEntByName(char *string, int* rc, int* rsn){
                   rc,
                   reasonCodePtr);
   if (socketTrace){
-    printf("hostent addr = %p\n",hostEntPtr);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "hostent addr = %p\n",hostEntPtr);
   }
 
   return hostEntPtr;
@@ -892,7 +893,7 @@ int getV4HostByName(char *string){
                   &returnCode,
                   reasonCodePtr);
   if (socketTrace){
-    printf("hostent addr = %p\n",hostEntPtr);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "hostent addr = %p\n",hostEntPtr);
   }
   if (hostEntPtr){
     Hostent *hostent = (Hostent*)hostEntPtr;
@@ -903,7 +904,7 @@ int getV4HostByName(char *string){
     }
     for (i=0; i<hostent->length; i++){
       if (socketTrace){
-        printf("  addr[%d] = %x\n",i,hostent->addrList[i]);
+        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "  addr[%d] = %x\n",i,hostent->addrList[i]);
       }
       if (hostent->addrList[i]){
         numericAddress = *(hostent->addrList[i]);
@@ -912,7 +913,7 @@ int getV4HostByName(char *string){
     }
     return numericAddress;
   } else{
-    printf("getHostName V4 failure, returnCode %d reason code %d\n",returnCode,reasonCode);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "getHostName V4 failure, returnCode %d reason code %d\n",returnCode,reasonCode);
     return 0;
   }
 }
@@ -1003,7 +1004,7 @@ static int tcpStatusInternal(Socket *socket,
          returnCode,
          reasonCodePtr);
   if (socketTrace){
-    printf("BPXSEL returnValue %d returnCode %x reasonCode %x\n",
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXSEL returnValue %d returnCode %x reasonCode %x\n",
        returnValue,*returnCode,*reasonCode);
   }
   if (returnValue > 0){                            
@@ -1050,7 +1051,7 @@ int tcpIOControl(Socket *socket, int command, int argumentLength, char *argument
           reasonCodePtr);
   if (returnValue < 0){
     if (socketTrace) {
-      printf("ioctl failed ret code %d reason 0x%x\n",*returnCode,*reasonCode);
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "ioctl failed ret code %d reason 0x%x\n",*returnCode,*reasonCode);
     }
     return -1;
   } else {
@@ -1081,7 +1082,7 @@ int getSocketOption(Socket *socket, int optionName, int *optionDataLength, char 
 #endif
 
   if (socketTrace){
-    printf("before get socket option optionName=0x%x dataBufferLen=%d\n",optionName,*optionDataLength);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "before get socket option optionName=0x%x dataBufferLen=%d\n",optionName,*optionDataLength);
   }
   BPXOPT(&sd,
 	 &getOption,
@@ -1093,10 +1094,10 @@ int getSocketOption(Socket *socket, int optionName, int *optionDataLength, char 
 	 returnCode,
 	 reasonCodePtr);
   if (socketTrace){
-    printf("after getsockopt, retval=%d ret code %d reason 0x%x\n",returnValue,*returnCode,*reasonCode);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "after getsockopt, retval=%d ret code %d reason 0x%x\n",returnValue,*returnCode,*reasonCode);
   }
   if (returnValue < 0){
-    printf("get sockopt failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "get sockopt failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
     return -1;
   } else {
     *returnCode = 0;
@@ -1125,7 +1126,7 @@ int setSocketTimeout(Socket *socket, int timeout,
 
   int returnValue = setSocketOption(socket,SOL_SOCKET,SOCK_SO_SNDTIMEO,specLength,(char*)timeoutSpec,returnCode,reasonCode);
   if (socketTrace){
-    printf("after setsockopt SNDTIMEO, retval=%d ret code %d reason 0x%x\n",returnValue,*returnCode,*reasonCode);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "after setsockopt SNDTIMEO, retval=%d ret code %d reason 0x%x\n",returnValue,*returnCode,*reasonCode);
   }
   if (!returnValue){
     return setSocketOption(socket,SOL_SOCKET,SOCK_SO_RCVTIMEO,specLength,(char*)timeoutSpec,returnCode,reasonCode);
@@ -1173,11 +1174,11 @@ int setSocketBlockingMode(Socket *socket, int isNonBlocking,
 	 reasonCodePtr);
 
   if (returnValue < 0){
-    printf("BPXFCT failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "BPXFCT failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
     return -1;
   } else {
     if (socketTrace){
-      printf("BPXFCT value %d returnCode %d \n",isNonBlocking, returnCode);
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXFCT value %d returnCode %d \n",isNonBlocking, returnCode);
     }
     *returnCode = 0;
     *reasonCode = 0;
@@ -1202,11 +1203,11 @@ int setSocketBlockingMode(Socket *socket, int isNonBlocking,
 	 reasonCodePtr);
   
   if (returnValue < 0){
-    printf("BPXFCT failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "BPXFCT failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
     return returnValue;
   } else {
     if (socketTrace){
-      printf("BPXFCT value %d returnCode %d \n",isNonBlocking, returnCode);
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXFCT value %d returnCode %d \n",isNonBlocking, returnCode);
     }
     *returnCode = 0;
     *reasonCode = 0;
@@ -1237,12 +1238,12 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
 	 reasonCodePtr);
   if (returnValue < 0){
     if (socketTrace) {
-      printf("read failed ret code %d reason 0x%x\n",*returnCode,*reasonCode);
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "read failed ret code %d reason 0x%x\n",*returnCode,*reasonCode);
     }
     return -1;
   } else {
     if (socketTrace){
-      printf("read %d bytes\n",returnValue);
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "read %d bytes\n",returnValue);
     }
     *returnCode = 0;
     *reasonCode = 0;
@@ -1259,7 +1260,7 @@ int socketWrite(Socket *socket, const char *buffer, int desiredBytes,
   int zero = 0;
 
   if (socketTrace){
-    printf("writing desired=%d retVal=%d retCode=%d reasonCode=%d\n",
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "writing desired=%d retVal=%d retCode=%d reasonCode=%d\n",
        desiredBytes,returnValue,*returnCode,*reasonCode);
     dumpbuffer(buffer, desiredBytes); 
   }
@@ -1279,13 +1280,13 @@ int socketWrite(Socket *socket, const char *buffer, int desiredBytes,
 	 reasonCodePtr);
   if (returnValue < 0){
     if (socketTrace) {
-      printf("write failed, sd=%d desired write len %d buffer at 0x%x, ret code %d reason 0x%x\n",
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "write failed, sd=%d desired write len %d buffer at 0x%x, ret code %d reason 0x%x\n",
              sd,desiredBytes,buffer,*returnCode,*reasonCode);
     }
     return -1;
   } else {
     if (socketTrace){
-      printf("wrote %d bytes\n",returnValue);fflush(stdout);
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "wrote %d bytes\n",returnValue);fflush(stdout);
     }
     *returnCode = 0;
     *reasonCode = 0;
@@ -1308,7 +1309,7 @@ int udpSendTo(Socket *socket,
   int socketAddressSize = SOCKET_ADDRESS_SIZE_IPV4;
 
   if (socketTrace){
-    printf("sendTo on SD=%d desired=%d retVal=%d retCode=%d reasonCode=%d\n",
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "sendTo on SD=%d desired=%d retVal=%d retCode=%d reasonCode=%d\n",
        sd,desiredBytes,returnValue,*returnCode,*reasonCode);
     dumpbuffer(buffer, desiredBytes); 
   }
@@ -1332,13 +1333,13 @@ int udpSendTo(Socket *socket,
          reasonCodePtr);
   if (returnValue < 0){
     if (socketTrace) {
-      printf("send failed, sd=%d desired write len %d buffer at 0x%x, ret code %d reason 0x%x\n",
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "send failed, sd=%d desired write len %d buffer at 0x%x, ret code %d reason 0x%x\n",
   	   sd,desiredBytes,buffer,*returnCode,*reasonCode);
     }
     return -1;
   } else {
     if (socketTrace){
-      printf("send %d bytes\n",returnValue);fflush(stdout);
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "send %d bytes\n",returnValue);fflush(stdout);
     }
     *returnCode = 0;
     *reasonCode = 0;
@@ -1361,7 +1362,7 @@ int udpReceiveFrom(Socket *socket,
   int socketAddressSize = SOCKET_ADDRESS_SIZE_IPV4;
 
   if (socketTrace){
-    printf("receiveFrom on SD=%d into buffer=0x%x bufLen=%d retVal=%d retCode=%d reasonCode=%d\n",
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "receiveFrom on SD=%d into buffer=0x%x bufLen=%d retVal=%d retCode=%d reasonCode=%d\n",
            sd,buffer,bufferLength,returnValue,*returnCode,*reasonCode);
   }
 
@@ -1383,13 +1384,13 @@ int udpReceiveFrom(Socket *socket,
          reasonCodePtr);
   if (returnValue < 0){
     if (socketTrace) {
-      printf("recvFrom failed, sd=%d desired buffer len %d buffer at 0x%x, ret code %d reason 0x%x\n",
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "recvFrom failed, sd=%d desired buffer len %d buffer at 0x%x, ret code %d reason 0x%x\n",
              sd,bufferLength,buffer,*returnCode,*reasonCode);
     }
     return -1;
   } else {
     if (socketTrace){
-      printf("recvFrom into buffer=0x%x %d bytes\n",buffer,returnValue);fflush(stdout);
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "recvFrom into buffer=0x%x %d bytes\n",buffer,returnValue);fflush(stdout);
     }
     *returnCode = 0;
     *reasonCode = 0;
@@ -1713,11 +1714,11 @@ int socketSetAdd(SocketSet *set, Socket *socket){
 
   if (socketTrace)
   {
-    printf ("Adding socket, SD=%d\n", sd);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "Adding socket, SD=%d\n", sd);
   }
 
   if (sd > set->highestAllowedSD){
-    printf("SD=%d out of range (> %d)\n",sd,set->highestAllowedSD);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "SD=%d out of range (> %d)\n",sd,set->highestAllowedSD);
     return 12;
   }
 
@@ -1735,11 +1736,11 @@ int socketSetRemove(SocketSet *set, Socket *socket){
 
   if (socketTrace)
   {
-    printf ("Removing socket, SD=%d\n", sd);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "Removing socket, SD=%d\n", sd);
   }
 
   if (sd > set->highestAllowedSD){
-    printf("SD=%d out of range (> %d)\n",sd,set->highestAllowedSD);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "SD=%d out of range (> %d)\n",sd,set->highestAllowedSD);
     return 12;
   }
 
@@ -1811,7 +1812,7 @@ int extendedSelect(SocketSet *set,
 #endif
   if (socketTrace)
   {
-    printf ("Masks before BPXSEL call:\n");
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "Masks before BPXSEL call:\n");
     dumpbuffer ((char*)(set->scratchReadMask), maxArrayLengthInBytes);
     dumpbuffer ((char*)(set->scratchWriteMask), maxArrayLengthInBytes);
     dumpbuffer ((char*)(set->scratchErrorMask), maxArrayLengthInBytes);
@@ -1830,9 +1831,9 @@ int extendedSelect(SocketSet *set,
                             returnCode,
                             reasonCodePtr);
   if (socketTrace){
-    printf("BPXSEL (extended) maxSoc=0x%x selectStatus=%d returnValue 0x%x returnCode 0x%x reasonCode 0x%x\n",
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXSEL (extended) maxSoc=0x%x selectStatus=%d returnValue 0x%x returnCode 0x%x reasonCode 0x%x\n",
            maxSoc,selectStatus,returnValue,*returnCode,*reasonCode);
-    printf ("Masks after BPXSEL call:\n");
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "Masks after BPXSEL call:\n");
     dumpbuffer ((char*)(set->scratchReadMask), maxArrayLengthInBytes);
     dumpbuffer ((char*)(set->scratchWriteMask), maxArrayLengthInBytes);
     dumpbuffer ((char*)(set->scratchErrorMask), maxArrayLengthInBytes);
@@ -1861,7 +1862,7 @@ int not_main(int argc, char **argv){
     bytesRead = socketRead(socket,readBuffer,200,&returnCode,&reasonCode);
     dumpbuffer(readBuffer,bytesRead);
     for (i=0; i<5; i++){
-      printf("SLEEP %d\n",i+1);fflush(stdout);
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "SLEEP %d\n",i+1);fflush(stdout);
       sleep(1);
     }
   }
@@ -1891,7 +1892,7 @@ static int main2(int argc, char **argv){
     bytesRead = socketRead(socket,readBuffer,200,&errnum,&retcode);
     dumpbuffer(readBuffer,bytesRead);
     for (i=0; i<5; i++){
-      printf("SLEEP %d\n",i+1);fflush(stdout);
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "SLEEP %d\n",i+1);fflush(stdout);
       sleep(1);
     }
   }

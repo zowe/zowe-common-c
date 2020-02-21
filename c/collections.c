@@ -39,6 +39,7 @@
 #include "utils.h"
 #include "openprims.h"
 #include "collections.h"
+#include "logging.h"
 
 fixedBlockMgr *fbMgrCreate(int blockSize, int blocksPerExtend,
                            void *owner){
@@ -63,7 +64,7 @@ void *fbMgrAlloc(fixedBlockMgr *mgr){
   void *result = NULL;
 
   if (mgr == NULL){
-    printf("fbMgr of %x is NULL!!\n",mgr->owner);
+    zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_SEVERE, "fbMgr of %x is NULL!!\n",mgr->owner);
     return NULL;
   }
   if (mgr->freeList != NULL){
@@ -510,19 +511,19 @@ int stringHash(void *key){
 void htDump(hashtable *ht){
   int i;
 
-  printf("ht backboneSize=%d\n",ht->backboneSize);
+  zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "ht backboneSize=%d\n",ht->backboneSize);
   fflush(stdout);
   int isString = (ht->hashFunction == stringHash);
   for (i=0; i<ht->backboneSize; i++){
     hashentry *entry = ht->backbone[i];
     if (entry != NULL){
-      printf("in slot %d: entry=%x\n",i,entry);
+      zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "in slot %d: entry=%x\n",i,entry);
       fflush(stdout);
       while (entry != NULL){
       if (isString){
-       printf("  key=%x '%s' value: %x\n",entry->key,entry->key,entry->value);
+       zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "  key=%x '%s' value: %x\n",entry->key,entry->key,entry->value);
       } else{
-       printf("  key=%x value: %x\n",entry->key,entry->value);
+       zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "  key=%x value: %x\n",entry->key,entry->value);
       }
       fflush(stdout);
         entry = entry->next;
@@ -793,7 +794,7 @@ void lhtMap(LongHashtable *ht, void (*visitor)(void *, int64, void *), void *use
 
 static void lruHashVisitor(void *key, void *value){
   LRUElement *element = (LRUElement*)value;
-  printf("    %16.16s: 0x%x containing 0x%x\n",key,value,element->data);
+  zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "    %16.16s: 0x%x containing 0x%x\n",key,value,element->data);
 }
 
 LRUCache *makeLRUCache(int size){
@@ -818,27 +819,27 @@ void destroyLRUCache(LRUCache *cache){
 }
 
 void lruDump(LRUCache *cache){
-  printf("LRU Cache size=%d count=%d\n",cache->size,cache->count);
+  zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "LRU Cache size=%d count=%d\n",cache->size,cache->count);
   LRUElement *element = cache->newest;
-  printf("  Newest To Oldest:\n");
+  zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "  Newest To Oldest:\n");
   while (element){
-    printf("    Elt: %16.16s -> 0x%x\n",element->digest,element->data);
+    zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "    Elt: %16.16s -> 0x%x\n",element->digest,element->data);
     element = element->older;
   }
   element = cache->oldest;
-  printf("  Oldest To Newest:\n");
+  zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "  Oldest To Newest:\n");
   while (element){
-    printf("    Elt: %16.16s -> 0x%x\n",element->digest,element->data);
+    zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "    Elt: %16.16s -> 0x%x\n",element->digest,element->data);
     element = element->newer;
   }
-  printf("  In Hash Order:\n");
+  zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "  In Hash Order:\n");
   htMap(cache->ht,lruHashVisitor);
 }
 
 /* can change recency */
 void *lruGet(LRUCache *cache, char *digest){
   if (cache->trace){
-    printf("LRU Get digest: 0x%x\n",digest);
+    zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "LRU Get digest: 0x%x\n",digest);
     dumpbuffer(digest,16);
   }
   LRUElement *element = (LRUElement*)htGet(cache->ht,digest);
@@ -868,25 +869,25 @@ static LRUElement *allocLRUElement(LRUCache *cache){
    */
 void *lruStore(LRUCache *cache, char *digest, void *thing){
   if (cache->trace){
-    printf("LRU Store digest: 0x%x\n",digest);
+    zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "LRU Store digest: 0x%x\n",digest);
     dumpbuffer(digest,16);
   }
 
   hashtable *ht = cache->ht;
   LRUElement *existingElement = htGet(ht,digest);
   if (cache->trace){
-    printf("lruStore existing = 0x%x\n",existingElement);
+    zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "lruStore existing = 0x%x\n",existingElement);
   }
   if (existingElement){
     if (existingElement == cache->newest){
       if (cache->trace){
-        printf("recaching newest: no work to do\n");
+        zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "recaching newest: no work to do\n");
       }
       return NULL;
     } else if (existingElement == cache->oldest){
       LRUElement *newOldest = cache->oldest->newer;
       if (cache->trace){
-        printf("recaching oldest: rotate to front, newOldest = 0x%x\n",newOldest);
+        zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "recaching oldest: rotate to front, newOldest = 0x%x\n",newOldest);
       }
 
       existingElement->newer = NULL;
@@ -903,7 +904,7 @@ void *lruStore(LRUCache *cache, char *digest, void *thing){
       LRUElement *prev = existingElement->older;
       LRUElement *next = existingElement->newer;
       if (cache->trace){
-        printf("recaching middle, prun between older=0x%x and newer 0x%x\n",
+        zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "recaching middle, prun between older=0x%x and newer 0x%x\n",
         prev->data,next->data);
       }
 
@@ -924,14 +925,14 @@ void *lruStore(LRUCache *cache, char *digest, void *thing){
     if (cache->oldest && cache->newest){
       LRUElement *oldNewest = cache->newest;
       if (cache->trace){
-        printf(">1 room case newest->data=0x%x\n",oldNewest->data);
+        zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, ">1 room case newest->data=0x%x\n",oldNewest->data);
       }
       newElement->older = cache->newest;
       cache->newest = newElement;
       oldNewest->newer = newElement;
     } else{
       if (cache->trace){
-        printf("== 0 case, go for it, newElement=0x%x\n",newElement);
+        zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "== 0 case, go for it, newElement=0x%x\n",newElement);
       }
       newElement->older = NULL;
       cache->newest = newElement;
@@ -946,7 +947,7 @@ void *lruStore(LRUCache *cache, char *digest, void *thing){
     LRUElement *secondOldest = oldOldest->newer;
     LRUElement *recycledElement = (LRUElement*)htGet(ht,oldOldest->digest);
     if (cache->trace){
-      printf("recycle case oldOldest=0x%x recycled = 0x%x\n",oldOldest,recycledElement);
+      zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "recycle case oldOldest=0x%x recycled = 0x%x\n",oldOldest,recycledElement);
     }
     void *decached = recycledElement->data;
     htRemove(ht,oldOldest->digest);
@@ -965,7 +966,7 @@ void *lruStore(LRUCache *cache, char *digest, void *thing){
 
     LRUElement *recycledElement = cache->oldest;
     if (cache->trace){
-      printf("recycle case (size=1) recycled = 0x%x\n",recycledElement);
+      zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "recycle case (size=1) recycled = 0x%x\n",recycledElement);
     }
     void *decached = recycledElement->data;
     htRemove(ht,recycledElement->digest);
@@ -976,7 +977,7 @@ void *lruStore(LRUCache *cache, char *digest, void *thing){
 
   } else{ /* count == size && size == 0 */
     if (cache->trace){
-      printf("recycle case (size=0)\n");
+      zowelog(NULL, LOG_COMP_COLLECTIONS, ZOWE_LOG_INFO, "recycle case (size=0)\n");
     }
     return NULL;
   }
