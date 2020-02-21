@@ -1317,7 +1317,7 @@ void freeSocketAddr(SocketAddress *address){
 }
 
 void freeSocketSet(SocketSet *set){
-  zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_DEBUG, "implement me - freeSocketSet\n");
+  zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_DEBUG, "freeSocketSet: NYI\n");
   return;
 }
 

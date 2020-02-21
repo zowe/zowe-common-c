@@ -259,9 +259,52 @@ ZOWE_PRAGMA_PACK_RESET
 #ifndef QueueAmode64
 #define QueueAmode64
 #endif
+
+/**
+ * @brief Make a lock-free queue.
+ * @param flags Unused at the moment.
+ * @return Pointer to the queue.
+ */
 Queue *makeQueue(int flags) QueueAmode64;
+
+/**
+ * @brief Destroy a lock-free queue.
+ * @param q Queue to be destroyed.
+ */
 void destroyQueue(Queue *q) QueueAmode64;
+
+#ifdef __ZOWE_OS_ZOS
+
+/**
+ * Enqueue a queue element.
+ * @param q Queue to which the new element will be enqueued.
+ * @param newElement Queue element to be enqueued. WARINIG: it must reside on
+ * a double word boundary, otherwise a specification exception (S0C6 ABEND)
+ * occurs.
+ */
+void qEnqueue(Queue *q, QueueElement *newElement) QueueAmode64;
+
+/**
+ * @brief Dequeue the next queue element.
+ * @param q Queue from which the element will be dequeued.
+ * @return Result queue element.
+ */
+QueueElement *qDequeue(Queue *q) QueueAmode64;
+
+#endif /* __ZOWE_OS_ZOS */
+
+/**
+ * @brief Insert a new value to the back of a queue.
+ * @param q Queue to which the new value will be inserted.
+ * @param newData Value to be inserted.
+ */
 void qInsert(Queue *q, void *newData) QueueAmode64;
+
+/**
+ * @brief Remove the next value from the front of a queue.
+ * @param q Queue from which the value will be removed.
+ * @return Result value.
+ */
 void *qRemove(Queue *q) QueueAmode64;
 
 #endif
