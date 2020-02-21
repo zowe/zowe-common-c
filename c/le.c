@@ -107,7 +107,7 @@ char *getCAA(){
 }
 
 #ifndef LE_MAX_SUPPORTED_ZOS
-#define LE_MAX_SUPPORTED_ZOS 0x01020400u
+#define LE_MAX_SUPPORTED_ZOS 0x01020500u
 #endif
 
 void abortIfUnsupportedCAA() {
@@ -268,7 +268,6 @@ void initRLEEnvironment(RLEAnchor *anchor) {
   if (recoveryRC != RC_RCV_OK) {
     printf("le.c: error - recovery router not established\n");
   }
-
 }
 
 void termRLEEnvironment() {

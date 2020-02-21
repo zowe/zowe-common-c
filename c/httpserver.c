@@ -83,6 +83,17 @@ typedef int time_t;
 #define APF_AUTHORIZED  1
 #endif
 
+#define SAF_RC_PASSWORD_EXPIRED    8
+#define RACF_RC_PASSWORD_EXPIRED   12
+
+typedef struct AuthResponse_tag {
+  int type;
+#define AUTH_TYPE_RACF  1
+  union {
+    SAFAuthStatus safStatus;
+  } responseDetails;
+} AuthResponse;
+
 /* FIX THIS: a temporary "low profile" way of hiding printfs. Improves
  * demo performance while we wait for
  * the introduction of a proper tracing infrastructure.
@@ -207,6 +218,14 @@ static char crlf[] ={ 0x0d, 0x0a};
 #define NATIVE_CODEPAGE CCSID_ISO_8859_1
 #warning ISO-8859-1 is not necessarily the default codepage on Linux
 #define DEFAULT_UMASK 0022
+#endif
+
+//No need to fill logs with the same message, warn based on a desired frequency
+#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
+#ifndef TLS_WARN_FREQUENCY
+#define TLS_WARN_FREQUENCY 25
+#endif
+static unsigned int tlsWarnCounter = 0;
 #endif
 
 static int64 getFineGrainedTime();
@@ -577,7 +596,9 @@ static WSFrame *makeFrame(int opcodeAndFlags, ShortLivedHeap *slh,
   frame->opcodeAndFlags = opcodeAndFlags;
   frame->data = data;
   frame->dataLength = dataLength;
+#ifdef DEBUG
   printf("WSFrame data in makeFrame length=0x%x\n",dataLength);
+#endif
   dumpbuffer(data,dataLength);
   dumpbufferA(data,dataLength);
   return frame;
@@ -788,7 +809,9 @@ static int readMachineAdvance(WSReadMachine *m, char *data, WSSession *wsSession
       } else{
         writeToBigBuffer(m->payloadStream,data+offset,writeLength);
       }
-      printf("writeLength=%d payloadFill=%lld\n",writeLength,m->payloadFill);
+      if (m->trace){
+        printf("writeLength=%d payloadFill=%lld\n",writeLength,m->payloadFill);
+      }
       offset += writeLength;
       available -= writeLength;
       m->payloadFill = m->payloadFill + ((int64)writeLength);
@@ -1355,8 +1378,16 @@ static int initSessionTokenKey(SessionTokenKey *key) {
   int icsfRSN = 0;
   int icsfRC = icsfGenerateRandomNumber(key, sizeof(SessionTokenKey), &icsfRSN);
   if (icsfRC != 0) {
+<<<<<<< HEAD
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-            "Error: session token key not generated, RC = %d, RSN = %d\n",
+<<<<<<< HEAD
+    		ZCC_LOG_SESSION_TOKEN_ERR,
+=======
+=======
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+>>>>>>> 2e0e508... Addressing comments
+            "Error: ICSF generation of random number failed. Session token key not generated, RC = %d, RSN = %d\n",
+>>>>>>> f384d9c... Move logConfigureComponent earlier, so crucial messages are logged
             icsfRC, icsfRSN);
     return -1;
   }
@@ -1382,8 +1413,8 @@ static int encodeSessionToken(ShortLivedHeap *slh,
   unsigned int encodedTokenTextLength = tokenTextLength;
   char *encodedTokenText = SLHAlloc(slh, encodedTokenTextLength);
   if (encodedTokenText == NULL) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-            "Error: encoded session token buffer not allocated "
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+    		    "Error: encoded session token buffer not allocated "
             "(size=%u, SLH=%p)\n", encodedTokenTextLength, slh);
     return -1;
   }
@@ -1397,8 +1428,8 @@ static int encodeSessionToken(ShortLivedHeap *slh,
                             encodedTokenTextLength,
                             &icsfRSN);
   if (icsfRC != 0) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-            "Error: session token encoding failed, RC = %d, RSN = %d\n",
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+    		    "Error: session token encoding failed, RC = %d, RSN = %d\n",
             icsfRC, icsfRSN);
     return -1;
   }
@@ -1425,8 +1456,8 @@ static int decodeSessionToken(ShortLivedHeap *slh,
   unsigned int tokenTextLength = encodedTokenTextLength;
   char *tokenText = SLHAlloc(slh, tokenTextLength);
   if (tokenText == NULL) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-            "Error: decoded session token buffer not allocated "
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+    		    "Error: decoded session token buffer not allocated "
             "(size=%u, SLH=%p)\n", encodedTokenTextLength, slh);
     return -1;
   }
@@ -1440,8 +1471,8 @@ static int decodeSessionToken(ShortLivedHeap *slh,
                             tokenTextLength,
                             &icsfRSN);
   if (icsfRC != 0) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-            "Error: session token decoding failed, RC = %d, RSN = %d\n",
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+    		    "Error: session token decoding failed, RC = %d, RSN = %d\n",
             icsfRC, icsfRSN);
     return FALSE;
   }
@@ -1462,6 +1493,7 @@ HttpServer *makeHttpServer2(STCBase *base,
                            int port,
                            int tlsFlags,
                            int *returnCode, int *reasonCode){
+  logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
 
   SessionTokenKey sessionTokenKey = {0};
   if (initSessionTokenKey(&sessionTokenKey) != 0) {
@@ -1848,7 +1880,6 @@ static void addRequestHeader(HttpRequestParser *parser){
   newHeader->value = copyString(parser->slh,parser->headerValue,parser->headerValueLength);
   newHeader->nativeValue = copyStringToNative(parser->slh,parser->headerValue,parser->headerValueLength);
 
-  /* printf("adding header %s=%s\n",newHeader->nativeName,newHeader->nativeValue); */
 
   /* pull out enough data for parsing the entity body */
   if (!compareIgnoringCase(newHeader->nativeName,"Transfer-Encoding",parser->headerNameLength)){
@@ -1856,13 +1887,18 @@ static void addRequestHeader(HttpRequestParser *parser){
       parser->isChunked = TRUE;
     }
   } else if (!compareIgnoringCase(newHeader->nativeName,"Content-Length",parser->headerNameLength)){
-    /* printf("worry about atoi\n"); */
     parser->specifiedContentLength = atoi(newHeader->nativeValue);
   } else if (!compareIgnoringCase(newHeader->nativeName,"Content-Type",parser->headerNameLength)){
     parser->contentType = newHeader->nativeValue;
   } else if (!compareIgnoringCase(newHeader->nativeName,"Upgrade",parser->headerNameLength)){
     if (!compareIgnoringCase(newHeader->nativeValue,"websocket",parser->headerValueLength)){
       parser->isWebSocket = TRUE;
+    }
+  } else if (!compareIgnoringCase(newHeader->nativeName, "Connection",
+                                  parser->headerNameLength)) {
+    if (!compareIgnoringCase(newHeader->nativeValue, "Keep-Alive",
+                             parser->headerValueLength)) {
+      parser->keepAlive = TRUE;
     }
   }
 
@@ -1885,6 +1921,7 @@ static void enqueueLastRequest(HttpRequestParser *parser) {
   newRequest->uri = copyString(parser->slh, parser->uri, parser->uriLength);
   newRequest->headerChain = parser->headerChain;
   newRequest->isWebSocket = parser->isWebSocket;
+  newRequest->keepAlive = parser->keepAlive;
 
   /* adding support for POST data -jph */
   if (-1 != parser->specifiedContentLength) {
@@ -1928,6 +1965,7 @@ static int resetParserAndEnqueue(HttpRequestParser *parser){
   parser->isWebSocket = FALSE;
   parser->specifiedContentLength = -1;
   parser->state = HTTP_STATE_REQUEST_METHOD;
+  parser->keepAlive = FALSE;
   return HTTP_SERVICE_SUCCESS;
 }
 
@@ -2079,7 +2117,6 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
         parser->state = HTTP_STATE_REQUEST_GAP2;
       } else{
         parser->uri[parser->uriLength++] = c;
-        /* printf("accumlating URI \n"); */
       }
       break;
     case HTTP_STATE_REQUEST_GAP2:
@@ -2314,7 +2351,9 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
         parser->state = HTTP_STATE_CHUNK_TRAILER_CR_SEEN;
       } else {
         /* TODO */
+#ifdef DEBUG
         printf("PANIC: unsupported chunk trailers\n");
+#endif
         parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
         return 0;
       }
@@ -2406,7 +2445,7 @@ static bool isPassPhrase(const char *password) {
 }
 
 #ifdef __ZOWE_OS_ZOS
-static int safAuthenticate(HttpService *service, HttpRequest *request){
+static int safAuthenticate(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
   int safStatus = 0, racfStatus = 0, racfReason = 0;
   int options = VERIFY_CREATE;
   int authDataFound = FALSE;
@@ -2451,6 +2490,10 @@ static int safAuthenticate(HttpService *service, HttpRequest *request){
     int pwdCheckRC = 0, pwdCheckRSN = 0;
     pwdCheckRC = zisCheckUsernameAndPassword(privilegedServerName,
         request->username, request->password, &status);
+
+    authResponse->type = AUTH_TYPE_RACF;
+    authResponse->responseDetails.safStatus = status.safStatus;
+
     if (pwdCheckRC != 0) {
 #ifdef DEBUG_AUTH
 #define FORMAT_AUTH_ERROR($fmt, ...) printf("error: zisCheckUsernameAndPassword" \
@@ -2472,17 +2515,28 @@ static int safAuthenticate(HttpService *service, HttpRequest *request){
   return FALSE;
 }
 #else
+<<<<<<< HEAD
+<<<<<<< HEAD
 static int safAuthenticate(HttpService *service, HttpRequest *request){
+#ifdef DEBUG_AUTH
+=======
+static int safAuthenticate(HttpService *service, HttpRequest *request, int *safRC, int *racfRC, int *racfRSN){
+>>>>>>> f8854e9... Initial commit for password reset on zowe-common-c
+=======
+static int safAuthenticate(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
+>>>>>>> e8482bc... Swapped safrc/racfrf/racfrsn for authresponse struct
   printf("*** ERROR **** calling safAuth off-mainframe\n");
   return FALSE;
 }
 #endif
 
-static int nativeAuth(HttpService *service, HttpRequest *request){
+static int nativeAuth(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
 #ifdef __ZOWE_OS_ZOS
-  return safAuthenticate(service, request);
+  return safAuthenticate(service, request, authResponse);
 #else
+#ifdef DEBUG_AUTH
   printf("*** ERROR *** native auth not implemented for this platform\n");
+#endif
   return TRUE;
 #endif
 }
@@ -2501,11 +2555,15 @@ static int startImpersonating(HttpService *service, HttpRequest *request) {
 #endif /* not APF-authorized or willing to use BPX impersonation */
 
 #else
+#ifdef DEBUG_AUTH
       printf("*** ERROR *** impersonation not implemented for this platform\n");
+#endif
       impersonating = FALSE;
 #endif /*__ZOWE_OS_ZOS */
     } else {
+#ifdef DEBUG_AUTH
       printf("*** ERROR *** impersonation couldn't be done because service %s didn't run in subtask \n", service->name);
+#endif
       impersonating = FALSE;
     }
   } else {
@@ -2525,7 +2583,9 @@ static int endImpersonating(HttpService *service, HttpRequest *request) {
 #endif /* not APF-authorized or willing to use BPX impersonation */
 
 #else
+#ifdef DEBUG_AUTH
   printf("*** ERROR *** impersonation not implemented for this platform\n");
+#endif
   return TRUE;
 #endif /*__ZOWE_OS_ZOS */
 }
@@ -2793,7 +2853,7 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
 }
 
 static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *request,  HttpResponse *response,
-                                             int *clearSessionToken){
+                                             int *clearSessionToken, AuthResponse *authResponse){
   int authDataFound = FALSE; 
   HttpHeader *authenticationHeader = getHeader(request,"Authorization");
   char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
@@ -2840,7 +2900,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
       response->sessionCookie = sessionToken;
       return TRUE;
     } else if (authDataFound){
-      if (nativeAuth(service,request)){
+      if (nativeAuth(service,request,authResponse)){
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
                "serviceAuthNativeWithSessionToken: Cookie not valid, auth is good\n");
         char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
@@ -2861,7 +2921,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
       return FALSE;
     }
   } else if (authDataFound){
-    if (nativeAuth(service,request)){
+    if (nativeAuth(service,request,authResponse)){
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
               "serviceAuthNativeWithSessionToken: auth header provided and works, "
               "before generate session token req=0x%x, username=0x%x, response=0x%p\n",
@@ -2884,17 +2944,21 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   }
 }
 
+#define JWT_COOKIE_NAME "apimlAuthenticationToken"
+#define JWT_COOKIE_NAME_LENGTH 24
+
 static int serviceAuthWithJwt(HttpService *service,
                               HttpRequest *request,
                               HttpResponse *response) {
-  int authDataFound = FALSE;
   HttpHeader *const authorizationHeader = getHeader(request, "Authorization");
-  char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
+  char *jwtTokenText = getCookieValue(request,JWT_COOKIE_NAME);
 
   AUTH_TRACE("serviceAuthWithJwt: authenticationHeader 0x%p,"
       " extractFunction 0x%p\n",
       authorizationHeader,
       service->authExtractionFunction);
+
+   request->authToken = jwtTokenText;
 
   /*
    * The extractor should look at the request and get the raw JWT from anywhere
@@ -2907,15 +2971,15 @@ static int serviceAuthWithJwt(HttpService *service,
    * TODO: consider changing the architecture: what fields do we want in the
    * request structure?
    */
-  if (service->authExtractionFunction != NULL) {
-    if (service->authExtractionFunction(service, request) == 0) {
-      authDataFound = TRUE;
-    }
-  } else if (authorizationHeader) {
+
+  if (authorizationHeader) {
     DEBUG_TRACE("serviceAuthWithJwt: auth header = 0x%x\n", authorizationHeader);
-    if (extractBearerToken(request, authorizationHeader)) {
+    if (request->authToken == NULL && extractBearerToken(request, authorizationHeader)) {
       DEBUG_TRACE("back inside serviceAuthWithJwt after call to extractBearerToken\n");
-      authDataFound = TRUE;
+    }
+  } else if (service->authExtractionFunction != NULL) {
+    if (service->authExtractionFunction(service, request) == 0) {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "auth extraction function returns 0!\n");
     }
   }
 
@@ -2959,7 +3023,17 @@ static int serviceAuthWithJwt(HttpService *service,
       return FALSE;
     }
     strcpy(request->username, jwt->subject);
+    int jwtLen = strlen(jwtTokenText);
+    int jwtCookieLen = JWT_COOKIE_NAME_LENGTH + jwtLen + 2; //+1 for '=', +1 for null term
+    char jwtCookie[jwtCookieLen];
+    snprintf(jwtCookie, jwtCookieLen, "%s=%s", JWT_COOKIE_NAME, jwtTokenText);
+    addStringHeader(response, "Set-Cookie", jwtCookie);
+    response->sessionCookie = NULL;
+    char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
+    response->sessionCookie = sessionToken;
+    addStringHeader(response, "Set-Cookie", response->sessionCookie);
     strupcase(request->username);
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "TOKEN VALIDATED\n");
     return TRUE;
   }
 }
@@ -3087,6 +3161,22 @@ static void serveRequest(HttpService* service, HttpResponse* response,
 
 }
 
+static void respondWithAuthError(HttpResponse *response, AuthResponse *authResponse) {
+  switch (authResponse->type) {
+    case AUTH_TYPE_RACF:
+      if (authResponse->responseDetails.safStatus.safRC == SAF_RC_PASSWORD_EXPIRED &&
+          authResponse->responseDetails.safStatus.racfRC == RACF_RC_PASSWORD_EXPIRED) {
+        respondWithError(response, HTTP_STATUS_PRECONDITION_REQUIRED, "Password Expired");
+      } else {
+        respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
+      }
+      break;
+    default:
+      respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
+      break;
+  }
+}
+
 static int handleHttpService(HttpServer *server,
                              HttpService *service,
                              HttpRequest *request,
@@ -3101,16 +3191,22 @@ static int handleHttpService(HttpServer *server,
                                 NULL, extractABENDInfo, &abendInfo, NULL, NULL);
   if (recoveryRC != RC_RCV_OK) {
     if (recoveryRC == RC_RCV_CONTEXT_NOT_FOUND) {
+#ifdef DEBUG
       printf("httpserver: error running service %s, recovery context not found\n",
           service->name);
+#endif
     }
     else if (recoveryRC == RC_RCV_ABENDED) {
+#ifdef DEBUG
       printf("httpserver: ABEND %03X-%02X averted when handling %s\n",
           abendInfo.completionCode, abendInfo.reasonCode, service->name);
+#endif
     }
     else {
+#ifdef DEBUG
       printf("httpserver: error running service %s unknown recovery code %d\n",
           service->name, recoveryRC);
+#endif
     }
 
     if (service->cleanupFunction != NULL) {
@@ -3151,6 +3247,9 @@ static int handleHttpService(HttpServer *server,
   service->server = server;
 
   int clearSessionToken = FALSE;
+
+  AuthResponse authResponse;
+
   switch (service->authType){
    
   case SERVICE_AUTH_NONE:
@@ -3164,7 +3263,7 @@ static int handleHttpService(HttpServer *server,
 #ifdef DEBUG
     printf("saf auth needed for service %s\n",service->name);
 #endif
-    request->authenticated = safAuthenticate(service, request);
+    request->authenticated = safAuthenticate(service, request, &authResponse);
     break;
   case SERVICE_AUTH_CUSTOM:
 #ifdef DEBUG
@@ -3184,7 +3283,7 @@ static int handleHttpService(HttpServer *server,
         break;
       } /* else fall through */
     case SERVICE_AUTH_TOKEN_TYPE_LEGACY:
-      request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken);
+      request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken, &authResponse);
       break;
     }
     break;
@@ -3194,7 +3293,7 @@ static int handleHttpService(HttpServer *server,
 #endif
   if (request->authenticated == FALSE){
     /* could make this parameterizable */
-    respondWithError(response,401,"Not Authorized");
+    respondWithAuthError(response, &authResponse);
     // Response is finished on return
   } else {
 
@@ -3264,16 +3363,22 @@ static int serviceLoop(Socket *socket){
   char *readBuffer = SLHAlloc(slh,READ_BUFFER_SIZE);
   while (1){
     int socketStatus = tcpStatus(socket,0,0,&returnCode,&reasonCode);
+#ifdef DEBUG
     printf("socketStatus = %d, errno %d reason %d\n",socketStatus,returnCode,reasonCode);
+#endif
     int bytesRead = socketRead(socket,readBuffer,READ_BUFFER_SIZE,&returnCode,&reasonCode);
     if (bytesRead < 1){
+#ifdef DEBUG
       printf("bytesRead=%d, so a problem rc=0x%x, reason=0x%x, socket=0x%X\n",bytesRead,returnCode,reasonCode,socket);
+#endif
       shouldClose = TRUE;
       break;
     } 
     int requestStreamOK = processHttpFragment(parser,readBuffer,bytesRead);
     if (!requestStreamOK){
+#ifdef DEBUG
       printf("some issue with parser status, socket=0x%X\n", socket);
+#endif
       shouldClose = TRUE;
       break;
     }
@@ -3284,10 +3389,14 @@ static int serviceLoop(Socket *socket){
       /* parse URI after request and response ready for work, have SLH's, etc */
       parseURI(request);
 
+#ifdef DEBUG
       printf("looking for service for URI %s\n",request->uri);
+#endif
       header = request->headerChain;
       while (header){
+#ifdef DEBUG        
         printf("  %s=%s\n",header->nativeName,header->nativeValue);
+#endif
         header = header->next;
       }
       HttpService *service = findHttpService(NULL,request);
@@ -3589,8 +3698,57 @@ HttpRequestParam *getCheckedParam(HttpRequest *request, char *paramName){
   return NULL;
 }
 
-char *getMimeType(char *extension, int *isBinary){
-  if (!strcmp(extension,"gif")){
+static char *getMimeType2(char *extension, int *isBinary, int dotPos);
+
+char *getMimeType(char *extension, int *isBinary) {
+  int dotPos = -1;
+  getMimeType2(extension, isBinary, dotPos);
+}
+
+static char *getMimeType2(char *extension, int *isBinary, int dotPos){
+  if (!strcmp(extension,"js")){
+    *isBinary = FALSE;
+    return "text/javascript";
+  } else if (!strcmp(extension,"ts")){
+    *isBinary = FALSE;
+    return "text/typescript";
+  } else if (!strcmp(extension,"txt") ||
+        !strcmp(extension,"c") || !strcmp(extension,"py") || !strcmp(extension,"rexx") ||
+        !strcmp(extension,"cbl") || !strcmp(extension,"cpy") || !strcmp(extension,"asm") ||
+        !strcmp(extension,"cpp") || !strcmp(extension,"h") || !strcmp(extension,"log") ||
+        !strcmp(extension,"env") ||
+        (dotPos == 0)){
+    *isBinary = FALSE;
+    return "text/plain";
+  } else if (!strcmp(extension,"html") ||
+	     !strcmp(extension,"htm")){
+    *isBinary = FALSE;
+    return "text/html";
+  } else if (!strcmp(extension,"css")){
+    *isBinary = FALSE;
+    return "text/css";
+  } else if(!strcmp(extension,"md")) {
+    *isBinary = FALSE;
+    return "text/markdown";
+  } else if(!strcmp(extension,"bin")) {
+    *isBinary = TRUE;
+    return "application/octet-stream";
+  } else if(!strcmp(extension,"gz")) {
+    *isBinary = TRUE;
+    return "application/gzip";
+  } else if(!strcmp(extension,"jar")) {
+    *isBinary = TRUE;
+    return "application/java-archive";
+  } else if(!strcmp(extension,"json")) {
+    *isBinary = FALSE;
+    return "application/json";
+  } else if(!strcmp(extension,"sh")) {
+    *isBinary = FALSE;
+    return "application/x-sh";
+  } else if(!strcmp(extension,"tar")) {
+    *isBinary = TRUE;
+    return "application/x-tar";
+  } else if (!strcmp(extension,"gif")){
     *isBinary = TRUE;
     return "image/gif";
   } else if (!strcmp(extension,"jpg")){
@@ -3599,19 +3757,6 @@ char *getMimeType(char *extension, int *isBinary){
   } else if (!strcmp(extension,"png")){
     *isBinary = TRUE;
     return "image/png";
-  } else if (!strcmp(extension,"js")){
-    *isBinary = FALSE;
-    return "text/javascript";
-  } else if (!strcmp(extension,"ts")){
-    *isBinary = FALSE;
-    return "text/typescript";
-  } else if (!strcmp(extension,"html") ||
-	     !strcmp(extension,"htm")){
-    *isBinary = FALSE;
-    return "text/html";
-  } else if (!strcmp(extension,"css")){
-    *isBinary = FALSE;
-    return "text/css";
   } else if (!strcmp(extension,"mpg")){
     *isBinary = TRUE;
     return "video/mpeg";
@@ -3621,9 +3766,48 @@ char *getMimeType(char *extension, int *isBinary){
   } else if (!strcmp(extension,"ttf")){
     *isBinary = TRUE;
     return "application/font-ttf";
-  } else{
+  } else if(!strcmp(extension,"avi")) {
+    *isBinary = TRUE;
+    return "video/x-msvideo";
+  } else if(!strcmp(extension,"bmp")) {
+    *isBinary = TRUE;
+    return "image/bmp";
+  } else if(!strcmp(extension,"csv")) {
     *isBinary = FALSE;
-    return "text/plain";
+    return "text/csv";
+  } else if(!strcmp(extension,"doc")) {
+    *isBinary = FALSE;
+    return "application/msword";
+  } else if(!strcmp(extension,"docx")) {
+    *isBinary = FALSE;
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  } else if(!strcmp(extension,"mp3")) {
+    *isBinary = TRUE;
+    return "audio/mpeg";
+  } else if(!strcmp(extension,"jsonld")) {
+    *isBinary = TRUE;
+    return "application/ld+json";
+  } else if(!strcmp(extension,"pdf")) {
+    *isBinary = TRUE;
+    return "application/pdf";
+  } else if(!strcmp(extension,"xls")) {
+    *isBinary = FALSE;
+    return "application/vnd.ms-excel";
+  } else if(!strcmp(extension,"zip")) {
+    *isBinary = TRUE;
+    return "application/zip";
+  } else if(!strcmp(extension,"7z")) {
+    *isBinary = TRUE;
+    return "application/x-7z-compressed";
+  } else if(!strcmp(extension,"webm")) {
+    *isBinary = TRUE;
+    return "video/webm";
+  } else if(!strcmp(extension,"mp4")) {
+    *isBinary = TRUE;
+    return "video/mp4";
+  } else{
+    *isBinary = TRUE;
+    return "application/octet-stream";
   }
 }
 
@@ -3653,11 +3837,9 @@ static uint64_t makeFileEtag(FileInfo *file) {
   mtime = file->lastModficationTime;
 #endif
   size = fileInfoSize(file);
-  /* printf("makeFileEtag: inode %u, time %u, size %llu\n", inode, mtime, size); */
   result = prime * result + inode;
   result = prime * result + mtime;
   result = prime * result + size;
-  /* printf("makeFileEtag: result %.16llx\n", result); */
   return result;
 }
 
@@ -3798,6 +3980,10 @@ bool isCachedCopyModified(HttpRequest *req, uint64_t etag, time_t mtime) {
   return true;
 }
 
+static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding, bool asB64);
+static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding,
+                      int sourceCCSID, int targetCCSID, bool asB64);
+
 // Response must ALWAYS be finished on return
 void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode, int autocvt, bool asB64) {
   FileInfo info;
@@ -3811,7 +3997,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     int dotPos = lastIndexOf(absolutePath, filenameLen, '.');
     char *extension = (dotPos == -1) ? "NULL" : absolutePath + dotPos + 1;
     int isBinary = FALSE;
-    char *mimeType = getMimeType(extension,&isBinary);
+    char *mimeType = getMimeType2(extension,&isBinary,dotPos);
     long fileSize = fileInfoSize(&info);
     int ccsid = fileInfoCCSID(&info);
     char tmperr[256] = {0};
@@ -3854,7 +4040,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     if (!autocvt) {
       int disableCvt = fileDisableConversion(in, &returnCode, &reasonCode);
       if (disableCvt != 0) {
-        printf("Warning: encoding conversion was not disabled, return = %d, reason = %d\n", returnCode, reasonCode);
+    	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Warning: encoding conversion was not disabled, return = %d, reason = %d\n", returnCode, reasonCode);
       }
     }
 #endif
@@ -3863,7 +4049,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     addStringHeader(response,"Server","jdmfws");
     addStringHeader(response, "Cache-control", "no-store");
     addStringHeader(response, "Pragma", "no-cache");
-    addIntHeader(response, "Content-Length", asB64 ? 4 * ((fileSize + 2) / 3) : fileSize); /* Is this safe post-conversion??? */
+    addStringHeader(response, "Transfer-Encoding", "chunked");
     setContentType(response, mimeType);
     addCacheRelatedHeaders(response, mtime, etag);
 
@@ -3879,7 +4065,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
       printf("Streaming binary for %s\n", absolutePath);
 #endif
       
-      streamBinaryForFile(response->socket, in, asB64);
+      streamBinaryForFile2(response, NULL, in, ENCODING_CHUNKED, asB64);
     } else {
       writeHeader(response);
 #ifdef DEBUG
@@ -3910,9 +4096,9 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 #endif
         ;
       if (ccsid == 0) {
-        streamTextForFile(response->socket, in, ENCODING_SIMPLE, NATIVE_CODEPAGE, webCodePage, asB64);
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
       } else {
-        streamTextForFile(response->socket, in, ENCODING_SIMPLE, ccsid, webCodePage, asB64);
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, ccsid, webCodePage, asB64);
       }
 
 #ifdef USE_CONTINUE_RESPONSE_HACK
@@ -4031,13 +4217,39 @@ void respondWithJsonError(HttpResponse *response, char *error, int statusCode, c
 
 #define ENCODE64_SIZE(SZ) (2 + 4 * ((SZ + 2) / 3))
 
-int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
+/*
+  * when encoding is ENCODING_SIMPLE then socket is mandatory
+  * when encoding is ENCODING_CHUNKED then response is mandatory
+*/
+static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
   int bufferSize = FILE_STREAM_BUFFER_SIZE;
   char buffer[bufferSize+4];
   int encodedLength;
+  ChunkedOutputStream *stream = NULL;
 
+  if ((response && socket) || (!response && !socket)) {
+#ifdef DEBUG
+    printf("bad arguments: either response or socket must be not NULL, never both\n");	
+#endif
+    return 8;
+  }
+  if (encoding == ENCODING_GZIP) {
+#ifdef DEBUG
+    printf("GZIP encoding not implemented\n");	
+#endif
+    return 8;
+  }
+  if (encoding == ENCODING_CHUNKED && !response) {
+#ifdef DEBUG
+    printf("bad arguments: response must be not NULL to use chunked encoding\n");	
+#endif
+    return 8;
+  }
+  if (encoding == ENCODING_CHUNKED) {
+    stream = makeChunkedOutputStreamInternal(response);
+  }
   while (!fileEOF(in)) {
     int bytesRead = fileRead(in,buffer,bufferSize,&returnCode,&reasonCode);
     if (bytesRead <= 0) {
@@ -4056,15 +4268,31 @@ int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
     }
     char *outPtr = asB64 ? encodedBuffer : buffer;
     int outLen = asB64 ? encodedLength : bytesRead;
-    writeFully(socket, outPtr, outLen);
+    if (encoding == ENCODING_CHUNKED) {
+      writeBytes(stream, outPtr, outLen, NO_TRANSLATE);
+    } else {
+      writeFully(socket, outPtr, outLen);
+    }
 
     if (NULL != encodedBuffer) safeFree31(encodedBuffer, ENCODE64_SIZE(bytesRead)+1);
+  }
+  if (encoding == ENCODING_CHUNKED) {
+    /* finish the chunked output here because finishResponse will not flush this stream's data */
+    finishChunkedOutput(stream, NO_TRANSLATE);
   }
 
   return 0;
 }
-  
-int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
+
+int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
+  return streamBinaryForFile2(NULL, socket, in, ENCODING_SIMPLE, asB64);
+}
+
+/*
+  * when encoding is ENCODING_SIMPLE then socket is mandatory
+  * when encoding is ENCODING_CHUNKED then response is mandatory
+*/
+static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding,
                       int sourceCCSID, int targetCCSID, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
@@ -4073,13 +4301,29 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
   char buffer[bufferSize+4];
   char translation[(2*bufferSize)+4]; /* UTF inflation tolerance */
   int encodedLength;
+  ChunkedOutputStream *stream = NULL;
 
 
   /* Q: How do we find character encoding for unix file? 
      A: You can't. There is no equivalent of USS character encoding tags on
         other Unix systems. Hence, things like the .htaccess (for Apache).
   */
+  if ((response && socket) || (!response && !socket)) {
+#ifdef DEBUG	
+    printf("bad arguments: either response or socket must be not NULL, never both\n");	
+#endif
+    return 8;
+  }
   switch (encoding){
+  case ENCODING_CHUNKED:
+    if (!response) {
+#ifdef DEBUG	
+      printf("bad arguments: response must be not NULL to use chunked encoding\n");	
+#endif	
+      return 8;
+    }
+    stream = makeChunkedOutputStreamInternal(response);
+    /* fallthrough */
   case ENCODING_SIMPLE:
     while (!fileEOF(in)){
 #ifdef DEBUG
@@ -4124,11 +4368,13 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
                             &reasonCode);
 
         if (inLen != translationLength) {
+#ifdef DEBUG
           printf("streamTextForFile(%d (%s), %d (%s), %d, %d, %d, %d): "
                  "after sending %d bytes got translation length error; expected %d, got %d\n",
                  socket->sd, socket->debugName, 
                  in->fd, in->pathname,
                  encoding, sourceCCSID, targetCCSID, asB64, bytesSent, inLen, translationLength);
+#endif
         }
         if (TRACE_CHARSET_CONVERSION){
           printf("convertCharset transLen=%d\n",translationLength);
@@ -4154,15 +4400,18 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
         outPtr = encodedBuffer;
         outLen = encodedLength;
       }
-      writeFully(socket,outPtr,(int) outLen);
+      if (encoding == ENCODING_CHUNKED) {
+        writeBytes(stream, outPtr, (int) outLen, NO_TRANSLATE);
+      } else {
+        writeFully(socket,outPtr,(int) outLen);
+      }
       if (NULL != encodedBuffer) safeFree31(encodedBuffer, allocSize);
       bytesSent += encodedLength;
     }
-    break;
-  case ENCODING_CHUNKED:
-#ifdef DEBUG
-    printf("HELP - not implemented\n");
-#endif
+    if (encoding == ENCODING_CHUNKED) {
+      /* finish the chunked output here because finishResponse will not flush this stream's data */
+      finishChunkedOutput(stream, NO_TRANSLATE);
+    }
     break;
   case ENCODING_GZIP:
 #ifdef DEBUG
@@ -4179,25 +4428,36 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
   return 1;
 }
 
+int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
+                      int sourceCCSID, int targetCCSID, bool asB64) {
+  return streamTextForFile2(NULL, socket, in, encoding, sourceCCSID, targetCCSID, asB64);
+}
+
 int runServiceThread(Socket *socket){
 #ifndef METTLE
   int threadID; /* pthread_t threadID;  */
   
+#ifdef DEBUG
   printf("runServiceThread\n");
+#endif
   fflush(stdout);
   OSThread osThreadData;
   OSThread *osThread = &osThreadData;
   int createStatus = threadCreate(osThread,(void * (*)(void *))serviceLoop,socket);
   if (createStatus != 0) {
 #ifdef __ZOWE_OS_WINDOWS
+#ifdef DEBUG
     printf("CREATE THREAD failure, code=0x%x\n",createStatus);
+#endif
 #else
     perror("pthread_create() error");
 #endif
     exit(1);
   } else{
+#ifdef DEBUG
     printf("thread create succeeded!\n");
     fflush(stdout);
+#endif
   }
 #endif
   return 0;
@@ -4221,7 +4481,9 @@ int makeHTMLForDirectory(HttpResponse *response, char *dirname, char *stem, int 
   UnixFile *directory = NULL;
   
   if ((directory = directoryOpen(dirname,&returnCode,&reasonCode)) == NULL){
+#ifdef DEBUG
     printf("directory open (%s) failure rc=%d reason=0x%x\n",dirname,returnCode,reasonCode);
+#endif
   } else {
     if (out){
       char line[1024];
@@ -4260,7 +4522,9 @@ int makeHTMLForDirectory(HttpResponse *response, char *dirname, char *stem, int 
           if (out){
             writeBytes(out,url,len,TRUE);
           } else{
+#ifdef DEBUG
             printf("%s\n",url);
+#endif
           }
         }
       }
@@ -4294,7 +4558,9 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
   if (out) {
     UnixFile *directory = NULL;
     if ((directory = directoryOpen(dirname,&returnCode,&reasonCode)) == NULL){
+#ifdef DEBUG
       printf("directory open (%s) failure rc=%d reason=0x%x\n",dirname,returnCode,reasonCode);
+#endif
     } else {
       jsonStart(out);
       jsonStartArray(out, "entries");
@@ -4586,7 +4852,7 @@ void serveSimpleTemplate(HttpService *service, HttpResponse *response){
       if (service->serviceTemplateTagFunction){
 	service->serviceTemplateTagFunction(service,response,tag,outStream);
       } else{
-	printf("*** WARNING *** no template tag service function for %s\n",service->name);
+    	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "*** WARNING *** no template tag service function for %s\n", service->name);
       }
     }
     
@@ -4646,7 +4912,9 @@ HttpService *makeWebSocketService(char *name, char *urlMask, WSEndpoint *endpoin
   parseURLMask(service,urlMask);
   service->next = NULL;
   service->wsEndpoint = endpoint;
+#ifdef DEBUG
   printf("putting endpoint 0x%x on service 0x%x\n",endpoint,service);
+#endif
 
   service->paramSpecList = NULL;
   return service;
@@ -4738,7 +5006,13 @@ static int httpTaskMain(RLETask *task){
 
   HttpWorkElement *element = (HttpWorkElement*)task->userPointer;
   HttpConversation *conversation = element->conversation;
+<<<<<<< HEAD
+#ifdef DEBUG
   printf("httpTaskMain element=0x%x elt->convo=0x%x\n",element,conversation);
+#endif
+=======
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "httpTaskMain element=0x%x elt->convo=0x%x\n",element,conversation);
+>>>>>>> 43083ff... Add .env mime type, reorg mime type area to have media type detection come last, and common extensions first. Switch common debug printfs to zowelog
   if (!conversation->shouldClose) {
     /* Execute only if the conversation is still open */
     serviceResult = handleHttpService(conversation->server,
@@ -4783,7 +5057,9 @@ static char *makeWSAccept(ShortLivedHeap *slh, char *key){
 
   digestContextFinish(&context,hash);
   int resultSize = 0;
+#ifdef DEBUG
   printf("before encode base 64 slh=0x%x hash at 0x%x\n",slh,hash);
+#endif
   char *encoded = encodeBase64(slh,hash,20,&resultSize,
 #ifdef __ZOWE_OS_ZOS
                                TRUE
@@ -4791,7 +5067,9 @@ static char *makeWSAccept(ShortLivedHeap *slh, char *key){
                                FALSE
 #endif
                                );
+#ifdef DEBUG
   printf("b64 encoded size=%d\n",resultSize);
+#endif
   dumpbuffer(encoded,resultSize);
   return encoded;
 }
@@ -4815,19 +5093,25 @@ static void upgradeToWebSocket(HttpConversation *conversation,
   HttpHeader *webSocketVersion = getHeader(request,"Sec-WebSocket-Version");
   HttpHeader *webSocketProtocol = getHeader(request,"Sec-WebSocket-Protocol");
   HttpHeader *origin = getHeader(request,"origin");
+#ifdef DEBUG
   printf("ws req: cnxn=%s key=%s version=%s origin=%s\n",
          connection,
          (webSocketKey != NULL ? webSocketKey->nativeValue : "<n/a>"),
          (webSocketVersion != NULL ? webSocketVersion->nativeValue : "<n/a>"),
          (origin != NULL ? origin->nativeValue : "<n/a>"));
+#endif
   
   if (!headerMatch(webSocketVersion,"13")){
+#ifdef DEBUG
     printf("WebSocket version\n");
+#endif
     respondWithError(response,HTTP_STATUS_BAD_REQUEST,"bad web socket version");
     // Response is finished on return
   } else{
+#ifdef DEBUG
     printf("building web socket response\n");
     fflush(stdout);
+#endif
     setResponseStatus(response,HTTP_STATUS_SWITCHING_PROTOCOLS,"Switching to WebSockets");
     addStringHeader(response,"Upgrade","websocket");
     addStringHeader(response,"Connection","Upgrade");
@@ -4838,8 +5122,10 @@ static void upgradeToWebSocket(HttpConversation *conversation,
       addStringHeader(response,"Sec-WebSocket-Protocol",negotiatedProtocol);
     }
     /* parse URI sets up all the URI fragments in request */
+#ifdef DEBUG
     printf("WS Upgrade parse UI\n");
     fflush(stdout);
+#endif
     parseURI(request);
     conversation->wsSession = makeWSSession(conversation,
                                             service,
@@ -4850,12 +5136,16 @@ static void upgradeToWebSocket(HttpConversation *conversation,
     finishResponse(response);
 
     WSEndpoint *endpoint = service->wsEndpoint; 
+#ifdef DEBUG
     printf("WS upgrade service=0x%x name=%s endpoint=0x%x\n",service,service->name,endpoint);
     fflush(stdout);
+#endif
     if (endpoint->onOpen){
       endpoint->onOpen(conversation->wsSession);
     } else{
+#ifdef DEBUG
       printf("*** WARNING *** no endpoint found for WS\n");
+#endif
     }
   }
 }
@@ -4942,8 +5232,16 @@ static void doHttpResponseWork(HttpConversation *conversation)
           workElement->response = response;
           response = NULL; /* transfer the ownership of the response to the subtask */
           conversation->task->userPointer = workElement;
+<<<<<<< HEAD
+#ifdef DEBUG
           printf("about to start RLE Task from main at 0x%x wkElement=0x%x pendingService=0x%x\n",
                  conversation->task,workElement,conversation->pendingService);
+#endif
+=======
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                  "about to start RLE Task from main at 0x%x wkElement=0x%x pendingService=0x%x\n",
+                  conversation->task,workElement,conversation->pendingService);
+>>>>>>> 43083ff... Add .env mime type, reorg mime type area to have media type detection come last, and common extensions first. Switch common debug printfs to zowelog
 
           /* Keep track of number of running tasks */                                                                                                                                                            
           serializeStartRunning(conversation);                                                                                                                                                                   
@@ -4957,10 +5255,10 @@ static void doHttpResponseWork(HttpConversation *conversation)
 #ifdef DEBUG
       printf("doHttpResponseWork:  no service found. conversation=0x%X\n",conversation);
 #endif
-      /* shouldn't I be a 404 */
       respondWithError(response,HTTP_STATUS_NOT_FOUND,"resource or service not found");
-      // Response is finished on return
-      conversation->shouldClose = TRUE;
+      if (!firstRequest->keepAlive) {
+        conversation->shouldClose = TRUE;
+      }
       break;
     }
     /* didn't get a request; nothing to do */
@@ -5019,8 +5317,10 @@ static void doWSReadWork(HttpConversation *conversation, int readBufferSize){
 
   int bytesRead = socketRead(socket,readBuffer,readBufferSize,&returnCode,&reasonCode);
   if (bytesRead < 1){
+#ifdef DEBUG
     printf("WS desiredBytes = %d bytesRead=%d, so a problem or no more available rc=0x%x, reason=0x%x, conversation=0x%X\n",readBufferSize,bytesRead,returnCode,reasonCode,conversation);
     fflush(stdout);
+#endif
     conversation->shouldClose = TRUE;
     return; /* dangerous to enqueue any work once shouldClose has been set */
   }
@@ -5071,7 +5371,9 @@ static int httpHandleTCP(STCBase *base,
       printf("TCP Accept return=0x%x reason=0x%x socket %s\n",returnCode,reasonCode,(peerSocket ? peerSocket->debugName : "NONE"));
   #endif
       if (peerSocket == NULL){
+#ifdef DEBUG
         printf("httpserver: accept failed ret=%d reason=0x%x\n",returnCode,reasonCode);
+#endif
         break; /* end server socket processing */
       }
 #ifdef USE_RS_SSL
@@ -5082,7 +5384,9 @@ static int httpHandleTCP(STCBase *base,
                                                         peerSocket->sd,
                                                         &(peerSocket->sslHandle)); /* RS_SSL_CONNECTION */
         if ((0 != rsStatus) || (NULL == peerSocket->sslHandle)) {
+#ifdef DEBUG
           printf("httpserver failed to negotiate TLS with peer; closing socket\n");
+#endif
           socketClose(peerSocket, &returnCode, &reasonCode);
           break;
         }
@@ -5097,7 +5401,9 @@ static int httpHandleTCP(STCBase *base,
              writeBufferSize, returnCode, reasonCode);
 #endif
   #else
+#ifdef DEBUG
       printf("must figure out how to set socket buffer size on windows\n");
+#endif
   #endif
       int nbStatus = setSocketBlockingMode(peerSocket,TRUE,&returnCode,&reasonCode);
   #ifdef DEBUG
@@ -5123,7 +5429,9 @@ static int httpHandleTCP(STCBase *base,
       HttpConversation *conversation = (HttpConversation*)extension->protocolHandler;
 
       if (NULL == conversation) {
+#ifdef DEBUG
         printf("*** peerExtension protocolHandler is NULL ***\n");
+#endif
         /* we can't do a full conversation cleanup, just close the socket and unregister the socketExtension, leaks be damned */
         socketClose(peerExtension->socket, &returnCode,&reasonCode);
         handlerStatus = 8;
@@ -5147,15 +5455,28 @@ static int httpHandleTCP(STCBase *base,
       int sxStatus = sxUpdateTLSInfo(peerExtension,
                                      1); /* prevent multiple ioctl calls on repeated reads */
       if (0 != sxStatus) {
+#ifdef DEBUG
         printf("error from sxUpdateTLSInfo: %d\n", sxStatus);
+#endif
       } else if ((RS_TLS_WANT_TLS & peerExtension->tlsFlags) &&
                  (0 == (RS_TLS_HAVE_TLS & peerExtension->tlsFlags)))
       {
+<<<<<<< HEAD
+#ifdef DEBUG
         printf("*** WARNING: Connection is insecure! TLS needed but not found on socket. ***\n");
+#endif
+=======
+        if (0 == (tlsWarnCounter % TLS_WARN_FREQUENCY)) {
+          printf("*** WARNING: Connection is insecure! TLS needed but not found on socket. ***\n");
+        }
+        tlsWarnCounter++;
+>>>>>>> 0174a1f... Warn less frequently to not fill up log quickly
       } else if ((RS_TLS_WANT_PEERCERT & peerExtension->tlsFlags) &&
                  (0 == (RS_TLS_HAVE_PEERCERT & peerExtension->tlsFlags)))
       {
+#ifdef DEBUG
         printf("*** WARNING: Connection is insecure! Peer certificate wanted but not found. ***\n");
+#endif
       }
 #endif
 
@@ -5184,14 +5505,18 @@ HttpResponse *pseudoRespond(HttpServer *server, HttpRequest *request, ShortLived
   response->standaloneTestMode = TRUE;
   parseURI(request);
   HttpService *service = findHttpService(server,request);
+#ifdef DEBUG
   printf("in pseudoRespond, service=0x%x\n",service);
   fflush(stdout);
+#endif
   if (service){
     /* what about output streams */
     handleHttpService(server,service,request,response);
     return response;
   } else{
+#ifdef DEBUG
     printf("could not find service for pseudoRespond\n");
+#endif
     return NULL;
   }
 }
@@ -5242,7 +5567,9 @@ int httpWorkElementHandler(STCBase *base,
       SocketExtension *sext = conversation->socketExtension;
 
       if (conversation->runningTasks > 0) {
-        printf("*** PANIC: an RLETask race condition has occured. Abandoning cleanup ***");
+        if (traceHttpCloseConversation) {
+          printf("*** PANIC: an RLETask race condition has occured. Abandoning cleanup ***");
+        }
 
         break;
       }
@@ -5375,11 +5702,15 @@ int httpWorkElementHandler(STCBase *base,
           if (session->messageHandler){
             session->messageHandler->onMessage(session,message);
           } else{
+#ifdef DEBUG
             printf("WS Session has no message handler !!\n");
+#endif
           }
         }
       } else{
+#ifdef DEBUG
         printf("WS Message received without wsSession! conversation 0x%X\n", conversation);
+#endif
         conversation->shouldClose = TRUE;
       }
     }
@@ -5387,19 +5718,24 @@ int httpWorkElementHandler(STCBase *base,
   case HTTP_WS_CLOSE_HANDSHAKE:
   case HTTP_WS_OUTPUT:
     {
+#ifdef DEBUG
       printf("WS_OUTPUT\n");
+#endif
 
       HttpWorkElement *workElement = (HttpWorkElement*)((char*)prefix + sizeof(WorkElementPrefix));
       HttpConversation *conversation = workElement->conversation;
       SocketExtension *socketExtension = conversation->socketExtension;
+#ifdef DEBUG
       printf("wkElt=0x%x convo=0x%x sockExt=0x%x\n",workElement,conversation,socketExtension);
-
       fflush(stdout);
+#endif
       int dumpLength = workElement->bufferLength;
       if (dumpLength > 1024){
         dumpLength = 1024;
       }
+#ifdef DEBUG
       printf("HTTP_WS_OUTPUT: writing 0x%x bytes, dumping=0x%x\n",workElement->bufferLength,dumpLength);
+#endif
       dumpbufferA(workElement->buffer,dumpLength);
       fflush(stdout);
       writeFully(socketExtension->socket,workElement->buffer,workElement->bufferLength);
@@ -5409,15 +5745,19 @@ int httpWorkElementHandler(STCBase *base,
           
       /* after sending a close response, close is ok */
       if (prefix->payloadCode == HTTP_WS_CLOSE_HANDSHAKE){
+#ifdef DEBUG
         printf("WS_CLOSE_HANDSHAKE: sent message, setting shouldClose. Conversation 0x%X\n",conversation);
         fflush(stdout);
+#endif
         conversation->shouldClose = TRUE;
       }      
     }
     break;
 
   default:
+#ifdef DEBUG
     printf("httpServer workElementHandler saw an unknown payloadCode\n");
+#endif
     status = 8;
     break;
 
@@ -5462,7 +5802,6 @@ void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 
 int mainHttpLoop(HttpServer *server){
   STCBase *base = server->base;
-  logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
   /* server pointer will be copied/accessible from module->data */
   STCModule *httpModule = stcRegisterModule(base,
                                             STC_MODULE_JEDHTTP,
@@ -5487,4 +5826,3 @@ int mainHttpLoop(HttpServer *server){
   
   Copyright Contributors to the Zowe Project.
 */
-

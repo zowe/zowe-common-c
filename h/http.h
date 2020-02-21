@@ -45,6 +45,8 @@
 #define HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE 415
 #define HTTP_STATUS_RANGE_NOT_SATISFIABLE  416
 #define HTTP_STATUS_EXPECTATION_FAILED     417
+#define HTTP_STATUS_PRECONDITION_REQUIRED  428
+#define HTTP_STATUS_TOO_MANY_REQUESTS      429
 #define HTTP_STATUS_INTERNAL_SERVER_ERROR  500
 #define HTTP_STATUS_NOT_IMPLEMENTED        501
 #define HTTP_STATUS_BAD_GATEWAY            502
@@ -151,6 +153,7 @@ typedef struct HttpRequest_tag{
   HttpRequestParam *processedParamList;
   struct HttpRequest_tag *next;
   const void *authToken;   /* a JWT or other */
+  int keepAlive;
 } HttpRequest;
 
 /*************** WebSocket Stuff ********************/

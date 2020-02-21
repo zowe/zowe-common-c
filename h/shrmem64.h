@@ -37,7 +37,7 @@
 #define shrmem64ReleaseAll SHR64REA
 
 #define shrmem64GetAccess SHR64GAC
-#define shrmem64GetAccess SHR64GRC
+#define shrmem64RemoveAccess SHR64RAC
 
 #endif
 

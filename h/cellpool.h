@@ -22,7 +22,6 @@
 #include <stdint.h>
 #endif
 
-#include "zos.h"
 #include "zowetypes.h"
 
 #ifndef __LONGNAME__
@@ -45,7 +44,15 @@ typedef struct CPHeader_tag {
 
 ZOWE_PRAGMA_PACK_RESET
 
+<<<<<<< HEAD
+<<<<<<< HEAD
 #define CPID_NULL 0
+=======
+#define CPID_NULL -1
+>>>>>>> 96d076a... Add wrappers for CPOOL.
+=======
+#define CPID_NULL 0
+>>>>>>> 0b15b01... Use 0 for CPID_NULL - less error-prone. Update test build commands.
 
 /**
  * @brief Helper function to convert a size to its next 8-byte aligned value.

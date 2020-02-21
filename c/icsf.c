@@ -36,14 +36,14 @@
 
 #ifndef _LP64
 #pragma linkage(CSNBOWH,OS)
-#pragma linkage(CSNESYE,OS)
-#pragma linkage(CSNESYD,OS)
-#pragma linkage(CSNERNGL,OS)
-#else
-#pragma linkage(CSNEOWH,OS)
 #pragma linkage(CSNBSYE,OS)
 #pragma linkage(CSNBSYD,OS)
 #pragma linkage(CSNBRNGL,OS)
+#else
+#pragma linkage(CSNEOWH,OS)
+#pragma linkage(CSNESYE,OS)
+#pragma linkage(CSNESYD,OS)
+#pragma linkage(CSNERNGL,OS)
 #endif
 
 /*
@@ -123,7 +123,9 @@ int icsfDigestInit(ICSFDigest *digest, int type){
     digest->hashLength = 20;
     break;
   default:
-    printf("unimplemented\n");
+    if (digestTrace){
+      printf("unimplemented\n");
+    }
     return 8;
   }
   int returnCode;
@@ -165,7 +167,9 @@ int icsfDigestUpdate(ICSFDigest *digest, char *data, int len){
     digest->ruleArray = "SHA-1   MIDDLE  ";
     break;
   default:
-    printf("unimplemented ICSF Digest type\n");
+    if (digestTrace){
+      printf("unimplemented ICSF Digest type\n");
+    }
     return 8;
   }
   int returnCode;
@@ -245,7 +249,9 @@ int icsfDigestFinish(ICSFDigest *digest, char *hash){
     digest->ruleArray = "SHA-1   LAST    ";
     break;
   default:
-    printf("unimplemented\n");
+    if (digestTrace){
+      printf("unimplemented\n");
+    }
     return 8;
   }
   int returnCode;
@@ -317,8 +323,10 @@ int icsfDigestFully(char *digestType, char *s, int len){
 	  &md5HashLength,
 	  hash);
 
-  printf("called ICSF MD5 ret=0x%x reason=0x%x\n",returnCode,reasonCode);
-  dumpbuffer(hash,16);
+  if (digestTrace){
+    printf("called ICSF MD5 ret=0x%x reason=0x%x\n",returnCode,reasonCode);
+    dumpbuffer(hash,16);
+  }
 	  
   return returnCode;
   

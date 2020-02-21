@@ -520,7 +520,6 @@ XmlParser *makeXMLParserUSS(UnixFile *file){
   parser->tokenBytes = makeBAOS();
   parser->hasPushback = FALSE;
   parser->stringInput = NULL;
-  printf("about to return UnixFile based parser 0x%x with SLH at 0x%x and lineBuffer at 0x%x\n",parser,parser->slh,parser->lineBuffer);
   return parser;    
 }
 
@@ -539,7 +538,6 @@ XmlParser *makeXmlParser(char *dcb){
   parser->tokenBytes = makeBAOS();
   parser->hasPushback = FALSE;
   parser->stringInput = NULL;
-  printf("about to return DCB based parser 0x%x with SLH at 0x%x and lineBuffer at 0x%x\n",parser,parser->slh,parser->lineBuffer);
   return parser;  
 }
 

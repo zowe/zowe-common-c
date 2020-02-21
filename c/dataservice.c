@@ -89,7 +89,7 @@ const char* pluginTypeString(int pluginType)
 
 static ExternalAPI *lookupAPI(InternalAPIMap *namedAPIMap, char *entryPointName){
   int i;
-  printf("lookup count=%d name=%s\n",namedAPIMap->length,entryPointName);
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "lookup count=%d name=%s\n", namedAPIMap->length, entryPointName);
   for (i=0; i<namedAPIMap->length; i++){
     if (!strcmp(namedAPIMap->names[i],entryPointName)){
       return namedAPIMap->entryPoints[i];
@@ -114,26 +114,26 @@ static void *lookupDLLEntryPoint(char *libraryName, char *functionName){
   status = fileInfo(libraryName, &info, &returnCode, &reasonCode);
   if (status == 0) {
     if (!(info.attributeFlags & BPXYSTAT_ATTR_PROGCTL)) {
-      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE, 
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, 
               "FAILURE: Dataservice: %s does not have the Program Control attribute this may cause unexpected errors therefore will not be loaded\n",
               libraryName);
     } else {
       void *library = dlopen(libraryName,flags);
       if (library){
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "dll handle for %s = 0x%" PRIxPTR "\n", libraryName, library);
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "dll handle for %s = 0x%" PRIxPTR "\n", libraryName, library);
         ep = dlsym(library,functionName);
         /* dlclose(library); - this will really close the DLL, like not be able to call */
         if (ep == NULL){
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE, "%s.%s could not be found -  dlsym error %s\n", libraryName, functionName, dlerror());
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "%s.%s could not be found -  dlsym error %s\n", libraryName, functionName, dlerror());
         } else {
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s.%s is at 0x%" PRIxPTR "\n", libraryName, functionName, ep);
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "%s.%s is at 0x%" PRIxPTR "\n", libraryName, functionName, ep);
         }
       } else {
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE, "dlopen error for %s - %s\n",libraryName, dlerror());
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "dlopen error for %s - %s\n",libraryName, dlerror());
       }
     }       
   } else {
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE, 
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "FAILURE: Dataservice: %s status not available therefore will not be loaded, please check the provided file name: (return = 0x%x, reason = 0x%x)\n",
             libraryName, returnCode, reasonCode);
   }
@@ -143,7 +143,7 @@ static void *lookupDLLEntryPoint(char *libraryName, char *functionName){
 
 static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonObject, char *subURI, InternalAPIMap *namedAPIMap,
                                     unsigned int *idMultiplier, int pluginLogLevel) {
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s begin data service:\n", __FUNCTION__);
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "%s begin data service:\n", __FUNCTION__);
   DataService *service = (DataService*) safeMalloc(sizeof (DataService), "DataService");
   memset(service, 0, sizeof (DataService));
   service->plugin = plugin;
@@ -171,13 +171,13 @@ static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonOb
   service->loggingIdentifier = LOG_PROD_PLUGINS + (0x10000 * (*idMultiplier));
   logConfigureComponent(NULL, service->loggingIdentifier, service->identifier,
                         LOG_DEST_PRINTF_STDOUT, pluginLogLevel);
-  zowelog(NULL, service->loggingIdentifier, ZOWE_LOG_WARNING, "added identifier for %s\n", service->identifier);
+  zowelog(NULL, service->loggingIdentifier, ZOWE_LOG_DEBUG, "added identifier for %s\n", service->identifier);
 
   char *initializerLookupMethod = jsonObjectGetString(serviceJsonObject, "initializerLookupMethod");
   char *initializerName = jsonObjectGetString(serviceJsonObject, "initializerName");
   if (!strcmp(initializerLookupMethod, "internal")) {
     service->initializer = (InitializerAPI*) lookupAPI(namedAPIMap, initializerName);
-    printf("Service=%s initializer set internal method=0x%p\n", 
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "Service=%s initializer set internal method=0x%p\n",
             service->identifier, service->name, service->initializer);
   } else if (!strcmp(initializerLookupMethod,"external")){
     char *libraryName = jsonObjectGetString(serviceJsonObject, "libraryName");
@@ -185,7 +185,7 @@ static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonOb
 #ifdef METTLE
     /* do a load of 8 char name.  Pray that the STEPLIB yields something good. */
     service->initializer = NULL;
-    printf("*** PANIC ***  service loading in METTLE not implemented\n");
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "*** PANIC ***  service loading in METTLE not implemented\n");
 #else
     char dllLocation[1023] = {0}; /* USS max path length */
     int pluginLocationLen = strlen(plugin->pluginLocation);
@@ -197,36 +197,44 @@ static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonOb
       snprintf(dllLocation, sizeof(dllLocation), "%s/lib/%s", plugin->pluginLocation, libraryName);
     }
 
-    printf("going for DLL EP lib=%s epName=%s\n",dllLocation,initializerName);
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "going for DLL EP lib=%s epName=%s\n", dllLocation, initializerName);
     service->initializer = (InitializerAPI*) lookupDLLEntryPoint(dllLocation,initializerName);
     if (service->initializer == NULL) {
-      printf("going for DLL EP lib=%s epName=%s\n",libraryName,initializerName);
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "going for DLL EP lib=%s epName=%s\n", libraryName, initializerName);
       service->initializer = (InitializerAPI*) lookupDLLEntryPoint(libraryName,initializerName);
     }
-    printf("DLL EP = 0x%x\n",service->initializer);
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "DLL EP = 0x%x\n", service->initializer);
     fflush(stdout);
     fflush(stderr);
 #endif
   } else {
-    printf("unknown plugin initialize lookup method %s\n",initializerLookupMethod);
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "unknown plugin initialize lookup method %s\n", initializerLookupMethod);
   }
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s end\n", __FUNCTION__);
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "%s end\n", __FUNCTION__);
   return service;
 }
 
 void initalizeWebPlugin(WebPlugin *plugin, HttpServer *server) {
   int i = 0;
   int count = plugin->dataServiceCount;
-  printf("%s begin, count=%d\n", __FUNCTION__,count);
+<<<<<<< HEAD
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s begin, count=%d\n", __FUNCTION__,count);
+=======
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2, "%s begin, count=%d\n", __FUNCTION__,count);  
+>>>>>>> f808cdc... Use zowelog instead of printf, reduce useless messages
   for (i = 0; i < count; i++) {
     DataService *service = plugin->dataServices[i];
     if (service->initializer){
       service->initializer(service, server);
     } else{
-      printf("*** PANIC *** service %s has no installer\n",service->identifier);
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "*** PANIC *** service %s has no installer\n", service->identifier);
     }
   }
-  printf("%s end\n", __FUNCTION__);
+<<<<<<< HEAD
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s end\n", __FUNCTION__);
+=======
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2, "%s end\n", __FUNCTION__);
+>>>>>>> f808cdc... Use zowelog instead of printf, reduce useless messages
 }
 
 static void freeWebPlugin(WebPlugin *plugin) {
@@ -242,17 +250,17 @@ static bool isValidServiceDef(JsonObject *serviceDef) {
     isImport = strcmp(type, "import") ? false : true;
     if (!isImport && !serviceName) {
       // Return a null plugin when 'name' is not set for dataservices of types: router or service or modeService or external.
-      printf("** PANIC: Missing 'name' fields for dataservices. **\n");
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "** PANIC: Missing 'name' fields for dataservices. **\n");
       return false;
     } else if (isImport && !sourceName) {
       // Return a null plugin when 'sourceName' is not set for dataservices of type: import.
-      printf("** PANIC: Missing 'sourceName' fields for dataservices of type 'import'. **\n");
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "** PANIC: Missing 'sourceName' fields for dataservices of type 'import'. **\n");
       return false;
     }else{
       // Add more validations if any.
     }
   } else {
-    printf("** PANIC: Check pluginDefinition for correct 'type' fields on dataservices.** \n");
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "** PANIC: Check pluginDefinition for correct 'type' fields on dataservices.** \n");
     return false;
   }
   return true;
@@ -260,7 +268,7 @@ static bool isValidServiceDef(JsonObject *serviceDef) {
 
 WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, InternalAPIMap *internalAPIMap,
                          unsigned int *idMultiplier, int pluginLogLevel) {
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s begin\n", __FUNCTION__);
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2, "%s begin\n", __FUNCTION__);
   WebPlugin *plugin = (WebPlugin*)safeMalloc(sizeof(WebPlugin),"WebPlugin");
   memset(plugin, 0, sizeof (WebPlugin));
   plugin->pluginLocation = pluginLocation;
@@ -297,8 +305,25 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
       }
     }
 
-    printf("For plugin=%s, found %d data service(s)\n", plugin->identifier, plugin->dataServiceCount);
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "For plugin=%s, found %d data service(s)\n", plugin->identifier, plugin->dataServiceCount);
     plugin->dataServices = (DataService**)safeMalloc(sizeof(DataService*) * plugin->dataServiceCount,"DataServices");
+=======
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "Plugin=%s, found %d data service(s)\n", plugin->identifier, plugin->dataServiceCount);
+=======
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, ZCC_LOG_PLUGIN_DATA_SERVICE_MSG, plugin->identifier, plugin->dataServiceCount);
+>>>>>>> 4d30ed5... Message IDs initial commit wip
+=======
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "Plugin=%s, found %d data service(s)\n", plugin->identifier, plugin->dataServiceCount);
+>>>>>>> 2e0e508... Addressing comments
+    if (plugin->dataServiceCount > 0) {
+      plugin->dataServices = (DataService**)safeMalloc(sizeof(DataService*) * plugin->dataServiceCount,"DataServices");
+    } else {
+      plugin->dataServices = NULL;
+    }
+>>>>>>> f808cdc... Use zowelog instead of printf, reduce useless messages
     int k = 0;
     for (int i = 0; i < jsonArrayGetCount(dataServices); i++) {
       JsonObject *serviceDef = jsonArrayGetObject(dataServices, i);
@@ -323,7 +348,7 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
       }
     }
   }
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "%s end\n", __FUNCTION__);
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2, "%s end\n", __FUNCTION__);
   return plugin;
 }
 
@@ -333,7 +358,19 @@ HttpService *makeHttpDataService(DataService *dataService, HttpServer *server) {
   HttpService *httpService = NULL;
   result = makeHttpDataServiceUrlMask(dataService, urlMask, sizeof(urlMask), server->defaultProductURLPrefix);
   if (result != -1) {
-    printf("installing service %s at URI %s\n", dataService->identifier, urlMask);
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "installing service %s at URI %s\n", dataService->identifier, urlMask);
+=======
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "Installing dataservice %s to URI %s\n", dataService->identifier, urlMask);
+>>>>>>> f808cdc... Use zowelog instead of printf, reduce useless messages
+=======
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, ZCC_LOG_DATA_SERVICE_URI_MSG, dataService->identifier, urlMask);
+>>>>>>> 4d30ed5... Message IDs initial commit wip
+=======
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "Installing dataservice %s to URI %s\n", dataService->identifier, urlMask);
+>>>>>>> 2e0e508... Addressing comments
     httpService = makeGeneratedService(dataService->identifier, urlMask);
     httpService->authType = SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN; /* The default */
     registerHttpService(server, httpService);
@@ -352,7 +389,7 @@ int makeHttpDataServiceUrlMask(DataService *dataService, char *urlMaskBuffer, in
       snprintf(urlMaskBuffer, urlMaskBufferSize, "/%s/plugins/%s/services/%s/**", productPrefix, plugin->identifier,
                dataService->name);
     } else {
-      printf("** PANIC: Data service has no name, group name, or pattern **\n");
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "** PANIC: Data service has no name, group name, or pattern **\n");
       return -1;
     }
   } else {
@@ -363,7 +400,7 @@ int makeHttpDataServiceUrlMask(DataService *dataService, char *urlMaskBuffer, in
       snprintf(urlMaskBuffer, urlMaskBufferSize, "/plugins/%s/services/%s/**", plugin->identifier,
                dataService->name);
     } else {
-      printf("** PANIC: Data service has no name, group name, or pattern **\n");
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "** PANIC: Data service has no name, group name, or pattern **\n");
       return -1;
     }
   }

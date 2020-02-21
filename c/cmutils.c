@@ -184,6 +184,20 @@ static void copyWithSourceKey(void *dest,
 
 }
 
+void cmCopyWithDestinationKey(void *dest, unsigned destKey, unsigned destALET,
+                              const void *src, size_t size) {
+
+  copyWithDestinationKey(dest, destKey, destALET, src, size);
+
+}
+
+void cmCopyWithSourceKey(void *dest, const void *src, unsigned srcKey,
+                         unsigned srcALET, size_t size) {
+
+  copyWithSourceKey(dest, src, srcKey, srcALET, size);
+
+}
+
 void cmCopyToSecondaryWithCallerKey(void *dest, const void *src, size_t size) {
   copyWithDestinationKey(dest, getCallersKey(), CROSS_MEMORY_ALET_SASN, src, size);
 }
@@ -355,7 +369,8 @@ void cmFree2(void **dataPtr, unsigned int size, int subpool, int key) {
       ",LENGTH=(%[size])"
       ",SP=(%[sp])"
       ",ADDR=(%[storageAddr])"
-      ",CALLRKY=YES"
+      ",KEY=(%[key])"
+      /* ",CALLRKY=YES" */
       ",LINKAGE=SYSTEM                                                         \n"
       :
       : [size]"NR:r0"(size), [storageAddr]"r"(localData),
@@ -865,7 +880,15 @@ static int testUnconditionalCellPoolGet(void) {
 
   CPID id = cmCellPoolBuild(psize, ssize, cellSize, sp, key, &header);
   if (id == -1) {
+<<<<<<< HEAD
+<<<<<<< HEAD
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cmCellPoolBuild failed\n");
+=======
     printf("error: cmCellPoolBuild failed\n");
+>>>>>>> e3a5b4d... Ensure there is no name collisions with cellpool.c in cmutils.c
+=======
+    printf("error: cmCellPoolBuild failed\n");
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
     return CMUTILS_TEST_STATUS_FAILURE;
   }
 
@@ -874,7 +897,15 @@ static int testUnconditionalCellPoolGet(void) {
   for (int i = 0; i < 100; i++) {
     void *cell = cmCellPoolGet(id, isConditional);
     if (cell == NULL) {
+<<<<<<< HEAD
+<<<<<<< HEAD
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cmCellPoolGet(unconditional) test failed, cell #%d\n", i);
+=======
       printf("error: cmCellPoolGet(unconditional) test failed, cell #%d\n", i);
+>>>>>>> e3a5b4d... Ensure there is no name collisions with cellpool.c in cmutils.c
+=======
+      printf("error: cmCellPoolGet(unconditional) test failed, cell #%d\n", i);
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
       status = CMUTILS_TEST_STATUS_FAILURE;
       break;
     }
@@ -896,7 +927,15 @@ static int testConditionalCellPoolGet(void) {
 
   CPID id = cmCellPoolBuild(psize, ssize, cellSize, sp, key, &header);
   if (id == -1) {
+<<<<<<< HEAD
+<<<<<<< HEAD
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cmCellPoolBuild failed\n");
+=======
     printf("error: cmCellPoolBuild failed\n");
+>>>>>>> e3a5b4d... Ensure there is no name collisions with cellpool.c in cmutils.c
+=======
+    printf("error: cmCellPoolBuild failed\n");
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
     return CMUTILS_TEST_STATUS_FAILURE;
   }
 
@@ -911,7 +950,15 @@ static int testConditionalCellPoolGet(void) {
   }
 
   if (status != CMUTILS_TEST_STATUS_OK) {
+<<<<<<< HEAD
+<<<<<<< HEAD
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cmCellPoolGet(conditional) test failed\n");
+=======
     printf("error: cmCellPoolGet(conditional) test failed\n");
+>>>>>>> e3a5b4d... Ensure there is no name collisions with cellpool.c in cmutils.c
+=======
+    printf("error: cmCellPoolGet(conditional) test failed\n");
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
   }
 
   cmCellPoolDelete(id);
@@ -932,7 +979,15 @@ static int testCellPoolFree(void) {
 
   CPID id = cmCellPoolBuild(psize, ssize, cellSize, sp, key, &header);
   if (id == -1) {
+<<<<<<< HEAD
+<<<<<<< HEAD
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cmCellPoolBuild failed\n");
+=======
     printf("error: cmCellPoolBuild failed\n");
+>>>>>>> e3a5b4d... Ensure there is no name collisions with cellpool.c in cmutils.c
+=======
+    printf("error: cmCellPoolBuild failed\n");
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
     return CMUTILS_TEST_STATUS_FAILURE;
   }
 
@@ -941,7 +996,15 @@ static int testCellPoolFree(void) {
   for (int i = 0; i < sizeof(cells) / sizeof(cells[0]); i++) {
     cells[i] = cmCellPoolGet(id, isConditional);
     if (cells[i] == NULL) {
+<<<<<<< HEAD
+<<<<<<< HEAD
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cmCellPoolFree test failed (alloc 1), cell #%d\n", i);
+=======
       printf("error: cmCellPoolFree test failed (alloc 1), cell #%d\n", i);
+>>>>>>> e3a5b4d... Ensure there is no name collisions with cellpool.c in cmutils.c
+=======
+      printf("error: cmCellPoolFree test failed (alloc 1), cell #%d\n", i);
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
       status = CMUTILS_TEST_STATUS_FAILURE;
       break;
     }
@@ -957,7 +1020,15 @@ static int testCellPoolFree(void) {
     for (int i = 0; i < sizeof(cells) / sizeof(cells[0]); i++) {
       cells[i] = cmCellPoolGet(id, isConditional);
       if (cells[i] == NULL) {
+<<<<<<< HEAD
+<<<<<<< HEAD
+        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cmCellPoolFree test failed (alloc 2), cell #%d\n", i);
+=======
         printf("error: cmCellPoolFree test failed (alloc 2), cell #%d\n", i);
+>>>>>>> e3a5b4d... Ensure there is no name collisions with cellpool.c in cmutils.c
+=======
+        printf("error: cmCellPoolFree test failed (alloc 2), cell #%d\n", i);
+>>>>>>> c7398ac... Refactored logging for {COMMON}/c/[a-c]*.c
         status = CMUTILS_TEST_STATUS_FAILURE;
         break;
       }
