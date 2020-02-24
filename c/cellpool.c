@@ -27,6 +27,7 @@
 #include "alloc.h"
 #include "cellpool.h"
 #include "zos.h"
+#include "logging.h"
 
 unsigned int cellpoolGetDWordAlignedSize(unsigned int size) {
 
