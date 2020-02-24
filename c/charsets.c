@@ -168,7 +168,7 @@ int convertCharset(char *input,
   parms.DDA_Buf_Len=CUNBCPRM_DDA_REQ;
 
   if (TRACE_CHARSET_CONVERSION){
-    zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "Before CUNLCNV parms\n");
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "Before CUNLCNV parms\n");
 #ifdef _LP64
     dumpbuffer((char*)&parms,sizeof(CUN4BCPR));
 #else

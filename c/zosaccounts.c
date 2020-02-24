@@ -85,18 +85,18 @@ int gidGetUserInfo(const char *userName,  UserInfo * info,
     if(returnValue == 0) {
 #ifdef METTLE
       /* Do not add a comma */
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "BPXGPN (%s) FAILED: returnValue: %d, returnCode:"
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, "BPXGPN (%s) FAILED: returnValue: %d, returnCode:"
              " %d, reasonCode: 0x%08x\n",
              userName, returnValue, *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "BPXGPN (%s) FAILED: returnValue: %d, returnCode: %d,"
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, "BPXGPN (%s) FAILED: returnValue: %d, returnCode: %d,"
              " reasonCode: 0x%08x, strError: (%s)\n",
              userName, returnValue, *returnCode, *reasonCode, 
              strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXGPN (%s) OK: returnVal: %d\n", userName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "BPXGPN (%s) OK: returnVal: %d\n", userName, returnValue);
     }
   }
 
@@ -133,18 +133,18 @@ int gidGetGroupInfo(const char *groupName,  GroupInfo *info,
   if (accountTrace) {
     if(returnValue == 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "BPXGGN (%s) FAILED: returnValue: %d, returnCode: %d,"
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, "BPXGGN (%s) FAILED: returnValue: %d, returnCode: %d,"
              " reasonCode: 0x%08x\n",
              groupName, returnValue, *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "BPXGGN (%s) FAILED: returnValue: %d, returnCode: %d,"
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, "BPXGGN (%s) FAILED: returnValue: %d, returnCode: %d,"
              " reasonCode: 0x%08x, strError: (%s)\n",
              groupName, returnValue, *returnCode, *reasonCode, 
              strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXGGN (%s) OK: returnVal: %d\n", groupName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "BPXGGN (%s) OK: returnVal: %d\n", groupName, returnValue);
     }
   }
 
