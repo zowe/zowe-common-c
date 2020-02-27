@@ -100,11 +100,14 @@ ZOWE_PRAGMA_PACK_RESET
 struct LoggingContext_tag;
 
 typedef void (*LogHandler)(struct LoggingContext_tag *context,
-                           LoggingComponent *component, 
+                           LoggingComponent *component,
+						   char* path, int line,
+                           int level,
+                           uint64 compID,
                            void *data, 
                            char *formatString,
                            va_list argList);
-typedef char *(*DataDumper)(char *workBuffer, int workBufferSize, void *data, int dataSize, int lineNumber);
+typedef char *(*DataDumper)(char *workBuffer, int workBufferSize, void *data, int dataSize, int lineNumber, char* path, int line);
 
 ZOWE_PRAGMA_PACK
 
@@ -297,15 +300,25 @@ bool logShouldTraceInternal(LoggingContext *context, uint64 componentID, int lev
 
 /* this log message will be sent to the destination associated to the component 
  */
+void _zowelog(LoggingContext *context, uint64 compID, char* path, int line, int level, char *formatString, ...);
+//void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...);
+//void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize);
+void _zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize, char* path, int line);
 
-void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...);
-void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize);
-
+char *standardDumperFunction(char *workBuffer, int workBufferSize,
+                                    void *data, int dataSize, int lineNumber, char* path, int line);
 #define LOGCHECK(context,component,level) \
   ((component > MAX_LOGGING_COMPONENTS) ? \
    (context->applicationComponents[component].level >= level) : \
    (context->coreComponents[component].level >= level) )
 
+
+#define zowelog(context, compID, level, formatString, ...) \
+        _zowelog(context, compID, __FILE__, __LINE__, level, formatString, ##__VA_ARGS__);
+
+#define zowedump(context, compID, level, data, dataSize) \
+        _zowedump(context, compID, level, data, dataSize, __FILE__, __LINE__);
+		
 LoggingDestination *logConfigureDestination(LoggingContext *context,
                                             unsigned int id,
                                             char *name,
@@ -332,8 +345,8 @@ int logGetLevel(LoggingContext *context, uint64 compID);
 extern int logSetExternalContext(LoggingContext *context);
 extern LoggingContext *logGetExternalContext();
 
-void printStdout(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList);
-void printStderr(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList);
+void printStdout(LoggingContext *context, LoggingComponent *component, char* path, int line, int level, uint64 compID, void *data, char *formatString, va_list argList);
+void printStderr(LoggingContext *context, LoggingComponent *component, char* path, int line, int level, uint64 compID, void *data, char *formatString, va_list argList);
 
 #endif
 
