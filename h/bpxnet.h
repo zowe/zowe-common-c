@@ -34,9 +34,11 @@ ZOWE_PRAGMA_PACK
 #define IPPROTO_TCP 6
 #define IPPROTO_UDP 17
 
+//https://www.ibm.com/support/knowledgecenter/SSLTBW_2.1.0/com.ibm.zos.v2r1.bpxa800/errno.htm
 #define EWOULDBLOCK  1102
 #define EINPROGRESS  1103
 #define EAFNOSUPPORT 1114
+#define EADDRINUSE   1115
 #define COMMON_PATH_MAX 1024
 
 struct ipV4Data{
