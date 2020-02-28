@@ -318,8 +318,6 @@ bool logShouldTraceInternal(LoggingContext *context, uint64 componentID, int lev
 /* this log message will be sent to the destination associated to the component 
  */
 void _zowelog(LoggingContext *context, uint64 compID, char* path, int line, int level, char *formatString, ...);
-//void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...);
-//void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize);
 void _zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize, char* path, int line);
 
 char *standardDumperFunction(char *workBuffer, int workBufferSize,
