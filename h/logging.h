@@ -124,7 +124,7 @@ typedef void (*LogHandler)(struct LoggingContext_tag *context,
                            void *data, 
                            char *formatString,
                            va_list argList);
-typedef char *(*DataDumper)(char *workBuffer, int workBufferSize, void *data, int dataSize, int lineNumber, char* path, int line);
+typedef char *(*DataDumper)(char *workBuffer, int workBufferSize, void *data, int dataSize, int lineNumber);
 
 ZOWE_PRAGMA_PACK
 
@@ -323,7 +323,7 @@ void _zowelog(LoggingContext *context, uint64 compID, char* path, int line, int 
 void _zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize, char* path, int line);
 
 char *standardDumperFunction(char *workBuffer, int workBufferSize,
-                                    void *data, int dataSize, int lineNumber, char* path, int line);
+                                    void *data, int dataSize, int lineNumber);
 #define LOGCHECK(context,component,level) \
   ((component > MAX_LOGGING_COMPONENTS) ? \
    (context->applicationComponents[component].level >= level) : \

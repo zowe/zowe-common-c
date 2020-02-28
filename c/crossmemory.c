@@ -282,7 +282,7 @@ void wtoPrintf2(int consoleID, CART cart, char *formatString, ...) {
 }
 
 static void printWithPrefix(LoggingContext *context, LoggingComponent *component, char* path, int line, int level, uint64 compID, void *data, char *formatString, va_list argList);
-static char *dumpWithEmptyMessageID(char *workBuffer, int workBufferSize, void *data, int dataSize, int lineNumber, char* path, int line);
+static char *dumpWithEmptyMessageID(char *workBuffer, int workBufferSize, void *data, int dataSize, int lineNumber);
 
 void cmsInitializeLogging() {
 
@@ -535,7 +535,7 @@ static void printWithPrefix(LoggingContext *context, LoggingComponent *component
 #define MESSAGE_ID_SHIFT  10
 
 /* this is a copy of the dumper function from logging.c, it's been modified to occupy less space and print an empty message ID */
-static char *dumpWithEmptyMessageID(char *workBuffer, int workBufferSize, void *data, int dataSize, int lineNumber, char* path, int line) {
+static char *dumpWithEmptyMessageID(char *workBuffer, int workBufferSize, void *data, int dataSize, int lineNumber) {
 
   int formatWidth = 16;
   int index = lineNumber * formatWidth;

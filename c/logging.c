@@ -317,7 +317,7 @@ static void lastResortLog(char *s){
 
 /* default dumper, based on dumpBufferToStream from utils.c */
 char *standardDumperFunction(char *workBuffer, int workBufferSize,
-                                    void *data, int dataSize, int lineNumber, char* path, int line){
+                                    void *data, int dataSize, int lineNumber){
 
   int formatWidth = 32;
   int index = lineNumber * formatWidth;
@@ -754,7 +754,7 @@ void _zowedump(LoggingContext *context, uint64 compID, int level, void *data, in
 
     char workBuffer[4096];
     for (int i = 0; ; i++){
-      char *result = destination->dumper(workBuffer, sizeof(workBuffer), data, dataSize, i, path, line);
+      char *result = destination->dumper(workBuffer, sizeof(workBuffer), data, dataSize, i);
       if (result != NULL){
         printToDestination(destination, context, component, path, line, level, compID, destination->data, "%s\n", result);
       }
