@@ -93,6 +93,23 @@ ZOWE_PRAGMA_PACK_RESET
 #define LOG_COMP_RESTDATASET   0x008F0001000E0000LLU
 #define LOG_COMP_RESTFILE      0x008F0001000F0000LLU
 
+
+#define LOG_COMP_TEXT_ALLOC         "alloc"
+#define LOG_COMP_TEXT_UTILS         "utils"
+#define LOG_COMP_TEXT_COLLECTIONS   "collections"
+#define LOG_COMP_TEXT_SERIALIZATION "serialization"
+#define LOG_COMP_TEXT_ZLPARSER      "zlparser"
+#define LOG_COMP_TEXT_ZLCOMPILER    "zlcompiler"
+#define LOG_COMP_TEXT_ZLRUNTIME     "zlruntime"
+#define LOG_COMP_TEXT_STCBASE       "stcbase"
+#define LOG_COMP_TEXT_HTTPSERVER    "httpserver"
+#define LOG_COMP_TEXT_DISCOVERY     "discovery"
+#define LOG_COMP_TEXT_DATASERVICE   "dataservice"
+#define LOG_COMP_TEXT_CMS           "cms"
+#define LOG_COMP_TEXT_LPA           "lpa"
+#define LOG_COMP_TEXT_RESTDATASET   "restdataset"
+#define LOG_COMP_TEXT_RESTFILE      "restfile"
+
 #define LOG_DEST_DEV_NULL      0x008F0000
 #define LOG_DEST_PRINTF_STDOUT 0x008F0001
 #define LOG_DEST_PRINTF_STDERR 0x008F0002
