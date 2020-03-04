@@ -150,7 +150,7 @@ int indexOfString(const char *sourceString, size_t sourceLength, const char *sea
   const char * currPos = sourceString + startPos;
   const char * endPos = sourceString + sourceLength - searchLength;
   char firstChar = searchString[0];
-  while (currPos < endPos) {
+  while (currPos <= endPos) {
     size_t bytesRemaining = endPos - currPos + 1;
     currPos = memchr(currPos, firstChar, bytesRemaining);
     if (currPos == NULL) break;
