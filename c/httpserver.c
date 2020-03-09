@@ -318,7 +318,7 @@ int readByte(BufferedInputStream *s){
     if (bytesRead > 0)
     {
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "read more bytes = %d, showing upto 32\n",bytesRead);
+      printf("read more bytes = %d, showing upto 32\n",bytesRead);
       if (bytesRead > 32){
 	dumpbuffer(s->buffer,32);
       } else{
@@ -332,7 +332,7 @@ int readByte(BufferedInputStream *s){
     else if (bytesRead == -1)
     {
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "socket read -1, errno = %d\n",returnCode);
+      printf("socket read -1, errno = %d\n",returnCode);
 #endif
       /* should check for errno==EINTR */
       s->eof = 1;
@@ -341,7 +341,7 @@ int readByte(BufferedInputStream *s){
     else
     {
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "socket read 0, if blocking then EOF\n");
+      printf("socket read 0, if blocking then EOF\n");
 #endif
       s->eof = 1;
       return -1;
@@ -384,7 +384,7 @@ static void chunkWrite(ChunkedOutputStream *s, char *data, int len){
     workElement->bufferLength = len;
     workElement->reclaimAfterWrite = FALSE;
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "*** ENQUEUE ***\n");
+    printf("*** ENQUEUE ***\n");
 #endif
     stcEnqueueWork(stcBase,prefix);
   } else{
@@ -490,7 +490,7 @@ static void finishChunkedOutput(ChunkedOutputStream *s, int translate){
 
 void finishResponse(HttpResponse *response){
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "finishResponse where response=0x%x\n",response);
+  printf("finishResponse where response=0x%x\n",response);
 #endif
   if (response->stream){
     finishChunkedOutput(response->stream,
@@ -577,7 +577,9 @@ static WSFrame *makeFrame(int opcodeAndFlags, ShortLivedHeap *slh,
   frame->opcodeAndFlags = opcodeAndFlags;
   frame->data = data;
   frame->dataLength = dataLength;
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "WSFrame data in makeFrame length=0x%x\n",dataLength);
+#ifdef DEBUG
+  printf("WSFrame data in makeFrame length=0x%x\n",dataLength);
+#endif
   dumpbuffer(data,dataLength);
   dumpbufferA(data,dataLength);
   return frame;
@@ -691,7 +693,7 @@ static int readMachineAdvance(WSReadMachine *m, char *data, WSSession *wsSession
       break;
     }
     if (TRUE || m->trace){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "advanceLoop offset=%02d available=%02d headerFill=%02d headerNeed=%02d\n",
+      printf("advanceLoop offset=%02d available=%02d headerFill=%02d headerNeed=%02d\n",
              offset,available,m->headerFill,m->headerNeed);
       dumpbuffer(data+offset,available);
       dumpbufferA(data+offset,available);
@@ -708,7 +710,7 @@ static int readMachineAdvance(WSReadMachine *m, char *data, WSSession *wsSession
       m->flagAndOpcodeByte = m->headerBuffer[0]&0xff;
       shouldClose = m->flagAndOpcodeByte & 0x08;
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "readMachineAdvance: local shouldClose=%d,wsSession 0x%X, flagAndOpcodeByte 0x%X\n",shouldClose, wsSession,m->flagAndOpcodeByte);
+      printf("readMachineAdvance: local shouldClose=%d,wsSession 0x%X, flagAndOpcodeByte 0x%X\n",shouldClose, wsSession,m->flagAndOpcodeByte);
 #endif      
       m->fin = (m->flagAndOpcodeByte&0x80)!=0;
       int maskAndPayloadLengthByte = m->headerBuffer[1]&0xff;
@@ -725,7 +727,7 @@ static int readMachineAdvance(WSReadMachine *m, char *data, WSSession *wsSession
       }
       m->headerNeed += m->payloadLengthLength;
       if (m->trace){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "computed header need %d\n",m->headerNeed);
+        printf("computed header need %d\n",m->headerNeed);
       }
       if (m->headerNeed == 2){
         m->headerRead = TRUE;
@@ -739,7 +741,7 @@ static int readMachineAdvance(WSReadMachine *m, char *data, WSSession *wsSession
         available--;
       }
       if (m->trace){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "headerFill=%d headerNeed=%d\n",m->headerFill,m->headerNeed);
+        printf("headerFill=%d headerNeed=%d\n",m->headerFill,m->headerNeed);
       }
       if (m->headerFill < m->headerNeed){
         return FALSE;
@@ -750,7 +752,7 @@ static int readMachineAdvance(WSReadMachine *m, char *data, WSSession *wsSession
         break;
       case 2:
         m->payloadLength = (int64)(*((unsigned short*)(&m->headerBuffer[2])));
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "m->payloadLength (firstGo) is %lld\n",m->payloadLength);
+        printf("m->payloadLength (firstGo) is %lld\n",m->payloadLength);
         break;
       case 8:
         m->payloadLength = *((int64*)(&m->headerBuffer[2]));
@@ -760,7 +762,7 @@ static int readMachineAdvance(WSReadMachine *m, char *data, WSSession *wsSession
         memcpy(m->maskBytes,m->headerBuffer+(2+m->payloadLengthLength),4);
       }
       if (m->trace){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "established payload length %lld\n",m->payloadLength);
+        printf("established payload length %lld\n",m->payloadLength);
       }
       m->headerRead = TRUE;
     }
@@ -769,7 +771,7 @@ static int readMachineAdvance(WSReadMachine *m, char *data, WSSession *wsSession
                          (int)(m->payloadLength - m->payloadFill) :
                          available);
       if (m->trace){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "data offset=%d, writeLength=%d\n",offset,writeLength);
+        printf("data offset=%d, writeLength=%d\n",offset,writeLength);
       }
       if (m->isMasked){
         dumpbuffer(data,writeLength);
@@ -788,16 +790,18 @@ static int readMachineAdvance(WSReadMachine *m, char *data, WSSession *wsSession
       } else{
         writeToBigBuffer(m->payloadStream,data+offset,writeLength);
       }
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "writeLength=%d payloadFill=%lld\n",writeLength,m->payloadFill);
+      if (m->trace){
+        printf("writeLength=%d payloadFill=%lld\n",writeLength,m->payloadFill);
+      }
       offset += writeLength;
       available -= writeLength;
       m->payloadFill = m->payloadFill + ((int64)writeLength);
       if (m->trace){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "payloadFill=%lld payloadLength=%lld\n",m->payloadFill,m->payloadLength);
+        printf("payloadFill=%lld payloadLength=%lld\n",m->payloadFill,m->payloadLength);
       }
       if (m->payloadFill == m->payloadLength){
         if (m->trace){
-	      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "should enqueue offset=%d avail=%d\n",offset,available);
+          printf("should enqueue offset=%d avail=%d\n",offset,available);
         }
         if (m->currentMessage == NULL){
           m->currentMessage = makeMessage(OPCODE_UNKNOWN,NULL);
@@ -830,7 +834,7 @@ static int readMachineAdvance(WSReadMachine *m, char *data, WSSession *wsSession
       }
     }
     if (m->trace){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "bottom of loop offset=%d avail=%d\n",offset,available); 
+      printf("bottom of loop offset=%d avail=%d\n",offset,available); 
     }
   }
   return anyMessagesReady;
@@ -838,18 +842,18 @@ static int readMachineAdvance(WSReadMachine *m, char *data, WSSession *wsSession
 
 WSMessageHandler *makeWSMessageHandler(void (*h)(WSSession *session,
                                                  WSMessage *message)){
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "makeWSMessageHandler 1\n");
+  printf("makeWSMessageHandler 1\n");
   fflush(stdout);
   WSMessageHandler *handler = (WSMessageHandler*)safeMalloc31(sizeof(WSMessageHandler),"WSMessageHandler");
 
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "makeWSMessageHandler 2\n");
+  printf("makeWSMessageHandler 2\n");
   fflush(stdout);
 
 
   memset(handler,0,sizeof(WSMessageHandler));
   handler->onMessage = h;
   
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "about to return new messageHandler 0x%x\n",handler);
+  printf("about to return new messageHandler 0x%x\n",handler);
   fflush(stdout);
   return handler;
 }
@@ -1078,19 +1082,19 @@ void writeRequest(HttpRequest *request, Socket *socket){
   
   len = sprintf(line,"%s %s HTTP/1.1",request->method,request->uri);
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "header: %s\n",line);
+  printf("header: %s\n",line);
 #endif
   asciify(line,len);
   writeFully(socket,line,len);
   writeFully(socket,crlf,2);
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "write header chain 0x%x\n",headerChain);
+  printf("write header chain 0x%x\n",headerChain);
 #endif
 
   while (headerChain){
 
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "headerChain %s %s or %d\n",headerChain->nativeName, 
+    printf("headerChain %s %s or %d\n",headerChain->nativeName, 
            (headerChain->nativeValue ? 
             headerChain->nativeValue :
             "<n/a>"), 
@@ -1202,11 +1206,11 @@ char *getStringToken(HttpRequest *request, int stopChar, int *eofp){
   int c;
 
   if (traceParse){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "getStringToken\n");
+    printf("getStringToken\n");
   }
   while ((c = readByte(request->input)) != 13){
     if (traceParse){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "  loop %d pos=%d\n",c,pos);
+      printf("  loop %d pos=%d\n",c,pos);
     }
     if (c == 0){
       return NULL;
@@ -1245,11 +1249,11 @@ HttpHeader *getHeaderLine(HttpRequest *request){
   int firstNonWhitespace = -1;
 
   if (traceParse){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "getHeaderLine\n");
+    printf("getHeaderLine\n");
   }
   while ((c = readByte(request->input)) != 13){
     if (traceParse){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, " %02x",c);
+      printf(" %02x",c);
     }
     if (c == 0){
 
@@ -1274,13 +1278,13 @@ HttpHeader *getHeaderLine(HttpRequest *request){
   }
   
   if (traceParse){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "\n colonPos=%d firstNonWhite=%d\n",colonPos,firstNonWhitespace);
+    printf("\n colonPos=%d firstNonWhite=%d\n",colonPos,firstNonWhitespace);
   }
   if (readByte(request->input) != 10){ /* proper CR/LF */
 #ifdef DEBUG
     memcpy(aBuffer,buffer,MAX_HEADER_LINE);
     a2e(aBuffer,MAX_HEADER_LINE);
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "bad cr/lf %s\n",aBuffer);
+    printf("bad cr/lf %s\n",aBuffer);
 #endif
     return NULL;
   } else if (colonPos == -1){
@@ -1291,7 +1295,7 @@ HttpHeader *getHeaderLine(HttpRequest *request){
 #ifdef DEBUG
       memcpy(aBuffer,buffer,MAX_HEADER_LINE);
       a2e(aBuffer,MAX_HEADER_LINE);
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "no colon seen in header line %s\n",aBuffer);
+      printf("no colon seen in header line %s\n",aBuffer);
 #endif
       return NULL;
     }
@@ -1487,9 +1491,9 @@ HttpServer *makeHttpServer2(STCBase *base,
 
 #ifdef DEBUG
 #ifdef __ZOWE_OS_WINDOWS
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "ListenerSocket on SocketHandle=0x%x\n",listenerSocket->windowsSocket);
+  printf("ListenerSocket on SocketHandle=0x%x\n",listenerSocket->windowsSocket);
 #else
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "ListenerSocket on SD=%d\n",listenerSocket->sd);
+  printf("ListenerSocket on SD=%d\n",listenerSocket->sd);
 #endif
 #endif
 
@@ -1530,9 +1534,9 @@ HttpServer *makeSecureHttpServer(STCBase *base, int port,
 
 #ifdef DEBUG
 #ifdef __ZOWE_OS_WINDOWS
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "ListenerSocket on SocketHandle=0x%x\n",listenerSocket->windowsSocket);
+  printf("ListenerSocket on SocketHandle=0x%x\n",listenerSocket->windowsSocket);
 #else
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "ListenerSocket on SD=%d\n",listenerSocket->sd);
+  printf("ListenerSocket on SD=%d\n",listenerSocket->sd);
 #endif
 #endif
 
@@ -1609,13 +1613,13 @@ static char *getNative(char *s){
  * but now infuses the HttpResponse with its own SLH */
 HttpResponse *makeHttpResponse(HttpRequest *request, ShortLivedHeap *slh, Socket *socket){
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "makeHttpResponse called with req=0x%x, slh=0x%x, socket=0x%x\n",
+  printf("makeHttpResponse called with req=0x%x, slh=0x%x, socket=0x%x\n",
          request, slh, socket);
 #endif
   ShortLivedHeap *responseSLH = makeShortLivedHeap(65536,100);
   HttpResponse *response = (HttpResponse*)SLHAlloc(responseSLH,sizeof(HttpResponse));
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "makeHttpResponse after SLHAlloc, resp=0x%x\n", response);
+  printf("makeHttpResponse after SLHAlloc, resp=0x%x\n", response);
 #endif
   if (NULL != request) {
     response->request = request;
@@ -1665,7 +1669,7 @@ static void writeXmlByteCallback(xmlPrinter *p, char c){
 xmlPrinter *respondWithXmlPrinter(HttpResponse *response){
   if (response->responseTypeChosen){
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "*** WARNING *** response type already chosen\n");
+    printf("*** WARNING *** response type already chosen\n");
 #endif
     return NULL;
   }
@@ -1681,7 +1685,7 @@ xmlPrinter *respondWithXmlPrinter(HttpResponse *response){
 jsonPrinter *respondWithJsonPrinter(HttpResponse *response){
   if (response->responseTypeChosen){
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "*** WARNING *** response type already chosen\n");
+    printf("*** WARNING *** response type already chosen\n");
 #endif
     return NULL;
   }
@@ -1701,7 +1705,7 @@ jsonPrinter *respondWithJsonPrinter(HttpResponse *response){
 ChunkedOutputStream *respondWithChunkedOutputStream(HttpResponse *response){
   if (response->responseTypeChosen){
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "*** WARNING *** response type already chosen\n");
+    printf("*** WARNING *** response type already chosen\n");
 #endif
     return NULL;
   }
@@ -1715,11 +1719,11 @@ static HttpService *findHttpService(HttpServer *server, HttpRequest *request){
   StringList *parts = request->parsedFile;
   int partsCount = (parts? parts->count : 0);
   if (traceDispatch){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "find service: serviceListHead=0x%x parsedFile=0x%x\n",service,request->parsedFile);
+    printf("find service: serviceListHead=0x%x parsedFile=0x%x\n",service,request->parsedFile);
   }
   while (service){
     if (traceDispatch){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "  find service '%s' while loop top service->parsedMaskPartCount=%d parts->count=%d, next=0x%x\n",
+      printf("  find service '%s' while loop top service->parsedMaskPartCount=%d parts->count=%d, next=0x%x\n",
 	     service->name,service->parsedMaskPartCount,partsCount,service->next);
       fflush(stdout);
     }
@@ -1734,16 +1738,16 @@ static HttpService *findHttpService(HttpServer *server, HttpRequest *request){
       StringListElt *partsList = firstStringListElt(parts);
 
       if (traceDispatch){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "find count = %d %s\n",partsCount,(partsList ? partsList->string : "<N/A>") );fflush(stdout);
+	printf("find count = %d %s\n",partsCount,(partsList ? partsList->string : "<N/A>") );fflush(stdout);
       }
       for (i=0; i < service->parsedMaskPartCount; i++){
 	char *desiredPart = service->parsedMaskParts[i];
         if (traceDispatch){
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "top of match loop desiredPart=%s\n",desiredPart); 
+          printf("top of match loop desiredPart=%s\n",desiredPart); 
         }
 	char *part = partsList->string;
 	if (traceDispatch){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "    find: for loop top '%s' '%s' \n",desiredPart,part); fflush(stdout);
+	  printf("    find: for loop top '%s' '%s' \n",desiredPart,part); fflush(stdout);
 	}
 	if (!strcmp(desiredPart,"*") ||
 	    !strcmp(desiredPart,part)){
@@ -1755,7 +1759,7 @@ static HttpService *findHttpService(HttpServer *server, HttpRequest *request){
 	}
       }
       if (traceDispatch){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "out of loop match=%d matchedAnyParts=%d\n",match,matchedAnyParts);
+        printf("out of loop match=%d matchedAnyParts=%d\n",match,matchedAnyParts);
       }
       if (match){
 	if (partsList){
@@ -1763,7 +1767,7 @@ static HttpService *findHttpService(HttpServer *server, HttpRequest *request){
 	    return service;
 	  } else{
 	    if (traceDispatch) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "did not match whole service spec expecting part='%s'\n",partsList->string);
+	      printf("did not match whole service spec expecting part='%s'\n",partsList->string);
 	    }
 	    return NULL;
 	  } 
@@ -2024,7 +2028,7 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
     }
 #ifdef DEBUG
     if (parser->state >= HTTP_STATE_END_CR_SEEN){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "loop top i=%d c=0x%x wsp=%d cr/lf=%d state=%s\n",i,c,isWhitespace,(isCR||isLF),stateNames[parser->state]);
+      printf("loop top i=%d c=0x%x wsp=%d cr/lf=%d state=%s\n",i,c,isWhitespace,(isCR||isLF),stateNames[parser->state]);
       fflush(stdout);
     }
 #endif
@@ -2036,7 +2040,7 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
           return 0;
         }
 #ifdef DEBUG
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "METHOD_NAME state to GAP1\n");
+        printf("METHOD_NAME state to GAP1\n");
 #endif
         if (!parserMethodIsValid(parser)) { /* reject METHODs not defined in HTTP 1.1 */
           parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
@@ -2068,13 +2072,13 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
     case HTTP_STATE_REQUEST_URI:
       if (isCR || isLF){ 
 #ifdef DEBUG
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "ReqURI CR/LF\n");
+        printf("ReqURI CR/LF\n");
 #endif
         parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
         return 0;
       } else if (isWhitespace){
 #ifdef DEBUG
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "ReqURI white\n");
+        printf("ReqURI white\n");
 #endif
         parser->state = HTTP_STATE_REQUEST_GAP2;
       } else{
@@ -2116,7 +2120,7 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
     case HTTP_STATE_HEADER_FIELD_NAME:
       if (isCR){
 #ifdef DEBUG
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "field name CR seen: NameLen=%d\n",parser->headerNameLength);
+        printf("field name CR seen: NameLen=%d\n",parser->headerNameLength);
 #endif
         if (parser->headerNameLength == 0){
           parser->state = HTTP_STATE_END_CR_SEEN;
@@ -2194,12 +2198,12 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
           parser->content = NULL;
         } else if (parser->specifiedContentLength <= 0){ 
 #ifdef DEBUG
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "____ NO BODY TO READ ______\n");
+          printf("____ NO BODY TO READ ______\n");
 #endif
           resetParserAndEnqueue(parser);
         } else{
 #ifdef DEBUG
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "_____ END OF MESSAGE HEADER _________\n");
+          printf("_____ END OF MESSAGE HEADER _________\n");
 #endif
           parser->state = HTTP_STATE_READING_FIXED_BODY;
           parser->content = SLHAlloc(parser->slh,parser->specifiedContentLength);
@@ -2215,7 +2219,7 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
       --(parser->remainingContentLength);
       if (parser->remainingContentLength <= 0){
 #ifdef DEBUG
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "_____ END OF FIXED BODY _________\n");
+        printf("_____ END OF FIXED BODY _________\n");
 #endif
         resetParserAndEnqueue(parser);
       }
@@ -2234,7 +2238,7 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
 
         if (parser->chunkSize > (MAX_HTTP_CHUNK - value) / 16) {
 #ifdef DEBUG
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "MAX CHUNK SIZE EXCEEDED\n");
+          printf("MAX CHUNK SIZE EXCEEDED\n");
 #endif
           parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
           return 0;
@@ -2257,7 +2261,7 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
       } else {
         /* throw out extension */
 #ifdef DEBUG
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "Warning: ignoring chunk extension\n");
+        printf("Warning: ignoring chunk extension\n");
 #endif
       }
       break;
@@ -2314,7 +2318,9 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
         parser->state = HTTP_STATE_CHUNK_TRAILER_CR_SEEN;
       } else {
         /* TODO */
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "PANIC: unsupported chunk trailers\n");
+#ifdef DEBUG
+        printf("PANIC: unsupported chunk trailers\n");
+#endif
         parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
         return 0;
       }
@@ -2338,7 +2344,7 @@ static int proxyServe(HttpService *service,
                       HttpResponse *response){
   HttpConversation *conversation = response->conversation;
   conversation->conversationType = CONVERSATION_HTTP_PROXY;
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "proxyServe started, conversation=0x%x\n",conversation);
+  printf("proxyServe started, conversation=0x%x\n",conversation);
   HttpRequest *innerRequest = (HttpRequest*)SLHAlloc(response->slh,sizeof(HttpRequest));
   memset(innerRequest,0,sizeof(HttpRequest));
   int transformationStatus = service->requestTransformer(conversation,request,innerRequest);
@@ -2418,26 +2424,26 @@ static int safAuthenticate(HttpService *service, HttpRequest *request){
      }
   }
   if (traceAuth){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "safAuthenticate\n");
+    printf("safAuthenticate\n");
   }
   if (authDataFound) {
     ACEE *acee = NULL;
     strupcase(request->username); /* upfold username */
 #ifdef ENABLE_DANGEROUS_AUTH_TRACING
  #ifdef METTLE
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "SAF auth for user: '%s'\n", request->username);
+    printf("SAF auth for user: '%s'\n", request->username);
  #else
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "u: '%s' p: '%s'\n",request->username,request->password);
+    printf("u: '%s' p: '%s'\n",request->username,request->password);
  #endif
 #endif
     if (isLowerCasePasswordAllowed() || isPassPhrase(request->password)) {
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "mixed-case system or a pass phrase, not upfolding password\n");
+      printf("mixed-case system or a pass phrase, not upfolding password\n");
 #endif
       /* don't upfold password */
     } else {
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "non-mixed-case system, not a pass phrase, upfolding password\n");
+      printf("non-mixed-case system, not a pass phrase, upfolding password\n");
 #endif
       strupcase(request->password); /* upfold password */
     }
@@ -2464,7 +2470,7 @@ static int safAuthenticate(HttpService *service, HttpRequest *request){
 #endif /* APF_AUTHORIZED */
 
 #ifdef DEBUG_AUTH
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "saf status = 0x%x racfStatus=0x%x racfReason=0x%x\n",safStatus,racfStatus,racfReason);
+    printf("saf status = 0x%x racfStatus=0x%x racfReason=0x%x\n",safStatus,racfStatus,racfReason);
     fflush(stdout);
 #endif
     return (safStatus == 0); /* SAF status is mainframe status 0 good, others warning or error */
@@ -2473,7 +2479,9 @@ static int safAuthenticate(HttpService *service, HttpRequest *request){
 }
 #else
 static int safAuthenticate(HttpService *service, HttpRequest *request){
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "*** ERROR **** calling safAuth off-mainframe\n");
+#ifdef DEBUG_AUTH
+  printf("*** ERROR **** calling safAuth off-mainframe\n");
+#endif
   return FALSE;
 }
 #endif
@@ -2482,7 +2490,9 @@ static int nativeAuth(HttpService *service, HttpRequest *request){
 #ifdef __ZOWE_OS_ZOS
   return safAuthenticate(service, request);
 #else
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "*** ERROR *** native auth not implemented for this platform\n");
+#ifdef DEBUG_AUTH
+  printf("*** ERROR *** native auth not implemented for this platform\n");
+#endif
   return TRUE;
 #endif
 }
@@ -2501,11 +2511,15 @@ static int startImpersonating(HttpService *service, HttpRequest *request) {
 #endif /* not APF-authorized or willing to use BPX impersonation */
 
 #else
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "*** ERROR *** impersonation not implemented for this platform\n");
+#ifdef DEBUG_AUTH
+      printf("*** ERROR *** impersonation not implemented for this platform\n");
+#endif
       impersonating = FALSE;
 #endif /*__ZOWE_OS_ZOS */
     } else {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "*** ERROR *** impersonation couldn't be done because service %s didn't run in subtask \n", service->name);
+#ifdef DEBUG_AUTH
+      printf("*** ERROR *** impersonation couldn't be done because service %s didn't run in subtask \n", service->name);
+#endif
       impersonating = FALSE;
     }
   } else {
@@ -2525,7 +2539,9 @@ static int endImpersonating(HttpService *service, HttpRequest *request) {
 #endif /* not APF-authorized or willing to use BPX impersonation */
 
 #else
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "*** ERROR *** impersonation not implemented for this platform\n");
+#ifdef DEBUG_AUTH
+  printf("*** ERROR *** impersonation not implemented for this platform\n");
+#endif
   return TRUE;
 #endif /*__ZOWE_OS_ZOS */
 }
@@ -3101,16 +3117,22 @@ static int handleHttpService(HttpServer *server,
                                 NULL, extractABENDInfo, &abendInfo, NULL, NULL);
   if (recoveryRC != RC_RCV_OK) {
     if (recoveryRC == RC_RCV_CONTEXT_NOT_FOUND) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "httpserver: error running service %s, recovery context not found\n",
+#ifdef DEBUG
+      printf("httpserver: error running service %s, recovery context not found\n",
           service->name);
+#endif
     }
     else if (recoveryRC == RC_RCV_ABENDED) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "httpserver: ABEND %03X-%02X averted when handling %s\n",
+#ifdef DEBUG
+      printf("httpserver: ABEND %03X-%02X averted when handling %s\n",
           abendInfo.completionCode, abendInfo.reasonCode, service->name);
+#endif
     }
     else {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "httpserver: error running service %s unknown recovery code %d\n",
+#ifdef DEBUG
+      printf("httpserver: error running service %s unknown recovery code %d\n",
           service->name, recoveryRC);
+#endif
     }
 
     if (service->cleanupFunction != NULL) {
@@ -3145,7 +3167,7 @@ static int handleHttpService(HttpServer *server,
   }
 #endif
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "service=%s authType = %d\n",service->name,service->authType);
+  printf("service=%s authType = %d\n",service->name,service->authType);
 #endif
 
   service->server = server;
@@ -3162,13 +3184,13 @@ static int handleHttpService(HttpServer *server,
        or added to the generic SAF support in server.
        */
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "saf auth needed for service %s\n",service->name);
+    printf("saf auth needed for service %s\n",service->name);
 #endif
     request->authenticated = safAuthenticate(service, request);
     break;
   case SERVICE_AUTH_CUSTOM:
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "CUSTOM auth not yet supported\n");
+    printf("CUSTOM auth not yet supported\n");
 #endif
     request->authenticated = FALSE;
     break;
@@ -3190,7 +3212,7 @@ static int handleHttpService(HttpServer *server,
     break;
   }
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "service=%s authenticated=%d\n",service->name,request->authenticated);
+  printf("service=%s authenticated=%d\n",service->name,request->authenticated);
 #endif
   if (request->authenticated == FALSE){
     /* could make this parameterizable */
@@ -3214,7 +3236,7 @@ static int handleHttpService(HttpServer *server,
 
   }
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "service=%s auth succeeded\n",service->name);
+  printf("service=%s auth succeeded\n",service->name);
 #endif
 
 #ifdef __ZOWE_OS_ZOS
@@ -3264,16 +3286,22 @@ static int serviceLoop(Socket *socket){
   char *readBuffer = SLHAlloc(slh,READ_BUFFER_SIZE);
   while (1){
     int socketStatus = tcpStatus(socket,0,0,&returnCode,&reasonCode);
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "socketStatus = %d, errno %d reason %d\n",socketStatus,returnCode,reasonCode);
+#ifdef DEBUG
+    printf("socketStatus = %d, errno %d reason %d\n",socketStatus,returnCode,reasonCode);
+#endif
     int bytesRead = socketRead(socket,readBuffer,READ_BUFFER_SIZE,&returnCode,&reasonCode);
     if (bytesRead < 1){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "bytesRead=%d, so a problem rc=0x%x, reason=0x%x, socket=0x%X\n",bytesRead,returnCode,reasonCode,socket);
+#ifdef DEBUG
+      printf("bytesRead=%d, so a problem rc=0x%x, reason=0x%x, socket=0x%X\n",bytesRead,returnCode,reasonCode,socket);
+#endif
       shouldClose = TRUE;
       break;
     } 
     int requestStreamOK = processHttpFragment(parser,readBuffer,bytesRead);
     if (!requestStreamOK){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "some issue with parser status, socket=0x%X\n", socket);
+#ifdef DEBUG
+      printf("some issue with parser status, socket=0x%X\n", socket);
+#endif
       shouldClose = TRUE;
       break;
     }
@@ -3284,10 +3312,14 @@ static int serviceLoop(Socket *socket){
       /* parse URI after request and response ready for work, have SLH's, etc */
       parseURI(request);
 
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "looking for service for URI %s\n",request->uri);
+#ifdef DEBUG
+      printf("looking for service for URI %s\n",request->uri);
+#endif
       header = request->headerChain;
       while (header){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "  %s=%s\n",header->nativeName,header->nativeValue);
+#ifdef DEBUG        
+        printf("  %s=%s\n",header->nativeName,header->nativeValue);
+#endif
         header = header->next;
       }
       HttpService *service = findHttpService(NULL,request);
@@ -3314,11 +3346,11 @@ void parseURI(HttpRequest *request){
   request->fragmentIdentifier = NULL;
 
   if (traceDispatch){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "parseURI start qPos=%d hPos=%d\n",qPos,hPos);
+    printf("parseURI start qPos=%d hPos=%d\n",qPos,hPos);
   }
   if ((len == 0) || ((len == 1) && (uri[0] == ASCII_SLASH))){
     if (traceDispatch > 1){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "CASE 1: trivial URL\n");
+      printf("CASE 1: trivial URL\n");
     }
     filePart = SLHAlloc(request->slh,2);
     filePart[0] = ASCII_SLASH;
@@ -3328,27 +3360,27 @@ void parseURI(HttpRequest *request){
     memcpy(filePart,uri,qPos);
     if (hPos >= 0){
       if (traceDispatch > 1){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "CASE 2 both q and h\n");
+	printf("CASE 2 both q and h\n");
       }
       request->queryString = SLHAlloc(request->slh,hPos-qPos);
       request->fragmentIdentifier = uri+hPos+1;
       memcpy(request->queryString,uri+qPos+1,hPos-qPos);
     } else{
       if (traceDispatch > 1){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "CASE 3 q only\n");
+	printf("CASE 3 q only\n");
       }
       request->queryString = uri+qPos+1;
     }
   } else if (hPos >= 0){
     if (traceDispatch > 1){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "CASE 4: h only\n");
+      printf("CASE 4: h only\n");
     }
     filePart = SLHAlloc(request->slh,hPos);
     memcpy(filePart,uri,hPos);
     request->fragmentIdentifier = uri+hPos+1;
   } else{
     if (traceDispatch > 1){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "CASE 5: nothing interesting\n");
+      printf("CASE 5: nothing interesting\n");
     }
   }
   if (traceDispatch){
@@ -3359,7 +3391,7 @@ void parseURI(HttpRequest *request){
     request->queryStringLen = strlen(request->queryString);
   }
   if (traceDispatch){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "URI Parse Stage 1: file='%s' query='%s' fragment='%s'\n",
+    printf("URI Parse Stage 1: file='%s' query='%s' fragment='%s'\n",
 	   getNative(filePart),
 	   (request->queryString ? getNative(request->queryString) : "<N/A>"),
 	   (request->fragmentIdentifier ? getNative(request->fragmentIdentifier) : "<N/A>"));
@@ -3369,7 +3401,7 @@ void parseURI(HttpRequest *request){
     int prevSlashPos = ((filePart[0] == ASCII_SLASH) ? 0 : -1);
     int slashPos;
     if (traceDispatch){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "request->slh = 0x%p\n",request->slh);
+      printf("request->slh = 0x%p\n",request->slh);
       fflush(stdout);
     }
     StringList *parsedFile = makeStringList(request->slh);
@@ -3378,7 +3410,7 @@ void parseURI(HttpRequest *request){
       int start = prevSlashPos+1;
       char *part = SLHAlloc(request->slh,slashPos-start+1);
       if (traceDispatch){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "parseURI while loop slashPos=%d prev=%d\n",slashPos,prevSlashPos); 
+        printf("parseURI while loop slashPos=%d prev=%d\n",slashPos,prevSlashPos); 
       }
       memcpy(part,filePart+start,(slashPos-start));
       part[slashPos-start] = 0;
@@ -3393,11 +3425,11 @@ void parseURI(HttpRequest *request){
     }
     request->parsedFile = parsedFile;
     if (traceDispatch){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "URI Parse Stage 2: file parts are '%s'\n",stringListPrint(parsedFile,0,1000,"/",0));
+      printf("URI Parse Stage 2: file parts are '%s'\n",stringListPrint(parsedFile,0,1000,"/",0));
     }
   } else{
     if (traceDispatch){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "URI Parse Stage 2: file is trivial \n");
+      printf("URI Parse Stage 2: file is trivial \n");
     }
     request->parsedFile = NULL;
   }
@@ -3520,8 +3552,8 @@ char *processServiceRequestParams(HttpService *service, HttpResponse *response){
           }
           */
     if (traceDispatch){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "param value for '%s' is '%s'\n",spec->name,(paramString ? paramString : "<N/A>"));
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "  not optional %d NULL? %d\n",!(spec->flags & SERVICE_ARG_OPTIONAL),(paramString == NULL));
+      printf("param value for '%s' is '%s'\n",spec->name,(paramString ? paramString : "<N/A>"));
+      printf("  not optional %d NULL? %d\n",!(spec->flags & SERVICE_ARG_OPTIONAL),(paramString == NULL));
       fflush(stdout);
     }
     if ((spec->flags & SERVICE_ARG_REQUIRED) && (paramString == NULL)){
@@ -3534,7 +3566,7 @@ char *processServiceRequestParams(HttpService *service, HttpResponse *response){
       case SERVICE_ARG_TYPE_INT:
 	intValue = atoi(paramString);
 	if (traceDispatch > 1){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "check intValue %d with flags 0x%x lb %d hb %d\n",intValue,spec->flags,spec->lowBound, spec->highBound);
+	  printf("check intValue %d with flags 0x%x lb %d hb %d\n",intValue,spec->flags,spec->lowBound, spec->highBound);
 	}
 	if (spec->flags & SERVICE_ARG_HAS_LOW_BOUND){
 	  if (intValue < spec->lowBound){
@@ -3573,7 +3605,7 @@ char *processServiceRequestParams(HttpService *service, HttpResponse *response){
   }
 
   if (traceDispatch){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "done with process params complaint='%s'\n",(complaint ? complaint : "<NONE>"));
+    printf("done with process params complaint='%s'\n",(complaint ? complaint : "<NONE>"));
   }
   return complaint;
 }
@@ -3675,7 +3707,7 @@ void respondWithUnixFileContentsWithAutocvtMode (HttpService* service, HttpRespo
   int status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
 
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "finfo:\n");
+  printf("finfo:\n");
   dumpbuffer((char*)&info, sizeof(FileInfo));
 #endif
 
@@ -3854,7 +3886,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     if (!autocvt) {
       int disableCvt = fileDisableConversion(in, &returnCode, &reasonCode);
       if (disableCvt != 0) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "Warning: encoding conversion was not disabled, return = %d, reason = %d\n", returnCode, reasonCode);
+        printf("Warning: encoding conversion was not disabled, return = %d, reason = %d\n", returnCode, reasonCode);
       }
     }
 #endif
@@ -3876,14 +3908,14 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     if (isBinary || ccsid == -1) {
       writeHeader(response);
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Streaming binary for %s\n", absolutePath);
+      printf("Streaming binary for %s\n", absolutePath);
 #endif
       
       streamBinaryForFile(response->socket, in, asB64);
     } else {
       writeHeader(response);
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Streaming %d for %s\n", ccsid, absolutePath);
+      printf("Streaming %d for %s\n", ccsid, absolutePath);
 #endif
 
       /* TBD: This isn't really an OS dependency, but this is what I had
@@ -3927,7 +3959,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
   }
   else {
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "File not found within respondWithUnixFile.. This may be a problem\n");
+    printf("File not found within respondWithUnixFile.. This may be a problem\n");
 #endif
     respondWithUnixFileNotFound(response, jsonMode);
     // Response is finished on return
@@ -3948,7 +3980,7 @@ void respondWithUnixDirectory(HttpResponse *response, char* absolutePath, int js
 
   
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Directory case: %s\n",absolutePath);
+  printf("Directory case: %s\n",absolutePath);
   fflush(stdout);
 #endif
   
@@ -4049,9 +4081,7 @@ int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
 
     char *encodedBuffer = NULL;
 #ifdef DEBUG
-    if (bytesRead % 3) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
-    }
+    if (bytesRead % 3) printf("buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
 #endif
     if (asB64) {
       encodedBuffer = encodeBase64(NULL, buffer, bytesRead, &encodedLength, FALSE);
@@ -4085,7 +4115,7 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
   case ENCODING_SIMPLE:
     while (!fileEOF(in)){
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "WARNING: UTF8 might not be aligned properly: preserve 3 bytes for the next read cycle to fix UTF boundaries\n");
+      printf("WARNING: UTF8 might not be aligned properly: preserve 3 bytes for the next read cycle to fix UTF boundaries\n");
 #endif
       int bytesRead = fileRead(in,buffer,bufferSize,&returnCode,&reasonCode);
 
@@ -4126,19 +4156,21 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
                             &reasonCode);
 
         if (inLen != translationLength) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "streamTextForFile(%d (%s), %d (%s), %d, %d, %d, %d): "
+#ifdef DEBUG
+          printf("streamTextForFile(%d (%s), %d (%s), %d, %d, %d, %d): "
                  "after sending %d bytes got translation length error; expected %d, got %d\n",
                  socket->sd, socket->debugName, 
                  in->fd, in->pathname,
                  encoding, sourceCCSID, targetCCSID, asB64, bytesSent, inLen, translationLength);
+#endif
         }
         if (TRACE_CHARSET_CONVERSION){
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "convertCharset transLen=%d\n",translationLength);
+          printf("convertCharset transLen=%d\n",translationLength);
           dumpbuffer(translation,translationLength);
         }
 #ifdef DEBUG
         if (rc != 0){
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "iconv rc = %d, bytesRead=%d xlateLength=%d\n",rc,bytesRead,translationLength);
+          printf("iconv rc = %d, bytesRead=%d xlateLength=%d\n",rc,bytesRead,translationLength);
         }
 #endif
 
@@ -4149,9 +4181,7 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
       char *encodedBuffer = NULL;
       if (asB64) {
 #ifdef DEBUG
-        if (outLen % 3) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
-        }
+        if (outLen % 3) printf("buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
 #endif
         allocSize = ENCODE64_SIZE(outLen)+1;
         encodedBuffer = encodeBase64(NULL, outPtr, outLen, &encodedLength, FALSE);
@@ -4165,17 +4195,17 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
     break;
   case ENCODING_CHUNKED:
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "HELP - not implemented\n");
+    printf("HELP - not implemented\n");
 #endif
     break;
   case ENCODING_GZIP:
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "HELP - not implemented\n");
+    printf("HELP - not implemented\n");
 #endif
     break;
   }
   if (traceSocket > 0) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "streamTextForFile(%d (%s), %d (%s), %d, %d, %d, %d) sent %d bytes\n",
+    printf("streamTextForFile(%d (%s), %d (%s), %d, %d, %d, %d) sent %d bytes\n",
            socket->sd, socket->debugName, 
            in->fd, in->pathname,
            encoding, sourceCCSID, targetCCSID, asB64, bytesSent);
@@ -4187,21 +4217,27 @@ int runServiceThread(Socket *socket){
 #ifndef METTLE
   int threadID; /* pthread_t threadID;  */
   
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "runServiceThread\n");
+#ifdef DEBUG
+  printf("runServiceThread\n");
+#endif
   fflush(stdout);
   OSThread osThreadData;
   OSThread *osThread = &osThreadData;
   int createStatus = threadCreate(osThread,(void * (*)(void *))serviceLoop,socket);
   if (createStatus != 0) {
 #ifdef __ZOWE_OS_WINDOWS
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "CREATE THREAD failure, code=0x%x\n",createStatus);
+#ifdef DEBUG
+    printf("CREATE THREAD failure, code=0x%x\n",createStatus);
+#endif
 #else
     perror("pthread_create() error");
 #endif
     exit(1);
   } else{
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "thread create succeeded!\n");
+#ifdef DEBUG
+    printf("thread create succeeded!\n");
     fflush(stdout);
+#endif
   }
 #endif
   return 0;
@@ -4225,7 +4261,9 @@ int makeHTMLForDirectory(HttpResponse *response, char *dirname, char *stem, int 
   UnixFile *directory = NULL;
   
   if ((directory = directoryOpen(dirname,&returnCode,&reasonCode)) == NULL){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "directory open (%s) failure rc=%d reason=0x%x\n",dirname,returnCode,reasonCode);
+#ifdef DEBUG
+    printf("directory open (%s) failure rc=%d reason=0x%x\n",dirname,returnCode,reasonCode);
+#endif
   } else {
     if (out){
       char line[1024];
@@ -4264,7 +4302,9 @@ int makeHTMLForDirectory(HttpResponse *response, char *dirname, char *stem, int 
           if (out){
             writeBytes(out,url,len,TRUE);
           } else{
-            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "%s\n",url);
+#ifdef DEBUG
+            printf("%s\n",url);
+#endif
           }
         }
       }
@@ -4298,7 +4338,9 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
   if (out) {
     UnixFile *directory = NULL;
     if ((directory = directoryOpen(dirname,&returnCode,&reasonCode)) == NULL){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "directory open (%s) failure rc=%d reason=0x%x\n",dirname,returnCode,reasonCode);
+#ifdef DEBUG
+      printf("directory open (%s) failure rc=%d reason=0x%x\n",dirname,returnCode,reasonCode);
+#endif
     } else {
       jsonStart(out);
       jsonStartArray(out, "entries");
@@ -4377,12 +4419,12 @@ void parseURLMask(HttpService *service, char *urlMask){
   if (strcmp(urlMask,"/")){
     while ((slashPos = indexOf(urlMask,len,'/',prevSlashPos+1)) != -1){
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "wow\n");fflush(stdout);
+      printf("wow\n");fflush(stdout);
 #endif
       int partLen = slashPos - prevSlashPos;
      char *part = (char*) safeMalloc(NORMALIZED_PART_LENGTH, "urlMask part");
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "parse URL mask loop top len=%d slashPos=%d prevSlashPos=%d partLen=%d\n",
+      printf("parse URL mask loop top len=%d slashPos=%d prevSlashPos=%d partLen=%d\n",
 	     len,slashPos,prevSlashPos,partLen);
       fflush(stdout);
 #endif
@@ -4399,7 +4441,7 @@ void parseURLMask(HttpService *service, char *urlMask){
     }
   } else{
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "trivial URL\n");fflush(stdout);
+    printf("trivial URL\n");fflush(stdout);
 #endif
   }
   
@@ -4419,9 +4461,9 @@ void parseURLMask(HttpService *service, char *urlMask){
   service->parsedMaskPartCount = count;
   service->matchFlags = flags;
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "parsed URL mask i=%d\n",count);
+  printf("parsed URL mask i=%d\n",count);
   for (i=0; i<count; i++){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "  %s\n",service->parsedMaskParts[i]);
+    printf("  %s\n",service->parsedMaskParts[i]);
   }
 #endif
 }
@@ -4446,7 +4488,7 @@ char *getQueryParam(HttpRequest *request, char *paramName){
   int valuePos = 0;
   int matched = 0;
   if (QP_TRACE){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "getQueryParam %s from '%s'\n",paramName,request->queryString);
+    printf("getQueryParam %s from '%s'\n",paramName,request->queryString);
     dumpbuffer(request->queryString,strlen(request->queryString));
     fflush(stdout);
   }
@@ -4458,7 +4500,7 @@ char *getQueryParam(HttpRequest *request, char *paramName){
     case QP_INITIAL:
       if (c == ASCII_EQUALS || c == ASCII_AMPERSAND){
 	if (QP_TRACE > 1)
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "no match case -1\n");
+	  printf("no match case -1\n");
 	return NULL;
       } else{
         paramNameBuffer[namePos++] = c;
@@ -4472,14 +4514,14 @@ char *getQueryParam(HttpRequest *request, char *paramName){
 	memcpy(ebcdicParamNameBuffer,paramNameBuffer,namePos+1);
 	destructivelyUnasciify(ebcdicParamNameBuffer);
 	if (QP_TRACE > 0){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "comparing '%s' to '%s'\n",paramName,ebcdicParamNameBuffer);
+	  printf("comparing '%s' to '%s'\n",paramName,ebcdicParamNameBuffer);
 	}
 	if (strcmp(paramName,ebcdicParamNameBuffer) == 0){
 	  matched = 1;
 	}
       } else if (c == ASCII_AMPERSAND){
 	if (QP_TRACE > 1)
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "no match case 0\n");
+	  printf("no match case 0\n");
 	return NULL;
       } else{
 	paramNameBuffer[namePos++] = c;
@@ -4488,7 +4530,7 @@ char *getQueryParam(HttpRequest *request, char *paramName){
     case QP_AMPERSAND:
       if (c == ASCII_AMPERSAND|| c == ASCII_EQUALS){
 	if (QP_TRACE > 1)
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "no match case 1\n");
+	printf("no match case 1\n");
 	return NULL;
       } else{
 	state = QP_PARAM_NAME;
@@ -4499,14 +4541,14 @@ char *getQueryParam(HttpRequest *request, char *paramName){
     case QP_EQUAL:
       if (c == ASCII_AMPERSAND || c == ASCII_EQUALS){
 	if (QP_TRACE > 1)
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "no match case 2\n");
+	  printf("no match case 2\n");
 	return NULL;
       } else{
 	state = QP_PARAM_VALUE;
 	paramValueBuffer[0] = c;
 	valuePos = 1;
         if (QP_TRACE){
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "= case i=%d, len=%d\n",i,len);
+          printf("= case i=%d, len=%d\n",i,len);
         }
 	if (i == len-1){
           if (matched){
@@ -4514,7 +4556,7 @@ char *getQueryParam(HttpRequest *request, char *paramName){
 	    result[0] = c;
 	    result[1] = 0;
 	    if (QP_TRACE > 0){
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "result one char (0x%02x) = %s\n",c,result);
+	      printf("result one char (0x%02x) = %s\n",c,result);
 	    }
             destructivelyUnasciify(result);
             char *cleaned = cleanURLParamValue(request->slh,result);
@@ -4528,7 +4570,7 @@ char *getQueryParam(HttpRequest *request, char *paramName){
       break;
     case QP_PARAM_VALUE:
       if (QP_TRACE){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "param value state c=%d i=%d len=%d matched=%d\n",c,i,len,matched); 
+        printf("param value state c=%d i=%d len=%d matched=%d\n",c,i,len,matched); 
       }
       if (c == ASCII_AMPERSAND || i==(len-1)){ /* param value is done */
 	if (c != ASCII_AMPERSAND){
@@ -4540,7 +4582,7 @@ char *getQueryParam(HttpRequest *request, char *paramName){
 	  paramValueBuffer[valuePos] = 0;
 	  memcpy(result,paramValueBuffer,valuePos+1);
 	  if (QP_TRACE > 0){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "matched: %s\n",result);
+	    printf("matched: %s\n",result);
 	  }
           destructivelyUnasciify(result);
 	  cleaned = cleanURLParamValue(request->slh,result);
@@ -4551,7 +4593,7 @@ char *getQueryParam(HttpRequest *request, char *paramName){
 	}
       } else if (c == ASCII_EQUALS){
 	if (QP_TRACE > 1)
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "no match case 3");
+	  printf("no match case 3");
 	return NULL;
       } else{
 	paramValueBuffer[valuePos++] = c;
@@ -4560,7 +4602,7 @@ char *getQueryParam(HttpRequest *request, char *paramName){
     }
   }
   if (QP_TRACE > 1)
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "no match case 4\n");
+    printf("no match case 4\n");
   return NULL;
 }
 
@@ -4570,7 +4612,7 @@ void serveSimpleTemplate(HttpService *service, HttpResponse *response){
   HttpRequest *request = response->request;
   HTMLTemplate *template = openHTMLTemplate(response,service->templatePath);
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "serveSimpleTemplate %s, template=0x%x\n",service->templatePath,template);
+  printf("serveSimpleTemplate %s, template=0x%x\n",service->templatePath,template);
 #endif
   if (template){
     ChunkedOutputStream *outStream = makeChunkedOutputStreamInternal(response);
@@ -4582,7 +4624,7 @@ void serveSimpleTemplate(HttpService *service, HttpResponse *response){
 
     while (streamToSubstitution(template,outStream)){
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "serveSimpleTemplate place loop '%s'\n",template->currentPlaceholder);
+      printf("serveSimpleTemplate place loop '%s'\n",template->currentPlaceholder);
 #endif
       /* call magic function with place,name, additional args, outStream and response */
       HttpTemplateTag *tag = (HttpTemplateTag*)SLHAlloc(request->slh,sizeof(HttpTemplateTag));
@@ -4590,7 +4632,7 @@ void serveSimpleTemplate(HttpService *service, HttpResponse *response){
       if (service->serviceTemplateTagFunction){
 	service->serviceTemplateTagFunction(service,response,tag,outStream);
       } else{
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "*** WARNING *** no template tag service function for %s\n",service->name);
+	printf("*** WARNING *** no template tag service function for %s\n",service->name);
       }
     }
     
@@ -4650,7 +4692,9 @@ HttpService *makeWebSocketService(char *name, char *urlMask, WSEndpoint *endpoin
   parseURLMask(service,urlMask);
   service->next = NULL;
   service->wsEndpoint = endpoint;
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "putting endpoint 0x%x on service 0x%x\n",endpoint,service);
+#ifdef DEBUG
+  printf("putting endpoint 0x%x on service 0x%x\n",endpoint,service);
+#endif
 
   service->paramSpecList = NULL;
   return service;
@@ -4742,7 +4786,9 @@ static int httpTaskMain(RLETask *task){
 
   HttpWorkElement *element = (HttpWorkElement*)task->userPointer;
   HttpConversation *conversation = element->conversation;
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "httpTaskMain element=0x%x elt->convo=0x%x\n",element,conversation);
+#ifdef DEBUG
+  printf("httpTaskMain element=0x%x elt->convo=0x%x\n",element,conversation);
+#endif
   if (!conversation->shouldClose) {
     /* Execute only if the conversation is still open */
     serviceResult = handleHttpService(conversation->server,
@@ -4787,7 +4833,9 @@ static char *makeWSAccept(ShortLivedHeap *slh, char *key){
 
   digestContextFinish(&context,hash);
   int resultSize = 0;
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "before encode base 64 slh=0x%x hash at 0x%x\n",slh,hash);
+#ifdef DEBUG
+  printf("before encode base 64 slh=0x%x hash at 0x%x\n",slh,hash);
+#endif
   char *encoded = encodeBase64(slh,hash,20,&resultSize,
 #ifdef __ZOWE_OS_ZOS
                                TRUE
@@ -4795,7 +4843,9 @@ static char *makeWSAccept(ShortLivedHeap *slh, char *key){
                                FALSE
 #endif
                                );
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "b64 encoded size=%d\n",resultSize);
+#ifdef DEBUG
+  printf("b64 encoded size=%d\n",resultSize);
+#endif
   dumpbuffer(encoded,resultSize);
   return encoded;
 }
@@ -4819,19 +4869,25 @@ static void upgradeToWebSocket(HttpConversation *conversation,
   HttpHeader *webSocketVersion = getHeader(request,"Sec-WebSocket-Version");
   HttpHeader *webSocketProtocol = getHeader(request,"Sec-WebSocket-Protocol");
   HttpHeader *origin = getHeader(request,"origin");
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "ws req: cnxn=%s key=%s version=%s origin=%s\n",
+#ifdef DEBUG
+  printf("ws req: cnxn=%s key=%s version=%s origin=%s\n",
          connection,
          (webSocketKey != NULL ? webSocketKey->nativeValue : "<n/a>"),
          (webSocketVersion != NULL ? webSocketVersion->nativeValue : "<n/a>"),
          (origin != NULL ? origin->nativeValue : "<n/a>"));
+#endif
   
   if (!headerMatch(webSocketVersion,"13")){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "WebSocket version\n");
+#ifdef DEBUG
+    printf("WebSocket version\n");
+#endif
     respondWithError(response,HTTP_STATUS_BAD_REQUEST,"bad web socket version");
     // Response is finished on return
   } else{
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "building web socket response\n");
+#ifdef DEBUG
+    printf("building web socket response\n");
     fflush(stdout);
+#endif
     setResponseStatus(response,HTTP_STATUS_SWITCHING_PROTOCOLS,"Switching to WebSockets");
     addStringHeader(response,"Upgrade","websocket");
     addStringHeader(response,"Connection","Upgrade");
@@ -4842,8 +4898,10 @@ static void upgradeToWebSocket(HttpConversation *conversation,
       addStringHeader(response,"Sec-WebSocket-Protocol",negotiatedProtocol);
     }
     /* parse URI sets up all the URI fragments in request */
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "WS Upgrade parse UI\n");
+#ifdef DEBUG
+    printf("WS Upgrade parse UI\n");
     fflush(stdout);
+#endif
     parseURI(request);
     conversation->wsSession = makeWSSession(conversation,
                                             service,
@@ -4853,13 +4911,17 @@ static void upgradeToWebSocket(HttpConversation *conversation,
     writeHeader(response);
     finishResponse(response);
 
-    WSEndpoint *endpoint = service->wsEndpoint;
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "WS upgrade service=0x%x name=%s endpoint=0x%x\n",service,service->name,endpoint);
+    WSEndpoint *endpoint = service->wsEndpoint; 
+#ifdef DEBUG
+    printf("WS upgrade service=0x%x name=%s endpoint=0x%x\n",service,service->name,endpoint);
     fflush(stdout);
+#endif
     if (endpoint->onOpen){
       endpoint->onOpen(conversation->wsSession);
     } else{
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "*** WARNING *** no endpoint found for WS\n");
+#ifdef DEBUG
+      printf("*** WARNING *** no endpoint found for WS\n");
+#endif
     }
   }
 }
@@ -4888,7 +4950,7 @@ static void doHttpResponseWork(HttpConversation *conversation)
 
     if (conversation->shouldError) {
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "doHttpResponseWork in new shouldError case (%d). Conversation=0x%X\n", conversation->httpErrorStatus,conversation);
+      printf("doHttpResponseWork in new shouldError case (%d). Conversation=0x%X\n", conversation->httpErrorStatus,conversation);
 #endif
       /* makeHttpResponse now gives the response its own SLH */
       response = makeHttpResponse(NULL, parser->slh, conversation->socketExtension->socket);
@@ -4911,7 +4973,7 @@ static void doHttpResponseWork(HttpConversation *conversation)
       /* parse URI after request and response ready for work, have SLH's, etc */
       parseURI(firstRequest);
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "firstReq: looking for service for URI %s. Conversation=0x%X\n",firstRequest->uri,conversation);
+      printf("firstReq: looking for service for URI %s. Conversation=0x%X\n",firstRequest->uri,conversation);
       header = firstRequest->headerChain;
       while (header){
         printf("  %s=%s\n",header->nativeName,header->nativeValue);
@@ -4921,7 +4983,7 @@ static void doHttpResponseWork(HttpConversation *conversation)
       HttpService *service = findHttpService(conversation->server,firstRequest);
       if (service){
 #ifdef DEBUG
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "doHttpResponseWork serviceName=%s req->isWebSocket=%d\n",service->name,firstRequest->isWebSocket);
+        printf("doHttpResponseWork serviceName=%s req->isWebSocket=%d\n",service->name,firstRequest->isWebSocket);
 #endif
         conversation->pendingService = service;
         response->conversation = conversation;
@@ -4946,8 +5008,10 @@ static void doHttpResponseWork(HttpConversation *conversation)
           workElement->response = response;
           response = NULL; /* transfer the ownership of the response to the subtask */
           conversation->task->userPointer = workElement;
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "about to start RLE Task from main at 0x%x wkElement=0x%x pendingService=0x%x\n",
+#ifdef DEBUG
+          printf("about to start RLE Task from main at 0x%x wkElement=0x%x pendingService=0x%x\n",
                  conversation->task,workElement,conversation->pendingService);
+#endif
 
           /* Keep track of number of running tasks */                                                                                                                                                            
           serializeStartRunning(conversation);                                                                                                                                                                   
@@ -4959,7 +5023,7 @@ static void doHttpResponseWork(HttpConversation *conversation)
         break;
       }
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "doHttpResponseWork:  no service found. conversation=0x%X\n",conversation);
+      printf("doHttpResponseWork:  no service found. conversation=0x%X\n",conversation);
 #endif
       /* shouldn't I be a 404 */
       respondWithError(response,HTTP_STATUS_NOT_FOUND,"resource or service not found");
@@ -4984,7 +5048,7 @@ static void doHttpReadWork(HttpConversation *conversation, int readBufferSize){
   int bytesRead = socketRead(socket,readBuffer,readBufferSize,&returnCode,&reasonCode);
   if (bytesRead < 1) {
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "HTTP desiredBytes = %d bytesRead=%d, so a problem or no more available rc=0x%x, reason=0x%x. conversation=0x%X\n",readBufferSize,bytesRead,returnCode,reasonCode,conversation);
+    printf("HTTP desiredBytes = %d bytesRead=%d, so a problem or no more available rc=0x%x, reason=0x%x. conversation=0x%X\n",readBufferSize,bytesRead,returnCode,reasonCode,conversation);
     fflush(stdout);
 #endif
     conversation->shouldClose = TRUE;
@@ -4993,7 +5057,7 @@ static void doHttpReadWork(HttpConversation *conversation, int readBufferSize){
   int requestStreamOK = processHttpFragment(parser,readBuffer,bytesRead);
   if (!requestStreamOK) {
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "some issue with parser status\n");
+    printf("some issue with parser status\n");
 #endif
     conversation->shouldError = TRUE;
     conversation->httpErrorStatus = parser->httpReasonCode;
@@ -5023,8 +5087,10 @@ static void doWSReadWork(HttpConversation *conversation, int readBufferSize){
 
   int bytesRead = socketRead(socket,readBuffer,readBufferSize,&returnCode,&reasonCode);
   if (bytesRead < 1){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "WS desiredBytes = %d bytesRead=%d, so a problem or no more available rc=0x%x, reason=0x%x, conversation=0x%X\n",readBufferSize,bytesRead,returnCode,reasonCode,conversation);
+#ifdef DEBUG
+    printf("WS desiredBytes = %d bytesRead=%d, so a problem or no more available rc=0x%x, reason=0x%x, conversation=0x%X\n",readBufferSize,bytesRead,returnCode,reasonCode,conversation);
     fflush(stdout);
+#endif
     conversation->shouldClose = TRUE;
     return; /* dangerous to enqueue any work once shouldClose has been set */
   }
@@ -5055,7 +5121,7 @@ static int httpHandleTCP(STCBase *base,
   SocketExtension *extension = (SocketExtension*)socket->userData;
 
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "TCP Socket %s is READY, at=0x%x extension=0x%x\n",socket->debugName,socket,extension);
+  printf("TCP Socket %s is READY, at=0x%x extension=0x%x\n",socket->debugName,socket,extension);
   fflush(stdout);
 #endif
 
@@ -5063,7 +5129,7 @@ static int httpHandleTCP(STCBase *base,
 
     if ((extension == NULL) || (STC_MODULE_JEDHTTP != extension->moduleID)) {
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "httpserver: *** no extension for socket or TCP event passed to wrong module! ***\n");
+      printf("httpserver: *** no extension for socket or TCP event passed to wrong module! ***\n");
 #endif
       handlerStatus = 12;
       break;
@@ -5072,10 +5138,12 @@ static int httpHandleTCP(STCBase *base,
     if (extension->isServerSocket) {
       Socket *peerSocket = socketAccept(socket,&returnCode,&reasonCode);
   #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "TCP Accept return=0x%x reason=0x%x socket %s\n",returnCode,reasonCode,(peerSocket ? peerSocket->debugName : "NONE"));
+      printf("TCP Accept return=0x%x reason=0x%x socket %s\n",returnCode,reasonCode,(peerSocket ? peerSocket->debugName : "NONE"));
   #endif
       if (peerSocket == NULL){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "httpserver: accept failed ret=%d reason=0x%x\n",returnCode,reasonCode);
+#ifdef DEBUG
+        printf("httpserver: accept failed ret=%d reason=0x%x\n",returnCode,reasonCode);
+#endif
         break; /* end server socket processing */
       }
 #ifdef USE_RS_SSL
@@ -5086,7 +5154,9 @@ static int httpHandleTCP(STCBase *base,
                                                         peerSocket->sd,
                                                         &(peerSocket->sslHandle)); /* RS_SSL_CONNECTION */
         if ((0 != rsStatus) || (NULL == peerSocket->sslHandle)) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "httpserver failed to negotiate TLS with peer; closing socket\n");
+#ifdef DEBUG
+          printf("httpserver failed to negotiate TLS with peer; closing socket\n");
+#endif
           socketClose(peerSocket, &returnCode, &reasonCode);
           break;
         }
@@ -5097,15 +5167,17 @@ static int httpHandleTCP(STCBase *base,
       int writeBufferSize = 0x40000;
       setSocketWriteBufferSize(peerSocket,0x40000, &returnCode, &reasonCode);
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "set Write buffer size to 0x%x, return=%d reason=0x%x\n",
+      printf("set Write buffer size to 0x%x, return=%d reason=0x%x\n",
              writeBufferSize, returnCode, reasonCode);
 #endif
   #else
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "must figure out how to set socket buffer size on windows\n");
+#ifdef DEBUG
+      printf("must figure out how to set socket buffer size on windows\n");
+#endif
   #endif
       int nbStatus = setSocketBlockingMode(peerSocket,TRUE,&returnCode,&reasonCode);
   #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "setNonBlock status=%d return=%d reason=0x%x\n",nbStatus,returnCode,reasonCode);
+      printf("setNonBlock status=%d return=%d reason=0x%x\n",nbStatus,returnCode,reasonCode);
   #endif
       SocketExtension *peerExtension = makeSocketExtension(peerSocket,
                                                            slh,
@@ -5120,14 +5192,16 @@ static int httpHandleTCP(STCBase *base,
 
     } else {
   #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "handle peer socket read\n");
+      printf("handle peer socket read\n");
   #endif
 
       SocketExtension *peerExtension = extension;
       HttpConversation *conversation = (HttpConversation*)extension->protocolHandler;
 
       if (NULL == conversation) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "*** peerExtension protocolHandler is NULL ***\n");
+#ifdef DEBUG
+        printf("*** peerExtension protocolHandler is NULL ***\n");
+#endif
         /* we can't do a full conversation cleanup, just close the socket and unregister the socketExtension, leaks be damned */
         socketClose(peerExtension->socket, &returnCode,&reasonCode);
         handlerStatus = 8;
@@ -5144,27 +5218,33 @@ static int httpHandleTCP(STCBase *base,
       }
 
   #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "peerExtension at 0x%x, httpConversation at 0x%x\n", peerExtension, conversation);
+      printf("peerExtension at 0x%x, httpConversation at 0x%x\n", peerExtension, conversation);
   #endif
 
 #if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
       int sxStatus = sxUpdateTLSInfo(peerExtension,
                                      1); /* prevent multiple ioctl calls on repeated reads */
       if (0 != sxStatus) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "error from sxUpdateTLSInfo: %d\n", sxStatus);
+#ifdef DEBUG
+        printf("error from sxUpdateTLSInfo: %d\n", sxStatus);
+#endif
       } else if ((RS_TLS_WANT_TLS & peerExtension->tlsFlags) &&
                  (0 == (RS_TLS_HAVE_TLS & peerExtension->tlsFlags)))
       {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "*** WARNING: Connection is insecure! TLS needed but not found on socket. ***\n");
+#ifdef DEBUG
+        printf("*** WARNING: Connection is insecure! TLS needed but not found on socket. ***\n");
+#endif
       } else if ((RS_TLS_WANT_PEERCERT & peerExtension->tlsFlags) &&
                  (0 == (RS_TLS_HAVE_PEERCERT & peerExtension->tlsFlags)))
       {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "*** WARNING: Connection is insecure! Peer certificate wanted but not found. ***\n");
+#ifdef DEBUG
+        printf("*** WARNING: Connection is insecure! Peer certificate wanted but not found. ***\n");
+#endif
       }
 #endif
 
   #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "handle read JEDHTTP convo\n");
+      printf("handle read JEDHTTP convo\n");
   #endif
       /* if successful, these methods enqueue work */
       if (conversation->wsSession){
@@ -5188,14 +5268,18 @@ HttpResponse *pseudoRespond(HttpServer *server, HttpRequest *request, ShortLived
   response->standaloneTestMode = TRUE;
   parseURI(request);
   HttpService *service = findHttpService(server,request);
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "in pseudoRespond, service=0x%x\n",service);
+#ifdef DEBUG
+  printf("in pseudoRespond, service=0x%x\n",service);
   fflush(stdout);
+#endif
   if (service){
     /* what about output streams */
     handleHttpService(server,service,request,response);
     return response;
   } else{
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "could not find service for pseudoRespond\n");
+#ifdef DEBUG
+    printf("could not find service for pseudoRespond\n");
+#endif
     return NULL;
   }
 }
@@ -5208,7 +5292,7 @@ int httpWorkElementHandler(STCBase *base,
   case HTTP_CONSIDER_CLOSE_CONVERSATION:
     {
       if (traceHttpCloseConversation) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Starting CONSIDER_CLOSE_CONVERSATION processing\n");
+        printf("Starting CONSIDER_CLOSE_CONVERSATION processing\n");
         fflush(stdout);
       }
       int bpxrc=0, bpxrsn=0;
@@ -5218,7 +5302,7 @@ int httpWorkElementHandler(STCBase *base,
 
       if (conversation->runningTasks == 0 && !conversation->closeEnqueued) {
         if (traceHttpCloseConversation) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "ready to close conversation at address 0x%p... enqueueing\n", conversation);
+          printf("ready to close conversation at address 0x%p... enqueueing\n", conversation);
         }
 
         WorkElementPrefix *prefix = makeCloseConversationWorkElement(conversation);
@@ -5226,7 +5310,7 @@ int httpWorkElementHandler(STCBase *base,
         conversation->closeEnqueued = TRUE;
       } else {
         if (traceHttpCloseConversation) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "not ready to close conversation at address 0x%p... runningTasks=%d, closeEnqueued=%d\n",
+          printf("not ready to close conversation at address 0x%p... runningTasks=%d, closeEnqueued=%d\n",
                  conversation, conversation->runningTasks, conversation->closeEnqueued);
         }
       }
@@ -5237,7 +5321,7 @@ int httpWorkElementHandler(STCBase *base,
   case HTTP_CLOSE_CONVERSATION:
     {
       if (traceHttpCloseConversation) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Starting CLOSE_CONVERSATION processing\n");
+        printf("Starting CLOSE_CONVERSATION processing\n");
         fflush(stdout);
       }
       int bpxrc=0, bpxrsn=0;
@@ -5246,28 +5330,30 @@ int httpWorkElementHandler(STCBase *base,
       SocketExtension *sext = conversation->socketExtension;
 
       if (conversation->runningTasks > 0) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "*** PANIC: an RLETask race condition has occured. Abandoning cleanup ***");
+        if (traceHttpCloseConversation) {
+          printf("*** PANIC: an RLETask race condition has occured. Abandoning cleanup ***");
+        }
 
         break;
       }
 
       if (traceHttpCloseConversation) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "closing HttpConversation at address 0x%p...\n", conversation);
+        printf("closing HttpConversation at address 0x%p...\n", conversation);
         fflush(stdout);
       }
 
       /* immediately close the socket and unregister the socket extension */
       if (traceHttpCloseConversation) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "closing the socket...\n");
+        printf("closing the socket...\n");
         fflush(stdout);
       }
       socketClose(sext->socket, &bpxrc, &bpxrsn);
       if (traceHttpCloseConversation) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "socketClose results: rc=%d, rsn=0x%x\n", bpxrc, bpxrsn);
+        printf("socketClose results: rc=%d, rsn=0x%x\n", bpxrc, bpxrsn);
         fflush(stdout);
       }
       if (traceHttpCloseConversation) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "unregistering the socketExtension...\n");
+        printf("unregistering the socketExtension...\n");
         fflush(stdout);
       }
       stcReleaseSocketExtension(base, sext);
@@ -5275,19 +5361,19 @@ int httpWorkElementHandler(STCBase *base,
       /* clean up the non-SLH conversation contents */
       if (conversation->wsSession) {
         if (traceHttpCloseConversation) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "wsSession cleanup...\n");
+          printf("wsSession cleanup...\n");
           fflush(stdout);
         }
         WSSession *wss = conversation->wsSession;
         if (wss->readMachine) {
           if (traceHttpCloseConversation) {
-            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "WSReadMachine cleanup...\n");
+            printf("WSReadMachine cleanup...\n");
             fflush(stdout);
           }
           WSReadMachine *wssrm = wss->readMachine;
           if (wssrm->payloadStream) {
             if (traceHttpCloseConversation) {
-              zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "BigBuffer cleanup...\n");
+              printf("BigBuffer cleanup...\n");
               fflush(stdout);
             }
             freeBigBuffer(wssrm->payloadStream, 1);
@@ -5297,7 +5383,7 @@ int httpWorkElementHandler(STCBase *base,
         }
         if (wss->negotiatedProtocol) {
           if (traceHttpCloseConversation) {
-            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "negotiatedProtocol cleanup...\n");
+            printf("negotiatedProtocol cleanup...\n");
             fflush(stdout);
           }
           safeFree((char*)wss->negotiatedProtocol, 1 + strlen(wss->negotiatedProtocol));
@@ -5306,7 +5392,7 @@ int httpWorkElementHandler(STCBase *base,
       } /* end wsSession cleanup */
       /* the HttpRequestParser was allocated on the (sext's) SLH */
       if (traceHttpCloseConversation) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "clearing and freeing the conversation structure...\n");
+        printf("clearing and freeing the conversation structure...\n");
         fflush(stdout);
       }
       memset(conversation, 0x00, sizeof(HttpConversation));
@@ -5315,33 +5401,33 @@ int httpWorkElementHandler(STCBase *base,
       /* finally, free the socketExtension contents and the socketExtension itself */
       if (sext->socket) {
         if (traceHttpCloseConversation) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "freeing the socket...\n");
+          printf("freeing the socket...\n");
           fflush(stdout);
         }
         safeFree((char*)sext->socket, sizeof(Socket));
       }
       if (sext->slh) {
         if (traceHttpCloseConversation) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "freeing the SLH...\n");
+          printf("freeing the SLH...\n");
           fflush(stdout);
         }
         SLHFree(sext->slh);
       }
       /* other socketExtension contents (peerCert, readBuffer) were on the SLH */
       if (traceHttpCloseConversation) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "clearing and freeing the socketExtension...\n");
+        printf("clearing and freeing the socketExtension...\n");
         fflush(stdout);
       }
       memset(sext, 0x00, sizeof(SocketExtension));
       safeFree((char*)sext, sizeof(SocketExtension));
       
       if (traceHttpCloseConversation) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "free'ing CLOSE_CONVERSATION prefix and payload\n");
+        printf("free'ing CLOSE_CONVERSATION prefix and payload\n");
         fflush(stdout);
       }
       
       if (traceHttpCloseConversation) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "CLOSE_CONVERSATION processing complete\n");
+        printf("CLOSE_CONVERSATION processing complete\n");
         fflush(stdout);
       }
     }
@@ -5379,11 +5465,15 @@ int httpWorkElementHandler(STCBase *base,
           if (session->messageHandler){
             session->messageHandler->onMessage(session,message);
           } else{
-            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "WS Session has no message handler !!\n");
+#ifdef DEBUG
+            printf("WS Session has no message handler !!\n");
+#endif
           }
         }
       } else{
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "WS Message received without wsSession! conversation 0x%X\n", conversation);
+#ifdef DEBUG
+        printf("WS Message received without wsSession! conversation 0x%X\n", conversation);
+#endif
         conversation->shouldClose = TRUE;
       }
     }
@@ -5391,19 +5481,24 @@ int httpWorkElementHandler(STCBase *base,
   case HTTP_WS_CLOSE_HANDSHAKE:
   case HTTP_WS_OUTPUT:
     {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "WS_OUTPUT\n");
+#ifdef DEBUG
+      printf("WS_OUTPUT\n");
+#endif
 
       HttpWorkElement *workElement = (HttpWorkElement*)((char*)prefix + sizeof(WorkElementPrefix));
       HttpConversation *conversation = workElement->conversation;
       SocketExtension *socketExtension = conversation->socketExtension;
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "wkElt=0x%x convo=0x%x sockExt=0x%x\n",workElement,conversation,socketExtension);
-
+#ifdef DEBUG
+      printf("wkElt=0x%x convo=0x%x sockExt=0x%x\n",workElement,conversation,socketExtension);
       fflush(stdout);
+#endif
       int dumpLength = workElement->bufferLength;
       if (dumpLength > 1024){
         dumpLength = 1024;
       }
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "HTTP_WS_OUTPUT: writing 0x%x bytes, dumping=0x%x\n",workElement->bufferLength,dumpLength);
+#ifdef DEBUG
+      printf("HTTP_WS_OUTPUT: writing 0x%x bytes, dumping=0x%x\n",workElement->bufferLength,dumpLength);
+#endif
       dumpbufferA(workElement->buffer,dumpLength);
       fflush(stdout);
       writeFully(socketExtension->socket,workElement->buffer,workElement->bufferLength);
@@ -5413,15 +5508,19 @@ int httpWorkElementHandler(STCBase *base,
           
       /* after sending a close response, close is ok */
       if (prefix->payloadCode == HTTP_WS_CLOSE_HANDSHAKE){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "WS_CLOSE_HANDSHAKE: sent message, setting shouldClose. Conversation 0x%X\n",conversation);
+#ifdef DEBUG
+        printf("WS_CLOSE_HANDSHAKE: sent message, setting shouldClose. Conversation 0x%X\n",conversation);
         fflush(stdout);
+#endif
         conversation->shouldClose = TRUE;
       }      
     }
     break;
 
   default:
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "httpServer workElementHandler saw an unknown payloadCode\n");
+#ifdef DEBUG
+    printf("httpServer workElementHandler saw an unknown payloadCode\n");
+#endif
     status = 8;
     break;
 
@@ -5436,16 +5535,16 @@ int httpWorkElementHandler(STCBase *base,
 int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
   if (httpServerIOTrace){
 #ifdef __ZOWE_OS_ZOS
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "SELECTX (Mk 2), selectStatus=0x%x, qReadyECB=0x%x\n",selectStatus,base->qReadyECB);
+    printf("SELECTX (Mk 2), selectStatus=0x%x, qReadyECB=0x%x\n",selectStatus,base->qReadyECB);
 #else
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "SELECTX woke up due to selectFiring status=0x%x\n",selectStatus);
+    printf("SELECTX woke up due to selectFiring status=0x%x\n",selectStatus);
 #endif
     if (selectStatus == STC_BASE_SELECT_FAIL){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "stcBaseSelect Failed - internal error\n");
+      printf("stcBaseSelect Failed - internal error\n");
     } else if (selectStatus == STC_BASE_SELECT_TIMEOUT){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "stcBaseSelect timed out \n");
+      printf("stcBaseSelect timed out \n");
     } else if (selectStatus == STC_BASE_SELECT_NOTHING_OBVIOUS_HAPPENED){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "stcBaseSelect didn't see anything\n");
+      printf("stcBaseSelect didn't see anything\n");
       fflush(stdout);
     }
   }
@@ -5491,4 +5590,3 @@ int mainHttpLoop(HttpServer *server){
   
   Copyright Contributors to the Zowe Project.
 */
-

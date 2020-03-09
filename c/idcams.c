@@ -27,7 +27,6 @@
 #include "zowetypes.h"
 #include "alloc.h"
 #include "idcams.h"
-#include "logging.h"
 
 #define TOSTR(number) #number
 #define INT_TO_STR(number) TOSTR(number)
@@ -453,7 +452,7 @@ void idcamsPrintCommandOutput(const IDCAMSCommandOutput *idcamsOutput) {
 
   IDCAMSOutputRecord *currentNode = idcamsOutput->firstRecord;
   while (currentNode != NULL) {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "%.*s\n", currentNode->recordLength, currentNode->record);
+    printf("%.*s\n", currentNode->recordLength, currentNode->record);
     currentNode = currentNode->next;
   }
 

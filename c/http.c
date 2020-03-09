@@ -171,7 +171,7 @@ char *toASCIIUTF8(char *buffer, int len) {
     char translatedChar = buffer[i];
 #endif
     if (translatedChar > 126){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "toASCIIUTF8 warning, saw value 0x%x which is not in the 7-bit subset\n",translatedChar);
+      printf("toASCIIUTF8 warning, saw value 0x%x which is not in the 7-bit subset\n",translatedChar);
     }
     buffer[i] = translatedChar;
   }
@@ -195,7 +195,7 @@ int writeFully(Socket *socket, char *buffer, int len){
   /* this is a sanity check for a bug that once happened on ZOS */
 #ifdef __ZOWE_OS_ZOS
   if (((int)socket) < 0x1000000){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "*** WARNING *** bad socket pointer!! 0x%x\n",socket);
+    printf("*** WARNING *** bad socket pointer!! 0x%x\n",socket);
     return 0;
   }
 #endif
@@ -249,4 +249,3 @@ int writeFully(Socket *socket, char *buffer, int len){
   
   Copyright Contributors to the Zowe Project.
 */
-

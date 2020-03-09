@@ -29,7 +29,6 @@
 
 #include "zowetypes.h"
 #include "utils.h"
-#include "logging.h"
 
 #ifdef __ZOWE_OS_ZOS
 #include "zos.h"
@@ -41,7 +40,7 @@ int startNativeImpersonation(char *username, void *userPointer, void *resultPoin
 #ifdef __ZOWE_OS_ZOS
   return startSafImpersonation(username, (ACEE**)userPointer);
 #else
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_DEBUG, "Implement me: impersonation code for this platform\n");
+  printf("Implement me: impersonation code for this platform\n");
   return TRUE;
 #endif
 }
@@ -49,7 +48,7 @@ int endNativeImpersonation(char *username, void *userPointer, void *resultPointe
 #ifdef __ZOWE_OS_ZOS
   return endSafImpersonation((ACEE**)userPointer);
 #else
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_DEBUG, "Implement me: impersonation code for this platform\n");
+  printf("Implement me: impersonation code for this platform\n");
   return TRUE;
 #endif
 }
@@ -65,12 +64,12 @@ int startSafImpersonation(char *username, ACEE **newACEE) {
                           newACEE,
                           &racfStatus,
                           &racfReason);
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "VERIFY call on %s safStatus %x racfStatus %x reason %x\n",username,safStatus,racfStatus,racfReason);
+  printf("VERIFY call on %s safStatus %x racfStatus %x reason %x\n",username,safStatus,racfStatus,racfReason);
   if (!safStatus){
     impersonationBegan = TRUE;
   }
   else {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "Failed to do saf Verify\n");
+    printf("Failed to do saf Verify\n");
     int safStatus = safVerify(VERIFY_DELETE,NULL,NULL,newACEE,&racfStatus,&racfReason);    
   }  
   return impersonationBegan;
@@ -82,7 +81,7 @@ int endSafImpersonation(ACEE **acee) {
   int safStatus = safVerify(VERIFY_DELETE,NULL,NULL,acee,&racfStatus,&racfReason);    
   endedImpersonation = !safStatus;
   if (!endedImpersonation) {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "**PANIC: Could not end impersonation!\n");
+    printf("**PANIC: Could not end impersonation!\n");
   }
   return endedImpersonation;
 }
@@ -146,11 +145,11 @@ int bpxImpersonate(char *userid, char *passwordOrNull, int start, int trace) {
             reasonCodePtr);
   }
   if (returnValue != 0) {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "BPXTLS failed: rc=%d, return code=%d, reason code=0x%08x\n",
+    printf("BPXTLS failed: rc=%d, return code=%d, reason code=0x%08x\n",
             returnValue, returnCode, reasonCode);
   } else {
     if (trace) {
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXTLS OK\n");
+      printf("BPXTLS OK\n");
     }
   }
   return returnValue;
@@ -174,7 +173,7 @@ int tlsImpersonate(char *userid, char *passwordOrNull, int start, int trace) {
   reasonCodePtr = &reasonCode;
 #endif /*_LP64 */
   if (trace) {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "begin %s userid '%s' start %s\n", __FUNCTION__, userid, start ? "TRUE" : "FALSE");
+    printf ("begin %s userid '%s' start %s\n", __FUNCTION__, userid, start ? "TRUE" : "FALSE");
   }
   if (start) {
     options = VERIFY_CREATE;
@@ -184,7 +183,7 @@ int tlsImpersonate(char *userid, char *passwordOrNull, int start, int trace) {
     safStatus = safVerify(options, userid, passwordOrNull, &acee, &racfStatus, &racfReason);
     if (!safStatus) {
       if (trace) {
-        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "SAF VERIFY CREATE OK\n");
+        printf("SAF VERIFY CREATE OK\n");
       }
       setTaskAcee(acee);
       int wasProblemState = supervisorMode(TRUE);
@@ -201,15 +200,15 @@ int tlsImpersonate(char *userid, char *passwordOrNull, int start, int trace) {
         supervisorMode(FALSE);
       }
       if (returnValue != 0) {
-	    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "BPXTLS TLS_TASK_ACEE failed: rc=%d, return code=%d, reason code=0x%08x\n",
+        printf("BPXTLS TLS_TASK_ACEE failed: rc=%d, return code=%d, reason code=0x%08x\n",
                 returnValue, returnCode, reasonCode);
       } else {
         if (trace) {
-          zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXTLS TLS_TASK_ACEE OK\n");
+          printf("BPXTLS TLS_TASK_ACEE OK\n");
         }
       }
     } else {
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "SAF VERIFY CREATE failed: safStatus %d racf status 0x%08x reason 0x%08x\n",
+      printf("SAF VERIFY CREATE failed: safStatus %d racf status 0x%08x reason 0x%08x\n",
               safStatus, racfStatus, racfReason);
       returnValue = -1;
     }
@@ -222,27 +221,27 @@ int tlsImpersonate(char *userid, char *passwordOrNull, int start, int trace) {
             &returnCode,
             reasonCodePtr);
     if (returnValue != 0) {
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "BPXTLS DELETE_SECURITY_ENV failed: rc=%d, return code=%d, reason code=0x%08x\n",
+      printf("BPXTLS DELETE_SECURITY_ENV failed: rc=%d, return code=%d, reason code=0x%08x\n",
               returnValue, returnCode, reasonCode);
     } else {
       if (trace) {
-        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "BPXTLS DELETE_SECURITY_ENV OK\n");
+        printf("BPXTLS DELETE_SECURITY_ENV OK\n");
       }
     }
     int safStatus = safVerify(VERIFY_DELETE, userid, NULL, &acee, &racfStatus, &racfReason);
     if (!safStatus) {
       if (trace) {
-        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "SAF VERIFY DELETE OK\n");
+        printf("SAF VERIFY DELETE OK\n");
       }
       setTaskAcee(acee);
     } else {
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "SAF VERIFY DELETE failed: safStatus %d racf status 0x%08x reason 0x%08x\n",
+      printf("SAF VERIFY DELETE failed: safStatus %d racf status 0x%08x reason 0x%08x\n",
               safStatus, racfStatus, racfReason);
       returnValue = -1;
     }
   }
   if (trace) {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "end %s returnValue %d\n", __FUNCTION__, returnValue);
+    printf ("end %s returnValue %d\n", __FUNCTION__, returnValue);
   }
   return returnValue;
 }
@@ -259,4 +258,3 @@ int tlsImpersonate(char *userid, char *passwordOrNull, int start, int trace) {
   
   Copyright Contributors to the Zowe Project.
 */
-

@@ -1179,7 +1179,7 @@ static int establishRouterInternal(RecoveryContext *userContext,
         frrRequired = true;
       } else {
 #if RECOVERY_TRACING
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "error: set ESTAEX RC = %d, RSN = %d\n",
+        printf("error: set ESTAEX RC = %d, RSN = %d\n",
                feedback.returnCode, feedback.reasonCode);
 #endif
         rc = RC_RCV_SET_ESTAEX_FAILED;
@@ -1435,7 +1435,7 @@ int recoveryRemoveRouter() {
   ESTAEXFeedback feedback = deleteESTAEX();
   if (feedback.returnCode != 0) {
 #if RECOVERY_TRACING
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "error: delete ESTAEX RC = %d, RSN = %d\n", feedback.returnCode, feedback.reasonCode);
+    printf("error: delete ESTAEX RC = %d, RSN = %d\n", feedback.returnCode, feedback.reasonCode);
 #endif
     returnCode = RC_RCV_DEL_ESTAEX_FAILED;
   }
@@ -2030,4 +2030,3 @@ void recoveryGetABENDCode(SDWA *sdwa, int *completionCode, int *reasonCode) {
   
   Copyright Contributors to the Zowe Project.
 */
-

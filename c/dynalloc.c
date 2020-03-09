@@ -29,7 +29,6 @@
 #include "zowetypes.h"
 #include "alloc.h"
 #include "dynalloc.h"
-#include "logging.h"
 
 #define TEXT_UNIT_ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
 
@@ -405,11 +404,11 @@ int dynallocSharedLibrary(char *ddname, char *dsn, char *errorBuffer) {
     turn_on_HOB(below2G->textUnits[textUnitCount - 1]);
 
     if ((rc = invokeDynalloc(parms)) != 0) {
-      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_WARNING, "errorBuffer at 0x%x\n", errorBuffer);
+      printf("errorBuffer at 0x%x\n", errorBuffer);
       fflush(stdout);
       sprintf(errorBuffer, "dynalloc return code=%d, error=%04x, info=%04x", rc,
               dynallocParmsGetErrorCode(parms), dynallocParmsGetInfoCode(parms));
-      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_WARNING, "EB: %s\n", errorBuffer);
+      printf("EB: %s\n", errorBuffer);
     }
 
   } while (0);
@@ -471,11 +470,11 @@ int dynallocUSSDirectory(char *ddname, char *ussPath, char *errorBuffer) {
     turn_on_HOB(below2G->textUnits[textUnitCount - 1]);
 
     if ((rc = invokeDynalloc(parms)) != 0) {
-      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_WARNING, "errorBuffer at 0x%x\n", errorBuffer);
+      printf("errorBuffer at 0x%x\n", errorBuffer);
       fflush(stdout);
       sprintf(errorBuffer, "dynalloc return code=%d, error=%04x, info=%04x", rc,
               dynallocParmsGetErrorCode(parms), dynallocParmsGetInfoCode(parms));
-      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_WARNING, "EB: %s\n", errorBuffer);
+      printf("EB: %s\n", errorBuffer);
     }
 
   } while (0);
@@ -706,7 +705,7 @@ int AllocForDynamicOutput(char *outDescName, /* input - may be null */
               dynallocParmsGetErrorCode(parms), dynallocParmsGetInfoCode(parms));
     } else {
       char *returnedDDName = below2G->textUnits[0]->first_value;
-      zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "returnedDDName \"%.8s\n\"\n", returnedDDName);
+      printf("returnedDDName \"%.8s\n\"\n", returnedDDName);
       memcpy(ddnameResult, returnedDDName, 8);
     }
 
@@ -762,7 +761,7 @@ int DeallocDDName(char *ddname) {
       if (plist->errorReasonCode == 0x0438) {
         ;/* DDNAME was not in use */
       } else {
-        zowelog(NULL, LOG_COMP_ALLOC, ZOWE_LOG_INFO, "ret=%d, error=%04x\n", rc, plist->errorReasonCode);
+        printf("ret=%d, error=%04x\n", rc, plist->errorReasonCode);
       }
     }
 
@@ -1175,4 +1174,3 @@ int dynallocUnallocDatasetByDDName(const DynallocDDName *ddName,
   
   Copyright Contributors to the Zowe Project.
 */
-

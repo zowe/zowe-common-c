@@ -40,7 +40,6 @@
 #include "alloc.h"
 #include "utils.h"
 #include "zos.h"
-#include "logging.h"
 
 #ifdef METTLE
 #define fprintf(out,fmt,...) printf(fmt,__VA_ARGS__)
@@ -663,7 +662,9 @@ static safp *makeSAFCallData(int requestNumber,
     version = SAFPRL7709;
     break;
   default:
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "unknown request number %d\n",requestNumber);
+    if (safTrace){
+      printf("unknown request number %d\n",requestNumber);
+    }
   }
   if (specificDataSize == -1){
     return NULL;
@@ -749,7 +750,9 @@ static char *makeCountedString(char *name,
   int allocSize = 0;
   int len = string ? strlen(string) : 0;
   if (len > maxLength){
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_WARNING, "%s too long\n", name);
+    if (safTrace){
+      printf("%s too long\n", name);
+    }
     return 0;
   }
   int prefixLen = isEntity ? 4 : 1;
@@ -775,7 +778,7 @@ int safVerify(int options, char *userid, char *password,
               ACEE **aceeHandle,
               int *racfStatus, int *racfReason){
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "in safVerify before safVerifyInternal\n");
+  printf("in safVerify before safVerifyInternal\n");
 #endif
   return (safVerifyInternal(options,
                             userid,
@@ -789,7 +792,7 @@ int safVerify(int options, char *userid, char *password,
                             racfStatus,
                             racfReason));
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "in safVerify after safVerifyInternal\n");
+  printf("in safVerify after safVerifyInternal\n");
 #endif
 }
 
@@ -1056,7 +1059,9 @@ static int safAuth_internal(int options, char *safClass, char *entity, int acces
     int locateStatus = locate(entity,&volserCount,firstVolser);
     firstVolser[6] = 0;
     if (locateStatus || !strcmp(firstVolser,"MIGRAT") || !strcmp(firstVolser,"ARCIVE")){
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_WARNING, "could not locate dataset or dataset is migrated\n");
+      if (safTrace){
+        printf("could not locate dataset or dataset is migrated\n");
+      }
       return 0x96;
     }
   }
@@ -1599,4 +1604,3 @@ void gen_dsects_only_os_c(void) { // Required for __asm invoked macros to be abl
   
   Copyright Contributors to the Zowe Project.
 */
-
