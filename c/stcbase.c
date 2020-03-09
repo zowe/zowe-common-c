@@ -491,7 +491,7 @@ int stcBaseSelect(STCBase *stcBase,
     currentEventSet = (HANDLE*)safeMalloc(sizeof(HANDLE)*currentEventSetSize,"Windows Event Set");
     currentReadyEvents = (int*)safeMalloc(sizeof(unsigned long)*currentEventSetSize,"Windows Ready Socket booleans");
     for (int i=0; i<currentEventSetSize; i++){
-      zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_INFO, "event set build loop = %d\n",i);
+      zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "event set build loop = %d\n",i);
       if (i==0){
         currentEventSet[i] = stcBase->qReadyEvent;
       } else {
@@ -499,9 +499,9 @@ int stcBaseSelect(STCBase *stcBase,
         HANDLE socketEvent = CreateEvent(NULL,TRUE,FALSE,"Socket Event");
         
         int eventSelectStatus= WSAEventSelect(socket->windowsSocket, socketEvent, FD_READ | FD_WRITE | FD_ACCEPT);
-        zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_INFO, "eventSelectStatus=%d fpor socket handle=0x%x\n",eventSelectStatus,socket->windowsSocket);
+        zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "eventSelectStatus=%d fpor socket handle=0x%x\n",eventSelectStatus,socket->windowsSocket);
         if (eventSelectStatus != 0){
-          zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_WARNING, "WSAEventSelectFailed status=%d WSA lasteError=%d\n",eventSelectStatus,WSAGetLastError());
+          zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "WSAEventSelectFailed status=%d WSA lasteError=%d\n",eventSelectStatus,WSAGetLastError());
           fflush(stdout);
           failedToBuildEventSet = TRUE;
           break;
@@ -520,41 +520,41 @@ int stcBaseSelect(STCBase *stcBase,
   }
   
   if (failedToBuildEventSet){
-    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_SEVERE, "*** WARNING FAILED TO BUILD EVENT SET\n");
+    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_WARNING, "*** WARNING FAILED TO BUILD EVENT SET\n");
     return STC_BASE_SELECT_FAIL;
   } 
   memset(currentReadyEvents,0,sizeof(unsigned long)*currentEventSetSize);
 
   int status = WaitForMultipleObjects(currentEventSetSize,currentEventSet,FALSE,timeout);  /* windows *DOES* use milliseconds for this parm */
-  zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_INFO, "waitForMultiple status=%d\n",status);
+  zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "waitForMultiple status=%d\n",status);
   if (status == WAIT_TIMEOUT){
-    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_INFO, "woke up due to timeout\n");
+    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "woke up due to timeout\n");
     fflush(stdout);
     return STC_BASE_SELECT_TIMEOUT;
   } else if (status == -1){
-    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_INFO, "WaitForMultipleObjects status=%d WSA lasteError=%d\n",status,GetLastError());
+    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "WaitForMultipleObjects status=%d WSA lasteError=%d\n",status,GetLastError());
     fflush(stdout);
     return STC_BASE_SELECT_FAIL; 
   } else if (status == WAIT_OBJECT_0){  /* we have set up the first element of the event array to be that of the work Q */
     return STC_BASE_SELECT_WORK_ELEMENTS_READY;
   } else if ((status >=  WAIT_OBJECT_0) && (status < (WAIT_OBJECT_0 + currentEventSetSize))){
-    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_INFO, "FD_READ=0x%x FD_WRITE=0x%x FD_ACCEPT=0x%x\n",FD_READ,FD_WRITE,FD_ACCEPT);
+    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "FD_READ=0x%x FD_WRITE=0x%x FD_ACCEPT=0x%x\n",FD_READ,FD_WRITE,FD_ACCEPT);
     for (int j=1; j<currentEventSetSize; j++){
       WSANETWORKEVENTS networkEvents;
       HANDLE hEvent = currentEventSet[j];
       Socket *socketToPoll = socketSet->sockets[j-1];
       int enumStatus = WSAEnumNetworkEvents(socketToPoll->windowsSocket,hEvent,&networkEvents);
 
-      zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_INFO, "enum for j=%d status = %d for socket handle 0x%x -> networkEvents=0x%x\n",
+      zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "enum for j=%d status = %d for socket handle 0x%x -> networkEvents=0x%x\n",
              j,enumStatus,socketToPoll->windowsSocket,networkEvents.lNetworkEvents);
       currentReadyEvents[j] = networkEvents.lNetworkEvents;
     }
     return STC_BASE_SELECT_SOCKETS_READY; /* the set is set in currentReadyEvents, see msdn for WSAEnumNetworkEvents */
   } else if ((status >= WAIT_ABANDONED_0) && (status < (WAIT_ABANDONED_0 + currentEventSetSize))){
-    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_INFO, "thread woke up becase event %d was abandoned, which isn't really a failure, but needs a new status to clean up sockets\n",status);
+    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "thread woke up becase event %d was abandoned, which isn't really a failure, but needs a new status to clean up sockets\n",status);
     return STC_BASE_SELECT_FAIL; 
   } else {
-    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_INFO, "What is this status=%d\n",status);
+    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "What is this status=%d\n",status);
     return STC_BASE_SELECT_FAIL;
   }
 }
@@ -637,7 +637,7 @@ static void extract(IEZCOM * __ptr32 * __ptr32 iezcom)
   parameters->fieldByte1 = 1;
   parameters->fieldByte2 = 0;
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_INFO, "EXTRACT(2) parameters at 0x%p\n",parameters);
+  zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "EXTRACT(2) parameters at 0x%p\n",parameters);
   dumpbuffer((char*)parameters,sizeof(ExtractParameters));
 #endif
   int parametersAsInt = (int)parameters;
@@ -656,7 +656,7 @@ static void extract(IEZCOM * __ptr32 * __ptr32 iezcom)
         : "m"(parametersAsInt)
         : "r15");
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_INFO, "EXTRACT parms after SVC\n");
+  zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "EXTRACT parms after SVC\n");
   dumpbuffer((char*)parameters,sizeof(ExtractParameters));
 #endif
 }
@@ -709,7 +709,7 @@ static STCConsoleCommandType translateCIDVerbToCommandType(char verb) {
     commandType = STC_COMMAND_MODIFY;
   } else {
     commandType = STC_COMMAND_UNKNOWN;
-    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_WARNING, "unexpected CIB command value 0x%X\n", verb);
+    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "unexpected CIB command value 0x%X\n", verb);
   }
 
   return commandType;
@@ -752,7 +752,7 @@ static int consoleTaskMain(RLETask *task) {
       if (commandLength <= sizeof(commandBuffer)) {
         context->userHandler(base, cib, commandType, command, commandLength, context->userData);
       } else {
-        zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_WARNING, "command length too big %hu\n", commandLength);
+        zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "command length too big %hu\n", commandLength);
       }
 
       if (commandType == STC_COMMAND_STOP) {
