@@ -25,7 +25,6 @@
 #include "alloc.h"
 #include "cmutils.h"
 #include "zos.h"
-#include "logging.h"
 
 static int getCallersKey() {
 
@@ -880,7 +879,7 @@ static int testUnconditionalCellPoolGet(void) {
 
   CPID id = cmCellPoolBuild(psize, ssize, cellSize, sp, key, &header);
   if (id == -1) {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cmCellPoolBuild failed\n");
+    printf("error: cmCellPoolBuild failed\n");
     return CMUTILS_TEST_STATUS_FAILURE;
   }
 
@@ -889,7 +888,7 @@ static int testUnconditionalCellPoolGet(void) {
   for (int i = 0; i < 100; i++) {
     void *cell = cmCellPoolGet(id, isConditional);
     if (cell == NULL) {
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cmCellPoolGet(unconditional) test failed, cell #%d\n", i);
+      printf("error: cmCellPoolGet(unconditional) test failed, cell #%d\n", i);
       status = CMUTILS_TEST_STATUS_FAILURE;
       break;
     }
@@ -911,7 +910,7 @@ static int testConditionalCellPoolGet(void) {
 
   CPID id = cmCellPoolBuild(psize, ssize, cellSize, sp, key, &header);
   if (id == -1) {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cmCellPoolBuild failed\n");
+    printf("error: cmCellPoolBuild failed\n");
     return CMUTILS_TEST_STATUS_FAILURE;
   }
 
@@ -926,7 +925,7 @@ static int testConditionalCellPoolGet(void) {
   }
 
   if (status != CMUTILS_TEST_STATUS_OK) {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cmCellPoolGet(conditional) test failed\n");
+    printf("error: cmCellPoolGet(conditional) test failed\n");
   }
 
   cmCellPoolDelete(id);
@@ -947,7 +946,7 @@ static int testCellPoolFree(void) {
 
   CPID id = cmCellPoolBuild(psize, ssize, cellSize, sp, key, &header);
   if (id == -1) {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cmCellPoolBuild failed\n");
+    printf("error: cmCellPoolBuild failed\n");
     return CMUTILS_TEST_STATUS_FAILURE;
   }
 
@@ -956,7 +955,7 @@ static int testCellPoolFree(void) {
   for (int i = 0; i < sizeof(cells) / sizeof(cells[0]); i++) {
     cells[i] = cmCellPoolGet(id, isConditional);
     if (cells[i] == NULL) {
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cmCellPoolFree test failed (alloc 1), cell #%d\n", i);
+      printf("error: cmCellPoolFree test failed (alloc 1), cell #%d\n", i);
       status = CMUTILS_TEST_STATUS_FAILURE;
       break;
     }
@@ -972,7 +971,7 @@ static int testCellPoolFree(void) {
     for (int i = 0; i < sizeof(cells) / sizeof(cells[0]); i++) {
       cells[i] = cmCellPoolGet(id, isConditional);
       if (cells[i] == NULL) {
-        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cmCellPoolFree test failed (alloc 2), cell #%d\n", i);
+        printf("error: cmCellPoolFree test failed (alloc 2), cell #%d\n", i);
         status = CMUTILS_TEST_STATUS_FAILURE;
         break;
       }
@@ -1030,7 +1029,7 @@ static int testCMMap(void) {
 
   CrossMemoryMap *map = makeCrossMemoryMap(sizeof(pairs[0].key));
   if (map == NULL) {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: map not created\n");
+    printf("error: map not created\n");
     return CMUTILS_TEST_STATUS_FAILURE;
   }
 
@@ -1040,7 +1039,7 @@ static int testCMMap(void) {
     int rc = crossMemoryMapPut(map, &pairs[i].key, &pairs[i].value);
     if (rc != 0) {
       status = CMUTILS_TEST_STATUS_FAILURE;
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cm map put (1) failed, rc = %d, key = %s\n",
+      printf("error: cm map put (1) failed, rc = %d, key = %s\n",
              rc, pairs[i].key);
       break;
     }
@@ -1051,7 +1050,7 @@ static int testCMMap(void) {
       int rc = crossMemoryMapPut(map, &pairs[i].key, &pairs[i].value);
       if (rc != 1) {
         status = CMUTILS_TEST_STATUS_FAILURE;
-        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cm map put (2) failed, rc = %d, key = %s\n",
+        printf("error: cm map put (2) failed, rc = %d, key = %s\n",
                rc, pairs[i].key);
         break;
       }
@@ -1063,13 +1062,13 @@ static int testCMMap(void) {
       char *value = crossMemoryMapGet(map, &pairs[i].key);
       if (value == NULL) {
         status = CMUTILS_TEST_STATUS_FAILURE;
-        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cm map get (1) failed, value not found for key = %s\n",
+        printf("error: cm map get (1) failed, value not found for key = %s\n",
                pairs[i].key);
         break;
       }
       if (strcmp(value, pairs[i].value)) {
         status = CMUTILS_TEST_STATUS_FAILURE;
-        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cm map get (1) failed, bad value found %s, expected %s\n",
+        printf("error: cm map get (1) failed, bad value found %s, expected %s\n",
                value, pairs[i].value);
       }
     }
@@ -1080,7 +1079,7 @@ static int testCMMap(void) {
       char *value = crossMemoryMapGet(map, &missingPairs[i].key);
       if (value != NULL) {
         status = CMUTILS_TEST_STATUS_FAILURE;
-        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cm map get (2) failed, key = %s, value = %s\n",
+        printf("error: cm map get (2) failed, key = %s, value = %s\n",
                missingPairs[i].key, value);
         break;
       }
@@ -1092,7 +1091,7 @@ static int testCMMap(void) {
       void **valueHandle = crossMemoryMapGetHandle(map, &pairs[i].key);
       if (valueHandle == NULL) {
         status = CMUTILS_TEST_STATUS_FAILURE;
-        zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: cm map get (3) failed, handle not found for key = %s\n",
+        printf("error: cm map get (3) failed, handle not found for key = %s\n",
                pairs[i].key);
         break;
       }
@@ -1137,16 +1136,16 @@ int main() {
 static int notMain() {
 #endif
 
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "info: starting cmutils test\n");
+  printf("info: starting cmutils test\n");
 
   int status = CMUTILS_TEST_STATUS_OK;
 
   status = testCellPool();
 
   if (status == CMUTILS_TEST_STATUS_OK) {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "info: SUCCESS, tests have passed\n");
+    printf("info: SUCCESS, tests have passed\n");
   } else {
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "error: FAILURE, some tests have failed\n");
+    printf("error: FAILURE, some tests have failed\n");
   }
 
   return status;
@@ -1161,4 +1160,3 @@ static int notMain() {
 
   Copyright Contributors to the Zowe Project.
 */
-
