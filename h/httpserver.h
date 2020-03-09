@@ -63,6 +63,8 @@
 
 #define HTTP_SERVER_PRIVILEGED_SERVER_PROPERTY  "zisServerName"
 
+#define SERVICE_AUTH_PASSWORD_EXPIRED    12
+
 typedef struct BigBuffer_tag{
   ShortLivedHeap *slh;  /* can be null */
   char *data;

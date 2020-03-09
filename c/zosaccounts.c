@@ -39,16 +39,20 @@ static int accountTrace = FALSE;
 #ifdef _LP64
 # pragma linkage(BPX4GGN,OS)
 # pragma linkage(BPX4GPN,OS)
+# pragma linkage(BPX4PWD,OS)
 
 # define BPXGGN BPX4GGN
 # define BPXGPN BPX4GPN
+# define BPXPWD BPX4PWD
 
 #else
 # pragma linkage(BPX1GGN,OS)
 # pragma linkage(BPX1GPN,OS)
+# pragma linkage(BPX1PWD,OS)
 
 # define BPXGGN BPX1GGN
 # define BPXGPN BPX1GPN
+# define BPXPWD BPX1PWD
 #endif
 
 
@@ -99,6 +103,53 @@ int gidGetUserInfo(const char *userName,  UserInfo * info,
   }
 
   return retValue;
+}
+
+/* Obtain the user information structure from user name */
+int resetZosUserPassword(const char *userName,  char *password, char *newPassword,
+                         int *returnCode, int *reasonCode) {
+  int nameLength = strlen(userName);
+  int passwordLength = strlen(password);
+  int newPasswordLength = strlen(newPassword);
+  int *reasonCodePtr;
+  int returnValue;
+
+#ifndef _LP64
+  reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
+#else
+  reasonCodePtr = reasonCode;
+#endif
+
+  BPXPWD(&nameLength,
+         userName,
+         &passwordLength,
+         password,
+         &newPasswordLength,
+         newPassword,
+         &returnValue,
+         returnCode,
+         reasonCodePtr);
+
+  if (accountTrace) {
+    if(returnValue == 0) {
+#ifdef METTLE
+      /* Do not add a comma */
+      printf("BPXPWD (%s) FAILED: returnValue: %d, returnCode:"
+             " %d, reasonCode: 0x%08x\n",
+             userName, returnValue, *returnCode, *reasonCode);
+#else
+      printf("BPXPWD (%s) FAILED: returnValue: %d, returnCode: %d,"
+             " reasonCode: 0x%08x, strError: (%s)\n",
+             userName, returnValue, *returnCode, *reasonCode,
+             strerror(*returnCode));
+#endif
+    }
+    else {
+      printf("BPXPWD (%s) OK: returnVal: %d\n", userName, returnValue);
+    }
+  }
+
+  return returnValue;
 }
 
 /* Obtain the group information structure from group name */
