@@ -56,7 +56,8 @@ int userInfoGetUserId (UserInfo *info);
 int groupInfoGetGroupId (GroupInfo *info);
 int userIdGet (char *string, int *returnCode, int *reasonCode);
 int groupIdGet (char *string, int *returnCode, int *reasonCode);
-
+int resetZosUserPassword(const char *userName,  char *password, char *newPassword,
+                         int *returnCode, int *reasonCode);
 
 #endif  /*  __ZOSACCOUNTS__ */
 

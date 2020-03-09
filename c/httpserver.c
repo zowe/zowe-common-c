@@ -2406,7 +2406,7 @@ static bool isPassPhrase(const char *password) {
 }
 
 #ifdef __ZOWE_OS_ZOS
-static int safAuthenticate(HttpService *service, HttpRequest *request){
+static int safAuthenticate(HttpService *service, HttpRequest *request, int *safRC, int *racfRC, int *racfRSN){
   int safStatus = 0, racfStatus = 0, racfReason = 0;
   int options = VERIFY_CREATE;
   int authDataFound = FALSE;
@@ -2451,6 +2451,10 @@ static int safAuthenticate(HttpService *service, HttpRequest *request){
     int pwdCheckRC = 0, pwdCheckRSN = 0;
     pwdCheckRC = zisCheckUsernameAndPassword(privilegedServerName,
         request->username, request->password, &status);
+    *safRC = status.safStatus.safRC;
+    *racfRC = status.safStatus.racfRC;
+    *racfRSN = status.safStatus.racfRSN;
+
     if (pwdCheckRC != 0) {
 #ifdef DEBUG_AUTH
 #define FORMAT_AUTH_ERROR($fmt, ...) printf("error: zisCheckUsernameAndPassword" \
@@ -2472,15 +2476,15 @@ static int safAuthenticate(HttpService *service, HttpRequest *request){
   return FALSE;
 }
 #else
-static int safAuthenticate(HttpService *service, HttpRequest *request){
+static int safAuthenticate(HttpService *service, HttpRequest *request, int *safRC, int *racfRC, int *racfRSN){
   printf("*** ERROR **** calling safAuth off-mainframe\n");
   return FALSE;
 }
 #endif
 
-static int nativeAuth(HttpService *service, HttpRequest *request){
+static int nativeAuth(HttpService *service, HttpRequest *request, int *safRC, int *racfRC, int *racfRSN){
 #ifdef __ZOWE_OS_ZOS
-  return safAuthenticate(service, request);
+  return safAuthenticate(service, request, safRC, racfRC, racfRSN);
 #else
   printf("*** ERROR *** native auth not implemented for this platform\n");
   return TRUE;
@@ -2793,7 +2797,7 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
 }
 
 static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *request,  HttpResponse *response,
-                                             int *clearSessionToken){
+                                             int *clearSessionToken, int *safRC, int *racfRC, int *racfRSN){
   int authDataFound = FALSE; 
   HttpHeader *authenticationHeader = getHeader(request,"Authorization");
   char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
@@ -2840,7 +2844,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
       response->sessionCookie = sessionToken;
       return TRUE;
     } else if (authDataFound){
-      if (nativeAuth(service,request)){
+      if (nativeAuth(service,request,safRC,racfRC,racfRSN)){
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
                "serviceAuthNativeWithSessionToken: Cookie not valid, auth is good\n");
         char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
@@ -2861,7 +2865,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
       return FALSE;
     }
   } else if (authDataFound){
-    if (nativeAuth(service,request)){
+    if (nativeAuth(service,request,safRC,racfRC,racfRSN)){
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
               "serviceAuthNativeWithSessionToken: auth header provided and works, "
               "before generate session token req=0x%x, username=0x%x, response=0x%p\n",
@@ -3151,6 +3155,7 @@ static int handleHttpService(HttpServer *server,
   service->server = server;
 
   int clearSessionToken = FALSE;
+  int safRC, racfRC, racfRSN = 0;
   switch (service->authType){
    
   case SERVICE_AUTH_NONE:
@@ -3164,7 +3169,7 @@ static int handleHttpService(HttpServer *server,
 #ifdef DEBUG
     printf("saf auth needed for service %s\n",service->name);
 #endif
-    request->authenticated = safAuthenticate(service, request);
+    request->authenticated = safAuthenticate(service, request, &safRC, &racfRC, &racfRSN);
     break;
   case SERVICE_AUTH_CUSTOM:
 #ifdef DEBUG
@@ -3184,7 +3189,7 @@ static int handleHttpService(HttpServer *server,
         break;
       } /* else fall through */
     case SERVICE_AUTH_TOKEN_TYPE_LEGACY:
-      request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken);
+      request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken, &safRC, &racfRC, &racfRSN);
       break;
     }
     break;
@@ -3194,7 +3199,13 @@ static int handleHttpService(HttpServer *server,
 #endif
   if (request->authenticated == FALSE){
     /* could make this parameterizable */
-    respondWithError(response,401,"Not Authorized");
+    switch (racfRC) {
+      case SERVICE_AUTH_PASSWORD_EXPIRED:
+        respondWithError(response, HTTP_STATUS_PRECONDITION_REQUIRED, "Password Expired");
+        break;
+      default:
+        respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
+	}
     // Response is finished on return
   } else {
 
@@ -4024,6 +4035,19 @@ void respondWithJsonError(HttpResponse *response, char *error, int statusCode, c
 
   jsonStart(out);
   jsonAddString(out, "error", error);
+  jsonEnd(out);
+
+  finishResponse(response);
+}
+
+void respondWithJsonStatus(HttpResponse *response, char *status, int statusCode, char *statusMessage) {
+  jsonPrinter *out = respondWithJsonPrinter(response);
+  setResponseStatus(response,statusCode,statusMessage);
+  setDefaultJSONRESTHeaders(response);
+  writeHeader(response);
+
+  jsonStart(out);
+  jsonAddString(out, "status", status);
   jsonEnd(out);
 
   finishResponse(response);
