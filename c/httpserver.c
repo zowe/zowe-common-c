@@ -209,6 +209,14 @@ static char crlf[] ={ 0x0d, 0x0a};
 #define DEFAULT_UMASK 0022
 #endif
 
+//No need to fill logs with the same message, warn based on a desired frequency
+#ifdef __ZOWE_OS_ZOS
+#ifndef TLS_WARN_FREQUENCY
+#define TLS_WARN_FREQUENCY 25
+#endif
+static int tlsWarnCounter = 0;
+#endif
+
 static int64 getFineGrainedTime();
 
 
@@ -5151,7 +5159,10 @@ static int httpHandleTCP(STCBase *base,
       } else if ((RS_TLS_WANT_TLS & peerExtension->tlsFlags) &&
                  (0 == (RS_TLS_HAVE_TLS & peerExtension->tlsFlags)))
       {
-        printf("*** WARNING: Connection is insecure! TLS needed but not found on socket. ***\n");
+        if (0 == (tlsWarnCounter % TLS_WARN_FREQUENCY)) {
+          printf("*** WARNING: Connection is insecure! TLS needed but not found on socket. ***\n");
+        }
+        tlsWarnCounter++;
       } else if ((RS_TLS_WANT_PEERCERT & peerExtension->tlsFlags) &&
                  (0 == (RS_TLS_HAVE_PEERCERT & peerExtension->tlsFlags)))
       {
