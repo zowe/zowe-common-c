@@ -210,11 +210,11 @@ static char crlf[] ={ 0x0d, 0x0a};
 #endif
 
 //No need to fill logs with the same message, warn based on a desired frequency
-#ifdef __ZOWE_OS_ZOS
+#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
 #ifndef TLS_WARN_FREQUENCY
 #define TLS_WARN_FREQUENCY 25
 #endif
-static int tlsWarnCounter = 0;
+static unsigned int tlsWarnCounter = 0;
 #endif
 
 static int64 getFineGrainedTime();
