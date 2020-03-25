@@ -2814,7 +2814,7 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
 static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *request,  HttpResponse *response,
                                              int *clearSessionToken){
   int authDataFound = FALSE; 
-  HttpHeader *authenticationHeader = getHeader(request, "Authorization");
+  HttpHeader *authenticationHeader = getHeader(request,"Authorization");
   char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
   
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
@@ -2909,9 +2909,8 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
 static int serviceAuthWithJwt(HttpService *service,
                               HttpRequest *request,
                               HttpResponse *response) {
-  int authDataFound = FALSE;
   HttpHeader *const authorizationHeader = getHeader(request, "Authorization");
-  char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
+  char *zssTokenText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
   char *jwtTokenText = getCookieValue(request,JWT_COOKIE_NAME);
 
   AUTH_TRACE("serviceAuthWithJwt: authenticationHeader 0x%p,"
@@ -2933,22 +2932,17 @@ static int serviceAuthWithJwt(HttpService *service,
    * request structure?
    */
 
-   //TODO: REMOVE ZOWE LOGS, ADD SUPPRT FOR TOKEN IN AUTH BEARER FORM
   if (authorizationHeader) {
     DEBUG_TRACE("serviceAuthWithJwt: auth header = 0x%x\n", authorizationHeader);
-    if (extractBearerToken(request, authorizationHeader)) {
+    if (request->authToken == NULL && extractBearerToken(request, authorizationHeader)) { //check if jwtTokenText is null before attempting to get token from bearer
       DEBUG_TRACE("back inside serviceAuthWithJwt after call to extractBearerToken\n");
-      authDataFound = TRUE;
     }
   } else if (service->authExtractionFunction != NULL) {
     if (service->authExtractionFunction(service, request) == 0) {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "auth extraction function returns 0!\n");
-      authDataFound = TRUE;
     }
   }
-  
-  response->sessionCookie = NULL;
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "serviceAuthWithJwt: request->authToken %p\n", request->authToken);
+
   AUTH_TRACE("serviceAuthWithJwt: request->authToken %p\n", request->authToken);
   if (request->authToken == NULL) {
     return FALSE;
@@ -2994,11 +2988,12 @@ static int serviceAuthWithJwt(HttpService *service,
     char jwtCookie[jwtCookieLen];
     snprintf(jwtCookie, jwtCookieLen, "%s=%s", JWT_COOKIE_NAME, jwtTokenText);
     addStringHeader(response, "Set-Cookie", jwtCookie);
+    response->sessionCookie = NULL;
     char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
     response->sessionCookie = sessionToken;
     addStringHeader(response, "Set-Cookie", response->sessionCookie);
     strupcase(request->username);
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "TOKEN VALIDATED\n");
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "TOKEN VALIDATED\n");
     return TRUE;
   }
 }
