@@ -2893,6 +2893,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
 }
 
 #define JWT_COOKIE_NAME "apimlAuthenticationToken"
+#define JWT_COOKIE_NAME_LENGTH 24
 
 static int serviceAuthWithJwt(HttpService *service,
                               HttpRequest *request,
@@ -2999,6 +3000,13 @@ static int serviceAuthWithJwt(HttpService *service,
     strcpy(request->username, jwt->subject);
     char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
     response->sessionCookie = sessionToken;
+    addStringHeader(response, "Set-Cookie", response->sessionCookie);
+    int jwtLen = strlen(jwtTokenText);
+    int jwtCookieLen = JWT_COOKIE_NAME_LENGTH + jwtLen + 2; //+1 for '=', +1 for null term
+    char jwtCookie[jwtCookieLen];
+    snprintf(jwtCookie, jwtCookieLen, "%s=%s", JWT_COOKIE_NAME, jwtTokenText);
+    printf("jwtCookie: '%s'\n", jwtCookie);
+    addStringHeader(response, "Set-Cookie", jwtCookie);
     strupcase(request->username);
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "TOKEN VALIDATED BRUH\n");
     return TRUE;
@@ -3222,7 +3230,6 @@ static int handleHttpService(HttpServer *server,
       if (request->authenticated  ||
           service->server->config->authTokenType
             != SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "serviceAuthWithJwt returned true!\n");
         break;
       } /* else fall through */
     case SERVICE_AUTH_TOKEN_TYPE_LEGACY:
