@@ -3007,7 +3007,7 @@ int httpServerInitJwtContext(HttpServer *self,
   JwtContext *const context = makeJwtContextForKeyInToken(
       pkcs11TokenName,
       keyName,
-      CKO_PUBLIC_KEY,
+      keyType,
       makeContextRc,
       p11Rc,
       p11Rsn);
