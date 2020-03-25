@@ -2884,17 +2884,32 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   }
 }
 
+#define JWT_COOKIE_NAME "apimlAuthenticationToken"
+
 static int serviceAuthWithJwt(HttpService *service,
                               HttpRequest *request,
                               HttpResponse *response) {
   int authDataFound = FALSE;
   HttpHeader *const authorizationHeader = getHeader(request, "Authorization");
   char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
+  char *jwtTokenText = getCookieValue(request,JWT_COOKIE_NAME);
 
   AUTH_TRACE("serviceAuthWithJwt: authenticationHeader 0x%p,"
       " extractFunction 0x%p\n",
       authorizationHeader,
       service->authExtractionFunction);
+
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
+   "serviceAuthWithJwt: authenticationHeader 0x%p, authenticationHeader(hex) = 0x%x\nextractFunction 0x%p\n",
+   authorizationHeader,
+   authorizationHeader,
+   service->authExtractionFunction);
+
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
+   "serviceAuthWithJwt: JWT_TOKEN_TEXT: %s\n",
+   jwtTokenText);
+
+   request->authToken = jwtTokenText;
 
   /*
    * The extractor should look at the request and get the raw JWT from anywhere
@@ -2907,8 +2922,11 @@ static int serviceAuthWithJwt(HttpService *service,
    * TODO: consider changing the architecture: what fields do we want in the
    * request structure?
    */
+
+   //TODO: REMOVE ZOWE LOGS, ADD SUPPRT FOR TOKEN IN AUTH BEARER FORM
   if (service->authExtractionFunction != NULL) {
     if (service->authExtractionFunction(service, request) == 0) {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "authDataFound!\n");
       authDataFound = TRUE;
     }
   } else if (authorizationHeader) {
@@ -2916,16 +2934,24 @@ static int serviceAuthWithJwt(HttpService *service,
     if (extractBearerToken(request, authorizationHeader)) {
       DEBUG_TRACE("back inside serviceAuthWithJwt after call to extractBearerToken\n");
       authDataFound = TRUE;
+    } else {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "no auth data found!\n");
     }
+  } else {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "no bearer token found!\n");
   }
+  
+  response->sessionCookie = NULL;
 
   AUTH_TRACE("serviceAuthWithJwt: request->authToken %p\n", request->authToken);
   if (request->authToken == NULL) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "no auth token!\n");
     return FALSE;
   }
 
   JwtContext *const jwtContext = service->server->config->jwtContext;
   if (jwtContext == NULL) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "no jwt context\n");
     return FALSE;
   }
 
@@ -2938,11 +2964,15 @@ static int serviceAuthWithJwt(HttpService *service,
       &jwtRc);
   AUTH_TRACE("serviceAuthWithJwt: jwtContext %p\n", jwtContext);
   if (jwtRc != RC_JWT_OK) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "bad verify!\n");
     return FALSE;
   }
+  
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "token verified!\n");
 
   if (!jwtAreBasicClaimsValid(jwt, NULL)) {
     AUTH_TRACE("serviceAuthWithJwt: basic claims invalid\n");
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "invalid basic claims!\n");
     return FALSE;
   }
 
@@ -2959,7 +2989,10 @@ static int serviceAuthWithJwt(HttpService *service,
       return FALSE;
     }
     strcpy(request->username, jwt->subject);
+    char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
+    response->sessionCookie = sessionToken;
     strupcase(request->username);
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "TOKEN VALIDATED BRUH\n");
     return TRUE;
   }
 }
@@ -2973,7 +3006,7 @@ int httpServerInitJwtContext(HttpServer *self,
   JwtContext *const context = makeJwtContextForKeyInToken(
       pkcs11TokenName,
       keyName,
-      keyType,
+      CKO_PUBLIC_KEY,
       makeContextRc,
       p11Rc,
       p11Rsn);
@@ -3181,6 +3214,7 @@ static int handleHttpService(HttpServer *server,
       if (request->authenticated  ||
           service->server->config->authTokenType
             != SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK) {
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "serviceAuthWithJwt returned true!\n");
         break;
       } /* else fall through */
     case SERVICE_AUTH_TOKEN_TYPE_LEGACY:
