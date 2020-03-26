@@ -83,6 +83,9 @@ typedef int time_t;
 #define APF_AUTHORIZED  1
 #endif
 
+#define SAF_RC_PASSWORD_EXPIRED    8
+#define RACF_RC_PASSWORD_EXPIRED   12
+
 /* FIX THIS: a temporary "low profile" way of hiding printfs. Improves
  * demo performance while we wait for
  * the introduction of a proper tracing infrastructure.
@@ -3199,13 +3202,11 @@ static int handleHttpService(HttpServer *server,
 #endif
   if (request->authenticated == FALSE){
     /* could make this parameterizable */
-    switch (racfRC) {
-      case SERVICE_AUTH_PASSWORD_EXPIRED:
-        respondWithError(response, HTTP_STATUS_PRECONDITION_REQUIRED, "Password Expired");
-        break;
-      default:
-        respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
-	}
+    if (safRC == SAF_RC_PASSWORD_EXPIRED && racfRC == RACF_RC_PASSWORD_EXPIRED) {
+      respondWithError(response, HTTP_STATUS_PRECONDITION_REQUIRED, "Password Expired");
+    } else {
+      respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
+    }
     // Response is finished on return
   } else {
 
@@ -4035,19 +4036,6 @@ void respondWithJsonError(HttpResponse *response, char *error, int statusCode, c
 
   jsonStart(out);
   jsonAddString(out, "error", error);
-  jsonEnd(out);
-
-  finishResponse(response);
-}
-
-void respondWithJsonStatus(HttpResponse *response, char *status, int statusCode, char *statusMessage) {
-  jsonPrinter *out = respondWithJsonPrinter(response);
-  setResponseStatus(response,statusCode,statusMessage);
-  setDefaultJSONRESTHeaders(response);
-  writeHeader(response);
-
-  jsonStart(out);
-  jsonAddString(out, "status", status);
   jsonEnd(out);
 
   finishResponse(response);
