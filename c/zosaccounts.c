@@ -106,7 +106,7 @@ int gidGetUserInfo(const char *userName,  UserInfo * info,
 }
 
 /* Obtain the user information structure from user name */
-int resetZosUserPassword(const char *userName,  char *password, char *newPassword,
+int resetZosUserPassword(const char *userName,  const char *password, const char *newPassword,
                          int *returnCode, int *reasonCode) {
   int nameLength = strlen(userName);
   int passwordLength = strlen(password);
