@@ -2922,7 +2922,7 @@ static int serviceAuthWithJwt(HttpService *service,
 
   if (authorizationHeader) {
     DEBUG_TRACE("serviceAuthWithJwt: auth header = 0x%x\n", authorizationHeader);
-    if (request->authToken == NULL && extractBearerToken(request, authorizationHeader)) { //check if jwtTokenText is null before attempting to get token from bearer
+    if (request->authToken == NULL && extractBearerToken(request, authorizationHeader)) {
       DEBUG_TRACE("back inside serviceAuthWithJwt after call to extractBearerToken\n");
     }
   } else if (service->authExtractionFunction != NULL) {
