@@ -2910,7 +2910,6 @@ static int serviceAuthWithJwt(HttpService *service,
                               HttpRequest *request,
                               HttpResponse *response) {
   HttpHeader *const authorizationHeader = getHeader(request, "Authorization");
-  char *zssTokenText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
   char *jwtTokenText = getCookieValue(request,JWT_COOKIE_NAME);
 
   AUTH_TRACE("serviceAuthWithJwt: authenticationHeader 0x%p,"
