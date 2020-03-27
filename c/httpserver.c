@@ -86,6 +86,14 @@ typedef int time_t;
 #define SAF_RC_PASSWORD_EXPIRED    8
 #define RACF_RC_PASSWORD_EXPIRED   12
 
+typedef struct AuthResponse_tag {
+  int type;
+#define AUTH_TYPE_RACF  1
+  union {
+    SAFAuthStatus safStatus;
+  } responseDetails;
+} AuthResponse;
+
 /* FIX THIS: a temporary "low profile" way of hiding printfs. Improves
  * demo performance while we wait for
  * the introduction of a proper tracing infrastructure.
@@ -2409,7 +2417,7 @@ static bool isPassPhrase(const char *password) {
 }
 
 #ifdef __ZOWE_OS_ZOS
-static int safAuthenticate(HttpService *service, HttpRequest *request, int *safRC, int *racfRC, int *racfRSN){
+static int safAuthenticate(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
   int safStatus = 0, racfStatus = 0, racfReason = 0;
   int options = VERIFY_CREATE;
   int authDataFound = FALSE;
@@ -2454,9 +2462,9 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, int *safR
     int pwdCheckRC = 0, pwdCheckRSN = 0;
     pwdCheckRC = zisCheckUsernameAndPassword(privilegedServerName,
         request->username, request->password, &status);
-    *safRC = status.safStatus.safRC;
-    *racfRC = status.safStatus.racfRC;
-    *racfRSN = status.safStatus.racfRSN;
+
+    authResponse->type = AUTH_TYPE_RACF;
+    authResponse->responseDetails.safStatus = status.safStatus;
 
     if (pwdCheckRC != 0) {
 #ifdef DEBUG_AUTH
@@ -2479,15 +2487,15 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, int *safR
   return FALSE;
 }
 #else
-static int safAuthenticate(HttpService *service, HttpRequest *request, int *safRC, int *racfRC, int *racfRSN){
+static int safAuthenticate(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
   printf("*** ERROR **** calling safAuth off-mainframe\n");
   return FALSE;
 }
 #endif
 
-static int nativeAuth(HttpService *service, HttpRequest *request, int *safRC, int *racfRC, int *racfRSN){
+static int nativeAuth(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
 #ifdef __ZOWE_OS_ZOS
-  return safAuthenticate(service, request, safRC, racfRC, racfRSN);
+  return safAuthenticate(service, request, authResponse);
 #else
   printf("*** ERROR *** native auth not implemented for this platform\n");
   return TRUE;
@@ -2800,7 +2808,7 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
 }
 
 static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *request,  HttpResponse *response,
-                                             int *clearSessionToken, int *safRC, int *racfRC, int *racfRSN){
+                                             int *clearSessionToken, AuthResponse *authResponse){
   int authDataFound = FALSE; 
   HttpHeader *authenticationHeader = getHeader(request,"Authorization");
   char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
@@ -2847,7 +2855,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
       response->sessionCookie = sessionToken;
       return TRUE;
     } else if (authDataFound){
-      if (nativeAuth(service,request,safRC,racfRC,racfRSN)){
+      if (nativeAuth(service,request,authResponse)){
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
                "serviceAuthNativeWithSessionToken: Cookie not valid, auth is good\n");
         char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
@@ -2868,7 +2876,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
       return FALSE;
     }
   } else if (authDataFound){
-    if (nativeAuth(service,request,safRC,racfRC,racfRSN)){
+    if (nativeAuth(service,request,authResponse)){
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
               "serviceAuthNativeWithSessionToken: auth header provided and works, "
               "before generate session token req=0x%x, username=0x%x, response=0x%p\n",
@@ -3094,6 +3102,22 @@ static void serveRequest(HttpService* service, HttpResponse* response,
 
 }
 
+static void respondWithAuthError(HttpResponse *response, AuthResponse *authResponse) {
+  switch (authResponse->type) {
+    case AUTH_TYPE_RACF:
+      if (authResponse->responseDetails.safStatus.safRC == SAF_RC_PASSWORD_EXPIRED &&
+          authResponse->responseDetails.safStatus.racfRC == RACF_RC_PASSWORD_EXPIRED) {
+        respondWithError(response, HTTP_STATUS_PRECONDITION_REQUIRED, "Password Expired");
+      } else {
+        respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
+      }
+      break;
+    default:
+      respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
+      break;
+  }
+}
+
 static int handleHttpService(HttpServer *server,
                              HttpService *service,
                              HttpRequest *request,
@@ -3158,7 +3182,9 @@ static int handleHttpService(HttpServer *server,
   service->server = server;
 
   int clearSessionToken = FALSE;
-  int safRC, racfRC, racfRSN = 0;
+
+  AuthResponse authResponse;
+
   switch (service->authType){
    
   case SERVICE_AUTH_NONE:
@@ -3172,7 +3198,7 @@ static int handleHttpService(HttpServer *server,
 #ifdef DEBUG
     printf("saf auth needed for service %s\n",service->name);
 #endif
-    request->authenticated = safAuthenticate(service, request, &safRC, &racfRC, &racfRSN);
+    request->authenticated = safAuthenticate(service, request, &authResponse);
     break;
   case SERVICE_AUTH_CUSTOM:
 #ifdef DEBUG
@@ -3192,7 +3218,7 @@ static int handleHttpService(HttpServer *server,
         break;
       } /* else fall through */
     case SERVICE_AUTH_TOKEN_TYPE_LEGACY:
-      request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken, &safRC, &racfRC, &racfRSN);
+      request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken, &authResponse);
       break;
     }
     break;
@@ -3202,11 +3228,7 @@ static int handleHttpService(HttpServer *server,
 #endif
   if (request->authenticated == FALSE){
     /* could make this parameterizable */
-    if (safRC == SAF_RC_PASSWORD_EXPIRED && racfRC == RACF_RC_PASSWORD_EXPIRED) {
-      respondWithError(response, HTTP_STATUS_PRECONDITION_REQUIRED, "Password Expired");
-    } else {
-      respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
-    }
+    respondWithAuthError(response, &authResponse);
     // Response is finished on return
   } else {
 
