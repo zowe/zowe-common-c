@@ -2892,17 +2892,21 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   }
 }
 
+#define JWT_COOKIE_NAME "apimlAuthenticationToken"
+#define JWT_COOKIE_NAME_LENGTH 24
+
 static int serviceAuthWithJwt(HttpService *service,
                               HttpRequest *request,
                               HttpResponse *response) {
-  int authDataFound = FALSE;
   HttpHeader *const authorizationHeader = getHeader(request, "Authorization");
-  char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
+  char *jwtTokenText = getCookieValue(request,JWT_COOKIE_NAME);
 
   AUTH_TRACE("serviceAuthWithJwt: authenticationHeader 0x%p,"
       " extractFunction 0x%p\n",
       authorizationHeader,
       service->authExtractionFunction);
+
+   request->authToken = jwtTokenText;
 
   /*
    * The extractor should look at the request and get the raw JWT from anywhere
@@ -2915,15 +2919,15 @@ static int serviceAuthWithJwt(HttpService *service,
    * TODO: consider changing the architecture: what fields do we want in the
    * request structure?
    */
-  if (service->authExtractionFunction != NULL) {
-    if (service->authExtractionFunction(service, request) == 0) {
-      authDataFound = TRUE;
-    }
-  } else if (authorizationHeader) {
+
+  if (authorizationHeader) {
     DEBUG_TRACE("serviceAuthWithJwt: auth header = 0x%x\n", authorizationHeader);
-    if (extractBearerToken(request, authorizationHeader)) {
+    if (request->authToken == NULL && extractBearerToken(request, authorizationHeader)) {
       DEBUG_TRACE("back inside serviceAuthWithJwt after call to extractBearerToken\n");
-      authDataFound = TRUE;
+    }
+  } else if (service->authExtractionFunction != NULL) {
+    if (service->authExtractionFunction(service, request) == 0) {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "auth extraction function returns 0!\n");
     }
   }
 
@@ -2967,7 +2971,17 @@ static int serviceAuthWithJwt(HttpService *service,
       return FALSE;
     }
     strcpy(request->username, jwt->subject);
+    int jwtLen = strlen(jwtTokenText);
+    int jwtCookieLen = JWT_COOKIE_NAME_LENGTH + jwtLen + 2; //+1 for '=', +1 for null term
+    char jwtCookie[jwtCookieLen];
+    snprintf(jwtCookie, jwtCookieLen, "%s=%s", JWT_COOKIE_NAME, jwtTokenText);
+    addStringHeader(response, "Set-Cookie", jwtCookie);
+    response->sessionCookie = NULL;
+    char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
+    response->sessionCookie = sessionToken;
+    addStringHeader(response, "Set-Cookie", response->sessionCookie);
     strupcase(request->username);
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "TOKEN VALIDATED\n");
     return TRUE;
   }
 }
