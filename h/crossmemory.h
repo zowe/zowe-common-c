@@ -22,6 +22,7 @@
 #endif
 
 #include "zowetypes.h"
+#include "cellpool.h"
 #include "utils.h"
 #include "bpxnet.h"
 #include "isgenq.h"
@@ -133,7 +134,9 @@
 #define RC_CMS_ZVT_NOT_ALLOCATED            83
 #define RC_CMS_SERVER_NAME_NULL             84
 #define RC_CMS_SERVICE_ENTRY_OCCUPIED       85
-#define RC_CMS_MAX_RC                       85
+#define RC_CMS_NO_STORAGE_FOR_MSG           86
+#define RC_CMS_ALLOC_FAILED                 87
+#define RC_CMS_MAX_RC                       87
 
 extern const char *CMS_RC_DESCRIPTION[];
 
@@ -189,6 +192,7 @@ typedef struct CMSTimestamp_tag {
   char value[32];
 } CMSBuildTimestamp;
 
+
 typedef struct CrossMemoryServerGlobalArea_tag {
 
   char eyecatcher[8];
@@ -224,7 +228,11 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   } pcInfo;
 
   int pcLogLevel;
-  char reserved3[504];
+
+  PAD_LONG(0, RecoveryStatePool *pcssRecoveryPool);
+  CPID pcssStackPool;
+
+  char reserved3[492];
 
   CrossMemoryService serviceTable[CROSS_MEMEORY_SERVER_MAX_SERVICE_COUNT];
 
@@ -303,9 +311,13 @@ typedef struct CrossMemoryServer_tag {
   ENQToken serverENQToken;
   ShortLivedHeap * __ptr32 slh;
   Queue * __ptr32 messageQueue;
+  CPID messageQueueMainPool;
+  CPID messageQueueFallbackPool;
   hashtable * __ptr32 configParms;
   LPMEA lpaCodeInfo;
   ELXLIST pcELXList;
+  unsigned int pcssStackPoolSize;
+  unsigned int pcssRecoveryPoolSize;
   CrossMemoryService serviceTable[CROSS_MEMEORY_SERVER_MAX_SERVICE_COUNT];
 } CrossMemoryServer;
 
@@ -356,6 +368,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define makeCrossMemoryServer CMMCMSRV
 #define makeCrossMemoryServer2 CMMCMSR2
 #define removeCrossMemoryServer CMMCRSRV
+#define cmsSetPoolParameters CMCMSSPP
 #define cmsRegisterService CMCMSRSR
 #define cmsStartMainLoop CMCMAINL
 #define cmsGetGlobalArea CMGETGA
@@ -399,6 +412,9 @@ CrossMemoryServer *makeCrossMemoryServer2(
     int *reasonCode
 );
 void removeCrossMemoryServer(CrossMemoryServer *server);
+void cmsSetPoolParameters(CrossMemoryServer *server,
+                          unsigned int pcssStackPoolSize,
+                          unsigned int pcssRecoveryPoolSize);
 int cmsRegisterService(CrossMemoryServer *server, int id, CrossMemoryServiceFunction *serviceFunction, void *serviceData, int flags);
 int cmsStartMainLoop(CrossMemoryServer *server);
 int cmsGetGlobalArea(const CrossMemoryServerName *serverName, CrossMemoryServerGlobalArea **globalAreaAddress);

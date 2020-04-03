@@ -1340,7 +1340,7 @@ int directoryMakeDirectoryRecursive(const char *pathName,
             
     /* Create directory if does not exist */  
     if( -1 == fileInfo(path, &info, &returnCode, &reasonCode)) {
-      returnValue = createUnixDirectory(path, forceCreate);
+      returnValue = directoryMake(path, 0700, &returnCode, &reasonCode);
       if ((returnValue ) || !recursive) {
         goto ExitCode;
       }
