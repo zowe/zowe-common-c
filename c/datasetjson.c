@@ -1951,7 +1951,7 @@ void respondWithDatasetMetadata(HttpResponse *response) {
 #ifdef __ZOWE_OS_ZOS
   HttpRequest *request = response->request;
   char *datasetOrMember = stringListPrint(request->parsedFile, 2, 2, "?", 0); /*get search term*/
-  
+
   if (datasetOrMember == NULL || strlen(datasetOrMember) < 1){
     respondWithError(response,HTTP_STATUS_BAD_REQUEST,"No dataset name given");
     return;
@@ -2051,7 +2051,7 @@ void respondWithDatasetMetadata(HttpResponse *response) {
 
   int fieldCount = defaultCSIFieldCount;
   char **csiFields = defaultCSIFields;
-  
+
   csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
   EntryDataSet *entrySet = returnEntries(dsnName.value, typesArg,datasetTypeCount, workAreaSizeArg, csiFields, fieldCount, resumeNameArg, resumeCatalogNameArg, returnParms); 
   char *resumeName = returnParms->resume_name;
