@@ -2079,18 +2079,11 @@ void respondWithDatasetMetadata(HttpResponse *response) {
     memcpy(dsnNameNullTerm, dsnName.value, sizeof(dsnName.value));
     nullTerminate(dsnNameNullTerm, sizeof(dsnNameNullTerm) - 1);
     if (addQualifiers && dsnLen <= DSN_MAX_LEN) {
-      int asteriskPos = lastIndexOf(dsnNameNullTerm, dsnLen,'*');
-      int dblAsteriskPos = indexOfString(dsnNameNullTerm, dsnLen, "**", 0); //"**" is only valid at the end of a query, cannot appear in the middle of a search
+      int dblAsteriskPos = indexOfString(dsnNameNullTerm, dsnLen, "**", 0); 
       int periodPos = lastIndexOf(dsnNameNullTerm, dsnLen, '.');
-      if (asteriskPos < 0 && dblAsteriskPos < 0) {
-        if(dsnLen <= DSN_MAX_LEN - 3 && (periodPos < 0 || periodPos != dsnLen - 1)){ //Query in form of hlq1.hlq2
+      if (!(dblAsteriskPos == dsnLen - 2 && periodPos == dblAsteriskPos - 1)) {
+        if (dsnLen <= DSN_MAX_LEN - 3) {
           snprintf(dsnNameNullTerm, DSN_MAX_LEN + 1, "%s.**", dsnNameNullTerm);
-        }
-      } else {
-        if (dsnLen <= DSN_MAX_LEN - 3 && asteriskPos == dsnLen - 1 && periodPos != asteriskPos - 1 && dblAsteriskPos < 0) { //query in form of hlq1.hlq2*
-          snprintf(dsnNameNullTerm, DSN_MAX_LEN + 1, "%s.**", dsnNameNullTerm);
-        } else if(dsnLen <= DSN_MAX_LEN - 2 && asteriskPos == dsnLen - 1 && periodPos == asteriskPos - 1) {
-          snprintf(dsnNameNullTerm, DSN_MAX_LEN + 1, "%s*", dsnNameNullTerm);
         }
       }
     }
