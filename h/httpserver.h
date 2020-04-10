@@ -4,9 +4,9 @@
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
   this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
-  
+
   SPDX-License-Identifier: EPL-2.0
-  
+
   Copyright Contributors to the Zowe Project.
 */
 
@@ -20,13 +20,13 @@
 #include "unixfile.h"
 #include "../jwt/jwt/jwt.h"
 
-/** \file 
+/** \file
  *  \brief httpserver.h is the interface of an ultra-lightweight c-based web server.
  *
  * This is the definition of the HTTP server.  It is ultra-lightweight
- * and is built on the STCBase infrastructure. 
- * 
- * This server define a set of services through registerHttpService.  
+ * and is built on the STCBase infrastructure.
+ *
+ * This server define a set of services through registerHttpService.
  * This server supports WebSockets.
  */
 
@@ -146,7 +146,7 @@ typedef int AuthValidate(struct HttpService_tag *service, HttpRequest *request);
 typedef int HttpServiceInsertCustomHeaders(struct HttpService_tag *service, HttpResponse *response);
 
 /*
-  returns HTTP_SERVICE_SUCCESS or other fail codes in same group 
+  returns HTTP_SERVICE_SUCCESS or other fail codes in same group
 */
 typedef int HttpServiceServeTemplateTag(struct HttpService_tag *service, HttpResponse *response,
 					HttpTemplateTag *templateTag, ChunkedOutputStream *outStream);
@@ -177,7 +177,7 @@ typedef struct HttpService_tag{
   int    parsedMaskPartCount;
   char **parsedMaskParts;
   int    matchFlags;
-  int    serviceType; 
+  int    serviceType;
   int    authType;
   int    runInSubtask;
   void  *authority; /* NULL unless AUTH_CUSTOM */
@@ -221,6 +221,7 @@ typedef struct HttpServer_tag{
   char             *defaultProductURLPrefix;
   uint64           serverInstanceUID;   /* may be something smart at some point. Now just startup STCK */
   void             *sharedServiceMem; /* address shared by all HttpServices */
+  hashtable        *loggingIDsByName;
 } HttpServer;
 
 typedef struct WSReadMachine_tag{
@@ -263,7 +264,7 @@ typedef struct WSSession_tag {
   struct HttpConversation_tag *conversation;
   HttpService      *service;
   WSReadMachine    *readMachine;
-  Socket           *socket;  
+  Socket           *socket;
   char             *negotiatedProtocol;
   char             *protocolVersion;
   int               isServer;
@@ -285,7 +286,7 @@ typedef struct WSSession_tag {
 /*
   An HttpConversation is a single-struct omnibus data structure
   for integrating Http and WebSocket services into an asynchronous
-  IO and task management framework. 
+  IO and task management framework.
  */
 
 #define CONVERSATION_UNKNOWN   1
@@ -352,10 +353,10 @@ typedef struct WSSession_tag {
 typedef union HttpConversationSerialize_tag {
   unsigned int       serializedData;
   struct {
-    char               shouldClose;    
+    char               shouldClose;
     int                considerCloseEnqueued : 1;
     int                closeEnqueued : 1;
-    int                reserved : 6; 
+    int                reserved : 6;
     short int          runningTasks;
   };
 } HttpConversationSerialize;
@@ -390,7 +391,7 @@ typedef struct HttpWorkElement_tag{
 } HttpWorkElement;
 
 /** registerHttpServerModuleWithBase is the function make an HTTP server get associated to an STCBase
-    to allow it to receive events, do network IO and get operator commands.   An HttpServer relies on 
+    to allow it to receive events, do network IO and get operator commands.   An HttpServer relies on
     the STCBase code for its general services.
 */
 
@@ -423,33 +424,33 @@ HttpServer *makeSecureHttpServer(STCBase *base, int port,
 HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
                                        HttpServer *server);
 
-HttpRequestParamSpec *makeIntParamSpec(char *name, int flags, 
+HttpRequestParamSpec *makeIntParamSpec(char *name, int flags,
 				       int minWidth, int maxWidth,
 				       int lowBound, int highBound,
 				       HttpRequestParamSpec *next);
 
-HttpRequestParamSpec *makeInt64ParamSpec(char *name, int flags, 
+HttpRequestParamSpec *makeInt64ParamSpec(char *name, int flags,
                                          int minWidth, int maxWidth,
                                          int64 lowBound, int64 highBound,
                                          HttpRequestParamSpec *next);
 
-HttpRequestParamSpec *makeStringParamSpec(char *name, int flags, 
+HttpRequestParamSpec *makeStringParamSpec(char *name, int flags,
                                           HttpRequestParamSpec *next);
 
 /**
  *   This is a function to generate a simple static content service that maps part of the URL space
- *   isomorphically to part somewhere in the server's file system. 
+ *   isomorphically to part somewhere in the server's file system.
  */
 
 HttpService *makeFileService(char *name, char *urlMask, char *pathRoot);
 HttpService *makeGeneratedService(char *name, char *urlMask);
 HttpService *makeSimpleTemplateService(char *name, char *urlMask, char *templatePath);
 
-#define HTTP_PROXY_OK 0 
+#define HTTP_PROXY_OK 0
 #define HTTP_PROXY_BLOCK 1
 
-HttpService *makeProxyService(char *name, 
-                              char *urlMask, 
+HttpService *makeProxyService(char *name,
+                              char *urlMask,
                               int (*requestTransformer)(HttpConversation *conversation,
                                                         HttpRequest *inputRequest,
                                                         HttpRequest *outputRequest));
@@ -479,7 +480,7 @@ void respondWithUnixFileContentsWithAutocvtMode(HttpService* service, HttpRespon
 
 xmlPrinter *respondWithXmlPrinter(HttpResponse *response);
 
-/** 
+/**
  * \brief  This function should be called at the beginning of a service function that responds in JSON.
  *
  */
@@ -487,7 +488,7 @@ xmlPrinter *respondWithXmlPrinter(HttpResponse *response);
 jsonPrinter *respondWithJsonPrinter(HttpResponse *response);
 ChunkedOutputStream *respondWithChunkedOutputStream(HttpResponse *response);
 
-/** 
+/**
  * \brief finishResponse must be called to ensure full transmission of response to HTTP requestor.
  */
 
@@ -507,8 +508,8 @@ void *getConfiguredProperty(HttpServer *server, char *key);
 void setConfiguredProperty(HttpServer *server, char *key, void *value);
 
 
-/* 
-   These are not static in httpserver.c, so presumably they should be declared here. 
+/*
+   These are not static in httpserver.c, so presumably they should be declared here.
  */
 
 void respondWithError(HttpResponse *response, int code, char *message);
@@ -561,9 +562,9 @@ int httpServerInitJwtContext(HttpServer *self,
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
   this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
-  
+
   SPDX-License-Identifier: EPL-2.0
-  
+
   Copyright Contributors to the Zowe Project.
 */
 
