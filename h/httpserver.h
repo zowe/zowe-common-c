@@ -221,6 +221,7 @@ typedef struct HttpServer_tag{
   char             *defaultProductURLPrefix;
   uint64           serverInstanceUID;   /* may be something smart at some point. Now just startup STCK */
   void             *sharedServiceMem; /* address shared by all HttpServices */
+  hashtable        *loggingIdsByName; /* contains a map of pluginID -> loggingID */
 } HttpServer;
 
 typedef struct WSReadMachine_tag{
