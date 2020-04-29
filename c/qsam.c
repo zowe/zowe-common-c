@@ -766,7 +766,7 @@ static int openCloseBBQ(char *dcb, int mode, int svc){
 
     if (openexitData){
       reqDcb->dcb.Common.exlst = (unsigned int)NULL;
-      free24((char *)openexitData,sizeof(openexitData));
+      free24((char *)openexitData,sizeof(openexitData_t));
     }
   } else{
     __asm(ASM_PREFIX
