@@ -35,6 +35,7 @@
 #include "utils.h"
 #include "logging.h"
 #include "pdsutil.h"
+#include "zccLogging.h"
 
 static char pdsEndName[9] ={ 0xff, 0xff, 0xff, 0xff, 
 			     0xff, 0xff, 0xff, 0xff, 0x0};
@@ -204,7 +205,7 @@ StringList *getPDSMembers(char *pdsName){
   in = fopen(filenameBuffer,"rb");
   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "fopen in=0x%x errno=%d\n",in);
   if (in == 0){
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, ZCC_LOG_PDS_READ_ERR);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, ZCC_LOG_PDS_READ_ERR_EMPTY);
     fflush(stdout);
     return list;
   }

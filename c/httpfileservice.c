@@ -34,6 +34,7 @@
 #include "charsets.h"
 #include "unixfile.h"
 #include "httpfileservice.h"
+#include "zccLogging.h"
 
 #ifndef PATH_MAX
 # ifdef _POSIX_PATH_MAX

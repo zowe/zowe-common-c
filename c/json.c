@@ -48,6 +48,7 @@
 #include "json.h"
 #include "charsets.h"
 #include "logging.h"
+#include "zccLogging.h"
 
 /*
  * 
