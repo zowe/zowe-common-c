@@ -336,7 +336,7 @@ int setSocketOption(Socket *socket, int level, int optionName, int optionDataLen
          returnCode,
          reasonCodePtr);
   if (returnValue < 0){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "set sockopt failed, level=0x%x, option=0x%x ret code %d reason 0x%x\n",level,optionName,*returnCode,*reasonCode);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, ZCC_LOG_SET_SOCKOPT_ERR,level,optionName,*returnCode,*reasonCode);
     return -1;
   } else {
     if (socketTrace){
@@ -913,7 +913,7 @@ int getV4HostByName(char *string){
     }
     return numericAddress;
   } else{
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "getHostName V4 failure, returnCode %d reason code %d\n",returnCode,reasonCode);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, ZCC_LOG_GET_HOSTNAME_ERR,returnCode,reasonCode);
     return 0;
   }
 }
@@ -1097,7 +1097,7 @@ int getSocketOption(Socket *socket, int optionName, int *optionDataLength, char 
     zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "after getsockopt, retval=%d ret code %d reason 0x%x\n",returnValue,*returnCode,*reasonCode);
   }
   if (returnValue < 0){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "get sockopt failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, ZCC_LOG_GET_SOCKOPT_ERR,*returnCode,*reasonCode);
     return -1;
   } else {
     *returnCode = 0;
@@ -1174,7 +1174,7 @@ int setSocketBlockingMode(Socket *socket, int isNonBlocking,
 	 reasonCodePtr);
 
   if (returnValue < 0){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "BPXFCT failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXFCT_ERR,*returnCode,*reasonCode);
     return -1;
   } else {
     if (socketTrace){
@@ -1203,7 +1203,7 @@ int setSocketBlockingMode(Socket *socket, int isNonBlocking,
 	 reasonCodePtr);
   
   if (returnValue < 0){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "BPXFCT failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXFCT_ERR,*returnCode,*reasonCode);
     return returnValue;
   } else {
     if (socketTrace){
@@ -1718,7 +1718,7 @@ int socketSetAdd(SocketSet *set, Socket *socket){
   }
 
   if (sd > set->highestAllowedSD){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "SD=%d out of range (> %d)\n",sd,set->highestAllowedSD);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, ZCC_LOG_SOCKET_SD_ERR,sd,set->highestAllowedSD);
     return 12;
   }
 

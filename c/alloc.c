@@ -480,7 +480,6 @@ char *safeMalloc2(int size, char *site, int *indicator){
 }
 
 char *safeMalloc31(int size, char *site){
-  /* printf("allocsize=%d site=%s\n",size,site); */
   char *res = NULL;
   if (size > BIG_MALLOC_THRESHOLD){ /* 1 meg, roughly */
     if (MALLOC_TRACE_LEVEL >= 1){
@@ -515,7 +514,6 @@ char *safeMalloc31(int size, char *site){
 }
 
 static char *safeMalloc64Internal(int size, char *site, long long token){
-  /* printf("allocsize=%d site=%s\n",size,site); */
   char *res = NULL;
   int sizeInMegabytes = 0;
 
@@ -565,7 +563,6 @@ char *safeMalloc64ByToken(int size, char *site, long long token){
 }
 
 char *safeMalloc31Key8(int size, char *site){
-  /* printf("allocsize=%d site=%s\n",size,site); */
 #ifdef TRACK_MEMORY
   k8Bytes += size;
 #endif
@@ -596,7 +593,6 @@ char *safeMalloc31Key8(int size, char *site){
 
 
 void safeFree31(char *data, int size){
-/*   printf("safeFree31: data 0x%p, size %d\n",data, size); */
 #ifdef TRACK_MEMORY
   safeBytes -= size;
   trackFree(data,size);
@@ -610,7 +606,6 @@ void safeFree31(char *data, int size){
 }
 
 static void safeFree64Internal(char *data, int size, long long token){
-/*   printf("safeFree31: data 0x%p, size %d\n",data, size); */
 #ifdef TRACK_MEMORY
   safeBytes -= size;
   trackFree(data,size);
@@ -636,7 +631,6 @@ void safeFree31Key8(char *data, int size){
   k8Bytes -= size;
 #endif
 
-/*   printf("safeFree31: data 0x%p, size %d\n",data, size); */
 #ifdef METTLE 
   freemain31(data,size,SUBPOOL);
 #else

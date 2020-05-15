@@ -1360,7 +1360,7 @@ static int initSessionTokenKey(SessionTokenKey *key) {
   int icsfRC = icsfGenerateRandomNumber(key, sizeof(SessionTokenKey), &icsfRSN);
   if (icsfRC != 0) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-            "Error: session token key not generated, RC = %d, RSN = %d\n",
+    		ZCC_LOG_SESSION_TOKEN_ERR,
             icsfRC, icsfRSN);
     return -1;
   }
@@ -1387,8 +1387,7 @@ static int encodeSessionToken(ShortLivedHeap *slh,
   char *encodedTokenText = SLHAlloc(slh, encodedTokenTextLength);
   if (encodedTokenText == NULL) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-            "Error: encoded session token buffer not allocated "
-            "(size=%u, SLH=%p)\n", encodedTokenTextLength, slh);
+    		ZCC_LOG_TOKEN_ALLOC_ERR, encodedTokenTextLength, slh);
     return -1;
   }
 
@@ -1402,7 +1401,7 @@ static int encodeSessionToken(ShortLivedHeap *slh,
                             &icsfRSN);
   if (icsfRC != 0) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-            "Error: session token encoding failed, RC = %d, RSN = %d\n",
+    		ZCC_LOG_TOKEN_ENCODING_ERR,
             icsfRC, icsfRSN);
     return -1;
   }
@@ -1430,8 +1429,7 @@ static int decodeSessionToken(ShortLivedHeap *slh,
   char *tokenText = SLHAlloc(slh, tokenTextLength);
   if (tokenText == NULL) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-            "Error: decoded session token buffer not allocated "
-            "(size=%u, SLH=%p)\n", encodedTokenTextLength, slh);
+    		ZCC_LOG_DECODE_TOKEN_ALLOC_ERR, encodedTokenTextLength, slh);
     return -1;
   }
 
@@ -1445,7 +1443,7 @@ static int decodeSessionToken(ShortLivedHeap *slh,
                             &icsfRSN);
   if (icsfRC != 0) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-            "Error: session token decoding failed, RC = %d, RSN = %d\n",
+    		ZCC_LOG_TOKEN_DECODING_ERR,
             icsfRC, icsfRSN);
     return FALSE;
   }
@@ -1852,7 +1850,6 @@ static void addRequestHeader(HttpRequestParser *parser){
   newHeader->value = copyString(parser->slh,parser->headerValue,parser->headerValueLength);
   newHeader->nativeValue = copyStringToNative(parser->slh,parser->headerValue,parser->headerValueLength);
 
-  /* printf("adding header %s=%s\n",newHeader->nativeName,newHeader->nativeValue); */
 
   /* pull out enough data for parsing the entity body */
   if (!compareIgnoringCase(newHeader->nativeName,"Transfer-Encoding",parser->headerNameLength)){
@@ -1860,7 +1857,6 @@ static void addRequestHeader(HttpRequestParser *parser){
       parser->isChunked = TRUE;
     }
   } else if (!compareIgnoringCase(newHeader->nativeName,"Content-Length",parser->headerNameLength)){
-    /* printf("worry about atoi\n"); */
     parser->specifiedContentLength = atoi(newHeader->nativeValue);
   } else if (!compareIgnoringCase(newHeader->nativeName,"Content-Type",parser->headerNameLength)){
     parser->contentType = newHeader->nativeValue;
@@ -2083,7 +2079,6 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
         parser->state = HTTP_STATE_REQUEST_GAP2;
       } else{
         parser->uri[parser->uriLength++] = c;
-        /* printf("accumlating URI \n"); */
       }
       break;
     case HTTP_STATE_REQUEST_GAP2:
@@ -3685,11 +3680,9 @@ static uint64_t makeFileEtag(FileInfo *file) {
   mtime = file->lastModficationTime;
 #endif
   size = fileInfoSize(file);
-  /* printf("makeFileEtag: inode %u, time %u, size %llu\n", inode, mtime, size); */
   result = prime * result + inode;
   result = prime * result + mtime;
   result = prime * result + size;
-  /* printf("makeFileEtag: result %.16llx\n", result); */
   return result;
 }
 
@@ -3886,7 +3879,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     if (!autocvt) {
       int disableCvt = fileDisableConversion(in, &returnCode, &reasonCode);
       if (disableCvt != 0) {
-        printf("Warning: encoding conversion was not disabled, return = %d, reason = %d\n", returnCode, reasonCode);
+    	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, ZCC_LOG_ENCODE_CONVERSION_ERR, returnCode, reasonCode);
       }
     }
 #endif
@@ -4632,7 +4625,7 @@ void serveSimpleTemplate(HttpService *service, HttpResponse *response){
       if (service->serviceTemplateTagFunction){
 	service->serviceTemplateTagFunction(service,response,tag,outStream);
       } else{
-	printf("*** WARNING *** no template tag service function for %s\n",service->name);
+    	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING,ZCC_LOG_TEMPLATE_TAG_ERR,service->name);
       }
     }
     
@@ -4936,7 +4929,7 @@ static void logHTTPMethodAndURI(ShortLivedHeap *slh, HttpRequest *request) {
   char *method = request->method;
   char *uri = request->uri;
 #endif
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "httpserver: method='%s', URI='%s'\n", method, uri);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, ZCC_LOG_HTTP_METHOD_URI, method, uri);
 }
 
 // Response is finished on an error

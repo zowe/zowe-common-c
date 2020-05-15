@@ -236,7 +236,7 @@ static xmlPrinter *makeXmlPrinterInternal(int isCustom,
   if (xmlDeclaration != NULL){
     xmlPrintInternal(p,xmlDeclaration,strlen(xmlDeclaration),TRUE,TRUE);
   }
-  zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "makeXMLPrinter custom=%d full 0x%x byte 0x%x\n",
+  zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, ZCC_LOG_XML_PRINTER_MSG,
 	 p->isCustom,p->customWriteFully,p->customWriteByte);
   return p; 
 }
@@ -258,7 +258,7 @@ xmlPrinter *makeHttpXmlPrinter(unsigned char *handle, char *xmlDeclaration){
   xmlPrinter *p = (xmlPrinter*)safeMalloc(sizeof(xmlPrinter),"xmlPrinter");
   
   if (p == NULL){
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_SEVERE, "malloc fail in makeHttpXMLPrinter...\n");
+    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_SEVERE, ZCC_LOG_XML_MALLOC_ERR);
     fflush(stdout);
   }
 
@@ -298,11 +298,11 @@ xmlPrinter *xmlStart(xmlPrinter *p, char *elementName){
   writeByte(p,'<');
   writeFully(p,elementName,strlen(elementName));
   if (p->stackSize + 1 >= XML_STACK_LIMIT){
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_WARNING, "XML Printer stack limit exceeded\n");
+    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_WARNING, ZCC_LOG_XML_STACK_LIMIT_ERR);
     fflush(stdout);
   }
   if (p->stackSize > 15 || p->stackSize < 0){
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_WARNING, "deep /negative XML stack size %d seen while starting level for %s\n",p->stackSize,elementName);
+    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_WARNING, ZCC_LOG_XML_NEG_STACK_ERR,p->stackSize,elementName);
     fflush(stdout);
   }
   p->stack[p->stackSize++] = elementName;
@@ -460,7 +460,7 @@ static void freeBAOS(ByteArrayOutputStream *baos){
 
 static void writeBAOS(ByteArrayOutputStream *baos, int b){
   if (baos->pos == (BAOS_MAX + baos->extraSize)){
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_SEVERE, "PANIC, baos out of room\n");
+    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_SEVERE, ZCC_LOG_BAOS_LIMIT_ERR);
   }
   baos->bytes[baos->pos++] = (char)b;
 }
@@ -476,7 +476,7 @@ static void syntaxError(XmlParser *p, char *formatString, ...){
   vsprintf(buffer,formatString,argPointer);
   va_end(argPointer);
   
-  zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_SEVERE, "SYNTAX ERROR line=%d %s\n",(p ? p->lineNumber : -1) ,buffer);
+  zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_SEVERE, ZCC_LOG_XML_SYNTAX_ERR,(p ? p->lineNumber : -1) ,buffer);
 }
 
 static char *getBAOSBytes(XmlParser *p, ByteArrayOutputStream *baos){
@@ -521,7 +521,6 @@ XmlParser *makeXMLParserUSS(UnixFile *file){
   parser->tokenBytes = makeBAOS();
   parser->hasPushback = FALSE;
   parser->stringInput = NULL;
-  zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "about to return UnixFile based parser 0x%x with SLH at 0x%x and lineBuffer at 0x%x\n",parser,parser->slh,parser->lineBuffer);
   return parser;    
 }
 
@@ -540,7 +539,6 @@ XmlParser *makeXmlParser(char *dcb){
   parser->tokenBytes = makeBAOS();
   parser->hasPushback = FALSE;
   parser->stringInput = NULL;
-  zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "about to return DCB based parser 0x%x with SLH at 0x%x and lineBuffer at 0x%x\n",parser,parser->slh,parser->lineBuffer);
   return parser;  
 }
 
@@ -630,7 +628,7 @@ static int safeRead(XmlParser *p) {
 
 static int sanityCheck(XmlParser *p, char *site){
   if ( (p->lineLength > 1800) && (p->lineBuffer[0x720] != 0x40)){
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_SEVERE, "sanity check failed at %s\n",site);
+    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_SEVERE, ZCC_LOG_XML_SANITY_ERR,site);
     return 0;
   } else{
     return 1;
@@ -716,7 +714,7 @@ static int safeRead1(XmlParser *p) {
       }
       break;
     default:
-      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "unknown state\n");
+      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_WARNING,ZCC_LOG_XML_UNKNOWN_STATE);
       break;
     }
   }
@@ -913,7 +911,7 @@ XMLToken *getXMLToken(XmlParser *p) {
       }
       return makeXMLToken(p,b);
     } else {
-      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_WARNING, "help unknown token\n");
+      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_WARNING, ZCC_LOG_XML_UNKNOWN_TOKEN);
       return NULL;
     }
   } else { /* NOT TAG MODE*/

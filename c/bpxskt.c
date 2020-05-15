@@ -1017,7 +1017,6 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
 #else
   reasonCodePtr = reasonCode;
 #endif
-  /* printf("before read sd=%d buffer=%x\n",sd,buffer); */
   BPXRED(&sd,
           &buffer,
           &zero,
@@ -1069,7 +1068,6 @@ int socketWrite(Socket *socket, const char *buffer, int desiredBytes,
 #else
   reasonCodePtr = reasonCode;
 #endif
-  /* printf("before write sd=%d buffer=%x\n",sd,buffer); */
   BPXWRT(&sd,
 	  &buffer,
 	  &zero,
@@ -1127,7 +1125,6 @@ int udpSendTo(Socket *socket,
 #else
   reasonCodePtr = reasonCode;
 #endif
-  /* printf("before write sd=%d buffer=%x\n",sd,buffer); */
 
   BPXSTO(&sd,
           &desiredBytes,
@@ -1220,7 +1217,6 @@ int setSocketOption(Socket *socket, int level, int optionName, int optionDataLen
 #else
   reasonCodePtr = reasonCode;
 #endif
-  /* printf("before read sd=%d buffer=%x\n",sd,buffer); */
   BPXOPT(&sd,
 	 &setOption,
 	 &level,

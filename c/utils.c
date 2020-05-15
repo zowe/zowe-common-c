@@ -597,7 +597,7 @@ void dumpBufferToStream(const char *buffer, int length, /* FILE* */void *traceOu
   for (last_index = length-1; last_index>=0 && 0 == buffer[last_index]; last_index--){}
   if (last_index < 0)
 #ifdef METTLE
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "the buffer is empty at %x\n",buffer);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, ZCC_LOG_EMPTY_BUFFER_ERR,buffer);
 #else
     fprintf((FILE*)traceOut,"the buffer is empty at %x\n",buffer);
 #endif
@@ -1441,7 +1441,7 @@ static ShortLivedHeap *makeShortLivedHeapInternal(int blockSize, int maxBlocks, 
 }
 
 static void reportSLHFailure(ShortLivedHeap *slh, int size){
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "could not get any memory for SLH extension, extension size was 0x%x\n",size);
+  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, ZCC_LOG_SLH_MEM_ERR,size);
   ListElt *chain = slh->blockChain;
   int i = 0;
   while (chain){
@@ -1476,7 +1476,7 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
      printf("SLHAlloc me=0x%x size=%d bc=%d\n",slh,size,slh->blockCount);fflush(stdout); */
   int remainingHeapBytes = (slh->blockSize * (slh->maxBlocks - slh->blockCount));
   if (size > remainingHeapBytes){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "cannot allocate above block size %d > %d mb %d bc %d\n",size,remainingHeapBytes,slh->maxBlocks,slh->blockCount);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, ZCC_LOG_BLOCK_SIZE_ALLOC_ERR,size,remainingHeapBytes,slh->maxBlocks,slh->blockCount);
     return NULL;
   } else if (size > slh->blockSize){
     char *bigBlock = (slh->is64 ? 
@@ -1548,7 +1548,7 @@ void SLHFree(ShortLivedHeap *slh){
 char *noisyMalloc(int size){
   char *data = safeMalloc(size,"NoisyMalloc");
   if (data == 0){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, "malloc failure for allocation of %d bytes\n",size);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, ZCC_LOG_MALLOC_ALLOC_ERR,size);
     fflush(stdout);
   }
   return data;

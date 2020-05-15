@@ -127,7 +127,7 @@ int createUnixDirectory(char *absolutePath, int forceCreate) {
 
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to create directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_CREATE_DIR_ERR,
             absolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -174,7 +174,7 @@ static int deleteUnixDirectory(char *absolutePath) {
   }
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to stat directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_STAT_DIR_ERR,
             absolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -182,7 +182,7 @@ static int deleteUnixDirectory(char *absolutePath) {
   status = directoryDeleteRecursive(absolutePath, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to delete directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_DELETE_DIR_ERR,
             absolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -224,7 +224,7 @@ void directoryChangeModeAndRespond(HttpResponse *response, char *file,
   if ( ((first  = strpbrk(cmode, "01234567")) == NULL)  ||
        (strpbrk(cmode, "89") != NULL)) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-       "Failed to chnmod file %s: illegal mode %s\n", file, cmode);
+    		ZCC_LOG_CHMOD_FILE_MODE_ERR, file, cmode);
     respondWithJsonError(response, "failed to chmod: mode not octol", 400, "Bad Request");
     return;
     }
@@ -236,7 +236,7 @@ void directoryChangeModeAndRespond(HttpResponse *response, char *file,
   }
   else {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to chnmod file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_CHMOD_FILE_ERR,
             file, returnCode, reasonCode);
     respondWithJsonError(response, "failed to modify file modes", 500, "Bad Request");
   }
@@ -257,7 +257,7 @@ static int deleteUnixFile(char *absolutePath) {
   }
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to stat file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_STAT_FILE_ERR,
             absolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -265,7 +265,7 @@ static int deleteUnixFile(char *absolutePath) {
   status = fileDelete(absolutePath, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to delete file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_DELETE_FILE_ERR,
             absolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -294,7 +294,7 @@ static int renameUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to stat directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_STAT_DIR_ERR,
             oldAbsolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -307,7 +307,7 @@ static int renameUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int
   status = directoryRename(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to rename directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_RENAME_DIR_ERR,
             oldAbsolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -335,7 +335,7 @@ static int renameUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forc
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to stat file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_STAT_FILE_ERR,
             oldAbsolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -348,7 +348,7 @@ static int renameUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forc
   status = fileRename(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to rename file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_RENAME_FILE_ERR,
             oldAbsolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -377,7 +377,7 @@ static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int f
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to stat directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_STAT_DIR_ERR,
             oldAbsolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -390,7 +390,7 @@ static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int f
   status = directoryCopy(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to copy directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_COPY_DIR_ERR,
             oldAbsolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -419,7 +419,7 @@ static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceC
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to stat file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_STAT_FILE_ERR,
             oldAbsolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -432,7 +432,7 @@ static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceC
   status = fileCopy(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to copy file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_COPY_FILE_ERR,
             oldAbsolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -470,7 +470,7 @@ static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
 
   if (dest == NULL) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to open file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_OPEN_FILE_ERR,
             absolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -478,7 +478,7 @@ static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
   status = fileClose(dest, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to close file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_CLOSE_FILE_ERR,
             absolutePath, returnCode, reasonCode);
     return -1;
   }
@@ -528,7 +528,7 @@ int directoryChangeTagAndRespond(HttpResponse *response, char *file,
   }
   else {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to change tag file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
+    		ZCC_LOG_CHANGE_TAG_ERR,
             file, returnCode, reasonCode);
     respondWithJsonError(response, "Failed to Change file tag", 500, "Bad Request");
   }
@@ -627,7 +627,7 @@ void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
   }
   else {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING,
-            "Failed to change file owner %s, (returnCode = 0x%x, reasonCode = 0x% x)\n",
+    		ZCC_LOG_CHANGE_OWNER_ERR,
             path, returnCode, reasonCode);
     respondWithJsonError(response, "Failed to Change Owner", 500, 
                "Internal Server Error");
@@ -677,7 +677,7 @@ int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLen
          dataToWrite += writtenLength;
        }
        else {
-         zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, "Error writing to file: return: %d, rsn: %d.\n", returnCode, reasonCode);
+         zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, ZCC_LOG_WRITE_FILE_ERR, returnCode, reasonCode);
          safeFree(resultBuffer, resultBufferSize);
          safeFree(convertBuffer, convertBufferSize);
          return -1;
@@ -685,14 +685,14 @@ int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLen
      }
    }
    else {
-     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, "Error decoding BASE64.\n");
+     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, ZCC_LOG_DECODE_BASE64_ERR);
      safeFree(resultBuffer, resultBufferSize);
      safeFree(convertBuffer, convertBufferSize);
      return -1;
    }
   }
   else {
-    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, "Error converting to EBCDIC.\n");
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, ZCC_LOG_CONVERT_EBCDIC_ERR);
     safeFree(resultBuffer, resultBufferSize);
     safeFree(convertBuffer, convertBufferSize);
     return -1;
@@ -742,7 +742,7 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
       */
      status = fileDisableConversion(file, &returnCode, &reasonCode);
      if (status != 0) {
-       zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, "Failed to disable automatic conversion. Unexpected results may occur.\n");
+       zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, ZCC_LOG_AUTO_CONVERT_ERR);
      }
      status = convertCharset(resultBuffer,
                              decodedLength,
@@ -763,7 +763,7 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
            dataToWrite -= writtenLength;
          }
          else {
-           zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, "Error writing to file: return: %d, rsn: %d.\n", returnCode, reasonCode);
+           zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, ZCC_LOG_WRITE_FILE_ERR, returnCode, reasonCode);
            safeFree(resultBuffer, resultBufferSize);
            safeFree(dataToWrite, dataToWriteSize);
            return -1;
@@ -771,21 +771,21 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
        }
      }
      else {
-       zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING, "Unsupported encoding specified.\n");
+       zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING, ZCC_LOG_UNSUPPORTED_ENCODING_ERR);
        safeFree(resultBuffer, resultBufferSize);
        safeFree(dataToWrite, dataToWriteSize);
        return -1;
      }
    }
    else {
-     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, "Error decoding BASE64.\n");
+     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, ZCC_LOG_DECODE_BASE64_ERR);
      safeFree(resultBuffer, resultBufferSize);
      safeFree(dataToWrite, dataToWriteSize);
      return -1;
    }
   }
   else {
-    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, "Error converting to EBCDIC.\n");
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_SEVERE, ZCC_LOG_CONVERT_EBCDIC_ERR);
     safeFree(resultBuffer, resultBufferSize);
     safeFree(dataToWrite, dataToWriteSize);
     return -1;

@@ -173,15 +173,13 @@ void jsonWriteBufferInternal(jsonPrinter *p, char *text, int len) {
 #endif
       loopCount++;
       if (newWriteReturn < 0) {
-        /* TODO: Replace by zowelog(...) */
-        ERROR("JSON: write error, rc %d, return code %d, reason code %08X\n",
+    	  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, ZCC_LOG_JSON_WRITE_ERR,
                 newWriteReturn, returnCode, reasonCode);
         jsonSetIOErrorFlag(p);
         break;
       }
       if (loopCount > 10) {
-        /* TODO: Replace by zowelog(...) */
-        ERROR("JSON: write error, too many attempts\n");
+    	zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING,ZCC_LOG_JSON_ATTEMPT_ERR);
         jsonSetIOErrorFlag(p);
         break;
       }
@@ -2062,10 +2060,10 @@ JsonObject *jsonObjectProperty(JsonObject *object, char *propertyName, int *stat
 void reportJSONDataProblem(void *jsonObject, int status, char *propertyName){
   switch (status){
   case JSON_PROPERTY_NOT_FOUND:
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "JSON property '%s' not found in object at 0x%x\n",propertyName,jsonObject);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, ZCC_LOG_JSON_PROP_MISSING ,propertyName,jsonObject);
     break;
   case JSON_PROPERTY_UNEXPECTED_TYPE:
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "JSON property '%s' has wrong type in object at 0x%x\n",propertyName,jsonObject);
+    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, ZCC_LOG_JSON_PROP_TYPE_ERR,propertyName,jsonObject);
     break;
   }
 }
