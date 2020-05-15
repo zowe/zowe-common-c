@@ -1968,7 +1968,10 @@ void respondWithDatasetMetadata(HttpResponse *response) {
   int memberNameLength = 0;
 
   extractDatasetAndMemberName(absDsPath, &dsnName, &memName);
-  memberNameLength = (unsigned int)rParenIndex  - (unsigned int)lParenIndex -1; 
+  memberNameLength = (unsigned int)rParenIndex  - (unsigned int)lParenIndex -1;
+  
+  HttpRequestParam *addQualifiersParam = getCheckedParam(request,"addQualifiers");
+  char *addQualifiersArg = (addQualifiersParam ? addQualifiersParam->stringValue : NULL);
 
   HttpRequestParam *detailParam = getCheckedParam(request,"detail");
   char *detailArg = (detailParam ? detailParam->stringValue : NULL);
@@ -2018,6 +2021,25 @@ void respondWithDatasetMetadata(HttpResponse *response) {
     else if (strlen(resumeNameArg) > 44) {
       respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Malformed resume dataset name");
     }
+  }
+  
+  if(addQualifiersArg != NULL) {
+    int addQualifiers = !strcmp(addQualifiersArg, "true");
+#define DSN_MAX_LEN 44
+    char dsnNameNullTerm[DSN_MAX_LEN + 1] = {0}; //+1 for null term
+    memcpy(dsnNameNullTerm, dsnName.value, sizeof(dsnName.value));
+    nullTerminate(dsnNameNullTerm, sizeof(dsnNameNullTerm) - 1);
+    if (addQualifiers && dsnLen <= DSN_MAX_LEN) {
+      int dblAsteriskPos = indexOfString(dsnNameNullTerm, dsnLen, "**", 0); 
+      int periodPos = lastIndexOf(dsnNameNullTerm, dsnLen, '.');
+      if (!(dblAsteriskPos == dsnLen - 2 && periodPos == dblAsteriskPos - 1)) {
+        if (dsnLen <= DSN_MAX_LEN - 3) {
+          snprintf(dsnNameNullTerm, DSN_MAX_LEN + 1, "%s.**", dsnNameNullTerm);
+        }
+      }
+    }
+    memcpy(dsnName.value, dsnNameNullTerm, strlen(dsnNameNullTerm));
+#undef DSN_MAX_LEN
   }
 
   int fieldCount = defaultCSIFieldCount;

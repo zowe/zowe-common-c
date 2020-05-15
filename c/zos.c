@@ -1101,6 +1101,9 @@ static int safAuth_internal(int options, char *safClass, char *entity, int acces
         authRequest->achkflg3 |= SAF_AUTH_DSTYPE_T;
       }
     }
+    if (options & AUTH_WITHOUT_LOG) {
+      authRequest->achkflg1 |= SAF_AUTH_LOG_NONE;
+    }
 
     if (safTrace){
       fprintf(safTraceFile,"before calling SAF, wrapper=%0.8X':\n",safWrapper);

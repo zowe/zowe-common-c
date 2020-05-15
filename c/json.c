@@ -221,6 +221,9 @@ static char UTF8_ESCAPED_BACKSLASH[2]= "\\\\";
       /* TODO properly reconstruct the character. we don't care for now */ \
       *($outChar) = 0x10000; \
       *($idx) += 4; \
+    }  else { \
+      *($outChar) = ($buf)[*($idx)]; \
+      *($idx) += 1; \
     } \
 } while (0)
 
@@ -279,7 +282,7 @@ writeBufferWithEscaping(jsonPrinter *p, size_t len, char text[len]) {
   size_t i;
   size_t currentChunkOffset = 0;
   ssize_t bytesWritten = 0;
-  size_t chunkLen;
+  ssize_t chunkLen;
 
   for (i = 0; i < len;) {
     uint32_t utf8Char = 0;
