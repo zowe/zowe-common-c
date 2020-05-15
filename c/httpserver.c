@@ -83,6 +83,17 @@ typedef int time_t;
 #define APF_AUTHORIZED  1
 #endif
 
+#define SAF_RC_PASSWORD_EXPIRED    8
+#define RACF_RC_PASSWORD_EXPIRED   12
+
+typedef struct AuthResponse_tag {
+  int type;
+#define AUTH_TYPE_RACF  1
+  union {
+    SAFAuthStatus safStatus;
+  } responseDetails;
+} AuthResponse;
+
 /* FIX THIS: a temporary "low profile" way of hiding printfs. Improves
  * demo performance while we wait for
  * the introduction of a proper tracing infrastructure.
@@ -207,6 +218,14 @@ static char crlf[] ={ 0x0d, 0x0a};
 #define NATIVE_CODEPAGE CCSID_ISO_8859_1
 #warning ISO-8859-1 is not necessarily the default codepage on Linux
 #define DEFAULT_UMASK 0022
+#endif
+
+//No need to fill logs with the same message, warn based on a desired frequency
+#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
+#ifndef TLS_WARN_FREQUENCY
+#define TLS_WARN_FREQUENCY 25
+#endif
+static unsigned int tlsWarnCounter = 0;
 #endif
 
 static int64 getFineGrainedTime();
@@ -2407,7 +2426,7 @@ static bool isPassPhrase(const char *password) {
 }
 
 #ifdef __ZOWE_OS_ZOS
-static int safAuthenticate(HttpService *service, HttpRequest *request){
+static int safAuthenticate(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
   int safStatus = 0, racfStatus = 0, racfReason = 0;
   int options = VERIFY_CREATE;
   int authDataFound = FALSE;
@@ -2452,6 +2471,10 @@ static int safAuthenticate(HttpService *service, HttpRequest *request){
     int pwdCheckRC = 0, pwdCheckRSN = 0;
     pwdCheckRC = zisCheckUsernameAndPassword(privilegedServerName,
         request->username, request->password, &status);
+
+    authResponse->type = AUTH_TYPE_RACF;
+    authResponse->responseDetails.safStatus = status.safStatus;
+
     if (pwdCheckRC != 0) {
 #ifdef DEBUG_AUTH
 #define FORMAT_AUTH_ERROR($fmt, ...) printf("error: zisCheckUsernameAndPassword" \
@@ -2473,17 +2496,17 @@ static int safAuthenticate(HttpService *service, HttpRequest *request){
   return FALSE;
 }
 #else
-static int safAuthenticate(HttpService *service, HttpRequest *request){
-#ifdef DEBUG_AUTH
+
+static int safAuthenticate(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
   printf("*** ERROR **** calling safAuth off-mainframe\n");
 #endif
   return FALSE;
 }
 #endif
 
-static int nativeAuth(HttpService *service, HttpRequest *request){
+static int nativeAuth(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
 #ifdef __ZOWE_OS_ZOS
-  return safAuthenticate(service, request);
+  return safAuthenticate(service, request, authResponse);
 #else
 #ifdef DEBUG_AUTH
   printf("*** ERROR *** native auth not implemented for this platform\n");
@@ -2804,7 +2827,7 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
 }
 
 static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *request,  HttpResponse *response,
-                                             int *clearSessionToken){
+                                             int *clearSessionToken, AuthResponse *authResponse){
   int authDataFound = FALSE; 
   HttpHeader *authenticationHeader = getHeader(request,"Authorization");
   char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
@@ -2851,7 +2874,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
       response->sessionCookie = sessionToken;
       return TRUE;
     } else if (authDataFound){
-      if (nativeAuth(service,request)){
+      if (nativeAuth(service,request,authResponse)){
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
                "serviceAuthNativeWithSessionToken: Cookie not valid, auth is good\n");
         char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
@@ -2872,7 +2895,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
       return FALSE;
     }
   } else if (authDataFound){
-    if (nativeAuth(service,request)){
+    if (nativeAuth(service,request,authResponse)){
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
               "serviceAuthNativeWithSessionToken: auth header provided and works, "
               "before generate session token req=0x%x, username=0x%x, response=0x%p\n",
@@ -2895,17 +2918,21 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   }
 }
 
+#define JWT_COOKIE_NAME "apimlAuthenticationToken"
+#define JWT_COOKIE_NAME_LENGTH 24
+
 static int serviceAuthWithJwt(HttpService *service,
                               HttpRequest *request,
                               HttpResponse *response) {
-  int authDataFound = FALSE;
   HttpHeader *const authorizationHeader = getHeader(request, "Authorization");
-  char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
+  char *jwtTokenText = getCookieValue(request,JWT_COOKIE_NAME);
 
   AUTH_TRACE("serviceAuthWithJwt: authenticationHeader 0x%p,"
       " extractFunction 0x%p\n",
       authorizationHeader,
       service->authExtractionFunction);
+
+   request->authToken = jwtTokenText;
 
   /*
    * The extractor should look at the request and get the raw JWT from anywhere
@@ -2918,15 +2945,15 @@ static int serviceAuthWithJwt(HttpService *service,
    * TODO: consider changing the architecture: what fields do we want in the
    * request structure?
    */
-  if (service->authExtractionFunction != NULL) {
-    if (service->authExtractionFunction(service, request) == 0) {
-      authDataFound = TRUE;
-    }
-  } else if (authorizationHeader) {
+
+  if (authorizationHeader) {
     DEBUG_TRACE("serviceAuthWithJwt: auth header = 0x%x\n", authorizationHeader);
-    if (extractBearerToken(request, authorizationHeader)) {
+    if (request->authToken == NULL && extractBearerToken(request, authorizationHeader)) {
       DEBUG_TRACE("back inside serviceAuthWithJwt after call to extractBearerToken\n");
-      authDataFound = TRUE;
+    }
+  } else if (service->authExtractionFunction != NULL) {
+    if (service->authExtractionFunction(service, request) == 0) {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "auth extraction function returns 0!\n");
     }
   }
 
@@ -2970,7 +2997,17 @@ static int serviceAuthWithJwt(HttpService *service,
       return FALSE;
     }
     strcpy(request->username, jwt->subject);
+    int jwtLen = strlen(jwtTokenText);
+    int jwtCookieLen = JWT_COOKIE_NAME_LENGTH + jwtLen + 2; //+1 for '=', +1 for null term
+    char jwtCookie[jwtCookieLen];
+    snprintf(jwtCookie, jwtCookieLen, "%s=%s", JWT_COOKIE_NAME, jwtTokenText);
+    addStringHeader(response, "Set-Cookie", jwtCookie);
+    response->sessionCookie = NULL;
+    char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
+    response->sessionCookie = sessionToken;
+    addStringHeader(response, "Set-Cookie", response->sessionCookie);
     strupcase(request->username);
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "TOKEN VALIDATED\n");
     return TRUE;
   }
 }
@@ -3098,6 +3135,22 @@ static void serveRequest(HttpService* service, HttpResponse* response,
 
 }
 
+static void respondWithAuthError(HttpResponse *response, AuthResponse *authResponse) {
+  switch (authResponse->type) {
+    case AUTH_TYPE_RACF:
+      if (authResponse->responseDetails.safStatus.safRC == SAF_RC_PASSWORD_EXPIRED &&
+          authResponse->responseDetails.safStatus.racfRC == RACF_RC_PASSWORD_EXPIRED) {
+        respondWithError(response, HTTP_STATUS_PRECONDITION_REQUIRED, "Password Expired");
+      } else {
+        respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
+      }
+      break;
+    default:
+      respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
+      break;
+  }
+}
+
 static int handleHttpService(HttpServer *server,
                              HttpService *service,
                              HttpRequest *request,
@@ -3168,6 +3221,9 @@ static int handleHttpService(HttpServer *server,
   service->server = server;
 
   int clearSessionToken = FALSE;
+
+  AuthResponse authResponse;
+
   switch (service->authType){
    
   case SERVICE_AUTH_NONE:
@@ -3181,7 +3237,7 @@ static int handleHttpService(HttpServer *server,
 #ifdef DEBUG
     printf("saf auth needed for service %s\n",service->name);
 #endif
-    request->authenticated = safAuthenticate(service, request);
+    request->authenticated = safAuthenticate(service, request, &authResponse);
     break;
   case SERVICE_AUTH_CUSTOM:
 #ifdef DEBUG
@@ -3201,7 +3257,7 @@ static int handleHttpService(HttpServer *server,
         break;
       } /* else fall through */
     case SERVICE_AUTH_TOKEN_TYPE_LEGACY:
-      request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken);
+      request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken, &authResponse);
       break;
     }
     break;
@@ -3211,7 +3267,7 @@ static int handleHttpService(HttpServer *server,
 #endif
   if (request->authenticated == FALSE){
     /* could make this parameterizable */
-    respondWithError(response,401,"Not Authorized");
+    respondWithAuthError(response, &authResponse);
     // Response is finished on return
   } else {
 
@@ -5224,9 +5280,10 @@ static int httpHandleTCP(STCBase *base,
       } else if ((RS_TLS_WANT_TLS & peerExtension->tlsFlags) &&
                  (0 == (RS_TLS_HAVE_TLS & peerExtension->tlsFlags)))
       {
-#ifdef DEBUG
-        printf("*** WARNING: Connection is insecure! TLS needed but not found on socket. ***\n");
-#endif
+        if (0 == (tlsWarnCounter % TLS_WARN_FREQUENCY)) {
+          printf("*** WARNING: Connection is insecure! TLS needed but not found on socket. ***\n");
+        }
+        tlsWarnCounter++;
       } else if ((RS_TLS_WANT_PEERCERT & peerExtension->tlsFlags) &&
                  (0 == (RS_TLS_HAVE_PEERCERT & peerExtension->tlsFlags)))
       {
