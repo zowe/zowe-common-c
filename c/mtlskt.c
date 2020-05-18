@@ -24,6 +24,7 @@
 #include "utils.h"
 #include "bpxnet.h"
 #include "logging.h"
+#include "zccLogging.h"
 
 #if defined(SRB_READY) && defined(_LP64)
 #define BPXSOC ZOWESOC

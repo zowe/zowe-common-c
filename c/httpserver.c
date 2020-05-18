@@ -2500,7 +2500,6 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
 
 static int safAuthenticate(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
   printf("*** ERROR **** calling safAuth off-mainframe\n");
-#endif
   return FALSE;
 }
 #endif
