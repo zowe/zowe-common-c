@@ -85,6 +85,11 @@ const char *CMS_RC_DESCRIPTION[] = {
 #define CMS_MODULE  CMS_PROD_ID"IS01"
 #endif
 
+/* Check this for backward compatibility with the compile-time dev mode. */
+#ifndef CMS_LPA_DEV_MODE
+#define CMS_LPA_DEV_MODE 0
+#endif
+
 static void eightCharStringInit(EightCharString *string, char *cstring, char padChar) {
   memset(string->text, padChar, sizeof(string->text));
   unsigned int cstringLength = strlen(cstring);
@@ -2113,6 +2118,9 @@ CrossMemoryServer *makeCrossMemoryServer2(
   if (flags & CMS_SERVER_FLAG_CHECKAUTH) {
     server->flags |= CROSS_MEMORY_SERVER_FLAG_CHECKAUTH;
   }
+  if (flags & CMS_SERVER_FLAG_CLEAN_LPA) {
+    server->flags |= CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA;
+  }
 
   int allocResourcesRC = allocServerResources(server);
   if (allocResourcesRC != RC_CMS_OK) {
@@ -2387,6 +2395,43 @@ static int discardGlobalResources(CrossMemoryServer *server) {
 
 }
 
+static int freeGlobalResources(CrossMemoryServer *server) {
+
+  CrossMemoryServerGlobalArea *globalArea = server->globalArea;
+
+  /* The only resource we may want to release is the LPA module. */
+
+  void * __ptr32 moduleAddressLPA =
+      globalArea->lpaModuleInfo.outputInfo.stuff.successInfo.loadPointAddr;
+  if (moduleAddressLPA != NULL) {
+
+    if ((server->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA) ||
+        CMS_LPA_DEV_MODE) {
+      /* If the "clean LPA" flag is set or in dev mode, force the server to
+       * remove the existing LPA module. This will help avoid abandoning too
+       * many module in LPA during development. */
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
+              " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
+      int lpaDeleteRSN = 0;
+      int lpaDeleteRC = lpaDelete(&globalArea->lpaModuleInfo,
+                                  &lpaDeleteRSN);
+      if (lpaDeleteRC != 0) {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+                CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
+        return RC_CMS_LPA_DELETE_FAILED;
+      }
+
+      moduleAddressLPA = NULL;
+      memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
+      memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
+
+    }
+
+  }
+
+  return RC_CMS_OK;
+}
+
 static int initSecuritySubsystem(CrossMemoryServer *server) {
 
   /* We must require the FACILITY class to be RACLISTed and not do that
@@ -2571,6 +2616,8 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
 
     if (moduleAddressLPA != NULL) {
 
+      bool lpaDiscarded = false;
+
       /* Does the module in LPA match our private storage module? */
       CMSBuildTimestamp privateModuleTimestamp = getServerBuildTimestamp();
       if (memcmp(&privateModuleTimestamp, &globalArea->lpaModuleTimestamp,
@@ -2587,10 +2634,14 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
                   globalArea->lpaModuleTimestamp.value,
                   privateModuleTimestamp.value);
 
-#ifdef CMS_LPA_DEV_MODE
-        /* Compiling with CMS_LPA_DEV_MODE will force the server to remove the
-         * existing LPA module if the private module doesn't match it.
-         * This will help avoid abandoning too many module in LPA during
+        lpaDiscarded = true;
+      }
+
+      if ((server->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA) ||
+          CMS_LPA_DEV_MODE) {
+        /* If the "clean LPA" flag is set or in dev mode, force the server to
+         * remove the existing LPA module if the private module doesn't match
+         * it. This will help avoid abandoning too many module in LPA during
          * development. */
         zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
                 " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
@@ -2602,12 +2653,14 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
                   CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
           return RC_CMS_LPA_DELETE_FAILED;
         }
-#endif /* CMS_LPA_DEV_MODE */
 
+        lpaDiscarded = true;
+      }
+
+      if (lpaDiscarded) {
         moduleAddressLPA = NULL;
         memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
         memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
-
       }
 
     } else {
@@ -3574,6 +3627,19 @@ static void printServerInitFailedMessage(CrossMemoryServer *srv, int rc) {
 
 }
 
+static void printFlagInfo(CrossMemoryServer *srv) {
+
+  if ((srv->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA) || CMS_LPA_DEV_MODE) {
+
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_CLEAN_LPA_MSG);
+
+    wtoPrintf2(srv->startCommandInfo.consoleID, srv->startCommandInfo.cart,
+               CMS_LOG_CLEAN_LPA_MSG);
+
+  }
+
+}
+
 static void printServerReadyMessage(CrossMemoryServer *srv) {
 
   zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_SERVER_READY_MSG);
@@ -3967,7 +4033,10 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_INIT_STEP_SUCCESS_MSG, "push recovery state");
   }
 
+  printFlagInfo(srv);
+
   int status = RC_CMS_OK;
+  bool globalResourcesAllocated = false;
   bool serverStarted = false;
   bool startCallbackSuccess = true;
   bool resourceManagerInstalled = false;
@@ -4031,6 +4100,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
       status = allocRC;
     } else {
       zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_INIT_STEP_SUCCESS_MSG, "allocate global resources");
+      globalResourcesAllocated = true;
     }
   }
 
@@ -4138,6 +4208,18 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
         zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
                 CMS_LOG_TERM_STEP_SUCCESS_MSG, "stop callback");
       }
+    }
+  }
+
+  if (globalResourcesAllocated) {
+    int freeRC = freeGlobalResources(srv);
+    if (freeRC != RC_RESMGR_OK) {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+              CMS_LOG_TERM_STEP_FAILURE_MSG, "free global resources", freeRC);
+      status = (status != RC_CMS_OK) ? status : freeRC;
+    } else {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+              CMS_LOG_TERM_STEP_SUCCESS_MSG, "free global resources");
     }
   }
 
