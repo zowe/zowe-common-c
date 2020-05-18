@@ -31,6 +31,7 @@
 #include "unixfile.h"
 #include "timeutls.h"
 #include "logging.h"
+#include "zccLogging.h"
 
 #ifdef _LP64
 #pragma linkage(BPX4RED,OS)

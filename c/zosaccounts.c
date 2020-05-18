@@ -33,6 +33,7 @@ tml
 #include "unixfile.h"
 #include "timeutls.h"
 #include "logging.h"
+#include "zccLogging.h"
 
 static int accountTrace = FALSE;
 

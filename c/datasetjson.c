@@ -43,6 +43,7 @@
 #include "utils.h"
 #include "vsam.h"
 #include "qsam.h"
+#include "zccLogging.h"
 
 #define INDEXED_DSCB 96
 

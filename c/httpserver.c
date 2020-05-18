@@ -62,6 +62,7 @@
 #include "charsets.h"
 #include "impersonation.h"
 #include "httpserver.h"
+#include "zccLogging.h"
 
 #ifdef USE_RS_SSL
 #include "rs_ssl.h"
@@ -1406,7 +1407,7 @@ static int encodeSessionToken(ShortLivedHeap *slh,
   char *encodedTokenText = SLHAlloc(slh, encodedTokenTextLength);
   if (encodedTokenText == NULL) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-    		ZCC_LOG_TOKEN_ALLOC_ERR, encodedTokenTextLength, slh);
+    		ZCC_LOG_ENCODE_TOKEN_ALLOC_ERR, encodedTokenTextLength, slh);
     return -1;
   }
 

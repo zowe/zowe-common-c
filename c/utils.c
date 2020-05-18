@@ -35,6 +35,7 @@
 #include "printables_for_dump.h"
 #include "timeutls.h"
 #include "logging.h"
+#include "zccLogging.h"
 
 char * strcopy_safe(char * dest, const char * source, int dest_size) {
   if( dest_size == 0 )

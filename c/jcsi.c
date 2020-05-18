@@ -25,6 +25,8 @@
 #include "logging.h"
 #include "csi.h"
 #include "jcsi.h"
+#include "zccLogging.h"
+
 #define _EDC_ADD_ERRNO2 1
 
 /* 

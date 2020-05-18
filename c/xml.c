@@ -45,6 +45,7 @@
 #endif
 #include "xml.h"
 #include "logging.h"
+#include "zccLogging.h"
 
 /** worry about turning ebcdic into UTF-8 on the fly */
 

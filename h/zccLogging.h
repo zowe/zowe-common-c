@@ -50,7 +50,7 @@ bool isLogLevelValid(int level);
 #define ZCC_LOG_DATA_LOOK_UP_API_ID                 ZCC_LOG_MSG_PRFX"2000I"
 #endif
 #define ZCC_LOG_LOOK_UP_API_TEXT                    "lookup count=%d name=%s\n"
-#define ZCC_LOG_LOOK_UP_API                         ZCC_LOG_DATA_LOOK_UP_API_ID_ID" "ZCC_LOG_LOOK_UP_API_TEXT
+#define ZCC_LOG_LOOK_UP_API                         ZCC_LOG_DATA_LOOK_UP_API_ID" "ZCC_LOG_LOOK_UP_API_TEXT
 
 #ifndef ZCC_LOG_DATA_PRGM_CNTRL_ERR_ID
 #define ZCC_LOG_DATA_PRGM_CNTRL_ERR_ID              ZCC_LOG_MSG_PRFX"2001S"
@@ -68,7 +68,7 @@ bool isLogLevelValid(int level);
 #define ZCC_LOG_DLSYM_ERR_ID                        ZCC_LOG_MSG_PRFX"2003S"
 #endif
 #define ZCC_LOG_DLSYM_ERR_TEXT                      "%s.%s could not be found -  dlsym error %s\n"
-#define ZCC_LOG_DLSYM_ERR                           ZCC_LOG_FILE_EXPECTED_TOP_MSG_ID" "ZCC_LOG_FILE_EXPECTED_TOP_MSG_TEXT
+#define ZCC_LOG_DLSYM_ERR                           ZCC_LOG_DLSYM_ERR_ID" "ZCC_LOG_DLSYM_ERR_TEXT
 
 #ifndef ZCC_LOG_DLSYM_MSG_ID
 #define ZCC_LOG_DLSYM_MSG_ID                        ZCC_LOG_MSG_PRFX"2004I"
@@ -89,7 +89,7 @@ bool isLogLevelValid(int level);
 #define ZCC_LOG_DLL_FILE_ERR                        ZCC_LOG_DLL_FILE_ERR_ID" "ZCC_LOG_DLL_FILE_ERR_TEXT
 
 #ifndef ZCC_LOG_DATA_SERVICE_ID_MSG_ID
-#define ZCC_LOG_DATA_SERVICE__ID_MSG_ID             ZCC_LOG_MSG_PRFX"2007W"
+#define ZCC_LOG_DATA_SERVICE_ID_MSG_ID             ZCC_LOG_MSG_PRFX"2007W"
 #endif
 #define ZCC_LOG_DATA_SERVICE_ID_MSG_TEXT            "added identifier for %s\n"
 #define ZCC_LOG_DATA_SERVICE_ID_MSG                 ZCC_LOG_DATA_SERVICE_ID_MSG_ID" "ZCC_LOG_DATA_SERVICE_ID_MSG_TEXT
@@ -158,7 +158,7 @@ bool isLogLevelValid(int level);
 #define ZCC_LOG_DATA_SERVICE_URI_MSG_ID             ZCC_LOG_MSG_PRFX"2018I"
 #endif
 #define ZCC_LOG_DATA_SERVICE_URI_MSG_TEXT           "Installing dataservice %s to URI %s\n"
-#define ZCC_LOG_DATA_SERVICE_URI_MSG                ZCC_LOG_DATA_SERVICE_URI_MSG_ID" "ZCC_LOG_DATA_SERVICE_URO_MSG_TEXT
+#define ZCC_LOG_DATA_SERVICE_URI_MSG                ZCC_LOG_DATA_SERVICE_URI_MSG_ID" "ZCC_LOG_DATA_SERVICE_URI_MSG_TEXT
 
 #ifndef ZCC_LOG_DATA_SERVICE_URL_ERR_ID
 #define ZCC_LOG_DATA_SERVICE_URL_ERR_ID             ZCC_LOG_MSG_PRFX"2019I"
@@ -196,7 +196,13 @@ bool isLogLevelValid(int level);
 #define ZCC_LOG_ACB_ERR_ID                          ZCC_LOG_MSG_PRFX"2104S"
 #endif
 #define ZCC_LOG_ACB_ERR_TEXT                        "Read 0 bytes with error: ACB=%08x, rc=%d, rplRC = %0x%06x\n"
-#define ZCC_LOG_ACB_ERR                             ZCC_LOG_ACB_ERR_ID" "ZCC_ACB_ERR_TEXT
+#define ZCC_LOG_ACB_ERR                             ZCC_LOG_ACB_ERR_ID" "ZCC_LOG_ACB_ERR_TEXT
+
+#ifndef ZCC_LOG_NEW_ACB_ERR_ID
+#define ZCC_LOG_NEW_ACB_ERR_ID                          ZCC_LOG_MSG_PRFX"2104S"
+#endif
+#define ZCC_LOG_NEW_ACB_ERR_TEXT                        "New Error: ACB=%08x, rc=%d, rplRC = %02x%06x\n"
+#define ZCC_LOG_NEW_ACB_ERR                             ZCC_LOG_NEW_ACB_ERR_ID" "ZCC_LOG_NEW_ACB_ERR_TEXT
 
 #ifndef ZCC_LOG_RBA_EOF_ERR_ID
 #define ZCC_LOG_RBA_EOF_ERR_ID                      ZCC_LOG_MSG_PRFX"2105S"
@@ -289,7 +295,7 @@ bool isLogLevelValid(int level);
 #define ZCC_LOG_DATA_SET_MULTI_NAME_ERR             ZCC_LOG_DATA_SET_MULTI_NAME_ERR_ID" "ZCC_LOG_DATA_SET_MULTI_NAME_ERR_TEXT
 
 #ifndef ZCC_LOG_DATA_SET_NAME_SIZE_ERR_ID
-#define ZCC_LOG_DATA_SET_NAME_SiZE_ERR_ID           ZCC_LOG_MSG_PRFX"2120S"
+#define ZCC_LOG_DATA_SET_NAME_SIZE_ERR_ID           ZCC_LOG_MSG_PRFX"2120S"
 #endif
 #define ZCC_LOG_DATA_SET_NAME_SIZE_ERR_TEXT         "DSN of size %d is too large.\n"
 #define ZCC_LOG_DATA_SET_NAME_SIZE_ERR              ZCC_LOG_DATA_SET_NAME_SIZE_ERR_ID" "ZCC_LOG_DATA_SET_NAME_SIZE_ERR_TEXT
@@ -449,7 +455,7 @@ bool isLogLevelValid(int level);
 #ifndef ZCC_LOG_UNSUPPORTED_ENCODING_ERR_ID
 #define ZCC_LOG_UNSUPPORTED_ENCODING_ERR_ID         ZCC_LOG_MSG_PRFX"2146W"
 #endif
-#define ZCC_LOG_UNSUPPORTED_ENCODING_TEXT           "Unsupported encoding specified.\n"
+#define ZCC_LOG_UNSUPPORTED_ENCODING_ERR_TEXT           "Unsupported encoding specified.\n"
 #define ZCC_LOG_UNSUPPORTED_ENCODING_ERR            ZCC_LOG_UNSUPPORTED_ENCODING_ERR_ID" "ZCC_LOG_UNSUPPORTED_ENCODING_ERR_TEXT
 
 /* HTTP Server */
@@ -457,31 +463,31 @@ bool isLogLevelValid(int level);
 #ifndef ZCC_LOG_SESSION_TOKEN_ERR_ID
 #define ZCC_LOG_SESSION_TOKEN_ERR_ID                ZCC_LOG_MSG_PRFX"2147S"
 #endif
-#define ZCC_LOG_SESSION_TOKEN_TEXT                  "Error: session token key not generated, RC = %d, RSN = %d\n"
+#define ZCC_LOG_SESSION_TOKEN_ERR_TEXT                  "Error: session token key not generated, RC = %d, RSN = %d\n"
 #define ZCC_LOG_SESSION_TOKEN_ERR                   ZCC_LOG_SESSION_TOKEN_ERR_ID" "ZCC_LOG_SESSION_TOKEN_ERR_TEXT
 
 #ifndef ZCC_LOG_ENCODE_TOKEN_ALLOC_ERR_ID
 #define ZCC_LOG_ENCODE_TOKEN_ALLOC_ERR_ID           ZCC_LOG_MSG_PRFX"2148S"
 #endif
-#define ZCC_LOG_ENCODE_TOKEN_ALLOC_TEXT             "Error: encoded session token buffer not allocated (size=%u, SLH=%p)\n"
+#define ZCC_LOG_ENCODE_TOKEN_ALLOC_ERR_TEXT             "Error: encoded session token buffer not allocated (size=%u, SLH=%p)\n"
 #define ZCC_LOG_ENCODE_TOKEN_ALLOC_ERR              ZCC_LOG_ENCODE_TOKEN_ALLOC_ERR_ID" "ZCC_LOG_ENCODE_TOKEN_ALLOC_ERR_TEXT
 
 #ifndef ZCC_LOG_TOKEN_ENCODING_ERR_ID
 #define ZCC_LOG_TOKEN_ENCODING_ERR_ID               ZCC_LOG_MSG_PRFX"2149S"
 #endif
-#define ZCC_LOG_TOKEN_ENCODING_TEXT                 "Error: session token encoding failed, RC = %d, RSN = %d\n"
+#define ZCC_LOG_TOKEN_ENCODING_ERR_TEXT                 "Error: session token encoding failed, RC = %d, RSN = %d\n"
 #define ZCC_LOG_TOKEN_ENCODING_ERR                  ZCC_LOG_TOKEN_ENCODING_ERR_ID" "ZCC_LOG_TOKEN_ENCODING_ERR_TEXT
 
 #ifndef ZCC_LOG_DECODE_TOKEN_ALLOC_ERR_ID
 #define ZCC_LOG_DECODE_TOKEN_ALLOC_ERR_ID           ZCC_LOG_MSG_PRFX"2150S"
 #endif
-#define ZCC_LOG_DECODE_TOKEN_ALLOC_TEXT             "Error: decoded session token buffer not allocated (size=%u, SLH=%p)\n"
+#define ZCC_LOG_DECODE_TOKEN_ALLOC_ERR_TEXT             "Error: decoded session token buffer not allocated (size=%u, SLH=%p)\n"
 #define ZCC_LOG_DECODE_TOKEN_ALLOC_ERR              ZCC_LOG_DECODE_TOKEN_ALLOC_ERR_ID" "ZCC_LOG_DECODE_TOKEN_ALLOC_ERR_TEXT
 
 #ifndef ZCC_LOG_TOKEN_DECODING_ERR_ID
 #define ZCC_LOG_TOKEN_DECODING_ERR_ID               ZCC_LOG_MSG_PRFX"2151S"
 #endif
-#define ZCC_LOG_TOKEN_DECODING_TEXT                 "Error: session token decoding failed, RC = %d, RSN = %d\n"
+#define ZCC_LOG_TOKEN_DECODING_ERR_TEXT                 "Error: session token decoding failed, RC = %d, RSN = %d\n"
 #define ZCC_LOG_TOKEN_DECODING_ERR                  ZCC_LOG_TOKEN_DECODING_ERR_ID" "ZCC_LOG_TOKEN_DECODING_ERR_TEXT
 
 //serviceAuthNativeWithSessionToken - not sure what to do with these logs, they're debug3?
@@ -492,12 +498,6 @@ bool isLogLevelValid(int level);
 #define ZCC_LOG_HTTP_METHOD_URI_ID                  ZCC_LOG_MSG_PRFX"2152S"
 #endif
 #define ZCC_LOG_HTTP_METHOD_URI_TEXT                "httpserver: method='%s', URI='%s'\n"
-#define ZCC_LOG_HTTP_METHOD_URI                     ZCC_LOG_HTTP_METHOD_URI_ID" "ZCC_LOG_HTTP_METHOD_URI_TEXT
-
-#ifndef ZCC_LOG_HTTP_METHOD_URI_ID
-#define ZCC_LOG_HTTP_METHOD_URI_ID                  ZCC_LOG_MSG_PRFX"2153I"
-#endif
-#define ZCC_LOG_HTTP_METHOD_URI_TEXT                "proxyServe started, conversation=0x%x\n"
 #define ZCC_LOG_HTTP_METHOD_URI                     ZCC_LOG_HTTP_METHOD_URI_ID" "ZCC_LOG_HTTP_METHOD_URI_TEXT
 
 #ifndef ZCC_LOG_ENCODE_CONVERSION_ERR_ID
@@ -616,13 +616,13 @@ bool isLogLevelValid(int level);
 #define ZCC_LOG_PDS_READ_ERR_EMPTY_ID               ZCC_LOG_MSG_PRFX"2171W"
 #endif
 #define ZCC_LOG_PDS_READ_ERR_EMPTY_TEXT             "Error encountered on reading PDS member, returning empty list\n"
-#define ZCC_LOG_PDS_READ_ERR_EMPTY                  ZCC_LOG_PDS_READ_ERR_EMPTY_ID" "ZCC_LOG_PDs_ERR_EMPTY_TEXT
+#define ZCC_LOG_PDS_READ_ERR_EMPTY                  ZCC_LOG_PDS_READ_ERR_EMPTY_ID" "ZCC_LOG_PDS_READ_ERR_EMPTY_TEXT
 
 #ifndef ZCC_LOG_PDS_READ_ERR_CURRENT_ID
 #define ZCC_LOG_PDS_READ_ERR_CURRENT_ID             ZCC_LOG_MSG_PRFX"2172W"
 #endif
 #define ZCC_LOG_PDS_READ_ERR_CURRENT_TEXT           "Error encountered reading PDS member, returning current list\n"
-#define ZCC_LOG_PDS_READ_ERR_CURRENT                ZCC_LOG_PDS_READ_ERR_CURRENT_ID" "ZCC_LOG_PDS_ERR_CURRENT_TEXT
+#define ZCC_LOG_PDS_READ_ERR_CURRENT                ZCC_LOG_PDS_READ_ERR_CURRENT_ID" "ZCC_LOG_PDS_READ_ERR_CURRENT_TEXT
 
 #ifndef ZCC_LOG_EVENT_SET_ERR_ID
 #define ZCC_LOG_EVENT_SET_ERR_ID                    ZCC_LOG_MSG_PRFX"2173W"
