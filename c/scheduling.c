@@ -36,6 +36,7 @@
 #include "scheduling.h"
 #include "openprims.h"
 #include "logging.h"
+#include "zccLogging.h"
 
 #ifndef __ZOWE_OS_ZOS
 #error non-z/OS environments are not supported
@@ -208,7 +209,7 @@ static int executeRLETask(RLETask *task) {
   if (recoveryRequired) {
     int establishRC = recoveryEstablishRouter(RCVR_ROUTER_FLAG_NONE);
     if (establishRC != RC_RCV_OK) {
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "error: recovery not established, rc=%d\n", establishRC);
+      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, ZCC_LOG_RECOVERY_ERR, establishRC);
     }
   }
 

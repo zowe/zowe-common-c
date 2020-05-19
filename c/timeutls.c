@@ -426,7 +426,7 @@ void getSTCK(int64 *stck)
   if (0 != gettimeofday(&time, 0)) {
     /* ruh-roh - what now? */
     int error = errno;
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, ZCC_LOG_GET_TIME_ERR, error, strerror(errno));
+    printf("gettimeofday failed: errno=%d (%s)\n", error, strerror(errno));
   } else {
     result = stckFromTimeval(&time);
   }
@@ -440,7 +440,7 @@ void getSTCKU(uint64 *stck)
   if (0 != gettimeofday(&time, 0)) {
     /* ruh-roh - what now? */
     int error = errno;
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, ZCC_LOG_GET_TIME_ERR, error, strerror(errno));
+    printf("gettimeofday failed: errno=%d (%s)\n", error, strerror(errno));
   } else {
     result = stckFromTimeval(&time);
   }
