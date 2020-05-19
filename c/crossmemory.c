@@ -2118,7 +2118,9 @@ CrossMemoryServer *makeCrossMemoryServer2(
   if (flags & CMS_SERVER_FLAG_CHECKAUTH) {
     server->flags |= CROSS_MEMORY_SERVER_FLAG_CHECKAUTH;
   }
-  if (flags & CMS_SERVER_FLAG_CLEAN_LPA) {
+
+  bool devMode = flags & CMS_SERVER_FLAG_DEV_MODE;
+  if ((flags & CMS_SERVER_FLAG_DEV_MODE_LPA) || CMS_LPA_DEV_MODE || devMode) {
     server->flags |= CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA;
   }
 
@@ -2405,8 +2407,7 @@ static int freeGlobalResources(CrossMemoryServer *server) {
       globalArea->lpaModuleInfo.outputInfo.stuff.successInfo.loadPointAddr;
   if (moduleAddressLPA != NULL) {
 
-    if ((server->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA) ||
-        CMS_LPA_DEV_MODE) {
+    if (server->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA) {
       /* If the "clean LPA" flag is set or in dev mode, force the server to
        * remove the existing LPA module. This will help avoid abandoning too
        * many module in LPA during development. */
@@ -2637,8 +2638,7 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
         lpaDiscarded = true;
       }
 
-      if ((server->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA) ||
-          CMS_LPA_DEV_MODE) {
+      if (server->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA) {
         /* If the "clean LPA" flag is set or in dev mode, force the server to
          * remove the existing LPA module if the private module doesn't match
          * it. This will help avoid abandoning too many module in LPA during
@@ -3627,14 +3627,21 @@ static void printServerInitFailedMessage(CrossMemoryServer *srv, int rc) {
 
 }
 
-static void printFlagInfo(CrossMemoryServer *srv) {
+static bool isDevMode(const CrossMemoryServer *srv) {
+  /* We may add more "dev mode" flags in the future and possibly use
+   * the "CMS_SERVER_FLAG_xxxx values directly. For now, checking the LPA
+   * flag is sufficient. */
+  return srv->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA;
+}
 
-  if ((srv->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA) || CMS_LPA_DEV_MODE) {
+static void printFlagInfo(const CrossMemoryServer *srv) {
 
-    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_CLEAN_LPA_MSG);
+  if (isDevMode(srv)) {
+
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_DEV_MODE_ON_MSG);
 
     wtoPrintf2(srv->startCommandInfo.consoleID, srv->startCommandInfo.cart,
-               CMS_LOG_CLEAN_LPA_MSG);
+               CMS_LOG_DEV_MODE_ON_MSG);
 
   }
 
