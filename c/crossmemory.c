@@ -2641,7 +2641,7 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
       if (server->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA) {
         /* If the "clean LPA" flag is set or in dev mode, force the server to
          * remove the existing LPA module if the private module doesn't match
-         * it. This will help avoid abandoning too many module in LPA during
+         * it. This will help avoid abandoning too many modules in LPA during
          * development. */
         zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
                 " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
