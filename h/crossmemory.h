@@ -293,6 +293,7 @@ typedef struct CrossMemoryServer_tag {
 #define CROSS_MEMORY_SERVER_FLAG_TERM_STARTED 0x00000004
 #define CROSS_MEMORY_SERVER_FLAG_TERM_ENDED   0x00000008
 #define CROSS_MEMORY_SERVER_FLAG_CHECKAUTH    0x00000010
+#define CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA    0x00000020
   STCBase * __ptr32 base;
   CMSStarCallback * __ptr32 startCallback;
   CMSStopCallback * __ptr32 stopCallback;
@@ -392,6 +393,8 @@ ZOWE_PRAGMA_PACK_RESET
 #define CMS_SERVER_FLAG_COLD_START            0x00000001
 #define CMS_SERVER_FLAG_DEBUG                 0x00000002
 #define CMS_SERVER_FLAG_CHECKAUTH             0x00000004
+#define CMS_SERVER_FLAG_DEV_MODE              0x00000008
+#define CMS_SERVER_FLAG_DEV_MODE_LPA          0x00000010
 
 #define CMS_SERVICE_FLAG_NONE                 0x00000000
 #define CMS_SERVICE_FLAG_SPACE_SWITCH         0x00000001
@@ -847,6 +850,12 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 #endif
 #define CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_TEXT    "Service entry %d is occupied"
 #define CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG         CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_ID" "CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_TEXT
+
+#ifndef CMS_LOG_DEV_MODE_ON_MSG_ID
+#define CMS_LOG_DEV_MODE_ON_MSG_ID              CMS_MSG_PRFX"0247W"
+#endif
+#define CMS_LOG_DEV_MODE_ON_MSG_TEXT            "Development mode is enabled"
+#define CMS_LOG_DEV_MODE_ON_MSG                 CMS_LOG_DEV_MODE_ON_MSG_ID" "CMS_LOG_DEV_MODE_ON_MSG_TEXT
 
 #endif /* H_CROSSMEMORY_H_ */
 
