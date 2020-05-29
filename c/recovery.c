@@ -23,6 +23,7 @@
 #include "stdlib.h"
 #include "stdio.h"
 #include "string.h"
+#define srbPrintf printf
 #endif
 
 #include "zowetypes.h"
@@ -896,7 +897,9 @@ void recoveryDESCTs(){
 #endif
 
 RecoveryContext *getRecoveryContext() {
+  srbPrintf("getRecoveryContext()\n");
 #ifdef CUSTOM_CONTEXT_GETTER
+  srbPrintf("custom case\n");
   return rcvrgcxt();
 #else
 #ifdef __ZOWE_OS_ZOS
@@ -908,7 +911,8 @@ RecoveryContext *getRecoveryContext() {
   if (rleTask == NULL) {
     return NULL;
   }
-  return rleTask->recoveryContext;
+  RecoveryContext *ctx = rleTask->recoveryContext;
+  return ctx;
 #elif defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_LINUX)
   return theRecoveryContext;
 #endif /* __ZOWE_OS_ZOS */
@@ -1121,6 +1125,8 @@ static int establishRouterInternal(RecoveryContext *userContext,
     context = userContext;
   }
 
+  srbPrintf("recovery.c: about to set recovery context 0x%p frr?=%d\n",
+	    context,frrRequired);
   int setRC = setRecoveryContext(context);
   if (setRC != RC_RCV_OK) {
     rc = RC_RCV_CONTEXT_NOT_SET;
@@ -1156,7 +1162,6 @@ static int establishRouterInternal(RecoveryContext *userContext,
       :
       :
   );
-
 
   if (!frrRequired) {
 
@@ -1548,12 +1553,10 @@ int recoveryRemoveRouter() {
 static RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char *name, int flags, char *dumpTitle,
                                                  AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
                                                  CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
-
   RecoveryStateEntry *newEntry = allocRecoveryStateEntry(context);
   if (newEntry == NULL) {
     return NULL;
   }
-
 #if !defined(METTLE) && defined(_LP64)
   if (userAnalysisFunction != NULL) {
     newEntry->analysisFunctionEnvironment = ((uint64 *)userAnalysisFunction)[0];
@@ -1567,10 +1570,8 @@ static RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char 
   newEntry->analysisFunction = (void * __ptr32 )userAnalysisFunction;
   newEntry->cleanupFunctionEntryPoint = (void * __ptr32 )userCleanupFunction;
 #endif
-
   newEntry->analysisFunctionUserData = analysisFunctionUserData;
   newEntry->cleanupFunctionUserData = cleanupFunctionUserData;
-
   if (name != NULL) {
     int stateNameLength = strlen(name);
     if (stateNameLength > sizeof(newEntry->serviceInfo.stateName)) {
@@ -1579,7 +1580,6 @@ static RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char 
     newEntry->serviceInfo.stateNameLength = stateNameLength;
     memcpy(newEntry->serviceInfo.stateName, name, stateNameLength);
   }
-
   newEntry->flags |= flags;
   newEntry->state = (flags & RCVR_FLAG_DISABLE) ? RECOVERY_STATE_DISABLED : RECOVERY_STATE_ENABLED;
   memset(newEntry->dumpTitle.title, ' ', sizeof(newEntry->dumpTitle.title));
@@ -1597,16 +1597,24 @@ static RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char 
 }
 
 static void removeRecoveryStateEntry(RecoveryContext *context) {
-
   RecoveryStateEntry *entryToRemove = context->recoveryStateChain;
   if (entryToRemove != NULL) {
     context->recoveryStateChain = entryToRemove->next;
   } else {
     return;
   }
-
   freeRecoveryStateEntry(context, entryToRemove);
   entryToRemove = NULL;
+}
+
+void showRecoveryState(){
+  RecoveryContext *context = getRecoveryContext();
+  printf("showRecoveryState context = 0x%p\n",context);
+  if (context){
+    printf("entry = 0x%p\n",context->recoveryStateChain);
+  } else{
+    printf("no chain\n");
+  }
 }
 
 #elif defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_LINUX)
@@ -1640,15 +1648,14 @@ RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char *name, 
 }
 
 static void removeRecoveryStateEntry(RecoveryContext *context) {
-
   RecoveryStateEntry *entryToRemove = context->recoveryStateChain;
   if (entryToRemove != NULL) {
     context->recoveryStateChain = entryToRemove->next;
   }
-
   safeFree((char *)entryToRemove, sizeof(RecoveryStateEntry));
   entryToRemove = NULL;
 }
+
 
 #endif /* __ZOWE_OS_ZOS */
 
@@ -1688,6 +1695,7 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
                  CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
 
   RecoveryContext *context = getRecoveryContext();
+  srbPrintf("rPush context=0x%p\n",context);
   if (context == NULL) {
     return RC_RCV_CONTEXT_NOT_FOUND;
   }
@@ -1697,14 +1705,16 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
     return RC_RCV_LNKSTACK_ERROR;
   }
 
+  srbPrintf("rpush.1\n");
   RecoveryStateEntry *newEntry =
       addRecoveryStateEntry(context, name, flags, dumpTitle,
                             userAnalysisFunction, analysisFunctionUserData,
                             userCleanupFunction, cleanupFunctionUserData);
+  srbPrintf("rpush.2 newEntry=0x%p\n",newEntry);
   if (newEntry == NULL) {
     return RC_RCV_ALLOC_FAILED;
   }
-
+  srbPrintf("newEntry=0x%p\n",newEntry);
   newEntry->linkageStackToken = linkageStackToken;
 
   /* Extract key from the newly created stacked state. IPK cannot be used
@@ -1785,6 +1795,8 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
       : "NR:r9"(newEntry)
       : "r2", "r10", "r11", "r14", "r15"
   );
+
+  srbPrintf("rPush after ASM\n");
 
   if (newEntry->state & RECOVERY_STATE_ABENDED) {
     if (newEntry->flags & RCVR_FLAG_DELETE_ON_RETRY) {
@@ -1987,7 +1999,6 @@ void recoveryUpdateStateServiceInfo(char *loadModuleName, char *csect, char *rec
                     componentID, subcomponentName,
                     buildDate, version, componentIDBaseNumber,
                     stateName);
-
 }
 
 void recoveryGetABENDCode(SDWA *sdwa, int *completionCode, int *reasonCode) {

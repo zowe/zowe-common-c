@@ -97,6 +97,7 @@ DiscoveryContext *makeDiscoveryContext(ShortLivedHeap *outerSLH, ZOSModel *model
   context->slh = slh;
   
   context->model = model;
+  printf("mDCntxt() model=0x%x pSN=0x%x\n",model,model->privilegedServerName);
   if (model != NULL) {
     context->privilegedServerName = model->privilegedServerName;
   } else {
@@ -314,6 +315,25 @@ static int walkTCBs1(DiscoveryContext *context,
   }
   return 0;
 }
+
+
+int walkTCBs(DiscoveryContext *context,
+	     ASCB *ascb,
+	     TCB *tcb,
+	     void (*visitor)(DiscoveryContext *discoveryContext,
+			     void   *visitorContext,
+			     int     depth,
+			     ASCB   *ascb,
+			     TCB    *tcb,
+			     char   *mustBeNull),
+	     void *visitorContext){
+  if (ascb){
+    ASXB *asxb = (ASXB*)ascb->ascbasxb;
+    TCB *firstTCB = (TCB*)getStructCopy(context,ascb,0,asxb->asxbftcb,sizeof(TCB));
+    walkTCBs1(context,ascb,firstTCB,(TCB*)ANY_TCB,0,visitor,visitorContext,NULL);
+  }
+}
+
 
 static void visitSSCTEntry(DiscoveryContext *context, 
                            SSCT *ssctChain, GDA *gda, int subsystemTypeMask,
@@ -900,7 +920,9 @@ ZOSModel *makeZOSModel2(CrossMemoryServerName *privilegedServerName,
 
   model->slowScanExpiry = DEFAULT_SSCT_INTERVAL;
   if (privilegedServerName != NULL) {
+    printf("makeZOSModel case 1 0x%x\n",privilegedServerName);
     model->privilegedServerName = *privilegedServerName;
+    dumpbuffer(&(model->privilegedServerName),16);
   } else  {
     model->privilegedServerName = zisGetDefaultServerName();
   }
