@@ -39,7 +39,7 @@
 # ifdef _POSIX_PATH_MAX
 #   define PATH_MAX  _POSIX_PATH_MAX
 # else
-#   define PATH_MAX  255 
+#   define PATH_MAX  256
 # endif
 #endif
 
@@ -54,8 +54,6 @@
 #warning ISO-8859-1 is not necessarily the default codepage on Linux
 #define DEFAULT_UMASK 0022
 #endif
-
-#define PATH_MAX   256
 
 /* A generic function to return a 200 OK to the caller.
  * It takes a msg and prints it to JSON.
