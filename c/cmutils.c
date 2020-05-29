@@ -369,7 +369,8 @@ void cmFree2(void **dataPtr, unsigned int size, int subpool, int key) {
       ",LENGTH=(%[size])"
       ",SP=(%[sp])"
       ",ADDR=(%[storageAddr])"
-      ",CALLRKY=YES"
+      ",KEY=(%[key])"
+      /* ",CALLRKY=YES" */
       ",LINKAGE=SYSTEM                                                         \n"
       :
       : [size]"NR:r0"(size), [storageAddr]"r"(localData),

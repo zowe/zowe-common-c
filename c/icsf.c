@@ -36,14 +36,14 @@
 
 #ifndef _LP64
 #pragma linkage(CSNBOWH,OS)
-#pragma linkage(CSNESYE,OS)
-#pragma linkage(CSNESYD,OS)
-#pragma linkage(CSNERNGL,OS)
-#else
-#pragma linkage(CSNEOWH,OS)
 #pragma linkage(CSNBSYE,OS)
 #pragma linkage(CSNBSYD,OS)
 #pragma linkage(CSNBRNGL,OS)
+#else
+#pragma linkage(CSNEOWH,OS)
+#pragma linkage(CSNESYE,OS)
+#pragma linkage(CSNESYD,OS)
+#pragma linkage(CSNERNGL,OS)
 #endif
 
 /*
