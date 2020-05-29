@@ -266,6 +266,11 @@ static void removeSystemInterestForSingleObject(MemObj object,
 
 }
 
+static ASCB *localGetASCB(){
+  int *mem = (int*)0;
+  return (ASCB*)(mem[CURRENT_ASCB/sizeof(int)]&0x7FFFFFFF);
+}
+
 MemObjToken shrmem64GetAddressSpaceToken(void) {
 
   union {
@@ -274,7 +279,7 @@ MemObjToken shrmem64GetAddressSpaceToken(void) {
       ASCB * __ptr32 ascb;
       uint32_t asid;
     };
-  } result = { .ascb = getASCB(), .asid = result.ascb->ascbasid };
+  } result = { .ascb = localGetASCB(), .asid = result.ascb->ascbasid };
 
   return result.token;
 }

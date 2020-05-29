@@ -192,7 +192,6 @@ typedef struct CMSTimestamp_tag {
   char value[32];
 } CMSBuildTimestamp;
 
-
 typedef struct CrossMemoryServerGlobalArea_tag {
 
   char eyecatcher[8];

@@ -351,6 +351,7 @@ typedef struct RecoveryContext_tag {
 #define recoveryUpdateStateServiceInfo RCVRUSSI
 #define recoveryGetABENDCode RCVRGACD
 #define runFunctioninESTAE RCVRNFNE
+#define showRecoveryState SHRCVRST
 #endif
 
 #ifdef __ZOWE_OS_ZOS
@@ -502,6 +503,8 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
 *   N/A
 *****************************************************************************/
 void recoveryPop();
+
+void showRecoveryState();
 
 /*****************************************************************************
 * Set the new dump title
