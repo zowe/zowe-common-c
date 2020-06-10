@@ -63,6 +63,13 @@
 
 #define HTTP_SERVER_PRIVILEGED_SERVER_PROPERTY  "zisServerName"
 
+typedef struct AuthOptions_tag{
+  int defaultSessionValiditySeconds; /* overrides default if greater than 0 */
+  int enableSessionCookie; /* not needed if using SSO or BA */
+  int enableBasicAuth; /* not needed if using SSO or cookie */
+  char *sessionTokenCookieName; /* would override default */
+} AuthOptions;
+
 typedef struct BigBuffer_tag{
   ShortLivedHeap *slh;  /* can be null */
   char *data;
@@ -412,7 +419,8 @@ HttpRequest *dequeueHttpRequest(HttpRequestParser *parser);
 HttpRequestParser *makeHttpRequestParser(ShortLivedHeap *slh);
 HttpResponse *makeHttpResponse(HttpRequest *request, ShortLivedHeap *slh, Socket *socket);
 
-HttpServer *makeHttpServer2(STCBase *base, InetAddr *ip, int tlsFlags, int port, int *returnCode, int *reasonCode);
+HttpServer *makeHttpServer3(STCBase *base, InetAddr *ip, int port, int tlsFlags, AuthOptions *authOptions, int *returnCode, int *reasonCode);
+HttpServer *makeHttpServer2(STCBase *base, InetAddr *ip, int port, int tlsFlags, int *returnCode, int *reasonCode);
 HttpServer *makeHttpServer(STCBase *base, int port, int *returnCode, int *reasonCode);
 
 #ifdef USE_RS_SSL

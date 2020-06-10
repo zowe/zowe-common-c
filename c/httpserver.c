@@ -1477,14 +1477,38 @@ static int decodeSessionToken(ShortLivedHeap *slh,
 }
 
 HttpServer *makeHttpServer2(STCBase *base,
+                            InetAddr *addr,
+                            int port,
+                            int tlsFlags,
+                            int *returnCode, int *reasonCode) {
+  return makeHttpServer3(base, addr, port, tlsFlags, NULL, returnCode, reasonCode);
+}
+
+HttpServer *makeHttpServer3(STCBase *base,
                            InetAddr *addr,
                            int port,
                            int tlsFlags,
+                           AuthOptions *authOptions,
                            int *returnCode, int *reasonCode){
   logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
-
+  
+  if (authOptions != NULL) {
+    if (authOptions->defaultSessionValiditySeconds > 0) {
+      defaultSessionValiditySeconds = authOptions->defaultSessionValiditySeconds;
+    }
+    if (authOptions->sessionTokenCookieName != NULL) {
+      sessionTokenCookieName = authOptions->sessionTokenCookieName;
+    }
+    if (authOptions->enableSessionCookie != NULL) {
+      enableSessionCookie = authOptions->enableSessionCookie;
+    }
+    if (authOptions->enableBasicAuth != NULL) {
+      enableBasicAuth = authOptions->enableBasicAuth;
+    }
+  }
+  
   SessionTokenKey sessionTokenKey = {0};
-  if (initSessionTokenKey(&sessionTokenKey) != 0) {
+  if (initSessionTokenKey(&sessionTokenKey) != 0  && (enableSessionCookie == TRUE)) {
     return NULL;
   }
 
@@ -1585,7 +1609,7 @@ int httpServerSetSessionTokenKey(HttpServer *server, unsigned int size,
 }
 
 HttpServer *makeHttpServer(STCBase *base, int port, int *returnCode, int *reasonCode){
-  return makeHttpServer2(base, NULL, port, 0, returnCode, reasonCode);
+  return makeHttpServer3(base, NULL, port, 0, NULL, returnCode, reasonCode);
 }
 
 int registerHttpService(HttpServer *server, HttpService *service){
@@ -2375,6 +2399,7 @@ static int proxyServe(HttpService *service,
 */
 
 #define SESSION_TOKEN_COOKIE_NAME "jedHTTPSession"
+static char *sessionTokenCookieName=SESSION_TOKEN_COOKIE_NAME;
 
 static char *getCookieValue(HttpRequest *request, char *cookieName){
   HttpHeader *cookieHeader = getHeader(request,"Cookie");
@@ -2724,6 +2749,7 @@ static int64 getFineGrainedTime(){
 #endif
 
 #define SESSION_VALIDITY_IN_SECONDS 3600
+static int defaultSessionValiditySeconds = SESSION_VALIDITY_IN_SECONDS;
 
 static int sessionTokenStillValid(HttpService *service, HttpRequest *request, char *sessionTokenText){
   HttpServer *server = service->server;
@@ -2762,7 +2788,7 @@ static int sessionTokenStillValid(HttpService *service, HttpRequest *request, ch
   uint64 decodedTimestamp= strtoull(plaintextSessionToken+colonPos+1, NULL, 16);
   uint64 serverInstanceUID = strtoull(plaintextSessionToken+colonPos2+1, NULL, 16);
   uint64 now = getFineGrainedTime();
-  uint64 interval = ((uint64)SESSION_VALIDITY_IN_SECONDS)*ONE_SECOND;
+  uint64 interval = ((uint64)defaultSessionValiditySeconds)*ONE_SECOND;
   uint64 difference = now-decodedTimestamp;
 
   AUTH_TRACE("decodedTimestamp=%llx;now=%llx;difference=%llx;interval=%llx;tokenUID=%llx;serverUID=%llx\n",
@@ -2807,8 +2833,8 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
   char *base64Output = encodeBase64(slh,tokenCiphertext,tokenPlaintextLength,&encodedLength,TRUE);
   char *keyValueBuffer = SLHAlloc(slh,512);
   memset(keyValueBuffer,0,512);
-  int keyLength = strlen(SESSION_TOKEN_COOKIE_NAME);
-  memcpy(keyValueBuffer,SESSION_TOKEN_COOKIE_NAME,keyLength);
+  int keyLength = strlen(sessionTokenCookieName);
+  memcpy(keyValueBuffer,sessionTokenCookieName,keyLength);
   int offset = keyLength;
   keyValueBuffer[keyLength] = '=';
   memcpy(keyValueBuffer+keyLength+1,base64Output,strlen(base64Output));
@@ -2816,11 +2842,14 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
   return keyValueBuffer;
 }
 
+static enableSessionCookie = TRUE;
+static enableBasicAuth = TRUE;
+
 static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *request,  HttpResponse *response,
                                              int *clearSessionToken, AuthResponse *authResponse){
   int authDataFound = FALSE; 
   HttpHeader *authenticationHeader = getHeader(request,"Authorization");
-  char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
+  char *tokenCookieText = getCookieValue(request,sessionTokenCookieName);
   
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
        "serviceAuthNativeWithSessionToken: authenticationHeader 0x%p, authenticationHeader(hex) = 0x%x\n",
@@ -2830,7 +2859,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
        service->authExtractionFunction);
   
   if (authenticationHeader) {
-    if (extractBasicAuth(request,authenticationHeader)){
+    if (enableBasicAuth && extractBasicAuth(request,authenticationHeader)){
       authDataFound = TRUE;
     }
   } else {
@@ -2849,7 +2878,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
 
   AUTH_TRACE("AUTH: tokenCookieText: %s\n",(tokenCookieText ? tokenCookieText : "<noAuthToken>"));
 
-  if (tokenCookieText){
+  if (tokenCookieText && enableSessionCookie){
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
            "serviceAuthNativeWithSessionToken: tokenCookieText: %s\n",
            (tokenCookieText ? tokenCookieText : "<noAuthToken>"));
