@@ -2842,8 +2842,8 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
   return keyValueBuffer;
 }
 
-static enableSessionCookie = TRUE;
-static enableBasicAuth = TRUE;
+static int enableSessionCookie = TRUE;
+static int enableBasicAuth = TRUE;
 
 static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *request,  HttpResponse *response,
                                              int *clearSessionToken, AuthResponse *authResponse){
