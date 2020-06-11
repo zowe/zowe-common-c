@@ -1197,6 +1197,7 @@ int safVerify5(int options,
 
 #define AUTH_DATASET_VSAM 0x80
 #define AUTH_DATASET_TAPE 0x40
+#define AUTH_WITHOUT_LOG  0x02
 #define AUTH_SUPERVISOR   0x01
 
 #define STAT_SUPERVISOR   0x01
