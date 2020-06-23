@@ -1375,7 +1375,7 @@ static int initSessionTokenKey(SessionTokenKey *key) {
   int icsfRC = icsfGenerateRandomNumber(key, sizeof(SessionTokenKey), &icsfRSN);
   if (icsfRC != 0) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-            "Error: session token key not generated, RC = %d, RSN = %d\n",
+            "Error: ICSF generation of random number failed. Session token key not generated, RC = %d, RSN = %d\n",
             icsfRC, icsfRSN);
     return -1;
   }
@@ -1481,6 +1481,7 @@ HttpServer *makeHttpServer2(STCBase *base,
                            int port,
                            int tlsFlags,
                            int *returnCode, int *reasonCode){
+  logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
 
   SessionTokenKey sessionTokenKey = {0};
   if (initSessionTokenKey(&sessionTokenKey) != 0) {
@@ -5521,7 +5522,6 @@ void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 
 int mainHttpLoop(HttpServer *server){
   STCBase *base = server->base;
-  logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
   /* server pointer will be copied/accessible from module->data */
   STCModule *httpModule = stcRegisterModule(base,
                                             STC_MODULE_JEDHTTP,
