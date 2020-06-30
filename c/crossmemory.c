@@ -4004,11 +4004,16 @@ static int verifySTEPLIB(CrossMemoryServer *srv) {
   return RC_CMS_OK;
 }
 
-#define MAIN_WAIT_MILLIS 10000
-#define START_COMMAND_HANDLING_DELAY_IN_SEC 5
-#define STCBASE_SHUTDOWN_DELAY_IN_SEC       5
+static bool isReusableASID(void) {
 
-int cmsStartMainLoop(CrossMemoryServer *srv) {
+  const char ascbreus = 0x40;
+
+  ASCB *ascb = getASCB();
+
+  return ascb->ascbflg3 & ascbreus;
+}
+
+static int testEnvironment(void) {
 
   int authStatus = testAuth();
   if (authStatus != 0) {
@@ -4021,6 +4026,24 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   if ((tcbKey != 2 && tcbKey != 4) || (tcbKey != CROSS_MEMORY_SERVER_KEY)) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_BAD_SERVER_KEY_MSG, tcbKey);
     return RC_CMS_BAD_SERVER_KEY;
+  }
+
+  if (!isReusableASID()) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_REUSASID_NO_MSG);
+  }
+
+  return RC_CMS_OK;
+}
+
+#define MAIN_WAIT_MILLIS 10000
+#define START_COMMAND_HANDLING_DELAY_IN_SEC 5
+#define STCBASE_SHUTDOWN_DELAY_IN_SEC       5
+
+int cmsStartMainLoop(CrossMemoryServer *srv) {
+
+  int envStatus = testEnvironment();
+  if (envStatus != 0) {
+    return envStatus;
   }
 
   int rcvrPushRC = recoveryPush(
