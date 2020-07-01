@@ -857,6 +857,12 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 #define CMS_LOG_DEV_MODE_ON_MSG_TEXT            "Development mode is enabled"
 #define CMS_LOG_DEV_MODE_ON_MSG                 CMS_LOG_DEV_MODE_ON_MSG_ID" "CMS_LOG_DEV_MODE_ON_MSG_TEXT
 
+#ifndef CMS_LOG_REUSASID_NO_MSG_ID
+#define CMS_LOG_REUSASID_NO_MSG_ID              CMS_MSG_PRFX"0248W"
+#endif
+#define CMS_LOG_REUSASID_NO_MSG_TEXT            "Address space is not reusable, start with REUSASID=YES to prevent an ASID shortage"
+#define CMS_LOG_REUSASID_NO_MSG                 CMS_LOG_REUSASID_NO_MSG_ID" "CMS_LOG_REUSASID_NO_MSG_TEXT
+
 #endif /* H_CROSSMEMORY_H_ */
 
 
