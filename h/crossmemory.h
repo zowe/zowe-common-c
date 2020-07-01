@@ -136,7 +136,8 @@
 #define RC_CMS_SERVICE_ENTRY_OCCUPIED       85
 #define RC_CMS_NO_STORAGE_FOR_MSG           86
 #define RC_CMS_ALLOC_FAILED                 87
-#define RC_CMS_MAX_RC                       87
+#define RC_CMS_NON_PRIVATE_MODULE           88
+#define RC_CMS_MAX_RC                       88
 
 extern const char *CMS_RC_DESCRIPTION[];
 
@@ -862,6 +863,12 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 #endif
 #define CMS_LOG_REUSASID_NO_MSG_TEXT            "Address space is not reusable, start with REUSASID=YES to prevent an ASID shortage"
 #define CMS_LOG_REUSASID_NO_MSG                 CMS_LOG_REUSASID_NO_MSG_ID" "CMS_LOG_REUSASID_NO_MSG_TEXT
+
+#ifndef CMS_LOG_NON_PRIVATE_MODULE_MSG_ID
+#define CMS_LOG_NON_PRIVATE_MODULE_MSG_ID       CMS_MSG_PRFX"0249E"
+#endif
+#define CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT     "Module ZWESIS01 is loaded from common storage, ensure ZWESIS01 is valid in STEPLIB"
+#define CMS_LOG_NON_PRIVATE_MODULE_MSG          CMS_LOG_NON_PRIVATE_MODULE_MSG_ID" "CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT
 
 #endif /* H_CROSSMEMORY_H_ */
 
