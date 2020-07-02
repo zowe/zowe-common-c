@@ -1884,6 +1884,12 @@ static void addRequestHeader(HttpRequestParser *parser){
     if (!compareIgnoringCase(newHeader->nativeValue,"websocket",parser->headerValueLength)){
       parser->isWebSocket = TRUE;
     }
+  } else if (!compareIgnoringCase(newHeader->nativeName, "Connection",
+                                  parser->headerNameLength)) {
+    if (!compareIgnoringCase(newHeader->nativeValue, "Keep-Alive",
+                             parser->headerValueLength)) {
+      parser->keepAlive = TRUE;
+    }
   }
 
   HttpHeader *headerChain = parser->headerChain;
@@ -1905,6 +1911,7 @@ static void enqueueLastRequest(HttpRequestParser *parser) {
   newRequest->uri = copyString(parser->slh, parser->uri, parser->uriLength);
   newRequest->headerChain = parser->headerChain;
   newRequest->isWebSocket = parser->isWebSocket;
+  newRequest->keepAlive = parser->keepAlive;
 
   /* adding support for POST data -jph */
   if (-1 != parser->specifiedContentLength) {
@@ -1948,6 +1955,7 @@ static int resetParserAndEnqueue(HttpRequestParser *parser){
   parser->isWebSocket = FALSE;
   parser->specifiedContentLength = -1;
   parser->state = HTTP_STATE_REQUEST_METHOD;
+  parser->keepAlive = FALSE;
   return HTTP_SERVICE_SUCCESS;
 }
 
@@ -5014,10 +5022,10 @@ static void doHttpResponseWork(HttpConversation *conversation)
 #ifdef DEBUG
       printf("doHttpResponseWork:  no service found. conversation=0x%X\n",conversation);
 #endif
-      /* shouldn't I be a 404 */
       respondWithError(response,HTTP_STATUS_NOT_FOUND,"resource or service not found");
-      // Response is finished on return
-      conversation->shouldClose = TRUE;
+      if (!firstRequest->keepAlive) {
+        conversation->shouldClose = TRUE;
+      }
       break;
     }
     /* didn't get a request; nothing to do */
