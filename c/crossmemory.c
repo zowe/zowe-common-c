@@ -4013,6 +4013,43 @@ static bool isReusableASID(void) {
   return ascb->ascbflg3 & ascbreus;
 }
 
+__asm("CSVQRGLB CSVQUERY PLISTVER=0,MF=(L,CSVQRGLB)" : "DS"(CSVQRGLB));
+
+static bool isModulePrivate(void) {
+
+  unsigned char attr = 0;
+  int queryRC = 0;
+
+  __asm("CSVQRGLB CSVQUERY PLISTVER=0,MF=L" : "DS"(parmList));
+  parmList = CSVQRGLB;
+
+  /* Use the address of this function itself since it's in the module. */
+  unsigned moduleAddress = (unsigned)&isModulePrivate;
+
+  __asm(
+      "         CSVQUERY INADDR=(%[addr]),OUTATTR3=%[attr]"
+      ",PLISTVER=0,MF=(E,%[parm])                                              \n"
+      : [attr]"=m"(attr), "=NR:r15"(queryRC)
+      : [addr]"r"(&moduleAddress), [parm]"m"(parmList)
+      : "r0", "r1", "r14", "r15"
+  );
+
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+          "CSVQUERY of 0x%08X - attr = 0x%02X, RC = %d",
+          moduleAddress, attr, queryRC);
+
+  if (queryRC != 0) {
+    return false;
+  }
+
+  const unsigned char jobPackAreaMask = 0x40;
+  if (attr & jobPackAreaMask) {
+    return true;
+  }
+
+  return false;
+}
+
 static int testEnvironment(void) {
 
   int authStatus = testAuth();
@@ -4030,6 +4067,12 @@ static int testEnvironment(void) {
 
   if (!isReusableASID()) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_REUSASID_NO_MSG);
+  }
+
+  if (!isModulePrivate()) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+            CMS_LOG_NON_PRIVATE_MODULE_MSG);
+    return RC_CMS_NON_PRIVATE_MODULE;
   }
 
   return RC_CMS_OK;
