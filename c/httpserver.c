@@ -3662,6 +3662,12 @@ char *getMimeType(char *extension, int *isBinary){
   } else if (!strcmp(extension,"ts")){
     *isBinary = FALSE;
     return "text/typescript";
+  } else if (!strcmp(extension,"ts") || !strcmp(extension,"txt") ||
+        !strcmp(extension,"c") || !strcmp(extension,"py") || !strcmp(extension,"rexx") ||
+        !strcmp(extension,"cbl") || !strcmp(extension,"cpy") || !strcmp(extension,"asm") ||
+        !strcmp(extension,"cpp")){
+    *isBinary = FALSE;
+    return "text/plain";
   } else if (!strcmp(extension,"html") ||
 	     !strcmp(extension,"htm")){
     *isBinary = FALSE;
@@ -3678,9 +3684,60 @@ char *getMimeType(char *extension, int *isBinary){
   } else if (!strcmp(extension,"ttf")){
     *isBinary = TRUE;
     return "application/font-ttf";
-  } else{
+  } else if(!strcmp(extension,"avi")) {
+    *isBinary = TRUE;
+    return "video/x-msvideo";
+  } else if(!strcmp(extension,"bin")) {
+    *isBinary = TRUE;
+    return "application/octet-stream";
+  } else if(!strcmp(extension,"bmp")) {
+    *isBinary = TRUE;
+    return "image/bmp";
+  } else if(!strcmp(extension,"csv")) {
     *isBinary = FALSE;
-    return "text/plain";
+    return "text/csv";
+  } else if(!strcmp(extension,"doc")) {
+    *isBinary = FALSE;
+    return "application/msword";
+  } else if(!strcmp(extension,"docx")) {
+    *isBinary = FALSE;
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  } else if(!strcmp(extension,"gz")) {
+    *isBinary = TRUE;
+    return "application/gzip";
+  } else if(!strcmp(extension,"mp3")) {
+    *isBinary = TRUE;
+    return "audio/mpeg";
+  } else if(!strcmp(extension,"jar")) {
+    *isBinary = TRUE;
+    return "application/java-archive";
+  } else if(!strcmp(extension,"json")) {
+    *isBinary = FALSE;
+    return "application/json";
+  } else if(!strcmp(extension,"jsonld")) {
+    *isBinary = TRUE;
+    return "application/ld+json";
+  } else if(!strcmp(extension,"pdf")) {
+    *isBinary = TRUE;
+    return "application/pdf";
+  } else if(!strcmp(extension,"sh")) {
+    *isBinary = FALSE;
+    return "application/x-sh";
+  } else if(!strcmp(extension,"tar")) {
+    *isBinary = TRUE;
+    return "application/x-tar";
+  } else if(!strcmp(extension,"xls")) {
+    *isBinary = FALSE;
+    return "application/vnd.ms-excel";
+  } else if(!strcmp(extension,"zip")) {
+    *isBinary = TRUE;
+    return "	application/zip";
+  } else if(!strcmp(extension,"7z")) {
+    *isBinary = TRUE;
+    return "application/x-7z-compressed";
+  } else{
+    *isBinary = TRUE;
+    return "application/octet-stream";
   }
 }
 
