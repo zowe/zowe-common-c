@@ -110,6 +110,7 @@ typedef struct HttpRequestParser{
   int httpReasonCode;
   char *message;
   HttpRequest *requestQHead;
+  int keepAlive;
 } HttpRequestParser;
 
 
