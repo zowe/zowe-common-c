@@ -197,6 +197,27 @@ void deleteUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
   }
 }
 
+void createFileFromUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
+  if (isDir(absolutePath)) {
+      int folderNameLen = strlen(absolutePath);
+      int slashPos = lastIndexOf(absolutePath, folderNameLen, '/');
+      char *tarFileName = (slashPos == -1) ? "NULL" : absolutePath + slashPos + 1;
+      char finalFileName[strlen(tarFileName) + strlen(".tar.gz")];
+      strcpy(finalFileName, tarFileName);
+      strcat(finalFileName,".tar.gz");
+      char *arguments[] = { "tar", "-zcvf", finalFileName , absolutePath };
+      execvp("/bin/sh", arguments);
+      if(doesFileExist(finalFileName)){
+        response200WithMessage(response, "Successfully created a file");
+      }
+      else{
+        respondWithJsonError(response, "Failed to create tar file", 400, "Bad Request");
+      }
+  }
+  else {
+    respondWithJsonError(response, "Failed to identify a directory with the given name", 400, "Bad Request");
+  }
+}
 
 /* Modifies the mode of files/directories */
 void directoryChangeModeAndRespond(HttpResponse *response, char *file, 

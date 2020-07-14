@@ -51,6 +51,7 @@ static int writeEmptyUnixFile(char *absolutePath, int forceWrite);
 void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite);
 void  directoryChangeModeAndRespond(HttpResponse *response, char * routeFileName,
           char * Recursive, char * mode, char *compare);
+void createFileFromUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath);
 
 int directoryChangeTagAndRespond(HttpResponse *response, char *file,
             char *type, char *codepage, char *Recursive, char *pattern);
