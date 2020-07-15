@@ -4050,6 +4050,31 @@ static bool isModulePrivate(void) {
   return false;
 }
 
+#ifdef _LP64
+#pragma linkage(BPX4GTR,OS)
+#define BPXGTR BPX4GTR
+#else
+#pragma linkage(BPX1GTR,OS)
+#define BPXGTR BPX1GTR
+#endif
+
+static int checkOMVS(int *bpxRC, int *bpxRSN) {
+
+  int returnValue = 0;
+
+  const int timerRealType = 0;  /* ITIMER_REAL */
+  char result[32] = {0};        /* BPXYITIM */
+  void *resultAddr = result;
+
+  /* Use a getitimer() call to check OMVS. */
+  BPXGTR(&timerRealType, &resultAddr, &returnValue, bpxRC, bpxRSN);
+  if (returnValue < 0){
+    return -1;
+  }
+
+  return 0;
+}
+
 static int testEnvironment(void) {
 
   int authStatus = testAuth();
@@ -4073,6 +4098,13 @@ static int testEnvironment(void) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
             CMS_LOG_NON_PRIVATE_MODULE_MSG);
     return RC_CMS_NON_PRIVATE_MODULE;
+  }
+
+  int bpxRC = 0, bpxRSN = 0;
+  if (checkOMVS(&bpxRC, &bpxRSN) != 0) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_BPX_ERROR_MSG,
+            bpxRC, bpxRSN & 0xFFFF);
+    return RC_CMS_BAD_OMVS_SEGMENT;
   }
 
   return RC_CMS_OK;
