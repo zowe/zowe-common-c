@@ -4068,7 +4068,7 @@ static bool isDubStatusOk(int *status, int *bpxRC, int *bpxRSN) {
           CMS_LOG_DEBUG_MSG_ID" BPXnQDB RV = %d, RC = %d, RSN = 0x%08X\n",
           *status, *bpxRC, *bpxRSN);
 
-  if (*status == dubFailRC){
+  if (*status == dubFailRC) {
     return false;
   }
 
