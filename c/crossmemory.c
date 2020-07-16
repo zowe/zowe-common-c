@@ -4051,28 +4051,28 @@ static bool isModulePrivate(void) {
 }
 
 #ifdef _LP64
-#pragma linkage(BPX4GTR,OS)
-#define BPXGTR BPX4GTR
+#pragma linkage(BPX4QDB,OS)
+#define BPXQDB BPX4QDB
 #else
-#pragma linkage(BPX1GTR,OS)
-#define BPXGTR BPX1GTR
+#pragma linkage(BPX1QDB,OS)
+#define BPXQDB BPX1QDB
 #endif
 
-static int checkOMVS(int *bpxRC, int *bpxRSN) {
+static bool isDubStatusOk(int *status, int *bpxRC, int *bpxRSN) {
 
-  int returnValue = 0;
+  const int dubFailRC = 4; /* QDB_DUB_MAY_FAIL */
 
-  const int timerRealType = 0;  /* ITIMER_REAL */
-  char result[32] = {0};        /* BPXYITIM */
-  void *resultAddr = result;
+  BPXQDB(status, bpxRC, bpxRSN);
 
-  /* Use a getitimer() call to check OMVS. */
-  BPXGTR(&timerRealType, &resultAddr, &returnValue, bpxRC, bpxRSN);
-  if (returnValue < 0){
-    return -1;
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+          CMS_LOG_DEBUG_MSG_ID" BPXnQDB RV = %d, RC = %d, RSN = 0x%08X\n",
+          *status, *bpxRC, *bpxRSN);
+
+  if (*status == dubFailRC){
+    return false;
   }
 
-  return 0;
+  return true;
 }
 
 static int testEnvironment(void) {
@@ -4100,11 +4100,11 @@ static int testEnvironment(void) {
     return RC_CMS_NON_PRIVATE_MODULE;
   }
 
-  int bpxRC = 0, bpxRSN = 0;
-  if (checkOMVS(&bpxRC, &bpxRSN) != 0) {
-    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_BPX_ERROR_MSG,
-            bpxRC, bpxRSN & 0xFFFF);
-    return RC_CMS_BAD_OMVS_SEGMENT;
+  int dubStatus = 0, bpxRC = 0, bpxRSN = 0;
+  if (!isDubStatusOk(&dubStatus, &bpxRC, &bpxRSN)) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_DUB_ERROR_MSG,
+            dubStatus, bpxRC, bpxRSN & 0xFFFF);
+    return RC_CMS_BAD_DUB_STATUS;
   }
 
   return RC_CMS_OK;
