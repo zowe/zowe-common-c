@@ -3654,7 +3654,12 @@ HttpRequestParam *getCheckedParam(HttpRequest *request, char *paramName){
   return NULL;
 }
 
-char *getMimeType(char *extension, int *isBinary){
+char *getMimeType(char *extension, int *isBinary) {
+  int dotPos = -1;
+  getMimeType(extension, isBinary, &dotPos);
+}
+
+char *getMimeType(char *extension, int *isBinary, int *dotPos){
   if (!strcmp(extension,"gif")){
     *isBinary = TRUE;
     return "image/gif";
@@ -3673,7 +3678,7 @@ char *getMimeType(char *extension, int *isBinary){
   } else if (!strcmp(extension,"ts") || !strcmp(extension,"txt") ||
         !strcmp(extension,"c") || !strcmp(extension,"py") || !strcmp(extension,"rexx") ||
         !strcmp(extension,"cbl") || !strcmp(extension,"cpy") || !strcmp(extension,"asm") ||
-        !strcmp(extension,"cpp")){
+        !strcmp(extension,"cpp" || (dotPos == 0))){
     *isBinary = FALSE;
     return "text/plain";
   } else if (!strcmp(extension,"html") ||
@@ -3739,10 +3744,19 @@ char *getMimeType(char *extension, int *isBinary){
     return "application/vnd.ms-excel";
   } else if(!strcmp(extension,"zip")) {
     *isBinary = TRUE;
-    return "	application/zip";
+    return "application/zip";
   } else if(!strcmp(extension,"7z")) {
     *isBinary = TRUE;
     return "application/x-7z-compressed";
+  } else if(!strcmp(extension,"webm")) {
+    *isBinary = TRUE;
+    return "video/webm";
+  } else if(!strcmp(extension,"mp4")) {
+    *isBinary = TRUE;
+    return "video/mp4";
+  } else if(!strcmp(extension,"md")) {
+    *isBinary = FALSE;
+    return "text/markdown";
   } else{
     *isBinary = TRUE;
     return "application/octet-stream";
@@ -3933,7 +3947,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     int dotPos = lastIndexOf(absolutePath, filenameLen, '.');
     char *extension = (dotPos == -1) ? "NULL" : absolutePath + dotPos + 1;
     int isBinary = FALSE;
-    char *mimeType = getMimeType(extension,&isBinary);
+    char *mimeType = getMimeType(extension,&isBinary,dotPos);
     long fileSize = fileInfoSize(&info);
     int ccsid = fileInfoCCSID(&info);
     char tmperr[256] = {0};
