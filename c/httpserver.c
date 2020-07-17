@@ -3654,12 +3654,14 @@ HttpRequestParam *getCheckedParam(HttpRequest *request, char *paramName){
   return NULL;
 }
 
+static char *getMimeType2(char *extension, int *isBinary, int dotPos);
+
 char *getMimeType(char *extension, int *isBinary) {
   int dotPos = -1;
-  getMimeType(extension, isBinary, &dotPos);
+  getMimeType2(extension, isBinary, dotPos);
 }
 
-char *getMimeType(char *extension, int *isBinary, int *dotPos){
+static char *getMimeType2(char *extension, int *isBinary, int dotPos){
   if (!strcmp(extension,"gif")){
     *isBinary = TRUE;
     return "image/gif";
@@ -3678,7 +3680,7 @@ char *getMimeType(char *extension, int *isBinary, int *dotPos){
   } else if (!strcmp(extension,"ts") || !strcmp(extension,"txt") ||
         !strcmp(extension,"c") || !strcmp(extension,"py") || !strcmp(extension,"rexx") ||
         !strcmp(extension,"cbl") || !strcmp(extension,"cpy") || !strcmp(extension,"asm") ||
-        !strcmp(extension,"cpp" || (dotPos == 0))){
+        !strcmp(extension,"cpp") || (dotPos == 0)){
     *isBinary = FALSE;
     return "text/plain";
   } else if (!strcmp(extension,"html") ||
@@ -3947,7 +3949,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     int dotPos = lastIndexOf(absolutePath, filenameLen, '.');
     char *extension = (dotPos == -1) ? "NULL" : absolutePath + dotPos + 1;
     int isBinary = FALSE;
-    char *mimeType = getMimeType(extension,&isBinary,dotPos);
+    char *mimeType = getMimeType2(extension,&isBinary,dotPos);
     long fileSize = fileInfoSize(&info);
     int ccsid = fileInfoCCSID(&info);
     char tmperr[256] = {0};
