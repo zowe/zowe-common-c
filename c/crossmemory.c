@@ -4050,6 +4050,31 @@ static bool isModulePrivate(void) {
   return false;
 }
 
+#ifdef _LP64
+#pragma linkage(BPX4QDB,OS)
+#define BPXQDB BPX4QDB
+#else
+#pragma linkage(BPX1QDB,OS)
+#define BPXQDB BPX1QDB
+#endif
+
+static bool isDubStatusOk(int *status, int *bpxRC, int *bpxRSN) {
+
+  const int dubFailRC = 4; /* QDB_DUB_MAY_FAIL */
+
+  BPXQDB(status, bpxRC, bpxRSN);
+
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+          CMS_LOG_DEBUG_MSG_ID" BPXnQDB RV = %d, RC = %d, RSN = 0x%08X\n",
+          *status, *bpxRC, *bpxRSN);
+
+  if (*status == dubFailRC) {
+    return false;
+  }
+
+  return true;
+}
+
 static int testEnvironment(void) {
 
   int authStatus = testAuth();
@@ -4073,6 +4098,13 @@ static int testEnvironment(void) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
             CMS_LOG_NON_PRIVATE_MODULE_MSG);
     return RC_CMS_NON_PRIVATE_MODULE;
+  }
+
+  int dubStatus = 0, bpxRC = 0, bpxRSN = 0;
+  if (!isDubStatusOk(&dubStatus, &bpxRC, &bpxRSN)) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_DUB_ERROR_MSG,
+            dubStatus, bpxRC, bpxRSN & 0xFFFF);
+    return RC_CMS_BAD_DUB_STATUS;
   }
 
   return RC_CMS_OK;
