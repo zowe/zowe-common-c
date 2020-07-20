@@ -3974,6 +3974,10 @@ bool isCachedCopyModified(HttpRequest *req, uint64_t etag, time_t mtime) {
   return true;
 }
 
+static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding, bool asB64);
+static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding,
+                      int sourceCCSID, int targetCCSID, bool asB64);
+
 // Response must ALWAYS be finished on return
 void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode, int autocvt, bool asB64) {
   FileInfo info;
@@ -4039,7 +4043,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     addStringHeader(response,"Server","jdmfws");
     addStringHeader(response, "Cache-control", "no-store");
     addStringHeader(response, "Pragma", "no-cache");
-    addIntHeader(response, "Content-Length", asB64 ? 4 * ((fileSize + 2) / 3) : fileSize); /* Is this safe post-conversion??? */
+    addStringHeader(response, "Transfer-Encoding", "chunked");
     setContentType(response, mimeType);
     addCacheRelatedHeaders(response, mtime, etag);
 
@@ -4055,7 +4059,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
       printf("Streaming binary for %s\n", absolutePath);
 #endif
       
-      streamBinaryForFile(response->socket, in, asB64);
+      streamBinaryForFile2(response, NULL, in, ENCODING_CHUNKED, asB64);
     } else {
       writeHeader(response);
 #ifdef DEBUG
@@ -4086,9 +4090,9 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 #endif
         ;
       if (ccsid == 0) {
-        streamTextForFile(response->socket, in, ENCODING_SIMPLE, NATIVE_CODEPAGE, webCodePage, asB64);
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
       } else {
-        streamTextForFile(response->socket, in, ENCODING_SIMPLE, ccsid, webCodePage, asB64);
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, ccsid, webCodePage, asB64);
       }
 
 #ifdef USE_CONTINUE_RESPONSE_HACK
@@ -4207,13 +4211,27 @@ void respondWithJsonError(HttpResponse *response, char *error, int statusCode, c
 
 #define ENCODE64_SIZE(SZ) (2 + 4 * ((SZ + 2) / 3))
 
-int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
+/*
+  * when encoding is ENCODING_SIMPLE then socket is mandatory
+  * when encoding is ENCODING_CHUNKED then response is mandatory
+*/
+static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
   int bufferSize = FILE_STREAM_BUFFER_SIZE;
   char buffer[bufferSize+4];
   int encodedLength;
+  ChunkedOutputStream *stream = NULL;
 
+  if (encoding == ENCODING_GZIP || (encoding == ENCODING_CHUNKED && !response)) {
+#ifdef DEBUG	
+    printf("HELP - not implemented\n");	
+#endif
+    return 0;
+  }
+  if (encoding == ENCODING_CHUNKED) {
+    stream = makeChunkedOutputStreamInternal(response);
+  }
   while (!fileEOF(in)) {
     int bytesRead = fileRead(in,buffer,bufferSize,&returnCode,&reasonCode);
     if (bytesRead <= 0) {
@@ -4232,15 +4250,30 @@ int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
     }
     char *outPtr = asB64 ? encodedBuffer : buffer;
     int outLen = asB64 ? encodedLength : bytesRead;
-    writeFully(socket, outPtr, outLen);
+    if (encoding == ENCODING_CHUNKED) {
+      writeBytes(stream, outPtr, outLen, NO_TRANSLATE);
+    } else {
+      writeFully(socket, outPtr, outLen);
+    }
 
     if (NULL != encodedBuffer) safeFree31(encodedBuffer, ENCODE64_SIZE(bytesRead)+1);
+  }
+  if (encoding == ENCODING_CHUNKED) {
+    finishChunkedOutput(stream, NO_TRANSLATE);
   }
 
   return 0;
 }
-  
-int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
+
+int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
+  return streamBinaryForFile2(NULL, socket, in, ENCODING_SIMPLE, asB64);
+}
+
+/*
+  * when encoding is ENCODING_SIMPLE then socket is mandatory
+  * when encoding is ENCODING_CHUNKED then response is mandatory
+*/
+static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding,
                       int sourceCCSID, int targetCCSID, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
@@ -4249,6 +4282,7 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
   char buffer[bufferSize+4];
   char translation[(2*bufferSize)+4]; /* UTF inflation tolerance */
   int encodedLength;
+  ChunkedOutputStream *stream = NULL;
 
 
   /* Q: How do we find character encoding for unix file? 
@@ -4256,6 +4290,15 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
         other Unix systems. Hence, things like the .htaccess (for Apache).
   */
   switch (encoding){
+  case ENCODING_CHUNKED:
+    if (!response) {
+#ifdef DEBUG	
+      printf("HELP - not implemented\n");	
+#endif	
+      break;
+    }
+    stream = makeChunkedOutputStreamInternal(response);
+    /* fallthrough */
   case ENCODING_SIMPLE:
     while (!fileEOF(in)){
 #ifdef DEBUG
@@ -4332,15 +4375,17 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
         outPtr = encodedBuffer;
         outLen = encodedLength;
       }
-      writeFully(socket,outPtr,(int) outLen);
+      if (encoding == ENCODING_CHUNKED) {
+        writeBytes(stream, outPtr, (int) outLen, NO_TRANSLATE);
+      } else {
+        writeFully(socket,outPtr,(int) outLen);
+      }
       if (NULL != encodedBuffer) safeFree31(encodedBuffer, allocSize);
       bytesSent += encodedLength;
     }
-    break;
-  case ENCODING_CHUNKED:
-#ifdef DEBUG
-    printf("HELP - not implemented\n");
-#endif
+    if (encoding == ENCODING_CHUNKED) {
+      finishChunkedOutput(stream, NO_TRANSLATE);
+    }
     break;
   case ENCODING_GZIP:
 #ifdef DEBUG
@@ -4355,6 +4400,11 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
            encoding, sourceCCSID, targetCCSID, asB64, bytesSent);
   }
   return 1;
+}
+
+int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
+                      int sourceCCSID, int targetCCSID, bool asB64) {
+  return streamTextForFile2(NULL, socket, in, encoding, sourceCCSID, targetCCSID, asB64);
 }
 
 int runServiceThread(Socket *socket){
