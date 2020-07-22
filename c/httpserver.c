@@ -4271,6 +4271,7 @@ static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile
     if (NULL != encodedBuffer) safeFree31(encodedBuffer, ENCODE64_SIZE(bytesRead)+1);
   }
   if (encoding == ENCODING_CHUNKED) {
+    /* finish the chunked output here because finishResponse will not flush this stream's data */
     finishChunkedOutput(stream, NO_TRANSLATE);
   }
 
@@ -4402,6 +4403,7 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
       bytesSent += encodedLength;
     }
     if (encoding == ENCODING_CHUNKED) {
+      /* finish the chunked output here because finishResponse will not flush this stream's data */
       finishChunkedOutput(stream, NO_TRANSLATE);
     }
     break;
