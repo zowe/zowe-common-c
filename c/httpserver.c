@@ -4186,11 +4186,23 @@ static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile
   int encodedLength;
   ChunkedOutputStream *stream = NULL;
 
-  if (encoding == ENCODING_GZIP || (encoding == ENCODING_CHUNKED && !response)) {
-#ifdef DEBUG	
-    printf("HELP - not implemented\n");	
+  if ((response && socket) || (!response && !socket)) {
+#ifdef DEBUG
+    printf("bad arguments: either response or socket must be not NULL, never both\n");	
 #endif
-    return 0;
+    return 8;
+  }
+  if (encoding == ENCODING_GZIP) {
+#ifdef DEBUG
+    printf("GZIP encoding not implemented\n");	
+#endif
+    return 8;
+  }
+  if (encoding == ENCODING_CHUNKED && !response) {
+#ifdef DEBUG
+    printf("bad arguments: response must be not NULL to use chunked encoding\n");	
+#endif
+    return 8;
   }
   if (encoding == ENCODING_CHUNKED) {
     stream = makeChunkedOutputStreamInternal(response);
@@ -4252,13 +4264,19 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
      A: You can't. There is no equivalent of USS character encoding tags on
         other Unix systems. Hence, things like the .htaccess (for Apache).
   */
+  if ((response && socket) || (!response && !socket)) {
+#ifdef DEBUG	
+    printf("bad arguments: either response or socket must be not NULL, never both\n");	
+#endif
+    return 8;
+  }
   switch (encoding){
   case ENCODING_CHUNKED:
     if (!response) {
 #ifdef DEBUG	
-      printf("HELP - not implemented\n");	
+      printf("bad arguments: response must be not NULL to use chunked encoding\n");	
 #endif	
-      break;
+      return 8;
     }
     stream = makeChunkedOutputStreamInternal(response);
     /* fallthrough */
