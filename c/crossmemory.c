@@ -478,11 +478,42 @@ typedef struct CrossMemoryServerLogServiceParm_tag {
   int messageLength;
 } CrossMemoryServerLogServiceParm;
 
+typedef struct CrossMemoryServerDumpServiceParm_tag {
+
+#define CMS_DUMP_SERVICE_PARM_EYECATCHER  "ZWESXDSV"
+#define CMS_DUMP_SERVICE_VERSION          1
+  // TODO we can improve the data size limit by passing the data address itself
+#define CMS_DUMP_SERVICE_MAX_DATA_SIZE    512
+#define CMS_DUMP_SERVICE_MAX_DESC_SIZE    32
+
+  char eyecatcher[8];
+  uint8_t version;
+  char reserved0[3];
+
+  LogMessagePrefix prefix;
+  char padding1[3];
+
+  char descriptionNullTerm[CMS_DUMP_SERVICE_MAX_DESC_SIZE];
+  uint64_t originalAddress;
+  uint32_t originalSize;
+  uint16_t dataLength;
+  char data[CMS_DUMP_SERVICE_MAX_DATA_SIZE];
+
+} CrossMemoryServerDumpServiceParm;
+
 typedef struct CrossMemoryServerMsgQueueElement_tag {
+
+#define CROSS_MEMORY_SERVER_MSGQEL_TYPE_MSG   1
+#define CROSS_MEMORY_SERVER_MSGQEL_TYPE_DUMP  2
+
   QueueElement queueElement;
   CPID cellPool;
-  char filler0[4];
-  CrossMemoryServerLogServiceParm logServiceParm;
+  uint8_t type;
+  char filler0[3];
+  union {
+    CrossMemoryServerLogServiceParm logServiceParm;
+    CrossMemoryServerDumpServiceParm dumpServiceParm;
+  };
 } CrossMemoryServerMsgQueueElement;
 
 typedef struct CrossMemoryServerConfigServiceParm_tag {
@@ -1596,9 +1627,41 @@ static int handleLogService(CrossMemoryServer *server, CrossMemoryServerLogServi
     return allocRC;
   }
 
+  newElement->type = CROSS_MEMORY_SERVER_MSGQEL_TYPE_MSG;
   newElement->logServiceParm = localParm;
 
   /* log service is always space switch */
+  qEnqueue(server->messageQueue, &newElement->queueElement);
+
+  return RC_CMS_OK;
+}
+
+static int handleDumpService(CrossMemoryServer *server,
+                             CrossMemoryServerLogServiceParm *callerParm) {
+
+  if (callerParm == NULL) {
+    return RC_CMS_STDSVC_PARM_NULL;
+  }
+
+  CrossMemoryServerDumpServiceParm localParm;
+  cmCopyFromSecondaryWithCallerKey(&localParm, callerParm,
+                                   sizeof(CrossMemoryServerDumpServiceParm));
+
+  if (memcmp(localParm.eyecatcher, CMS_DUMP_SERVICE_PARM_EYECATCHER,
+             sizeof(localParm.eyecatcher))) {
+    return RC_CMS_STDSVC_PARM_BAD_EYECATCHER;
+  }
+
+  CrossMemoryServerMsgQueueElement *newElement = NULL;
+  int allocRC = allocateMsgQueueElement(server, &newElement);
+  if (allocRC != RC_CMS_OK) {
+    return allocRC;
+  }
+
+  newElement->type = CROSS_MEMORY_SERVER_MSGQEL_TYPE_DUMP;
+  newElement->dumpServiceParm = localParm;
+
+  /* dump service is always space switch */
   qEnqueue(server->messageQueue, &newElement->queueElement);
 
   return RC_CMS_OK;
@@ -1652,7 +1715,7 @@ static int handleStandardService(CrossMemoryServer *server, CrossMemoryServerPar
     status = handleLogService(server, localParmList->callerData);
     break;
   case CROSS_MEMORY_SERVER_DUMP_SERVICE_ID:
-    status = RC_CMS_PC_NOT_IMPLEMENTED;
+    status = handleDumpService(server, localParmList->callerData);
     break;
   case CROSS_MEMORY_SERVER_CONFIG_SERVICE_ID:
     status = handleConfigService(server, localParmList->callerData);
@@ -2798,6 +2861,61 @@ static int establishPCRoutines(CrossMemoryServer *server) {
   return RC_CMS_OK;
 }
 
+static void printLogServiceMsg(CrossMemoryServerMsgQueueElement *msgElement) {
+
+  CrossMemoryServerLogServiceParm *msgParm = &msgElement->logServiceParm;
+
+  if (memcmp(msgParm->eyecatcher, CMS_LOG_SERVICE_PARM_EYECATCHER,
+             sizeof(msgParm->eyecatcher))) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+            CMS_LOG_INVALID_EYECATCHER_MSG, "log parm", msgParm);
+    zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, (char*) msgParm,
+             sizeof(CrossMemoryServerLogServiceParm));
+    return;
+  }
+
+  printf("%.*s", min(msgParm->messageLength, sizeof(msgParm->message)),
+         msgParm->message);
+}
+
+static void printDumpServiceMsg(CrossMemoryServerMsgQueueElement *dumpElement) {
+
+  CrossMemoryServerDumpServiceParm *dumpParm = &dumpElement->dumpServiceParm;
+
+  if (memcmp(dumpParm->eyecatcher, CMS_DUMP_SERVICE_PARM_EYECATCHER,
+             sizeof(dumpParm->eyecatcher))) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+            CMS_LOG_INVALID_EYECATCHER_MSG, "dump parm", dumpParm);
+    zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, (char*) dumpParm,
+             sizeof(CrossMemoryServerDumpServiceParm));
+    return;
+  }
+
+  printf("%.*s"CMS_LOG_DUMP_MSG_ID" Dump of \'%s\' (%u bytes at 0x%p):\n",
+         sizeof(dumpParm->prefix.text), dumpParm->prefix.text,
+         dumpParm->descriptionNullTerm,
+         dumpParm->originalSize, dumpParm->originalAddress);
+
+  char workBuffer[4096];
+  for (int i = 0; ; i++) {
+    char *line = dumpWithEmptyMessageID(workBuffer, sizeof(workBuffer),
+                                        dumpParm->data, dumpParm->dataLength, i);
+    if (line == NULL) {
+      break;
+    }
+    printf("%*s%s\n", LOG_MSG_PREFIX_SIZE, "", line);
+  }
+
+  if (dumpParm->dataLength < dumpParm->originalSize) {
+    printf("%*s"CMS_LOG_DUMP_MSG_ID" . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . \n",
+           LOG_MSG_PREFIX_SIZE, "");
+    printf("%*s"CMS_LOG_DUMP_MSG_ID" %u bytes have been truncated\n",
+           LOG_MSG_PREFIX_SIZE, "",
+           dumpParm->originalSize - dumpParm->dataLength);
+  }
+
+}
+
 static void flushDebugMessages(CrossMemoryServer *server) {
 
   CrossMemoryServerMsgQueueElement *element =
@@ -2805,15 +2923,23 @@ static void flushDebugMessages(CrossMemoryServer *server) {
 
   while (element != NULL) {
 
-    CrossMemoryServerLogServiceParm *msg = &element->logServiceParm;
-
-    if (memcmp(msg->eyecatcher, CMS_LOG_SERVICE_PARM_EYECATCHER, sizeof(msg->eyecatcher))) {
-      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_INVALID_EYECATCHER_MSG, "log parm", msg);
-      zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, (char *)msg, sizeof(CrossMemoryServerLogServiceParm));
-    }
-
     if (logShouldTraceInternal(NULL, LOG_COMP_ID_CMSPC, ZOWE_LOG_INFO)) {
-      printf("%.*s", msg->messageLength > sizeof(msg->message) ? sizeof(msg->message) : msg->messageLength, msg->message);
+
+      switch (element->type) {
+      case CROSS_MEMORY_SERVER_MSGQEL_TYPE_MSG:
+        printLogServiceMsg(element);
+        break;
+      case CROSS_MEMORY_SERVER_MSGQEL_TYPE_DUMP:
+        printDumpServiceMsg(element);
+        break;
+      default:
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+                CMS_LOG_DEBUG_MSG_ID" Bad msg element type @ 0x%p", element);
+        zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, (char*)element,
+                 sizeof(CrossMemoryServerMsgQueueElement));
+        break;
+      }
+
     }
 
     freeMsgQueueElement(element);
@@ -4548,6 +4674,29 @@ int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString,
   msgParmList.messageLength = sizeof(prefix->text) + charactersToBeWritten;
 
   return cmsCallService(serverName, CROSS_MEMORY_SERVER_LOG_SERVICE_ID, &msgParmList, NULL);
+}
+
+int cmsHexDump(const CrossMemoryServerName *serverName,
+               const void *data, unsigned size, const char *description) {
+
+  CrossMemoryServerDumpServiceParm parm = {
+      .eyecatcher = CMS_DUMP_SERVICE_PARM_EYECATCHER,
+      .version = CMS_DUMP_SERVICE_VERSION,
+      .originalAddress = (uint64_t)data,
+      .originalSize = size,
+  };
+
+  initLogMessagePrefix(&parm.prefix);
+
+  strncpy(parm.descriptionNullTerm, description,
+          sizeof(parm.descriptionNullTerm) - 1);
+
+  parm.dataLength = min(sizeof(parm.data), size);
+
+  memcpy(parm.data, data, parm.dataLength);
+
+  return cmsCallService(serverName, CROSS_MEMORY_SERVER_DUMP_SERVICE_ID,
+                        &parm, NULL);
 }
 
 int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,

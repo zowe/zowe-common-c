@@ -446,7 +446,32 @@ int cmsCallService2(CrossMemoryServerGlobalArea *cmsGlobalArea,
                     int serviceID, void *parmList, int *serviceRC);
 int cmsCallService3(CrossMemoryServerGlobalArea *cmsGlobalArea,
                     int serviceID, void *parmList, int flags, int *serviceRC);
+
+/**
+ * @brief Print a message to a cross-memory server's log
+ * @param serverName Cross-memory server to whose log the message is to be
+ * printed
+ * @param formatString Format string of the message
+ * @return RC_CMS_OK in case of success, and one of the RC_CMS_nn values in
+ * case of failure
+ */
 int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, ...);
+
+/**
+ * @brief Print the hex dump of the specified storage to a cross-memory server's
+ * log
+ * @param serverName Cross-memory server to whose log the dump is to be printed
+ * @param data Data to be printed
+ * @param size Size of the data (the maximum size is 512 bytes, the rest will
+ * be truncated)
+ * @param description Description of the data (the maximum length is 31
+ * characters, the rest will be truncated)
+ * @return RC_CMS_OK in case of success, and one of the RC_CMS_nn values in
+ * case of failure
+ */
+int cmsHexDump(const CrossMemoryServerName *serverName,
+               const void *data, unsigned size, const char *description);
+
 int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,
                      CrossMemoryServerConfigParm *parm);
 int cmsGetPCLogLevel(const CrossMemoryServerName *serverName);
