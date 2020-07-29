@@ -3701,25 +3701,17 @@ char *getMimeType(char *extension, int *isBinary) {
 }
 
 static char *getMimeType2(char *extension, int *isBinary, int dotPos){
-  if (!strcmp(extension,"gif")){
-    *isBinary = TRUE;
-    return "image/gif";
-  } else if (!strcmp(extension,"jpg")){
-    *isBinary = TRUE;
-    return "image/jpeg";
-  } else if (!strcmp(extension,"png")){
-    *isBinary = TRUE;
-    return "image/png";
-  } else if (!strcmp(extension,"js")){
+  if (!strcmp(extension,"js")){
     *isBinary = FALSE;
     return "text/javascript";
   } else if (!strcmp(extension,"ts")){
     *isBinary = FALSE;
     return "text/typescript";
-  } else if (!strcmp(extension,"ts") || !strcmp(extension,"txt") ||
+  } else if (!strcmp(extension,"txt") ||
         !strcmp(extension,"c") || !strcmp(extension,"py") || !strcmp(extension,"rexx") ||
         !strcmp(extension,"cbl") || !strcmp(extension,"cpy") || !strcmp(extension,"asm") ||
         !strcmp(extension,"cpp") || !strcmp(extension,"h") || !strcmp(extension,"log") ||
+        !strcmp(extension,"env")
         (dotPos == 0)){
     *isBinary = FALSE;
     return "text/plain";
@@ -3730,6 +3722,36 @@ static char *getMimeType2(char *extension, int *isBinary, int dotPos){
   } else if (!strcmp(extension,"css")){
     *isBinary = FALSE;
     return "text/css";
+  } else if(!strcmp(extension,"md")) {
+    *isBinary = FALSE;
+    return "text/markdown";
+  } else if(!strcmp(extension,"bin")) {
+    *isBinary = TRUE;
+    return "application/octet-stream";
+  } else if(!strcmp(extension,"gz")) {
+    *isBinary = TRUE;
+    return "application/gzip";
+  } else if(!strcmp(extension,"jar")) {
+    *isBinary = TRUE;
+    return "application/java-archive";
+  } else if(!strcmp(extension,"json")) {
+    *isBinary = FALSE;
+    return "application/json";
+  } else if(!strcmp(extension,"sh")) {
+    *isBinary = FALSE;
+    return "application/x-sh";
+  } else if(!strcmp(extension,"tar")) {
+    *isBinary = TRUE;
+    return "application/x-tar";
+  } else if (!strcmp(extension,"gif")){
+    *isBinary = TRUE;
+    return "image/gif";
+  } else if (!strcmp(extension,"jpg")){
+    *isBinary = TRUE;
+    return "image/jpeg";
+  } else if (!strcmp(extension,"png")){
+    *isBinary = TRUE;
+    return "image/png";
   } else if (!strcmp(extension,"mpg")){
     *isBinary = TRUE;
     return "video/mpeg";
@@ -3742,9 +3764,6 @@ static char *getMimeType2(char *extension, int *isBinary, int dotPos){
   } else if(!strcmp(extension,"avi")) {
     *isBinary = TRUE;
     return "video/x-msvideo";
-  } else if(!strcmp(extension,"bin")) {
-    *isBinary = TRUE;
-    return "application/octet-stream";
   } else if(!strcmp(extension,"bmp")) {
     *isBinary = TRUE;
     return "image/bmp";
@@ -3757,30 +3776,15 @@ static char *getMimeType2(char *extension, int *isBinary, int dotPos){
   } else if(!strcmp(extension,"docx")) {
     *isBinary = FALSE;
     return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-  } else if(!strcmp(extension,"gz")) {
-    *isBinary = TRUE;
-    return "application/gzip";
   } else if(!strcmp(extension,"mp3")) {
     *isBinary = TRUE;
     return "audio/mpeg";
-  } else if(!strcmp(extension,"jar")) {
-    *isBinary = TRUE;
-    return "application/java-archive";
-  } else if(!strcmp(extension,"json")) {
-    *isBinary = FALSE;
-    return "application/json";
   } else if(!strcmp(extension,"jsonld")) {
     *isBinary = TRUE;
     return "application/ld+json";
   } else if(!strcmp(extension,"pdf")) {
     *isBinary = TRUE;
     return "application/pdf";
-  } else if(!strcmp(extension,"sh")) {
-    *isBinary = FALSE;
-    return "application/x-sh";
-  } else if(!strcmp(extension,"tar")) {
-    *isBinary = TRUE;
-    return "application/x-tar";
   } else if(!strcmp(extension,"xls")) {
     *isBinary = FALSE;
     return "application/vnd.ms-excel";
@@ -3796,9 +3800,6 @@ static char *getMimeType2(char *extension, int *isBinary, int dotPos){
   } else if(!strcmp(extension,"mp4")) {
     *isBinary = TRUE;
     return "video/mp4";
-  } else if(!strcmp(extension,"md")) {
-    *isBinary = FALSE;
-    return "text/markdown";
   } else{
     *isBinary = TRUE;
     return "application/octet-stream";
@@ -5000,9 +5001,13 @@ static int httpTaskMain(RLETask *task){
 
   HttpWorkElement *element = (HttpWorkElement*)task->userPointer;
   HttpConversation *conversation = element->conversation;
+<<<<<<< HEAD
 #ifdef DEBUG
   printf("httpTaskMain element=0x%x elt->convo=0x%x\n",element,conversation);
 #endif
+=======
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "httpTaskMain element=0x%x elt->convo=0x%x\n",element,conversation);
+>>>>>>> 43083ff... Add .env mime type, reorg mime type area to have media type detection come last, and common extensions first. Switch common debug printfs to zowelog
   if (!conversation->shouldClose) {
     /* Execute only if the conversation is still open */
     serviceResult = handleHttpService(conversation->server,
@@ -5222,10 +5227,16 @@ static void doHttpResponseWork(HttpConversation *conversation)
           workElement->response = response;
           response = NULL; /* transfer the ownership of the response to the subtask */
           conversation->task->userPointer = workElement;
+<<<<<<< HEAD
 #ifdef DEBUG
           printf("about to start RLE Task from main at 0x%x wkElement=0x%x pendingService=0x%x\n",
                  conversation->task,workElement,conversation->pendingService);
 #endif
+=======
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                  "about to start RLE Task from main at 0x%x wkElement=0x%x pendingService=0x%x\n",
+                  conversation->task,workElement,conversation->pendingService);
+>>>>>>> 43083ff... Add .env mime type, reorg mime type area to have media type detection come last, and common extensions first. Switch common debug printfs to zowelog
 
           /* Keep track of number of running tasks */                                                                                                                                                            
           serializeStartRunning(conversation);                                                                                                                                                                   
