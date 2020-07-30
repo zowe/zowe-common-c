@@ -3711,7 +3711,7 @@ static char *getMimeType2(char *extension, int *isBinary, int dotPos){
         !strcmp(extension,"c") || !strcmp(extension,"py") || !strcmp(extension,"rexx") ||
         !strcmp(extension,"cbl") || !strcmp(extension,"cpy") || !strcmp(extension,"asm") ||
         !strcmp(extension,"cpp") || !strcmp(extension,"h") || !strcmp(extension,"log") ||
-        !strcmp(extension,"env")
+        !strcmp(extension,"env") ||
         (dotPos == 0)){
     *isBinary = FALSE;
     return "text/plain";
