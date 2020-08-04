@@ -4269,7 +4269,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   int status = RC_CMS_OK;
   bool globalResourcesAllocated = false;
   bool serverStarted = false;
-  bool startCallbackSuccess = true;
+  bool startCallbackSuccess = false;
   bool resourceManagerInstalled = false;
 
   if (status == RC_CMS_OK) {
@@ -4358,6 +4358,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   }
 
   if (status == RC_CMS_OK) {
+    startCallbackSuccess = true;
     if (srv->startCallback != NULL) {
       int callbackRC = srv->startCallback(srv->globalArea, srv->callbackData);
       if (callbackRC != 0) {
