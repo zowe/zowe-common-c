@@ -325,8 +325,8 @@ int icsfDigestFully(char *digestType, char *s, int len){
 
   if (digestTrace){
     printf("called ICSF MD5 ret=0x%x reason=0x%x\n",returnCode,reasonCode);
+    dumpbuffer(hash,16);
   }
-  dumpbuffer(hash,16);
 	  
   return returnCode;
   
@@ -571,3 +571,4 @@ int icsfGenerateRandomNumber(void *result, int resultLength, int *reasonCode) {
   
   Copyright Contributors to the Zowe Project.
 */
+

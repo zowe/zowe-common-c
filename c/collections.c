@@ -63,7 +63,6 @@ void *fbMgrAlloc(fixedBlockMgr *mgr){
   void *result = NULL;
 
   if (mgr == NULL){
-    // printf("fbMgr of %x is NULL!!\n",mgr->owner);
     return NULL;
   }
   if (mgr->freeList != NULL){
@@ -793,7 +792,7 @@ void lhtMap(LongHashtable *ht, void (*visitor)(void *, int64, void *), void *use
 
 static void lruHashVisitor(void *key, void *value){
   LRUElement *element = (LRUElement*)value;
-  // printf("    %16.16s: 0x%x containing 0x%x\n",key,value,element->data);
+  printf("    %16.16s: 0x%x containing 0x%x\n",key,value,element->data);
 }
 
 LRUCache *makeLRUCache(int size){
@@ -818,20 +817,20 @@ void destroyLRUCache(LRUCache *cache){
 }
 
 void lruDump(LRUCache *cache){
-  // printf("LRU Cache size=%d count=%d\n",cache->size,cache->count);
+  printf("LRU Cache size=%d count=%d\n",cache->size,cache->count);
   LRUElement *element = cache->newest;
-  // printf("  Newest To Oldest:\n");
+  printf("  Newest To Oldest:\n");
   while (element){
-    // printf("    Elt: %16.16s -> 0x%x\n",element->digest,element->data);
+    printf("    Elt: %16.16s -> 0x%x\n",element->digest,element->data);
     element = element->older;
   }
   element = cache->oldest;
-  // printf("  Oldest To Newest:\n");
+  printf("  Oldest To Newest:\n");
   while (element){
-    // printf("    Elt: %16.16s -> 0x%x\n",element->digest,element->data);
+    printf("    Elt: %16.16s -> 0x%x\n",element->digest,element->data);
     element = element->newer;
   }
-  // printf("  In Hash Order:\n");
+  printf("  In Hash Order:\n");
   htMap(cache->ht,lruHashVisitor);
 }
 
@@ -1427,3 +1426,4 @@ void *qRemove(Queue *q){
   
   Copyright Contributors to the Zowe Project.
 */
+

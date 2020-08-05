@@ -34,8 +34,6 @@
 #include "debug.h"
 #include "printables_for_dump.h"
 #include "timeutls.h"
-#include "logging.h"
-#include "zccLogging.h"
 
 char * strcopy_safe(char * dest, const char * source, int dest_size) {
   if( dest_size == 0 )
@@ -598,7 +596,7 @@ void dumpBufferToStream(const char *buffer, int length, /* FILE* */void *traceOu
   for (last_index = length-1; last_index>=0 && 0 == buffer[last_index]; last_index--){}
   if (last_index < 0)
 #ifdef METTLE
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, ZCC_LOG_EMPTY_BUFFER_ERR,buffer);
+    printf("the buffer is empty at %x\n",buffer);
 #else
     fprintf((FILE*)traceOut,"the buffer is empty at %x\n",buffer);
 #endif
@@ -629,7 +627,7 @@ void dumpBufferToStream(const char *buffer, int length, /* FILE* */void *traceOu
     lineBuffer[linePos++] = '|';
     lineBuffer[linePos++] = 0;
 #ifdef METTLE
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "%s\n",lineBuffer);
+    printf("%s\n",lineBuffer);
 #else
     fprintf((FILE*)traceOut,"%s\n",lineBuffer);
 #endif
@@ -677,7 +675,7 @@ void hexdump(char *buffer, int length, int nominalStartAddress, int formatWidth,
     }
     lineBuffer[linePos++] = '|';
     lineBuffer[linePos++] = 0;
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "%s\n",lineBuffer);
+    printf("%s\n",lineBuffer);
     index += formatWidth;
   }
   fflush(stdout);
@@ -702,7 +700,7 @@ void dumpbufferA(const char *buffer, int length){
   for (last_index = length-1; last_index>=0 && 0 == buffer[last_index]; last_index--){}
   if (last_index < 0)
 #ifdef METTLE
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "the buffer is empty at %x\n",buffer);
+    printf("the buffer is empty at %x\n",buffer);
 #else
     fprintf((FILE*)traceOut,"the buffer is empty at %x\n",buffer);
 #endif
@@ -733,7 +731,7 @@ void dumpbufferA(const char *buffer, int length){
     lineBuffer[linePos++] = '|';
     lineBuffer[linePos++] = 0;
 #ifdef METTLE
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "%s\n",lineBuffer);
+    printf("%s\n",lineBuffer);
 #else
     fprintf((FILE*)traceOut,"%s\n",lineBuffer);
 #endif
@@ -994,7 +992,7 @@ int decodeBase64(char *s, char *result){
   int i;
     
   if (4 * numGroups != sLen){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "non 4-mult\n");
+    printf("non 4-mult\n");
     return -1;
   }
     
@@ -1067,7 +1065,7 @@ void encodeBase64NoAlloc(const char buf[], int size, char result[], int *resultS
     int inCursor = 0;
     char *resPtr = result;
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "num in full groups %d num in partial %d\n",numFullGroups,numBytesInPartialGroup);
+    printf("num in full groups %d num in partial %d\n",numFullGroups,numBytesInPartialGroup);
 #endif
     for (int i = 0; i < numFullGroups; i++){
       int byte0 = data[inCursor++] & 0xff;
@@ -1442,13 +1440,13 @@ static ShortLivedHeap *makeShortLivedHeapInternal(int blockSize, int maxBlocks, 
 }
 
 static void reportSLHFailure(ShortLivedHeap *slh, int size){
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, ZCC_LOG_SLH_MEM_ERR,size);
+  printf("could not get any memory for SLH extension, extension size was 0x%x\n",size);
   ListElt *chain = slh->blockChain;
   int i = 0;
   while (chain){
     char *data = chain->data-4;
     int size = *((int*)data);
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "  segment %d at 0x%x, size = 0x%x\n",i,data,size+4);
+    printf("  segment %d at 0x%x, size = 0x%x\n",i,data,size+4);
     chain = chain->next;
     i++;
   }
@@ -1477,7 +1475,7 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
      printf("SLHAlloc me=0x%x size=%d bc=%d\n",slh,size,slh->blockCount);fflush(stdout); */
   int remainingHeapBytes = (slh->blockSize * (slh->maxBlocks - slh->blockCount));
   if (size > remainingHeapBytes){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, ZCC_LOG_BLOCK_SIZE_ALLOC_ERR,size,remainingHeapBytes,slh->maxBlocks,slh->blockCount);
+    printf("cannot allocate above block size %d > %d mb %d bc %d\n",size,remainingHeapBytes,slh->maxBlocks,slh->blockCount);
     return NULL;
   } else if (size > slh->blockSize){
     char *bigBlock = (slh->is64 ? 
@@ -1549,7 +1547,7 @@ void SLHFree(ShortLivedHeap *slh){
 char *noisyMalloc(int size){
   char *data = safeMalloc(size,"NoisyMalloc");
   if (data == 0){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_SEVERE, ZCC_LOG_MALLOC_ALLOC_ERR,size);
+    printf("malloc failure for allocation of %d bytes\n",size);
     fflush(stdout);
   }
   return data;
@@ -1700,7 +1698,7 @@ static int readBufferCharacter(CharStream *s, int trace){
   } else{
     char *buffer = (char*)(s->internalStream);
     if (trace){
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "readBufferChar %s\n",buffer);
+      printf("readBufferChar %s\n",buffer);
     }
     int c = (int)(buffer[s->byteCount++]);
     return c;
@@ -1719,7 +1717,7 @@ CharStream *makeBufferCharStream(char *buffer, int len, int trace){
   CharStream *s = (CharStream*)safeMalloc(sizeof(CharStream),"CharStream");
 
   if (trace){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "mbcs in %d\n",len);
+    printf("mbcs in %d\n",len);
   }
   s->byteCount = 0;
   s->size = len;
@@ -1728,7 +1726,7 @@ CharStream *makeBufferCharStream(char *buffer, int len, int trace){
   s->positionMethod = getBufferPosition;
   s->closeMethod = NULL;
   if (trace){
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "mbcs out 0x%x, '%.*s'\n",s,len,s);
+    printf("mbcs out 0x%x, '%.*s'\n",s,len,s);
   }
   return s;
 }

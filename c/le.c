@@ -266,9 +266,8 @@ void initRLEEnvironment(RLEAnchor *anchor) {
 
   int recoveryRC = recoveryEstablishRouter(RCVR_ROUTER_FLAG_NONE);
   if (recoveryRC != RC_RCV_OK) {
-    printf("le.c: error - recovery router not established\n"); // TODO: Needs message ID
+    printf("le.c: error - recovery router not established\n");
   }
-
 }
 
 void termRLEEnvironment() {
@@ -291,3 +290,4 @@ void termRLEEnvironment() {
   
   Copyright Contributors to the Zowe Project.
 */
+

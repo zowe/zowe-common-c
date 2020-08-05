@@ -62,7 +62,6 @@
 #include "charsets.h"
 #include "impersonation.h"
 #include "httpserver.h"
-#include "zccLogging.h"
 
 #ifdef USE_RS_SSL
 #include "rs_ssl.h"
@@ -1379,10 +1378,14 @@ static int initSessionTokenKey(SessionTokenKey *key) {
   int icsfRSN = 0;
   int icsfRC = icsfGenerateRandomNumber(key, sizeof(SessionTokenKey), &icsfRSN);
   if (icsfRC != 0) {
+<<<<<<< HEAD
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
 <<<<<<< HEAD
     		ZCC_LOG_SESSION_TOKEN_ERR,
 =======
+=======
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+>>>>>>> 2e0e508... Addressing comments
             "Error: ICSF generation of random number failed. Session token key not generated, RC = %d, RSN = %d\n",
 >>>>>>> f384d9c... Move logConfigureComponent earlier, so crucial messages are logged
             icsfRC, icsfRSN);
@@ -1410,8 +1413,9 @@ static int encodeSessionToken(ShortLivedHeap *slh,
   unsigned int encodedTokenTextLength = tokenTextLength;
   char *encodedTokenText = SLHAlloc(slh, encodedTokenTextLength);
   if (encodedTokenText == NULL) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-    		ZCC_LOG_ENCODE_TOKEN_ALLOC_ERR, encodedTokenTextLength, slh);
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+    		    "Error: encoded session token buffer not allocated "
+            "(size=%u, SLH=%p)\n", encodedTokenTextLength, slh);
     return -1;
   }
 
@@ -1424,8 +1428,8 @@ static int encodeSessionToken(ShortLivedHeap *slh,
                             encodedTokenTextLength,
                             &icsfRSN);
   if (icsfRC != 0) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-    		ZCC_LOG_TOKEN_ENCODING_ERR,
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+    		    "Error: session token encoding failed, RC = %d, RSN = %d\n",
             icsfRC, icsfRSN);
     return -1;
   }
@@ -1452,8 +1456,9 @@ static int decodeSessionToken(ShortLivedHeap *slh,
   unsigned int tokenTextLength = encodedTokenTextLength;
   char *tokenText = SLHAlloc(slh, tokenTextLength);
   if (tokenText == NULL) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-    		ZCC_LOG_DECODE_TOKEN_ALLOC_ERR, encodedTokenTextLength, slh);
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+    		    "Error: decoded session token buffer not allocated "
+            "(size=%u, SLH=%p)\n", encodedTokenTextLength, slh);
     return -1;
   }
 
@@ -1466,8 +1471,8 @@ static int decodeSessionToken(ShortLivedHeap *slh,
                             tokenTextLength,
                             &icsfRSN);
   if (icsfRC != 0) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-    		ZCC_LOG_TOKEN_DECODING_ERR,
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+    		    "Error: session token decoding failed, RC = %d, RSN = %d\n",
             icsfRC, icsfRSN);
     return FALSE;
   }
@@ -4035,7 +4040,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     if (!autocvt) {
       int disableCvt = fileDisableConversion(in, &returnCode, &reasonCode);
       if (disableCvt != 0) {
-    	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, ZCC_LOG_ENCODE_CONVERSION_ERR, returnCode, reasonCode);
+    	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Warning: encoding conversion was not disabled, return = %d, reason = %d\n", returnCode, reasonCode);
       }
     }
 #endif
@@ -4847,7 +4852,7 @@ void serveSimpleTemplate(HttpService *service, HttpResponse *response){
       if (service->serviceTemplateTagFunction){
 	service->serviceTemplateTagFunction(service,response,tag,outStream);
       } else{
-    	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING,ZCC_LOG_TEMPLATE_TAG_ERR,service->name);
+    	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "*** WARNING *** no template tag service function for %s\n", service->name);
       }
     }
     
@@ -5155,7 +5160,7 @@ static void logHTTPMethodAndURI(ShortLivedHeap *slh, HttpRequest *request) {
   char *method = request->method;
   char *uri = request->uri;
 #endif
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, ZCC_LOG_HTTP_METHOD_URI, method, uri);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "httpserver: method='%s', URI='%s'\n", method, uri);
 }
 
 // Response is finished on an error

@@ -139,9 +139,6 @@ char *allocECSA(int size, int key){
   case 2:
     return getmain31Key2(size,241);
   default:
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("PANIC cannot allocate ECSA in key=%d\n",key);
-    }
     return NULL;
   }
 }
@@ -153,9 +150,6 @@ int freeECSA(char *data, int size, int key){
   case 2:
     return freemain31Key2(data,size,241);
   default:
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("PANIC cannot free ECSA in key=%d\n",key);
-    }
     return 12;
   }
 
@@ -422,9 +416,6 @@ char *safeMalloc(int size, char *site){
       abend(MALLOC_ABEND_CODE, MALLOC_ABEND_REASON);
     }
 #endif
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC failed, got NULL for size %d at site %s\n",size, site);
-    }
   }
 #ifdef TRACK_MEMORY
   safeBytes += size;
@@ -466,10 +457,6 @@ char *safeMalloc2(int size, char *site, int *indicator){
     *indicator = 0x883;
     memset(res,0,size);
     *indicator = 0x884;
-  } else{
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC failed, got NULL for size %d at site %s\n",size, site);
-    }
   }
 #ifdef TRACK_MEMORY
   safeBytes += size;
@@ -501,10 +488,6 @@ char *safeMalloc31(int size, char *site){
 #endif
   if (res != NULL){
     memset(res,0,size);
-  } else{
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC failed, got NULL for size %d at site %s\n",size, site);
-    }
   }
 #ifdef TRACK_MEMORY
   safeBytes += size;
@@ -542,10 +525,6 @@ static char *safeMalloc64Internal(int size, char *site, long long token){
 #endif
   if (res != NULL){
     memset(res,0,size);
-  } else{
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC failed, got NULL for size %d at site %s\n",size, site);
-    }
   }
 #ifdef TRACK_MEMORY
   safeBytes += size;
@@ -583,10 +562,6 @@ char *safeMalloc31Key8(int size, char *site){
 #endif
   if (res != NULL){
     memset(res,0,size);
-  } else{
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC failed, got NULL for size %d at site %s\n",size, site);
-    }
   }
   return res;
 }
@@ -817,10 +792,8 @@ char *safeMalloc64v2(unsigned long long size, int zeroOut, char *site,
     int getTCBTokenRC = getJobstepTCBToken(tcbToken);
     /* this is to insure that getTCBTokenRC doesn't get compiled out
      * and in case of an error we can access it in the SVC dump */
-    if (FALSE) {
-      if (MALLOC_TRACE_LEVEL >= 1){
-        printf("safeMalloc64v2: job step TCB, rc=%d\n", getTCBTokenRC);
-      }
+    if (MALLOC_TRACE_LEVEL >= 1){
+      printf("safeMalloc64v2: job step TCB, rc=%d\n", getTCBTokenRC);
     }
 
     int rc = 0, rsn = 0;
@@ -866,10 +839,6 @@ char *safeMalloc64v2(unsigned long long size, int zeroOut, char *site,
     if (zeroOut) {
       memset(data, 0, size);
     }
-  } else{
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC failed, got NULL for size %llu at site %s\n",size, site);
-    }
   }
 #ifdef TRACK_MEMORY
   safeBytes += size;
@@ -893,10 +862,8 @@ int safeFree64v2(void *data, unsigned long long size, int *sysRC, int *sysRSN) {
     char tcbToken[16];
     memset(tcbToken, 0, sizeof(tcbToken));
     int getTCBTokenRC = getJobstepTCBToken(tcbToken);
-    if (FALSE) {
-      if (MALLOC_TRACE_LEVEL >= 1){
-        printf("safeFree64v2: job step TCB, rc=%d\n", getTCBTokenRC);
-      }
+    if (MALLOC_TRACE_LEVEL >= 2){
+      printf("safeFree64v2: job step TCB, rc=%d\n", getTCBTokenRC);
     }
 
     int rc = 0, rsn = 0;
@@ -1080,10 +1047,6 @@ char *safeMalloc64v3(unsigned long long size, int zeroOut, char *site,
   if (data != NULL){
     if (zeroOut) {
       memset(data, 0, size);
-    }
-  } else{
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC failed, got NULL for size %llu at site %s\n",size, site);
     }
   }
 #ifdef TRACK_MEMORY

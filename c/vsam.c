@@ -31,7 +31,6 @@
 #include "utils.h" 
 #include "qsam.h"  
 #include "vsam.h"
-#include "logging.h"
 
 #define TRACE 0
 
@@ -125,7 +124,7 @@ int opencloseACB(char *acb, int mode, int svc){
 	  "m"(acb):
 	  "r1","r0", "r15");
     if (TRACE) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nOPEN64 at %08x returned %d with reason %x", acb, status, ((ACBCommon *)realACBaddr)->erFlags); 
+      printf("\nOPEN64 at %08x returned %d with reason %x", acb, status, ((ACBCommon *)realACBaddr)->erFlags); 
     }
 #else
     __asm(ASM_PREFIX
@@ -137,7 +136,7 @@ int opencloseACB(char *acb, int mode, int svc){
 	  "m"(acb):
 	  "r1","r0", "r15");
     if (TRACE && status) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nOPEN32 at %08x returned %d with reason %x", acb, status, ((ACBCommon *)realACBaddr)->erFlags);
+      printf("\nOPEN32 at %08x returned %d with reason %x", acb, status, ((ACBCommon *)realACBaddr)->erFlags);
     }
 #endif
   } else{
@@ -155,7 +154,7 @@ int opencloseACB(char *acb, int mode, int svc){
 	  "m"(acb):
 	  "r1","r0", "r15");
     if (TRACE) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nCLOSE64 at %08x returned %d with reason %x", acb, status, ((ACBCommon *)realACBaddr)->erFlags);
+      printf("\nCLOSE64 at %08x returned %d with reason %x", acb, status, ((ACBCommon *)realACBaddr)->erFlags);
     }
 #else
     __asm(ASM_PREFIX
@@ -167,7 +166,7 @@ int opencloseACB(char *acb, int mode, int svc){
 	  "m"(acb):
 	  "r1","r0", "r15");
     if (TRACE && status) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nCLOSE32 at %08x returned %d with reason %x", acb, status, ((ACBCommon *)realACBaddr)->erFlags);
+      printf("\nCLOSE32 at %08x returned %d with reason %x", acb, status, ((ACBCommon *)realACBaddr)->erFlags);
     }
 #endif
   }
@@ -205,7 +204,7 @@ char *openACB(char *ddname,
 ***************************************************************/
 int closeACB(char *acb, int mode){
   if (TRACE) { 
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "closing ACB %p\n", acb);
+    printf("closing ACB %p\n", acb);
   }
 
   ACBCommon *realACB = (ACBCommon*)(acb+ACB_COMMON_OFFSET+8);
@@ -344,7 +343,7 @@ int point(char *acb, char *arg){
 	"m"(rpl), "r"(&parms31->r13):
 	"r1", "r2", "r15");
   if (TRACE && status) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nPOINT64 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback); 
+    printf("\nPOINT64 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback); 
   }
 #else
   __asm(ASM_PREFIX
@@ -355,7 +354,7 @@ int point(char *acb, char *arg){
 	"m"(rpl):
 	"r1", "r2", "r15");
   if (TRACE && status) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nPOINT32 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback);
+    printf("\nPOINT32 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback);
   }
 #endif
   FREE_STRUCT31(
@@ -427,7 +426,7 @@ int easyPut(char *acb){
 	"m"(rpl), "r"(&parms31->r13):
 	"r1", "r2", "r15");
   if (TRACE) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nPUT64 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback); 
+    printf("\nPUT64 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback); 
   }
 #else
   __asm(ASM_PREFIX
@@ -438,7 +437,7 @@ int easyPut(char *acb){
 	"m"(rpl):
 	"r1", "r2", "r15");
   if (TRACE && status) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nPUT32 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback);
+    printf("\nPUT32 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback);
   }
 #endif
 
@@ -448,23 +447,23 @@ int easyPut(char *acb){
 
   if (TRACE) {
     if (((rpl->feedback & 0xff) == 0x08) || ((rpl->feedback & 0xff) == 0x0C)) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "\n  PUT32 encountered a duplicate key.");
+      printf("\n  PUT32 encountered a duplicate key.");
       return 1;
     }
     if ((rpl->feedback & 0xff) == 0x1C) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "\n  PUT32 did not have enough space for the PUT.");           
+      printf("\n  PUT32 did not have enough space for the PUT.");           
       return 2;
     }
     if ((rpl->feedback & 0xff) == 0x4C) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "\n  PUT32 was called with ADR or CNV set to a KSDS dataset.");           
+      printf("\n  PUT32 was called with ADR or CNV set to a KSDS dataset.");           
       return 3;
     }
     if ((rpl->feedback & 0xff) == 0x6C) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "\n  PUT32 did not have a large enough Record Length.");           
+      printf("\n  PUT32 did not have a large enough Record Length.");           
       return 6;
     }
     if ((rpl->feedback & 0xff) == 0x70) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "\n  PUT32 did not have a large enough Key Length.");           
+      printf("\n  PUT32 did not have a large enough Key Length.");           
       return 7;
     }
   }
@@ -531,7 +530,7 @@ int easyGet(char *acb){
         "m"(rpl), "r"(&parms31->r13):
         "r1", "r15");
   if (TRACE) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nGET64 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback);
+    printf("\nGET64 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback);
   }
 #else
   __asm(ASM_PREFIX
@@ -542,7 +541,7 @@ int easyGet(char *acb){
         "m"(rpl):
         "r1", "r15");
   if (TRACE && status) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nGET32 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback);
+    printf("\nGET32 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback);
   }
 #endif
 
@@ -552,31 +551,31 @@ int easyGet(char *acb){
 
   if (TRACE) {
     if ((rpl->feedback & 0xff) == 0x04) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "\n  GET32 encountered a Sequential End of Data"); 
+      printf("\n  GET32 encountered a Sequential End of Data"); 
       return 1;
     }
     if ((rpl->feedback & 0xff) == 0x10) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "\n  GET32 did not find the record.");           
+      printf("\n  GET32 did not find the record.");           
       return 2;
     }
     if ((rpl->feedback & 0xff) == 0x20) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "\n  GET32 did not find the RBA.");              
+      printf("\n  GET32 did not find the RBA.");              
       return 3;
     }
     if ((rpl->feedback & 0xff) == 0x2C) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "\n  GET32 did not have a large enough Work Area.");           
+      printf("\n  GET32 did not have a large enough Work Area.");           
       return 5;
     }
     if ((rpl->feedback & 0xff) == 0x6C) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "\n  GET32 did not have a large enough Record Length.");           
+      printf("\n  GET32 did not have a large enough Record Length.");           
       return 6;
     }
     if ((rpl->feedback & 0xff) == 0x70) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "\n  GET32 did not have a large enough Key Length.");           
+      printf("\n  GET32 did not have a large enough Key Length.");           
       return 7;
     }
     if ((rpl->feedback & 0xff) == 0xC4) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "\n  GET32 ran a request by address on an RRDS.");           
+      printf("\n  GET32 ran a request by address on an RRDS.");           
       return 9;
     }
   }
@@ -619,7 +618,7 @@ int eraseRecord(char *acb) {
         "m"(rpl), "r"(&parms31->r13):
         "r1", "r15");
   if (TRACE) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nERASE64 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback);
+    printf("\nERASE64 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback);
   }
 #else
   __asm(ASM_PREFIX
@@ -630,7 +629,7 @@ int eraseRecord(char *acb) {
         "m"(rpl):
         "r1", "r15");
   if (TRACE && status) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nERASE32 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback);
+    printf("\nERASE32 at %08x returned %d, feedback=%02x%06x", rpl, status, rpl->status, rpl->feedback);
   }
 #endif
 
@@ -667,7 +666,7 @@ int allocateDataset(char *ddname, char *dsn, int mode, char *space, int macrf1, 
                     int opCode1, int avgRecLen, int maxRecLen, int bufLen,
                     int keyLen, int keyOff, char *dataclass) {
   if (TRACE) { 
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nallocateDataset dd=%s, dsn=%s", ddname, dsn);
+    printf("\nallocateDataset dd=%s, dsn=%s", ddname, dsn);
   }
 
   int status = 0;
@@ -873,7 +872,7 @@ int allocateDataset(char *ddname, char *dsn, int mode, char *space, int macrf1, 
         "m"(reqBlock):
         "r1", "r15");
   if (TRACE) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nSVC99.64 at %08x returned %d, feedback=%08x", realRB, reg15, realRB->error);
+    printf("\nSVC99.64 at %08x returned %d, feedback=%08x", realRB, reg15, realRB->error);
   }
 #else
   __asm(ASM_PREFIX
@@ -884,7 +883,7 @@ int allocateDataset(char *ddname, char *dsn, int mode, char *space, int macrf1, 
         "m"(reqBlock):
         "r1", "r15");
   if (TRACE) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\nSVC99.32 at %08x returned %d, feedback=%08x", realRB, reg15, realRB->error);
+    printf("\nSVC99.32 at %08x returned %d, feedback=%08x", realRB, reg15, realRB->error);
   }
 #endif
   //set the maxcc
@@ -1080,7 +1079,7 @@ int defineAIX(char *clusterdsn, char *aixdsn, char *pathdsn, char* space,
 ***************************************************************/
 int deleteCluster(char *dsname) {
   if (TRACE) { 
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "\ndeleteCluster %s", dsname);
+    printf("\ndeleteCluster %s", dsname);
   }
 
   int status = 0;

@@ -31,7 +31,6 @@
 #include "unixfile.h"
 #include "timeutls.h"
 #include "logging.h"
-#include "zccLogging.h"
 
 #ifdef _LP64
 #pragma linkage(BPX4RED,OS)
@@ -188,15 +187,15 @@ UnixFile *fileOpen(const char *filename, int options, int mode,
   if (fileTrace) {
     if (returnValue < 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXOPN_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXOPN (%s, 0%o, 0%o) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              filename, options, mode, returnValue, *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXOPN_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXOPN (%s, 0%o, 0%o) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              filename, options, mode, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXOPN_MSG,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXOPN (%s, 0%o, 0%o) OK: returnValue: %d\n",
              filename, options, mode, returnValue);
     }
   }
@@ -213,7 +212,7 @@ UnixFile *fileOpen(const char *filename, int options, int mode,
   file->isDirectory = FALSE;
   if (bufferSize > 0) {
     if (fileTrace) {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "initializing buffered reading, buffer size = %d\n", bufferSize);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "initializing buffered reading, buffer size = %d\n", bufferSize);
     }
     file->buffer = safeMalloc31(bufferSize,"Unix File Buffer");
     file->bufferSize = bufferSize;
@@ -227,7 +226,7 @@ int fileRead(UnixFile *file, char *buffer, int desiredBytes,
              int *returnCode, int *reasonCode) {
   if (file == NULL) {
     if (fileTrace) {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_WARNING, "fileRead: File is null\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fileRead: File is null\n");
     }
 #ifdef METTLE
     *returnCode = -1;
@@ -251,7 +250,7 @@ int fileRead(UnixFile *file, char *buffer, int desiredBytes,
 #endif
 
   if (fileTrace) {
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "Before read: fd: %d, buffer: %x\n", fd, buffer);
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "Before read: fd: %d, buffer: %x\n", fd, buffer);
   }
 
   BPXRED(&fd,
@@ -265,14 +264,14 @@ int fileRead(UnixFile *file, char *buffer, int desiredBytes,
   if (fileTrace) {
     if (returnValue < 0) {
   #ifdef METTLE
-        zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXRED_ERR,
+        zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRED FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
                returnValue, *returnCode, *reasonCode);
   #else
-        zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXRED_ERR,
+        zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRED FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
                returnValue, *returnCode, *reasonCode, strerror(*returnCode));
   #endif
     } else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXRED_MSG, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRED OK: Read %d bytes\n", returnValue);
     }
   }
 
@@ -292,7 +291,7 @@ int fileWrite(UnixFile *file, const char *buffer, int desiredBytes,
               int *returnCode, int *reasonCode) {
   if (file == NULL) {
     if (fileTrace) {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_WARNING, "fileWrite: File is null\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fileWrite: File is null\n");
     }
 #ifdef METTLE
     *returnCode = -1;
@@ -327,15 +326,15 @@ int fileWrite(UnixFile *file, const char *buffer, int desiredBytes,
   if (fileTrace) {
     if (returnValue < 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXWRT_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXWRT (fd: %d, file: %s, desired bytes: %d) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              fd, (file->pathname ? file->pathname : "unknown"), desiredBytes, returnValue, *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXWRT_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXWRT (fd: %d, file: %s, desired bytes: %d) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              fd, (file->pathname ? file->pathname : "unknown"), desiredBytes, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXWRT_MSG, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXWRT OK: Wrote %d bytes\n", returnValue);
     }
   }
 
@@ -350,34 +349,34 @@ int fileWrite(UnixFile *file, const char *buffer, int desiredBytes,
 
 int fileGetChar(UnixFile *file, int *returnCode, int *reasonCode) {
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "bufferSize = %d\n",file->bufferSize);
+  zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "bufferSize = %d\n",file->bufferSize);
 #endif
   if (file->bufferSize == 0){
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "fgetc 1\n");
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 1\n");
 #endif
     *returnCode = 8;
     *reasonCode = 0xBFF;
     return -1;
   } else if (file->bufferPos < file->bufferFill){
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "fgetc 2\n");
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 2\n");
 #endif
     return (int)(file->buffer[file->bufferPos++]);
   } else if (file->eofKnown){
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "fgetc 3\n");
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 3\n");
 #endif
     return -1;
   } else{
     /* go after next buffer and pray */
 #ifdef DEBUG
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "fgetc 4\n");
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 4\n");
 #endif
     int bytesRead = fileRead(file,file->buffer,file->bufferSize,returnCode,reasonCode);
     if (bytesRead >= 0) {
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "got more data, bytesRead=%d wanted=%d\n",bytesRead,file->bufferSize);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "got more data, bytesRead=%d wanted=%d\n",bytesRead,file->bufferSize);
       dumpbuffer(file->buffer,file->bufferSize);
 #endif
       if (bytesRead < file->bufferSize) { /* out of data after this read */
@@ -395,7 +394,7 @@ int fileGetChar(UnixFile *file, int *returnCode, int *reasonCode) {
 int fileClose(UnixFile *file, int *returnCode, int *reasonCode) {
   if (file == NULL) {
     if (fileTrace) {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_WARNING, "fileClose: File is null\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fileClose: File is null\n");
     }
 #ifdef METTLE
     *returnCode = -1;
@@ -438,15 +437,15 @@ int fileClose(UnixFile *file, int *returnCode, int *reasonCode) {
   if (fileTrace) {
     if (returnValue != 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXCLO_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCLO FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              returnValue, *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXCLO_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCLO FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXCLO_MSG, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCLO OK: returnValue: %d\n", returnValue);
     }
   }
 
@@ -504,15 +503,15 @@ int fileChangeTagPure(const char *fileName, int *returnCode, int *reasonCode,
   if (fileTrace) {
     if (returnValue != 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXCHR_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCHR FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              returnValue, *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXCHR_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCHR FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXCHR_MSG, fileName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCHR (%s) OK: returnValue: %d\n\n", fileName, returnValue);
     }
   }
 
@@ -548,15 +547,15 @@ int fileChangeMode(const char *fileName, int *returnCode, int *reasonCode, int m
   if (fileTrace) {
     if (returnValue != 0) {
 # ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXCHM_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCHM FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              returnValue, *returnCode, *reasonCode);
 # else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXCHM_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCHM FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 # endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXCHM_MSG, fileName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCHM (%s) OK: returnValue: %d\n\n", fileName, returnValue);
     }
   }
 
@@ -686,15 +685,15 @@ int fileRename(const char *oldFileName, const char *newFileName, int *returnCode
   if (fileTrace) {
     if(returnValue != 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXREN_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXREN FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              returnValue, *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXREN_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXREN FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXREN_MSG, oldFileName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXREN (%s) OK: returnVal: %d\n", oldFileName, returnValue);
     }
   }
 
@@ -729,15 +728,15 @@ int fileDelete(const char *fileName, int *returnCode, int *reasonCode){
   if (fileTrace) {
     if(returnValue != 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXUNL_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXUNL (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              fileName, returnValue, *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXUNL_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXUNL (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              fileName, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXUNL_MSG, fileName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXUNL (%s) OK: returnVal: %d\n", fileName, returnValue);
     }
   }
 
@@ -774,15 +773,15 @@ int fileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int *reason
   if (fileTrace) {
     if(returnValue != 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXSTA_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXSTA (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              filename, returnValue, *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXSTA_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXSTA (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              filename, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXSTA_MSG, filename, returnValue, fileTypeString(stats->fileType));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXSTA (%s) OK: returnVal: %d, type: %s\n", filename, returnValue, fileTypeString(stats->fileType));
     }
   }
 
@@ -819,15 +818,15 @@ int symbolicFileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int
   if (fileTrace) {
     if(returnValue != 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXLST_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXLST (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              filename, returnValue, *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXLST_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXLST (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              filename, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXLST_MSG, filename, returnValue, fileTypeString(stats->fileType));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXLST (%s) OK: returnVal: %d, type: %s\n", filename, returnValue, fileTypeString(stats->fileType));
     }
   }
 
@@ -865,15 +864,15 @@ int fileChangeOwner(const char *fileName, int *returnCode, int *reasonCode,
   if (fileTrace) {
     if (returnValue != 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXLCO_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXLCO FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              returnValue, *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXLCO_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXLCO FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXLCO_MSG, fileName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXLCO (%s) OK: returnValue: %d\n\n", fileName, returnValue);
     }
   }
 
@@ -944,15 +943,15 @@ UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonC
   if (fileTrace) {
     if (fd < 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXOPD_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXOPD (%s) FAILED: fd: %d, returnCode: %d, reasonCode: 0x%08x\n",
              directoryName, fd, *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXOPD_ERR,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXOPD (%s) FAILED: fd: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              directoryName, fd, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXOPD_MSG,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXOPD (%s) OK: fd: %d\n",
              directoryName, fd);
     }
   }
@@ -974,7 +973,7 @@ UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonC
 int directoryRead(UnixFile *directory, char *entryBuffer, int entryBufferLength, int *returnCode, int *reasonCode) {
   if (directory == NULL) {
     if (fileTrace) {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_WARNING, "Directory is null\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "Directory is null\n");
     }
 #ifdef METTLE
     *returnCode = -1;
@@ -1008,20 +1007,24 @@ int directoryRead(UnixFile *directory, char *entryBuffer, int entryBufferLength,
   if (fileTrace) {
     if (numberOfEntriesRead < 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_WARNING, ZCC_LOG_METTLE_BPXRDD_ERR,
-             directory->fd, (directory->pathname ? directory->pathname : "unknown"),
-             (numberOfEntriesRead == 0 ? "PROBABLE EOF" : "FAILED"), numberOfEntriesRead,
-             *returnCode, *reasonCode);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, 
+              "BPXRDD (fd=%d, path=%s) %s: %d entries read, "
+              "returnCode: %d, reasonCode: 0x%08x\n",
+              directory->fd, (directory->pathname ? directory->pathname : "unknown"),
+              (numberOfEntriesRead == 0 ? "PROBABLE EOF" : "FAILED"), numberOfEntriesRead,
+              *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_WARNING, ZCC_LOG_BPXRDD_ERR,
-             directory->fd, (directory->pathname ? directory->pathname : "unknown"),
-             (numberOfEntriesRead == 0 ? "PROBABLE EOF" : "FAILED"), numberOfEntriesRead,
-             returnCode, reasonCode, strerror(*returnCode));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXRDD (fd=%d, path=%s) %s: %d entries read, "
+              "returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+              directory->fd, (directory->pathname ? directory->pathname : "unknown"),
+              (numberOfEntriesRead == 0 ? "PROBABLE EOF" : "FAILED"), numberOfEntriesRead,
+              returnCode, reasonCode, strerror(*returnCode));
 
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXRDD_MSG,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRDD (fd=%d, path=%s) OK: %d entries read\n",
              directory->fd, (directory->pathname ? directory->pathname : "unknown"),
              numberOfEntriesRead);
     }
@@ -1038,7 +1041,7 @@ int directoryRead(UnixFile *directory, char *entryBuffer, int entryBufferLength,
 int directoryClose(UnixFile *directory, int *returnCode, int *reasonCode){
   if (directory == NULL) {
     if (fileTrace) {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_WARNING, "Directory is null\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "Directory is null\n");
     }
 #ifdef METTLE
     *returnCode = -1;
@@ -1068,17 +1071,21 @@ int directoryClose(UnixFile *directory, int *returnCode, int *reasonCode){
   if (fileTrace) {
     if (returnValue < 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXCLD_ERR,
-             directory->fd, (directory->pathname ? directory->pathname : "unknown"), returnValue,
-             returnValue, *returnCode, *reasonCode);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXCLD (fd=%d, path=%s) FAILED: returnValue: %d, "
+              "returnCode: %d, reasonCode: 0x%08x\n",
+              directory->fd, (directory->pathname ? directory->pathname : "unknown"), returnValue,
+              returnValue, *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXCLD_ERR,
-             directory->fd, (directory->pathname ? directory->pathname : "unknown"), returnValue,
-             returnValue, *returnCode, *reasonCode, strerror(*returnCode));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXCLD (fd=%d, path=%s) FAILED: returnValue: %d, "
+              "returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+              directory->fd, (directory->pathname ? directory->pathname : "unknown"), returnValue,
+              returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXCLD_MSG,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCLD (fd=%d, path=%s) OK: returnValue: %d\n",
              directory->fd, (directory->pathname ? directory->pathname : "unknown"),
              returnValue);
     }
@@ -1123,17 +1130,21 @@ int directoryMake(const char *pathName, int mode, int *returnCode, int *reasonCo
   if (fileTrace) {
     if (returnValue != 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXMKD_ERR,
-             pathName, mode, returnValue,
-             *returnCode, *reasonCode);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXMKD (%s, 0%o) FAILED: returnVal: %d, "
+              "returnCode: %d, reasonCode: 0x%08x\n",
+              pathName, mode, returnValue,
+              *returnCode, *reasonCode);
 #else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXMKD_ERR,
-             pathName, mode, returnValue,
-             *returnCode, *reasonCode, strerror(*returnCode));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXMKD (%s, 0%o) FAILED: returnVal: %d, "
+              "returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+               pathName, mode, returnValue,
+               *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXMKD_MSG,
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXMKD (%s,) OK: returnValue: %d\n",
              pathName, returnValue);
     }
   }
@@ -1169,16 +1180,19 @@ int directoryDelete(const char *pathName, int *returnCode, int *reasonCode){
   if (fileTrace) {
     if (returnValue != 0) {
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_METTLE_BPXRMD_ERR,
-             pathName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, 
+              "BPXMKD (%s) FAILED: returnVal: %d\n",
+              pathName, returnValue);
 #else
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_SEVERE, ZCC_LOG_BPXRMD_ERR,
-             pathName, returnValue,
-             *returnCode, *reasonCode, strerror(*returnCode));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXMKD (%s) FAILED: returnVal: %d, "
+              "returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+              pathName, returnValue,
+              *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, ZCC_LOG_BPXRMD_MSG, pathName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRMD (%s) OK: returnValue: %d\n", pathName, returnValue);
     }
   }
 
@@ -1693,10 +1707,10 @@ ExitCode:
     *resCode = reasonCode;
   if (fileTrace) {
     if (returnValue  != 0) {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_WARNING, "directoryChangeModeRecursive: Failed\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeModeRecursive: Failed\n");
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "directoryChangeModeRecursive: Passed\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeModeRecursive: Passed\n");
    }
   }
   return returnValue;
@@ -1717,13 +1731,13 @@ int setUmask(int mask) {
          &returnValue);
 
   if (fileTrace){
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "setUmask(0%o) return 0%o\n", mask, returnValue);
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "setUmask(0%o) return 0%o\n", mask, returnValue);
   }
   return returnValue;
 }
 
 int getUmask() {
-  zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_WARNING, "UMASK: This is a dirty hack.\n");
+  zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "UMASK: This is a dirty hack.\n");
 
   int previous = setUmask(0000);
   setUmask(previous);
@@ -1880,7 +1894,7 @@ static int patternChangeModeFile (const char *fileName,
   const char * baseName;
 
   if (fileTrace) {
-   zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "ChangeModeFile: %s TO %3o  \n", fileName, mode);
+   zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "ChangeModeFile: %s TO %3o  \n", fileName, mode);
   }
 
   /* Test to see if a substring is part of base name */
@@ -2017,10 +2031,10 @@ int directoryChangeModeRecursive(const char *pathName, int flag,
 ExitCode:
   if (fileTrace) {
     if (returnValue  != 0) {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_WARNING, "directoryChangeModeRecursive: Failed\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeModeRecursive: Failed\n");
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "directoryChangeModeRecursive: Passed\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeModeRecursive: Passed\n");
    }
   }
   return returnValue;
@@ -2134,10 +2148,10 @@ ExitCodeError:
 ExitCode:
   if (fileTrace) {
     if (returnValue  != 0) {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_WARNING, "directoryChangeOwnerRecursive: Failed\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeOwnerRecursive: Failed\n");
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_INFO, "directoryChangeOwnerRecursive: Passed\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeOwnerRecursive: Passed\n");
    }
   }
   return returnValue;
