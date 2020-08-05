@@ -199,24 +199,27 @@ void deleteUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
 
 void createFileFromUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
   if (isDir(absolutePath)) {
+
+      char fileNameBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
+      char commandBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
+
       int folderNameLen = strlen(absolutePath);
       if(folderNameLen == 0 || absolutePath == NULL) {
          respondWithJsonError(response, "Failed to idenity the folder pointed", 400, "Bad Request");
       }
+
       int slashPos = lastIndexOf(absolutePath, folderNameLen, '/');
       char *tarFileName = (slashPos == -1) ? absolutePath : absolutePath + slashPos + 1;
-      char finalFileName[strlen(tarFileName) + strlen(".tar")];
-      strcpy(finalFileName, tarFileName);
-      strcat(finalFileName,".tar");
-      char finalCommand[strlen("/bin/sh -c 'tar -cf ") + strlen(finalFileName) + strlen(absolutePath) + 2];
-      strcpy(finalCommand, "/bin/sh -c 'tar -cf ");
-      strcat(finalCommand,finalFileName);
-      strcat(finalCommand," ");
-      strcat(finalCommand,absolutePath);
-      strcat(finalCommand,"'");
-      system(finalCommand);
-      if(doesFileExist(finalFileName)){
-        response200WithMessage(response, "Successfully created a file");
+      snprintf(fileNameBuffer, sizeof(fileNameBuffer), "%s%s", tarFileName, ".tar");
+
+      char *tarCommand = "/bin/sh -c 'tar -cf ";
+      snprintf(commandBuffer, sizeof(commandBuffer), "%s%s%s%s%s", tarCommand, fileNameBuffer, " ", absolutePath, "'");
+
+      // system command will create the tar.
+      system(commandBuffer);
+      if(doesFileExist(fileNameBuffer)){
+        respondWithUnixFileContentsWithAutocvtMode(NULL, response, fileNameBuffer, TRUE, 0);
+        deleteUnixFile(fileNameBuffer);
       }
       else{
         respondWithJsonError(response, "Failed to create tar file", 400, "Bad Request");
