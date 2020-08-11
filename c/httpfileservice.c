@@ -206,6 +206,7 @@ void createFileFromUnixDirectoryAndRespond(HttpResponse *response, char *absolut
       int folderNameLen = strlen(absolutePath);
       if(folderNameLen == 0 || absolutePath == NULL) {
          respondWithJsonError(response, "Failed to idenity the folder pointed", 400, "Bad Request");
+         return;
       }
 
       int slashPos = lastIndexOf(absolutePath, folderNameLen, '/');
@@ -217,16 +218,18 @@ void createFileFromUnixDirectoryAndRespond(HttpResponse *response, char *absolut
 
       // system command will create the tar.
       system(commandBuffer);
-      if(doesFileExist(fileNameBuffer)){
+      if(doesFileExist(fileNameBuffer)) {
         respondWithUnixFileContentsWithAutocvtMode(NULL, response, fileNameBuffer, TRUE, 0);
         deleteUnixFile(fileNameBuffer);
       }
-      else{
+      else {
         respondWithJsonError(response, "Failed to create tar file", 400, "Bad Request");
+        return;
       }
   }
   else {
     respondWithJsonError(response, "Failed to identify a directory with the given name", 400, "Bad Request");
+    return;
   }
 }
 
