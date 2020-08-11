@@ -4053,11 +4053,23 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 #error Unknown OS
 #endif
         ;
-      if (ccsid == 0) {
-        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
-      } else {
-        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, ccsid, webCodePage, asB64);
-      }
+    char *forceEnabled = getQueryParam(response->request, "force");
+    if (ccsid == 0 && strcmp(forceEnabled, "enable")) {
+        char *sourceEncoding = getQueryParam(response->request, "source");
+        char *targetEncoding = getQueryParam(response->request, "target");
+        if(sourceEncoding != NULL && targetEncoding != NULL) {
+           streamTextForFile2(response->socket, in, ENCODING_CHUNKED, sourceEncoding, targetEncoding, asB64);
+        }
+        else {
+           streamTextForFile2(response->socket, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
+        }
+    }
+    else if(ccsid == 0 && strcmp(forceEnabled, "disable")) {
+      streamTextForFile2(response->socket, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
+    }
+    else {
+      streamTextForFile2(response->socket, in, ENCODING_CHUNKED, ccsid, webCodePage, asB64);
+    }
 
 #ifdef USE_CONTINUE_RESPONSE_HACK
       /* See comments above */
