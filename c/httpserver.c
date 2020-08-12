@@ -4064,7 +4064,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
            streamTextForFile2(response->socket, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
         }
     }
-    else if(ccsid == 0 && strcmp(forceEnabled, "disable")) {
+    else if(ccsid == 0)) {
       streamTextForFile2(response->socket, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
     }
     else {
@@ -4201,19 +4201,19 @@ static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile
 
   if ((response && socket) || (!response && !socket)) {
 #ifdef DEBUG
-    printf("bad arguments: either response or socket must be not NULL, never both\n");
+    printf("bad arguments: either response or socket must be not NULL, never both\n");	
 #endif
     return 8;
   }
   if (encoding == ENCODING_GZIP) {
 #ifdef DEBUG
-    printf("GZIP encoding not implemented\n");
+    printf("GZIP encoding not implemented\n");	
 #endif
     return 8;
   }
   if (encoding == ENCODING_CHUNKED && !response) {
 #ifdef DEBUG
-    printf("bad arguments: response must be not NULL to use chunked encoding\n");
+    printf("bad arguments: response must be not NULL to use chunked encoding\n");	
 #endif
     return 8;
   }
@@ -4279,17 +4279,17 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
         other Unix systems. Hence, things like the .htaccess (for Apache).
   */
   if ((response && socket) || (!response && !socket)) {
-#ifdef DEBUG
-    printf("bad arguments: either response or socket must be not NULL, never both\n");
+#ifdef DEBUG	
+    printf("bad arguments: either response or socket must be not NULL, never both\n");	
 #endif
     return 8;
   }
   switch (encoding){
   case ENCODING_CHUNKED:
     if (!response) {
-#ifdef DEBUG
-      printf("bad arguments: response must be not NULL to use chunked encoding\n");
-#endif
+#ifdef DEBUG	
+      printf("bad arguments: response must be not NULL to use chunked encoding\n");	
+#endif	
       return 8;
     }
     stream = makeChunkedOutputStreamInternal(response);
