@@ -1380,7 +1380,7 @@ static int initSessionTokenKey(SessionTokenKey *key) {
   int icsfRC = icsfGenerateRandomNumber(key, sizeof(SessionTokenKey), &icsfRSN);
   if (icsfRC != 0) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-    		ZCC_LOG_SESSION_TOKEN_ERR,
+            "Error: ICSF generation of random number failed. Session token key not generated, RC = %d, RSN = %d\n",
             icsfRC, icsfRSN);
     return -1;
   }
@@ -1484,6 +1484,7 @@ HttpServer *makeHttpServer2(STCBase *base,
                            int port,
                            int tlsFlags,
                            int *returnCode, int *reasonCode){
+  logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
 
   SessionTokenKey sessionTokenKey = {0};
   if (initSessionTokenKey(&sessionTokenKey) != 0) {
@@ -1884,6 +1885,12 @@ static void addRequestHeader(HttpRequestParser *parser){
     if (!compareIgnoringCase(newHeader->nativeValue,"websocket",parser->headerValueLength)){
       parser->isWebSocket = TRUE;
     }
+  } else if (!compareIgnoringCase(newHeader->nativeName, "Connection",
+                                  parser->headerNameLength)) {
+    if (!compareIgnoringCase(newHeader->nativeValue, "Keep-Alive",
+                             parser->headerValueLength)) {
+      parser->keepAlive = TRUE;
+    }
   }
 
   HttpHeader *headerChain = parser->headerChain;
@@ -1905,6 +1912,7 @@ static void enqueueLastRequest(HttpRequestParser *parser) {
   newRequest->uri = copyString(parser->slh, parser->uri, parser->uriLength);
   newRequest->headerChain = parser->headerChain;
   newRequest->isWebSocket = parser->isWebSocket;
+  newRequest->keepAlive = parser->keepAlive;
 
   /* adding support for POST data -jph */
   if (-1 != parser->specifiedContentLength) {
@@ -1948,6 +1956,7 @@ static int resetParserAndEnqueue(HttpRequestParser *parser){
   parser->isWebSocket = FALSE;
   parser->specifiedContentLength = -1;
   parser->state = HTTP_STATE_REQUEST_METHOD;
+  parser->keepAlive = FALSE;
   return HTTP_SERVICE_SUCCESS;
 }
 
@@ -3672,8 +3681,57 @@ HttpRequestParam *getCheckedParam(HttpRequest *request, char *paramName){
   return NULL;
 }
 
-char *getMimeType(char *extension, int *isBinary){
-  if (!strcmp(extension,"gif")){
+static char *getMimeType2(char *extension, int *isBinary, int dotPos);
+
+char *getMimeType(char *extension, int *isBinary) {
+  int dotPos = -1;
+  getMimeType2(extension, isBinary, dotPos);
+}
+
+static char *getMimeType2(char *extension, int *isBinary, int dotPos){
+  if (!strcmp(extension,"js")){
+    *isBinary = FALSE;
+    return "text/javascript";
+  } else if (!strcmp(extension,"ts")){
+    *isBinary = FALSE;
+    return "text/typescript";
+  } else if (!strcmp(extension,"txt") ||
+        !strcmp(extension,"c") || !strcmp(extension,"py") || !strcmp(extension,"rexx") ||
+        !strcmp(extension,"cbl") || !strcmp(extension,"cpy") || !strcmp(extension,"asm") ||
+        !strcmp(extension,"cpp") || !strcmp(extension,"h") || !strcmp(extension,"log") ||
+        !strcmp(extension,"env") ||
+        (dotPos == 0)){
+    *isBinary = FALSE;
+    return "text/plain";
+  } else if (!strcmp(extension,"html") ||
+	     !strcmp(extension,"htm")){
+    *isBinary = FALSE;
+    return "text/html";
+  } else if (!strcmp(extension,"css")){
+    *isBinary = FALSE;
+    return "text/css";
+  } else if(!strcmp(extension,"md")) {
+    *isBinary = FALSE;
+    return "text/markdown";
+  } else if(!strcmp(extension,"bin")) {
+    *isBinary = TRUE;
+    return "application/octet-stream";
+  } else if(!strcmp(extension,"gz")) {
+    *isBinary = TRUE;
+    return "application/gzip";
+  } else if(!strcmp(extension,"jar")) {
+    *isBinary = TRUE;
+    return "application/java-archive";
+  } else if(!strcmp(extension,"json")) {
+    *isBinary = FALSE;
+    return "application/json";
+  } else if(!strcmp(extension,"sh")) {
+    *isBinary = FALSE;
+    return "application/x-sh";
+  } else if(!strcmp(extension,"tar")) {
+    *isBinary = TRUE;
+    return "application/x-tar";
+  } else if (!strcmp(extension,"gif")){
     *isBinary = TRUE;
     return "image/gif";
   } else if (!strcmp(extension,"jpg")){
@@ -3682,19 +3740,6 @@ char *getMimeType(char *extension, int *isBinary){
   } else if (!strcmp(extension,"png")){
     *isBinary = TRUE;
     return "image/png";
-  } else if (!strcmp(extension,"js")){
-    *isBinary = FALSE;
-    return "text/javascript";
-  } else if (!strcmp(extension,"ts")){
-    *isBinary = FALSE;
-    return "text/typescript";
-  } else if (!strcmp(extension,"html") ||
-	     !strcmp(extension,"htm")){
-    *isBinary = FALSE;
-    return "text/html";
-  } else if (!strcmp(extension,"css")){
-    *isBinary = FALSE;
-    return "text/css";
   } else if (!strcmp(extension,"mpg")){
     *isBinary = TRUE;
     return "video/mpeg";
@@ -3704,9 +3749,48 @@ char *getMimeType(char *extension, int *isBinary){
   } else if (!strcmp(extension,"ttf")){
     *isBinary = TRUE;
     return "application/font-ttf";
-  } else{
+  } else if(!strcmp(extension,"avi")) {
+    *isBinary = TRUE;
+    return "video/x-msvideo";
+  } else if(!strcmp(extension,"bmp")) {
+    *isBinary = TRUE;
+    return "image/bmp";
+  } else if(!strcmp(extension,"csv")) {
     *isBinary = FALSE;
-    return "text/plain";
+    return "text/csv";
+  } else if(!strcmp(extension,"doc")) {
+    *isBinary = FALSE;
+    return "application/msword";
+  } else if(!strcmp(extension,"docx")) {
+    *isBinary = FALSE;
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  } else if(!strcmp(extension,"mp3")) {
+    *isBinary = TRUE;
+    return "audio/mpeg";
+  } else if(!strcmp(extension,"jsonld")) {
+    *isBinary = TRUE;
+    return "application/ld+json";
+  } else if(!strcmp(extension,"pdf")) {
+    *isBinary = TRUE;
+    return "application/pdf";
+  } else if(!strcmp(extension,"xls")) {
+    *isBinary = FALSE;
+    return "application/vnd.ms-excel";
+  } else if(!strcmp(extension,"zip")) {
+    *isBinary = TRUE;
+    return "application/zip";
+  } else if(!strcmp(extension,"7z")) {
+    *isBinary = TRUE;
+    return "application/x-7z-compressed";
+  } else if(!strcmp(extension,"webm")) {
+    *isBinary = TRUE;
+    return "video/webm";
+  } else if(!strcmp(extension,"mp4")) {
+    *isBinary = TRUE;
+    return "video/mp4";
+  } else{
+    *isBinary = TRUE;
+    return "application/octet-stream";
   }
 }
 
@@ -3879,6 +3963,10 @@ bool isCachedCopyModified(HttpRequest *req, uint64_t etag, time_t mtime) {
   return true;
 }
 
+static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding, bool asB64);
+static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding,
+                      int sourceCCSID, int targetCCSID, bool asB64);
+
 // Response must ALWAYS be finished on return
 void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode, int autocvt, bool asB64) {
   FileInfo info;
@@ -3892,7 +3980,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     int dotPos = lastIndexOf(absolutePath, filenameLen, '.');
     char *extension = (dotPos == -1) ? "NULL" : absolutePath + dotPos + 1;
     int isBinary = FALSE;
-    char *mimeType = getMimeType(extension,&isBinary);
+    char *mimeType = getMimeType2(extension,&isBinary,dotPos);
     long fileSize = fileInfoSize(&info);
     int ccsid = fileInfoCCSID(&info);
     char tmperr[256] = {0};
@@ -3944,7 +4032,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     addStringHeader(response,"Server","jdmfws");
     addStringHeader(response, "Cache-control", "no-store");
     addStringHeader(response, "Pragma", "no-cache");
-    addIntHeader(response, "Content-Length", asB64 ? 4 * ((fileSize + 2) / 3) : fileSize); /* Is this safe post-conversion??? */
+    addStringHeader(response, "Transfer-Encoding", "chunked");
     setContentType(response, mimeType);
     addCacheRelatedHeaders(response, mtime, etag);
 
@@ -3960,7 +4048,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
       printf("Streaming binary for %s\n", absolutePath);
 #endif
       
-      streamBinaryForFile(response->socket, in, asB64);
+      streamBinaryForFile2(response, NULL, in, ENCODING_CHUNKED, asB64);
     } else {
       writeHeader(response);
 #ifdef DEBUG
@@ -3991,9 +4079,9 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 #endif
         ;
       if (ccsid == 0) {
-        streamTextForFile(response->socket, in, ENCODING_SIMPLE, NATIVE_CODEPAGE, webCodePage, asB64);
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
       } else {
-        streamTextForFile(response->socket, in, ENCODING_SIMPLE, ccsid, webCodePage, asB64);
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, ccsid, webCodePage, asB64);
       }
 
 #ifdef USE_CONTINUE_RESPONSE_HACK
@@ -4112,13 +4200,39 @@ void respondWithJsonError(HttpResponse *response, char *error, int statusCode, c
 
 #define ENCODE64_SIZE(SZ) (2 + 4 * ((SZ + 2) / 3))
 
-int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
+/*
+  * when encoding is ENCODING_SIMPLE then socket is mandatory
+  * when encoding is ENCODING_CHUNKED then response is mandatory
+*/
+static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
   int bufferSize = FILE_STREAM_BUFFER_SIZE;
   char buffer[bufferSize+4];
   int encodedLength;
+  ChunkedOutputStream *stream = NULL;
 
+  if ((response && socket) || (!response && !socket)) {
+#ifdef DEBUG
+    printf("bad arguments: either response or socket must be not NULL, never both\n");	
+#endif
+    return 8;
+  }
+  if (encoding == ENCODING_GZIP) {
+#ifdef DEBUG
+    printf("GZIP encoding not implemented\n");	
+#endif
+    return 8;
+  }
+  if (encoding == ENCODING_CHUNKED && !response) {
+#ifdef DEBUG
+    printf("bad arguments: response must be not NULL to use chunked encoding\n");	
+#endif
+    return 8;
+  }
+  if (encoding == ENCODING_CHUNKED) {
+    stream = makeChunkedOutputStreamInternal(response);
+  }
   while (!fileEOF(in)) {
     int bytesRead = fileRead(in,buffer,bufferSize,&returnCode,&reasonCode);
     if (bytesRead <= 0) {
@@ -4137,15 +4251,31 @@ int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
     }
     char *outPtr = asB64 ? encodedBuffer : buffer;
     int outLen = asB64 ? encodedLength : bytesRead;
-    writeFully(socket, outPtr, outLen);
+    if (encoding == ENCODING_CHUNKED) {
+      writeBytes(stream, outPtr, outLen, NO_TRANSLATE);
+    } else {
+      writeFully(socket, outPtr, outLen);
+    }
 
     if (NULL != encodedBuffer) safeFree31(encodedBuffer, ENCODE64_SIZE(bytesRead)+1);
+  }
+  if (encoding == ENCODING_CHUNKED) {
+    /* finish the chunked output here because finishResponse will not flush this stream's data */
+    finishChunkedOutput(stream, NO_TRANSLATE);
   }
 
   return 0;
 }
-  
-int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
+
+int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
+  return streamBinaryForFile2(NULL, socket, in, ENCODING_SIMPLE, asB64);
+}
+
+/*
+  * when encoding is ENCODING_SIMPLE then socket is mandatory
+  * when encoding is ENCODING_CHUNKED then response is mandatory
+*/
+static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding,
                       int sourceCCSID, int targetCCSID, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
@@ -4154,13 +4284,29 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
   char buffer[bufferSize+4];
   char translation[(2*bufferSize)+4]; /* UTF inflation tolerance */
   int encodedLength;
+  ChunkedOutputStream *stream = NULL;
 
 
   /* Q: How do we find character encoding for unix file? 
      A: You can't. There is no equivalent of USS character encoding tags on
         other Unix systems. Hence, things like the .htaccess (for Apache).
   */
+  if ((response && socket) || (!response && !socket)) {
+#ifdef DEBUG	
+    printf("bad arguments: either response or socket must be not NULL, never both\n");	
+#endif
+    return 8;
+  }
   switch (encoding){
+  case ENCODING_CHUNKED:
+    if (!response) {
+#ifdef DEBUG	
+      printf("bad arguments: response must be not NULL to use chunked encoding\n");	
+#endif	
+      return 8;
+    }
+    stream = makeChunkedOutputStreamInternal(response);
+    /* fallthrough */
   case ENCODING_SIMPLE:
     while (!fileEOF(in)){
 #ifdef DEBUG
@@ -4237,15 +4383,18 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
         outPtr = encodedBuffer;
         outLen = encodedLength;
       }
-      writeFully(socket,outPtr,(int) outLen);
+      if (encoding == ENCODING_CHUNKED) {
+        writeBytes(stream, outPtr, (int) outLen, NO_TRANSLATE);
+      } else {
+        writeFully(socket,outPtr,(int) outLen);
+      }
       if (NULL != encodedBuffer) safeFree31(encodedBuffer, allocSize);
       bytesSent += encodedLength;
     }
-    break;
-  case ENCODING_CHUNKED:
-#ifdef DEBUG
-    printf("HELP - not implemented\n");
-#endif
+    if (encoding == ENCODING_CHUNKED) {
+      /* finish the chunked output here because finishResponse will not flush this stream's data */
+      finishChunkedOutput(stream, NO_TRANSLATE);
+    }
     break;
   case ENCODING_GZIP:
 #ifdef DEBUG
@@ -4260,6 +4409,11 @@ int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
            encoding, sourceCCSID, targetCCSID, asB64, bytesSent);
   }
   return 1;
+}
+
+int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
+                      int sourceCCSID, int targetCCSID, bool asB64) {
+  return streamTextForFile2(NULL, socket, in, encoding, sourceCCSID, targetCCSID, asB64);
 }
 
 int runServiceThread(Socket *socket){
@@ -4835,9 +4989,7 @@ static int httpTaskMain(RLETask *task){
 
   HttpWorkElement *element = (HttpWorkElement*)task->userPointer;
   HttpConversation *conversation = element->conversation;
-#ifdef DEBUG
-  printf("httpTaskMain element=0x%x elt->convo=0x%x\n",element,conversation);
-#endif
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "httpTaskMain element=0x%x elt->convo=0x%x\n",element,conversation);
   if (!conversation->shouldClose) {
     /* Execute only if the conversation is still open */
     serviceResult = handleHttpService(conversation->server,
@@ -5057,10 +5209,9 @@ static void doHttpResponseWork(HttpConversation *conversation)
           workElement->response = response;
           response = NULL; /* transfer the ownership of the response to the subtask */
           conversation->task->userPointer = workElement;
-#ifdef DEBUG
-          printf("about to start RLE Task from main at 0x%x wkElement=0x%x pendingService=0x%x\n",
-                 conversation->task,workElement,conversation->pendingService);
-#endif
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                  "about to start RLE Task from main at 0x%x wkElement=0x%x pendingService=0x%x\n",
+                  conversation->task,workElement,conversation->pendingService);
 
           /* Keep track of number of running tasks */                                                                                                                                                            
           serializeStartRunning(conversation);                                                                                                                                                                   
@@ -5074,10 +5225,10 @@ static void doHttpResponseWork(HttpConversation *conversation)
 #ifdef DEBUG
       printf("doHttpResponseWork:  no service found. conversation=0x%X\n",conversation);
 #endif
-      /* shouldn't I be a 404 */
       respondWithError(response,HTTP_STATUS_NOT_FOUND,"resource or service not found");
-      // Response is finished on return
-      conversation->shouldClose = TRUE;
+      if (!firstRequest->keepAlive) {
+        conversation->shouldClose = TRUE;
+      }
       break;
     }
     /* didn't get a request; nothing to do */
@@ -5615,7 +5766,6 @@ void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 
 int mainHttpLoop(HttpServer *server){
   STCBase *base = server->base;
-  logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
   /* server pointer will be copied/accessible from module->data */
   STCModule *httpModule = stcRegisterModule(base,
                                             STC_MODULE_JEDHTTP,

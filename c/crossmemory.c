@@ -85,6 +85,11 @@ const char *CMS_RC_DESCRIPTION[] = {
 #define CMS_MODULE  CMS_PROD_ID"IS01"
 #endif
 
+/* Check this for backward compatibility with the compile-time dev mode. */
+#ifndef CMS_LPA_DEV_MODE
+#define CMS_LPA_DEV_MODE 0
+#endif
+
 static void eightCharStringInit(EightCharString *string, char *cstring, char padChar) {
   memset(string->text, padChar, sizeof(string->text));
   unsigned int cstringLength = strlen(cstring);
@@ -473,11 +478,42 @@ typedef struct CrossMemoryServerLogServiceParm_tag {
   int messageLength;
 } CrossMemoryServerLogServiceParm;
 
+typedef struct CrossMemoryServerDumpServiceParm_tag {
+
+#define CMS_DUMP_SERVICE_PARM_EYECATCHER  "ZWESXDSV"
+#define CMS_DUMP_SERVICE_VERSION          1
+  // TODO we can improve the data size limit by passing the data address itself
+#define CMS_DUMP_SERVICE_MAX_DATA_SIZE    512
+#define CMS_DUMP_SERVICE_MAX_DESC_SIZE    32
+
+  char eyecatcher[8];
+  uint8_t version;
+  char reserved0[3];
+
+  LogMessagePrefix prefix;
+  char padding1[3];
+
+  char descriptionNullTerm[CMS_DUMP_SERVICE_MAX_DESC_SIZE];
+  uint64_t originalAddress;
+  uint32_t originalSize;
+  uint16_t dataLength;
+  char data[CMS_DUMP_SERVICE_MAX_DATA_SIZE];
+
+} CrossMemoryServerDumpServiceParm;
+
 typedef struct CrossMemoryServerMsgQueueElement_tag {
+
+#define CROSS_MEMORY_SERVER_MSGQEL_TYPE_MSG   1
+#define CROSS_MEMORY_SERVER_MSGQEL_TYPE_DUMP  2
+
   QueueElement queueElement;
   CPID cellPool;
-  char filler0[4];
-  CrossMemoryServerLogServiceParm logServiceParm;
+  uint8_t type;
+  char filler0[3];
+  union {
+    CrossMemoryServerLogServiceParm logServiceParm;
+    CrossMemoryServerDumpServiceParm dumpServiceParm;
+  };
 } CrossMemoryServerMsgQueueElement;
 
 typedef struct CrossMemoryServerConfigServiceParm_tag {
@@ -1591,9 +1627,41 @@ static int handleLogService(CrossMemoryServer *server, CrossMemoryServerLogServi
     return allocRC;
   }
 
+  newElement->type = CROSS_MEMORY_SERVER_MSGQEL_TYPE_MSG;
   newElement->logServiceParm = localParm;
 
   /* log service is always space switch */
+  qEnqueue(server->messageQueue, &newElement->queueElement);
+
+  return RC_CMS_OK;
+}
+
+static int handleDumpService(CrossMemoryServer *server,
+                             CrossMemoryServerLogServiceParm *callerParm) {
+
+  if (callerParm == NULL) {
+    return RC_CMS_STDSVC_PARM_NULL;
+  }
+
+  CrossMemoryServerDumpServiceParm localParm;
+  cmCopyFromSecondaryWithCallerKey(&localParm, callerParm,
+                                   sizeof(CrossMemoryServerDumpServiceParm));
+
+  if (memcmp(localParm.eyecatcher, CMS_DUMP_SERVICE_PARM_EYECATCHER,
+             sizeof(localParm.eyecatcher))) {
+    return RC_CMS_STDSVC_PARM_BAD_EYECATCHER;
+  }
+
+  CrossMemoryServerMsgQueueElement *newElement = NULL;
+  int allocRC = allocateMsgQueueElement(server, &newElement);
+  if (allocRC != RC_CMS_OK) {
+    return allocRC;
+  }
+
+  newElement->type = CROSS_MEMORY_SERVER_MSGQEL_TYPE_DUMP;
+  newElement->dumpServiceParm = localParm;
+
+  /* dump service is always space switch */
   qEnqueue(server->messageQueue, &newElement->queueElement);
 
   return RC_CMS_OK;
@@ -1647,7 +1715,7 @@ static int handleStandardService(CrossMemoryServer *server, CrossMemoryServerPar
     status = handleLogService(server, localParmList->callerData);
     break;
   case CROSS_MEMORY_SERVER_DUMP_SERVICE_ID:
-    status = RC_CMS_PC_NOT_IMPLEMENTED;
+    status = handleDumpService(server, localParmList->callerData);
     break;
   case CROSS_MEMORY_SERVER_CONFIG_SERVICE_ID:
     status = handleConfigService(server, localParmList->callerData);
@@ -2114,6 +2182,11 @@ CrossMemoryServer *makeCrossMemoryServer2(
     server->flags |= CROSS_MEMORY_SERVER_FLAG_CHECKAUTH;
   }
 
+  bool devMode = flags & CMS_SERVER_FLAG_DEV_MODE;
+  if ((flags & CMS_SERVER_FLAG_DEV_MODE_LPA) || CMS_LPA_DEV_MODE || devMode) {
+    server->flags |= CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA;
+  }
+
   int allocResourcesRC = allocServerResources(server);
   if (allocResourcesRC != RC_CMS_OK) {
     safeFree31((char *)server, sizeof(CrossMemoryServer));
@@ -2387,6 +2460,42 @@ static int discardGlobalResources(CrossMemoryServer *server) {
 
 }
 
+static int freeGlobalResources(CrossMemoryServer *server) {
+
+  CrossMemoryServerGlobalArea *globalArea = server->globalArea;
+
+  /* The only resource we may want to release is the LPA module. */
+
+  void * __ptr32 moduleAddressLPA =
+      globalArea->lpaModuleInfo.outputInfo.stuff.successInfo.loadPointAddr;
+  if (moduleAddressLPA != NULL) {
+
+    if (server->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA) {
+      /* If the "clean LPA" flag is set or in dev mode, force the server to
+       * remove the existing LPA module. This will help avoid abandoning too
+       * many module in LPA during development. */
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
+              " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
+      int lpaDeleteRSN = 0;
+      int lpaDeleteRC = lpaDelete(&globalArea->lpaModuleInfo,
+                                  &lpaDeleteRSN);
+      if (lpaDeleteRC != 0) {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+                CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
+        return RC_CMS_LPA_DELETE_FAILED;
+      }
+
+      moduleAddressLPA = NULL;
+      memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
+      memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
+
+    }
+
+  }
+
+  return RC_CMS_OK;
+}
+
 static int initSecuritySubsystem(CrossMemoryServer *server) {
 
   /* We must require the FACILITY class to be RACLISTed and not do that
@@ -2571,6 +2680,8 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
 
     if (moduleAddressLPA != NULL) {
 
+      bool lpaDiscarded = false;
+
       /* Does the module in LPA match our private storage module? */
       CMSBuildTimestamp privateModuleTimestamp = getServerBuildTimestamp();
       if (memcmp(&privateModuleTimestamp, &globalArea->lpaModuleTimestamp,
@@ -2587,10 +2698,13 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
                   globalArea->lpaModuleTimestamp.value,
                   privateModuleTimestamp.value);
 
-#ifdef CMS_LPA_DEV_MODE
-        /* Compiling with CMS_LPA_DEV_MODE will force the server to remove the
-         * existing LPA module if the private module doesn't match it.
-         * This will help avoid abandoning too many module in LPA during
+        lpaDiscarded = true;
+      }
+
+      if (server->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA) {
+        /* If the "clean LPA" flag is set or in dev mode, force the server to
+         * remove the existing LPA module if the private module doesn't match
+         * it. This will help avoid abandoning too many modules in LPA during
          * development. */
         zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
                 " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
@@ -2602,12 +2716,14 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
                   CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
           return RC_CMS_LPA_DELETE_FAILED;
         }
-#endif /* CMS_LPA_DEV_MODE */
 
+        lpaDiscarded = true;
+      }
+
+      if (lpaDiscarded) {
         moduleAddressLPA = NULL;
         memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
         memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
-
       }
 
     } else {
@@ -2745,6 +2861,61 @@ static int establishPCRoutines(CrossMemoryServer *server) {
   return RC_CMS_OK;
 }
 
+static void printLogServiceMsg(CrossMemoryServerMsgQueueElement *msgElement) {
+
+  CrossMemoryServerLogServiceParm *msgParm = &msgElement->logServiceParm;
+
+  if (memcmp(msgParm->eyecatcher, CMS_LOG_SERVICE_PARM_EYECATCHER,
+             sizeof(msgParm->eyecatcher))) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+            CMS_LOG_INVALID_EYECATCHER_MSG, "log parm", msgParm);
+    zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, (char*) msgParm,
+             sizeof(CrossMemoryServerLogServiceParm));
+    return;
+  }
+
+  printf("%.*s", min(msgParm->messageLength, sizeof(msgParm->message)),
+         msgParm->message);
+}
+
+static void printDumpServiceMsg(CrossMemoryServerMsgQueueElement *dumpElement) {
+
+  CrossMemoryServerDumpServiceParm *dumpParm = &dumpElement->dumpServiceParm;
+
+  if (memcmp(dumpParm->eyecatcher, CMS_DUMP_SERVICE_PARM_EYECATCHER,
+             sizeof(dumpParm->eyecatcher))) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+            CMS_LOG_INVALID_EYECATCHER_MSG, "dump parm", dumpParm);
+    zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, (char*) dumpParm,
+             sizeof(CrossMemoryServerDumpServiceParm));
+    return;
+  }
+
+  printf("%.*s"CMS_LOG_DUMP_MSG_ID" Dump of \'%s\' (%u bytes at 0x%p):\n",
+         sizeof(dumpParm->prefix.text), dumpParm->prefix.text,
+         dumpParm->descriptionNullTerm,
+         dumpParm->originalSize, dumpParm->originalAddress);
+
+  char workBuffer[4096];
+  for (int i = 0; ; i++) {
+    char *line = dumpWithEmptyMessageID(workBuffer, sizeof(workBuffer),
+                                        dumpParm->data, dumpParm->dataLength, i);
+    if (line == NULL) {
+      break;
+    }
+    printf("%*s%s\n", LOG_MSG_PREFIX_SIZE, "", line);
+  }
+
+  if (dumpParm->dataLength < dumpParm->originalSize) {
+    printf("%*s"CMS_LOG_DUMP_MSG_ID" . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . \n",
+           LOG_MSG_PREFIX_SIZE, "");
+    printf("%*s"CMS_LOG_DUMP_MSG_ID" %u bytes have been truncated\n",
+           LOG_MSG_PREFIX_SIZE, "",
+           dumpParm->originalSize - dumpParm->dataLength);
+  }
+
+}
+
 static void flushDebugMessages(CrossMemoryServer *server) {
 
   CrossMemoryServerMsgQueueElement *element =
@@ -2752,15 +2923,23 @@ static void flushDebugMessages(CrossMemoryServer *server) {
 
   while (element != NULL) {
 
-    CrossMemoryServerLogServiceParm *msg = &element->logServiceParm;
-
-    if (memcmp(msg->eyecatcher, CMS_LOG_SERVICE_PARM_EYECATCHER, sizeof(msg->eyecatcher))) {
-      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_INVALID_EYECATCHER_MSG, "log parm", msg);
-      zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, (char *)msg, sizeof(CrossMemoryServerLogServiceParm));
-    }
-
     if (logShouldTraceInternal(NULL, LOG_COMP_ID_CMSPC, ZOWE_LOG_INFO)) {
-      printf("%.*s", msg->messageLength > sizeof(msg->message) ? sizeof(msg->message) : msg->messageLength, msg->message);
+
+      switch (element->type) {
+      case CROSS_MEMORY_SERVER_MSGQEL_TYPE_MSG:
+        printLogServiceMsg(element);
+        break;
+      case CROSS_MEMORY_SERVER_MSGQEL_TYPE_DUMP:
+        printDumpServiceMsg(element);
+        break;
+      default:
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+                CMS_LOG_DEBUG_MSG_ID" Bad msg element type @ 0x%p", element);
+        zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, (char*)element,
+                 sizeof(CrossMemoryServerMsgQueueElement));
+        break;
+      }
+
     }
 
     freeMsgQueueElement(element);
@@ -3574,6 +3753,26 @@ static void printServerInitFailedMessage(CrossMemoryServer *srv, int rc) {
 
 }
 
+static bool isDevMode(const CrossMemoryServer *srv) {
+  /* We may add more "dev mode" flags in the future and possibly use
+   * the "CMS_SERVER_FLAG_xxxx values directly. For now, checking the LPA
+   * flag is sufficient. */
+  return srv->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA;
+}
+
+static void printFlagInfo(const CrossMemoryServer *srv) {
+
+  if (isDevMode(srv)) {
+
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_DEV_MODE_ON_MSG);
+
+    wtoPrintf2(srv->startCommandInfo.consoleID, srv->startCommandInfo.cart,
+               CMS_LOG_DEV_MODE_ON_MSG);
+
+  }
+
+}
+
 static void printServerReadyMessage(CrossMemoryServer *srv) {
 
   zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_SERVER_READY_MSG);
@@ -3931,11 +4130,78 @@ static int verifySTEPLIB(CrossMemoryServer *srv) {
   return RC_CMS_OK;
 }
 
-#define MAIN_WAIT_MILLIS 10000
-#define START_COMMAND_HANDLING_DELAY_IN_SEC 5
-#define STCBASE_SHUTDOWN_DELAY_IN_SEC       5
+static bool isReusableASID(void) {
 
-int cmsStartMainLoop(CrossMemoryServer *srv) {
+  const char ascbreus = 0x40;
+
+  ASCB *ascb = getASCB();
+
+  return ascb->ascbflg3 & ascbreus;
+}
+
+__asm("CSVQRGLB CSVQUERY PLISTVER=0,MF=(L,CSVQRGLB)" : "DS"(CSVQRGLB));
+
+static bool isModulePrivate(void) {
+
+  unsigned char attr = 0;
+  int queryRC = 0;
+
+  __asm("CSVQRGLB CSVQUERY PLISTVER=0,MF=L" : "DS"(parmList));
+  parmList = CSVQRGLB;
+
+  /* Use the address of this function itself since it's in the module. */
+  unsigned moduleAddress = (unsigned)&isModulePrivate;
+
+  __asm(
+      "         CSVQUERY INADDR=(%[addr]),OUTATTR3=%[attr]"
+      ",PLISTVER=0,MF=(E,%[parm])                                              \n"
+      : [attr]"=m"(attr), "=NR:r15"(queryRC)
+      : [addr]"r"(&moduleAddress), [parm]"m"(parmList)
+      : "r0", "r1", "r14", "r15"
+  );
+
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+          "CSVQUERY of 0x%08X - attr = 0x%02X, RC = %d",
+          moduleAddress, attr, queryRC);
+
+  if (queryRC != 0) {
+    return false;
+  }
+
+  const unsigned char jobPackAreaMask = 0x40;
+  if (attr & jobPackAreaMask) {
+    return true;
+  }
+
+  return false;
+}
+
+#ifdef _LP64
+#pragma linkage(BPX4QDB,OS)
+#define BPXQDB BPX4QDB
+#else
+#pragma linkage(BPX1QDB,OS)
+#define BPXQDB BPX1QDB
+#endif
+
+static bool isDubStatusOk(int *status, int *bpxRC, int *bpxRSN) {
+
+  const int dubFailRC = 4; /* QDB_DUB_MAY_FAIL */
+
+  BPXQDB(status, bpxRC, bpxRSN);
+
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+          CMS_LOG_DEBUG_MSG_ID" BPXnQDB RV = %d, RC = %d, RSN = 0x%08X\n",
+          *status, *bpxRC, *bpxRSN);
+
+  if (*status == dubFailRC) {
+    return false;
+  }
+
+  return true;
+}
+
+static int testEnvironment(void) {
 
   int authStatus = testAuth();
   if (authStatus != 0) {
@@ -3948,6 +4214,37 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   if ((tcbKey != 2 && tcbKey != 4) || (tcbKey != CROSS_MEMORY_SERVER_KEY)) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_BAD_SERVER_KEY_MSG, tcbKey);
     return RC_CMS_BAD_SERVER_KEY;
+  }
+
+  if (!isReusableASID()) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_REUSASID_NO_MSG);
+  }
+
+  if (!isModulePrivate()) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+            CMS_LOG_NON_PRIVATE_MODULE_MSG);
+    return RC_CMS_NON_PRIVATE_MODULE;
+  }
+
+  int dubStatus = 0, bpxRC = 0, bpxRSN = 0;
+  if (!isDubStatusOk(&dubStatus, &bpxRC, &bpxRSN)) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_DUB_ERROR_MSG,
+            dubStatus, bpxRC, bpxRSN & 0xFFFF);
+    return RC_CMS_BAD_DUB_STATUS;
+  }
+
+  return RC_CMS_OK;
+}
+
+#define MAIN_WAIT_MILLIS 10000
+#define START_COMMAND_HANDLING_DELAY_IN_SEC 5
+#define STCBASE_SHUTDOWN_DELAY_IN_SEC       5
+
+int cmsStartMainLoop(CrossMemoryServer *srv) {
+
+  int envStatus = testEnvironment();
+  if (envStatus != 0) {
+    return envStatus;
   }
 
   int rcvrPushRC = recoveryPush(
@@ -3967,9 +4264,12 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_INIT_STEP_SUCCESS_MSG, "push recovery state");
   }
 
+  printFlagInfo(srv);
+
   int status = RC_CMS_OK;
+  bool globalResourcesAllocated = false;
   bool serverStarted = false;
-  bool startCallbackSuccess = true;
+  bool startCallbackSuccess = false;
   bool resourceManagerInstalled = false;
 
   if (status == RC_CMS_OK) {
@@ -4031,6 +4331,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
       status = allocRC;
     } else {
       zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_INIT_STEP_SUCCESS_MSG, "allocate global resources");
+      globalResourcesAllocated = true;
     }
   }
 
@@ -4057,6 +4358,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   }
 
   if (status == RC_CMS_OK) {
+    startCallbackSuccess = true;
     if (srv->startCallback != NULL) {
       int callbackRC = srv->startCallback(srv->globalArea, srv->callbackData);
       if (callbackRC != 0) {
@@ -4138,6 +4440,18 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
         zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
                 CMS_LOG_TERM_STEP_SUCCESS_MSG, "stop callback");
       }
+    }
+  }
+
+  if (globalResourcesAllocated) {
+    int freeRC = freeGlobalResources(srv);
+    if (freeRC != RC_RESMGR_OK) {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+              CMS_LOG_TERM_STEP_FAILURE_MSG, "free global resources", freeRC);
+      status = (status != RC_CMS_OK) ? status : freeRC;
+    } else {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+              CMS_LOG_TERM_STEP_SUCCESS_MSG, "free global resources");
     }
   }
 
@@ -4363,6 +4677,29 @@ int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString,
   return cmsCallService(serverName, CROSS_MEMORY_SERVER_LOG_SERVICE_ID, &msgParmList, NULL);
 }
 
+int cmsHexDump(const CrossMemoryServerName *serverName,
+               const void *data, unsigned size, const char *description) {
+
+  CrossMemoryServerDumpServiceParm parm = {
+      .eyecatcher = CMS_DUMP_SERVICE_PARM_EYECATCHER,
+      .version = CMS_DUMP_SERVICE_VERSION,
+      .originalAddress = (uint64_t)data,
+      .originalSize = size,
+  };
+
+  initLogMessagePrefix(&parm.prefix);
+
+  strncpy(parm.descriptionNullTerm, description,
+          sizeof(parm.descriptionNullTerm) - 1);
+
+  parm.dataLength = min(sizeof(parm.data), size);
+
+  memcpy(parm.data, data, parm.dataLength);
+
+  return cmsCallService(serverName, CROSS_MEMORY_SERVER_DUMP_SERVICE_ID,
+                        &parm, NULL);
+}
+
 int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,
                      CrossMemoryServerConfigParm *parm) {
 
@@ -4380,6 +4717,42 @@ int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,
       serverName,
       CROSS_MEMORY_SERVER_CONFIG_SERVICE_ID,
       &parmList,
+      NULL
+  );
+  if (serviceRC != RC_CMS_OK) {
+    return serviceRC;
+  }
+
+  *parm = parmList.result;
+
+  return RC_CMS_OK;
+}
+
+int cmsGetConfigParmUnchecked(const CrossMemoryServerName *serverName,
+                              const char *name,
+                              CrossMemoryServerConfigParm *parm) {
+
+  size_t nameLength = strlen(name);
+  if (nameLength > CMS_CONFIG_PARM_MAX_NAME_LENGTH) {
+    return RC_CMS_CONFIG_PARM_NAME_TOO_LONG;
+  }
+
+  CrossMemoryServerConfigServiceParm parmList = {0};
+  memcpy(parmList.eyecatcher, CMS_CONFIG_SERVICE_PARM_EYECATCHER,
+         sizeof(parmList.eyecatcher));
+  memcpy(parmList.nameNullTerm, name, nameLength);
+
+  CrossMemoryServerGlobalArea *cmsGA = NULL;
+  int getGlobalAreaRC = cmsGetGlobalArea(serverName, &cmsGA);
+  if (getGlobalAreaRC != RC_CMS_OK) {
+    return getGlobalAreaRC;
+  }
+
+  int serviceRC = cmsCallService3(
+      cmsGA,
+      CROSS_MEMORY_SERVER_CONFIG_SERVICE_ID,
+      &parmList,
+      CMS_CALL_FLAG_NO_SAF_CHECK,
       NULL
   );
   if (serviceRC != RC_CMS_OK) {

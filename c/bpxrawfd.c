@@ -16,19 +16,6 @@
 
 #ifdef _LP64
 
-#pragma linkage(BPX1PIP,OS)
-#pragma linkage(BPX1FCT,OS)
-#pragma linkage(BPX1CLO,OS)
-#pragma linkage(BPX1RED,OS)
-#pragma linkage(BPX1WRT,OS)
-#define BPXPIP BPX1PIP
-#define BPXFCT BPX1FCT
-#define BPXCLO BPX1CLO
-#define BPXRED BPX1RED
-#define BPXWRT BPX1WRT
-
-#else
-
 #pragma linkage(BPX4PIP,OS)
 #pragma linkage(BPX4FCT,OS)
 #pragma linkage(BPX4CLO,OS)
@@ -39,6 +26,19 @@
 #define BPXCLO BPX4CLO
 #define BPXRED BPX4RED
 #define BPXWRT BPX4WRT
+
+#else
+
+#pragma linkage(BPX1PIP,OS)
+#pragma linkage(BPX1FCT,OS)
+#pragma linkage(BPX1CLO,OS)
+#pragma linkage(BPX1RED,OS)
+#pragma linkage(BPX1WRT,OS)
+#define BPXPIP BPX1PIP
+#define BPXFCT BPX1FCT
+#define BPXCLO BPX1CLO
+#define BPXRED BPX1RED
+#define BPXWRT BPX1WRT
 
 #endif
 
