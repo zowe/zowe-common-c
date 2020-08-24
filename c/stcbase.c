@@ -520,7 +520,7 @@ int stcBaseSelect(STCBase *stcBase,
   }
   
   if (failedToBuildEventSet){
-    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_WARNING, ZCC_LOG_EVENT_SET_ERR);
+    zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_WARNING, "*** WARNING FAILED TO BUILD EVENT SET\n");
     return STC_BASE_SELECT_FAIL;
   } 
   memset(currentReadyEvents,0,sizeof(unsigned long)*currentEventSetSize);

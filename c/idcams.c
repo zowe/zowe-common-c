@@ -452,6 +452,7 @@ void idcamsPrintCommandOutput(const IDCAMSCommandOutput *idcamsOutput) {
 
   IDCAMSOutputRecord *currentNode = idcamsOutput->firstRecord;
   while (currentNode != NULL) {
+    printf("%.*s\n", currentNode->recordLength, currentNode->record);
     currentNode = currentNode->next;
   }
 

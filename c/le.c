@@ -255,7 +255,7 @@ void deleteRLETask(RLETask *task) {
 #endif
 
 #ifdef __ZOWE_OS_ZOS
-void initRLEEnvironment(RLEAnchor *anchor) {
+int initRLEEnvironment(RLEAnchor *anchor) {
 
   establishGlobalEnvironment(anchor);
   RLETask *task = makeRLETask(anchor, 0, NULL);
@@ -265,10 +265,7 @@ void initRLEEnvironment(RLEAnchor *anchor) {
   caa->rleTask = task;
 
   int recoveryRC = recoveryEstablishRouter(RCVR_ROUTER_FLAG_NONE);
-  if (recoveryRC != RC_RCV_OK) {
-    printf("le.c: error - recovery router not established\n"); // TODO: Needs message ID
-  }
-
+  return recoveryRC;
 }
 
 void termRLEEnvironment() {
@@ -291,3 +288,4 @@ void termRLEEnvironment() {
   
   Copyright Contributors to the Zowe Project.
 */
+

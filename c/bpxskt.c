@@ -582,10 +582,6 @@ Socket *socketAccept(Socket *serverSocket, int *returnCode, int *reasonCode){
          returnCode,
          reasonCodePtr);
   if (returnValue == -1){
-    if (socketTrace){
-      printf("Failed to accept new socket errno=%d reasonCode=0x%x\n",
-            *returnCode,*reasonCode);
-    }
     return NULL;
   } else{
     Socket *socket = (Socket*)safeMalloc31(sizeof(Socket),"ServerSideSocket");
@@ -783,9 +779,6 @@ int tcpIOControl(Socket *socket, int command, int argumentLength, char *argument
           returnCode,
           reasonCodePtr);
   if (returnValue < 0){
-    if (socketTrace){
-      printf("ioctl failed ret code %d reason 0x%x\n",*returnCode,*reasonCode);
-    }
     return -1;
   } else {
     *returnCode = 0;
@@ -941,9 +934,6 @@ int setSocketBlockingMode(Socket *socket, int isNonBlocking,
           reasonCodePtr);
   
   if (returnValue < 0){
-    if (socketTrace){
-      printf("BPXFCT failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
-    }
     return -1;
   } else {
     if (socketTrace){
@@ -972,9 +962,6 @@ int setSocketBlockingMode(Socket *socket, int isNonBlocking,
           reasonCodePtr);
   
   if (returnValue < 0){
-    if (socketTrace){
-      printf("BPXFCT failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
-    }
     return returnValue;
   } else {
     if (socketTrace){
@@ -1025,9 +1012,6 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
           returnCode,
           reasonCodePtr);
   if (returnValue < 0){
-    if (socketTrace){
-      printf("read failed ret code %d reason 0x%x\n",*returnCode,*reasonCode);
-    }
     return -1;
   } else {
     if (socketTrace > 2){
@@ -1137,10 +1121,6 @@ int udpSendTo(Socket *socket,
           returnCode,
           reasonCodePtr);
   if (returnValue < 0){
-    if (socketTrace){
-      printf("send failed, sd=%d desired write len %d buffer at 0x%x, ret code %d reason 0x%x\n",
-	          sd,desiredBytes,buffer,*returnCode,*reasonCode);
-    }
     return -1;
   } else {
     if (socketTrace > 2){
@@ -1188,9 +1168,6 @@ int getSocketOption(Socket *socket, int optionName, int *optionDataLength, char 
     printf("after getsockopt, retval=%d ret code %d reason 0x%x\n",returnValue,*returnCode,*reasonCode);
   }
   if (returnValue < 0){
-    if (socketTrace){
-      printf("get sockopt failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
-    }
     return -1;
   } else {
     *returnCode = 0;
@@ -1227,9 +1204,6 @@ int setSocketOption(Socket *socket, int level, int optionName, int optionDataLen
 	 returnCode,
 	 reasonCodePtr);
   if (returnValue < 0){
-    if (socketTrace){
-      printf("set sockopt failed, level=0x%x, option=0x%x ret code %d reason 0x%x\n",level,optionName,*returnCode,*reasonCode);
-    }
     return -1;
   } else {
     *returnCode = 0;
@@ -1292,10 +1266,6 @@ int udpReceiveFrom(Socket *socket,
           returnCode,
           reasonCodePtr);
   if (returnValue < 0){
-    if (socketTrace){
-      printf("recvFrom failed, sd=%d desired buffer len %d buffer at 0x%x, ret code %d reason 0x%x\n",
-	          sd,bufferLength,buffer,*returnCode,*reasonCode);
-    }
     return -1;
   } else {
     if (socketTrace > 2){
@@ -1345,9 +1315,6 @@ int socketSetAdd(SocketSet *set, Socket *socket){
   int sd = socket->sd;
 
   if (sd > set->highestAllowedSD){
-    if (socketTrace){
-      printf("SD=%d out of range (> %d)\n",sd,set->highestAllowedSD);
-    }
     return 12;
   }
 
@@ -1364,9 +1331,6 @@ int socketSetRemove(SocketSet *set, Socket *socket){
   int sd = socket->sd;
 
   if (sd > set->highestAllowedSD){
-    if (socketTrace){
-      printf("SD=%d out of range (> %d)\n",sd,set->highestAllowedSD);
-    }
     return 12;
   }
 
@@ -1672,9 +1636,7 @@ int not_main(int argc, char **argv){
     bytesRead = socketRead(socket,readBuffer,200,&errno,&retcode);
     dumpbuffer(readBuffer,bytesRead);
     for (i=0; i<5; i++){
-      if (socketTrace){
-        printf("SLEEP %d\n",i+1);fflush(stdout);
-      }
+      printf("SLEEP %d\n",i+1);fflush(stdout);
       sleep(1);
     }
   }
@@ -1691,3 +1653,4 @@ int not_main(int argc, char **argv){
   
   Copyright Contributors to the Zowe Project.
 */
+

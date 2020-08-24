@@ -35,8 +35,6 @@
 #include "recovery.h"
 #include "scheduling.h"
 #include "openprims.h"
-#include "logging.h"
-#include "zccLogging.h"
 
 #ifndef __ZOWE_OS_ZOS
 #error non-z/OS environments are not supported
@@ -209,7 +207,7 @@ static int executeRLETask(RLETask *task) {
   if (recoveryRequired) {
     int establishRC = recoveryEstablishRouter(RCVR_ROUTER_FLAG_NONE);
     if (establishRC != RC_RCV_OK) {
-      zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, ZCC_LOG_RECOVERY_ERR, establishRC);
+      printf("error: recovery not established, rc=%d\n", establishRC);
     }
   }
 
@@ -229,9 +227,9 @@ static int executeRLETask(RLETask *task) {
 
 static int identify(Addr31 name, Addr31 code){
 #if SCHEDULING_TRACE > 0
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "identify(2) name=0x%x code=0x%x\n",name,code);
+  printf("identify(2) name=0x%x code=0x%x\n",name,code);
   dumpbuffer((char*)name,8);
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_WARNING, "----\n");
+  printf("----\n");
   dumpbuffer((char*)code,8);
   fflush(stdout);
 #endif
@@ -275,19 +273,19 @@ static int startRLETaskInTCB(RLETask *ctcb, int *completionECB){
 
   Addr31 attachTrampolineCode = getTrampoline();
 #if SCHEDULING_TRACE > 0
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "startCTCB.start attachTrampolineAt 0x%p\n",attachTrampolineCode);
+  printf("startCTCB.start attachTrampolineAt 0x%p\n",attachTrampolineCode);
   fflush(stdout);
 #endif
 
   int status = identify((Addr31)"CTCBTRMP",attachTrampolineCode);
 #if SCHEDULING_TRACE > 0
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "identify status=0x%x\n",status);
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "sCTCB 0\n");
+  printf("identify status=0x%x\n",status);
+  printf("sCTCB 0\n");
   fflush(stdout);
 #endif
   AttachParms *parms = (AttachParms*)safeMalloc31(sizeof(AttachParms),"AttachParms");
 #if SCHEDULING_TRACE > 0
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "sCTCB 1\n");
+  printf("sCTCB 1\n");
   fflush(stdout);
 #endif
 
@@ -303,29 +301,29 @@ static int startRLETaskInTCB(RLETask *ctcb, int *completionECB){
   parms->formatNumber = 1;
 
 #if SCHEDULING_TRACE > 0
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "sCTCB 2\n");
+  printf("sCTCB 2\n");
   fflush(stdout);
 #endif
   parms->ep = (Addr31)"CTCBTRMP";
   ctcb->selfParmList = (Addr31)ctcb;
 #if SCHEDULING_TRACE > 0
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "sCTCB 3 task at 0x%p\n",ctcb);
+  printf("sCTCB 3 task at 0x%p\n",ctcb);
   dumpbuffer((char*)ctcb,sizeof(RLETask));
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "Attach Parms at 0x%p\n",parms);
+  printf("Attach Parms at 0x%p\n",parms);
   dumpbuffer((char*)parms,sizeof(AttachParms));
   fflush(stdout);
 #endif
 
   Addr31 newTaskParmList = (char*)&(ctcb->selfParmList);
 #if SCHEDULING_TRACE > 0
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "newTaskParmList at 0x%p\n",newTaskParmList);
+  printf("newTaskParmList at 0x%p\n",newTaskParmList);
   dumpbuffer((char*)newTaskParmList,0x10);
   fflush(stdout);
 #endif
 
   status = attach((char*)parms,newTaskParmList);
 #if SCHEDULING_TRACE > 0
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "after attach status=0x%x\n",status);
+  printf("after attach status=0x%x\n",status);
   fflush(stdout);
 #endif
   safeFree((char*)parms,sizeof(AttachParms));
@@ -345,7 +343,7 @@ static int startRLETaskInThread(RLETask *task, OSThread *threadData) {
     task->threadData = *osThread;
     task->statusIndicator |= RLE_TASK_STATUS_THREAD_CREATED;
 #if SCHEDULING_TRACE > 0
-    zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "thread create succeeded!\n");
+    printf("thread create succeeded!\n");
     fflush(stdout);
 #endif
   }
@@ -394,7 +392,7 @@ RLETask *makeRLETask(RLEAnchor *anchor,
   CAA *fakeCAA = (CAA*)fakeCAAData;
   CAA *realCAA = (CAA*)realCAA;
 #if SCHEDULING_TRACE > 0
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "fake CAA placed at 0x%x\n",fakeCAA);
+  printf("fake CAA placed at 0x%x\n",fakeCAA);
 #endif
   char *realCAAData = getCAA();
 
@@ -413,7 +411,7 @@ RLETask *makeRLETask(RLEAnchor *anchor,
 #endif
 
 #if SCHEDULING_TRACE > 0
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "CAA at 0x%x\n",realCAAData);
+  printf("CAA at 0x%x\n",realCAAData);
   dumpbuffer(realCAAData,sizeof(CAA));
 #endif
   /* Since we own the stack, we had better note its top properly */
@@ -426,10 +424,10 @@ RLETask *makeRLETask(RLEAnchor *anchor,
   task->messageQueue = makeQueue(QUEUE_ALL_BELOW_BAR);
 
 #if SCHEDULING_TRACE > 0
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "RLETask before start at 0x%x\n",task);
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "addr of statusIndicator = 0x%x\n",&(task->statusIndicator));
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "addr of pauseElement = 0x%x\n",&(task->pauseElement));
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "addr of userPointer = 0x%x\n",&(task->userPointer));
+  printf("RLETask before start at 0x%x\n",task);
+  printf("addr of statusIndicator = 0x%x\n",&(task->statusIndicator));
+  printf("addr of pauseElement = 0x%x\n",&(task->pauseElement));
+  printf("addr of userPointer = 0x%x\n",&(task->userPointer));
   dumpbuffer((char*)task,sizeof(RLETask));
 #endif
 
@@ -472,7 +470,7 @@ void deleteRLETask(RLETask *task) {
 int zosWait(void *ecb, int clearFirst){
   int *ecbAsInteger = (int*)ecb;
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "ecb ?? 0x%x\n",ecb);
+  printf("ecb ?? 0x%x\n",ecb);
   fflush(stdout);
 #endif
   if (clearFirst){
@@ -490,7 +488,7 @@ int zosWait(void *ecb, int clearFirst){
 int zosWaitList(void *ecbList, int numberToWait){
   int *ecbListAsInteger = (int*)ecbList;
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_UTILS, ZOWE_LOG_INFO, "ecbList ?? 0x%x\n",ecbList);
+  printf("ecbList ?? 0x%x\n",ecbList);
   fflush(stdout);
 #endif
   __asm(ASM_PREFIX

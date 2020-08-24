@@ -44,8 +44,6 @@
 #include "zos.h"
 #endif
 #include "xml.h"
-#include "logging.h"
-#include "zccLogging.h"
 
 /** worry about turning ebcdic into UTF-8 on the fly */
 
@@ -237,7 +235,7 @@ static xmlPrinter *makeXmlPrinterInternal(int isCustom,
   if (xmlDeclaration != NULL){
     xmlPrintInternal(p,xmlDeclaration,strlen(xmlDeclaration),TRUE,TRUE);
   }
-  zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, ZCC_LOG_XML_PRINTER_MSG,
+  printf("makeXMLPrinter custom=%d full 0x%x byte 0x%x\n",
 	 p->isCustom,p->customWriteFully,p->customWriteByte);
   return p; 
 }
@@ -259,7 +257,7 @@ xmlPrinter *makeHttpXmlPrinter(unsigned char *handle, char *xmlDeclaration){
   xmlPrinter *p = (xmlPrinter*)safeMalloc(sizeof(xmlPrinter),"xmlPrinter");
   
   if (p == NULL){
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_SEVERE, ZCC_LOG_XML_MALLOC_ERR);
+    printf("malloc fail in makeHttpXMLPrinter...\n");
     fflush(stdout);
   }
 
@@ -299,11 +297,11 @@ xmlPrinter *xmlStart(xmlPrinter *p, char *elementName){
   writeByte(p,'<');
   writeFully(p,elementName,strlen(elementName));
   if (p->stackSize + 1 >= XML_STACK_LIMIT){
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_WARNING, ZCC_LOG_XML_STACK_LIMIT_ERR);
+    printf("XML Printer stack limit exceeded\n");
     fflush(stdout);
   }
   if (p->stackSize > 15 || p->stackSize < 0){
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_WARNING, ZCC_LOG_XML_NEG_STACK_ERR,p->stackSize,elementName);
+    printf("deep /negative XML stack size %d seen while starting level for %s\n",p->stackSize,elementName);
     fflush(stdout);
   }
   p->stack[p->stackSize++] = elementName;
@@ -461,7 +459,7 @@ static void freeBAOS(ByteArrayOutputStream *baos){
 
 static void writeBAOS(ByteArrayOutputStream *baos, int b){
   if (baos->pos == (BAOS_MAX + baos->extraSize)){
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_SEVERE, ZCC_LOG_BAOS_LIMIT_ERR);
+    printf("PANIC, baos out of room\n");
   }
   baos->bytes[baos->pos++] = (char)b;
 }
@@ -477,7 +475,7 @@ static void syntaxError(XmlParser *p, char *formatString, ...){
   vsprintf(buffer,formatString,argPointer);
   va_end(argPointer);
   
-  zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_SEVERE, ZCC_LOG_XML_SYNTAX_ERR,(p ? p->lineNumber : -1) ,buffer);
+  printf("SYNTAX ERROR line=%d %s\n",(p ? p->lineNumber : -1) ,buffer);
 }
 
 static char *getBAOSBytes(XmlParser *p, ByteArrayOutputStream *baos){
@@ -582,7 +580,7 @@ static XMLToken *makeXMLToken(XmlParser *parser, int type){
 }
 
 void printXMLToken(XMLToken *t){
-  zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "<XMLToken %s text=\"%s\">",
+  printf("<XMLToken %s text=\"%s\">",
 	 (t->type >= 0 ? xmlTokenTypeNames[t->type] : "EOF"),
 	 (t->bytes != NULL ? t->bytes : ""));
 }
@@ -613,11 +611,11 @@ static int safeRead(XmlParser *p) {
     if (c == 0x15){
       p->lineNumber++;
       if (traceXML) {
-        zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "read line number %d\n",p->lineNumber);
+        printf("read line number %d\n",p->lineNumber);
       }
     } else{
       if (traceXML) {
-        zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "read '%c' on line %d\n",c,p->lineNumber);
+        printf("read '%c' on line %d\n",c,p->lineNumber);
       }
     }
     return c;
@@ -629,7 +627,7 @@ static int safeRead(XmlParser *p) {
 
 static int sanityCheck(XmlParser *p, char *site){
   if ( (p->lineLength > 1800) && (p->lineBuffer[0x720] != 0x40)){
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_SEVERE, ZCC_LOG_XML_SANITY_ERR,site);
+    printf("sanity check failed at %s\n",site);
     return 0;
   } else{
     return 1;
@@ -655,9 +653,9 @@ static int safeReadUnix(XmlParser *p){
     }
     if (c == 0x15){
       p->lineNumber++;
-      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "read line number %d\n",p->lineNumber);
+      printf("read line number %d\n",p->lineNumber);
     } else{
-      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "read '%c' on line %d\n",c,p->lineNumber);
+      printf("read '%c' on line %d\n",c,p->lineNumber);
     }
     return c;
   }
@@ -686,7 +684,7 @@ static int safeRead1(XmlParser *p) {
     switch (p->readState){
     case READER_STATE_INITIAL:
       p->eof = getline(p->dcb,p->lineBuffer,&(p->lineLength));
-      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "getline1(), length=%d\n", p->lineLength);
+      printf("getline1(), length=%d\n", p->lineLength);
       dumpbuffer(p->lineBuffer,p->lineLength);
       p->readState = READER_STATE_LINE_MIDDLE;
       p->linePos = 1;
@@ -706,7 +704,7 @@ static int safeRead1(XmlParser *p) {
 	return -1;
       } else{
 	p->eof = getline(p->dcb,p->lineBuffer,&(p->lineLength));
-        zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "getline2() length=%d\n",p->lineLength);
+        printf("getline2() length=%d\n",p->lineLength);
         dumpbuffer(p->lineBuffer,p->lineLength);
         p->lineNumber++;
 	p->readState = READER_STATE_LINE_MIDDLE;
@@ -715,7 +713,7 @@ static int safeRead1(XmlParser *p) {
       }
       break;
     default:
-      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_WARNING,ZCC_LOG_XML_UNKNOWN_STATE);
+      printf("unknown state\n");
       break;
     }
   }
@@ -724,9 +722,9 @@ static int safeRead1(XmlParser *p) {
 static int safeRead(XmlParser *p) {
   int c = safeRead1(p);
   if (c == 0x15){
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "newline to %d\n",p->lineNumber);
+    printf("newline to %d\n",p->lineNumber);
   } else{
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "'%c' seen on line number %d\n",c,p->lineNumber);
+    printf("'%c' seen on line number %d\n",c,p->lineNumber);
   }
   return c;
 }
@@ -912,7 +910,7 @@ XMLToken *getXMLToken(XmlParser *p) {
       }
       return makeXMLToken(p,b);
     } else {
-      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_WARNING, ZCC_LOG_XML_UNKNOWN_TOKEN);
+      printf("help unknown token\n");
       return NULL;
     }
   } else { /* NOT TAG MODE*/
@@ -964,7 +962,7 @@ XMLToken *getTokenNoWS(XmlParser *p) {
   while (1) {
     t = getXMLToken(p);
     if (traceXML){
-      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "NO WS loopB type=%s, %s\n",
+      printf("NO WS loopB type=%s, %s\n",
 	     xmlTokenTypeNames[t->type],
 	     (t->type == XMLTOKEN_ID ? t->bytes : ""));
     }
@@ -1040,28 +1038,28 @@ void pprintNode2(XMLNode *node, int indent) {
   int a,c,i;
   switch (node->type) {
   case NODE_TEXT:
-    for (i=0; i<indent; i++) zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, " ");
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "#text: '%s'\n",node->value);
+    for (i=0; i<indent; i++) printf(" ");
+    printf("#text: '%s'\n",node->value);
     break;
   case NODE_ELEMENT:
-    for (i=0; i<indent; i++) zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, " ");
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "<%s cc=%d",node->name,node->childCount);
+    for (i=0; i<indent; i++) printf(" ");
+    printf("<%s cc=%d",node->name,node->childCount);
     for (a=0; a<node->attributeCount; a++) {
       pprintNode2(node->attributes[a],indent);
     }
     if (node->childCount == 0) {
-      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "/>\n");
+      printf("/>\n");
     } else {
-      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, ">\n");
+      printf(">\n");
       for (c=0; c<node->childCount; c++) {
 	pprintNode2(node->children[c],indent+2);
       }
-      for (i=0; i<indent; i++) zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, " ");
-      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "</%s>\n",node->name);
+      for (i=0; i<indent; i++) printf(" ");
+      printf("</%s>\n",node->name);
     }
     break;
   case NODE_ATTRIBUTE:
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, " %s=\"%s\"",node->name,node->value);
+    printf(" %s=\"%s\"",node->name,node->value);
   }
 }
 
@@ -1082,9 +1080,9 @@ void pprintNode(XMLNode *node) {
 void showStack(XmlParser *p, XMLNode** stack, int stackPointer) {
   int i;
   for (i=stackPointer-1; i>=0; i--) {
-    zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "%s ",stack[i]->name);
+    printf("%s ",stack[i]->name);
   }
-  zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "\n");
+  printf("\n");
 }
 
 static char *stateNames[5] ={ "UNKNOWN", "ELEMENT", "ATTRIBUTES", "ELEMENT", "DONE"};
@@ -1108,7 +1106,7 @@ XMLNode *parseXMLNode(XmlParser *p) {
       firstToken = getTokenNoWS(p);
     }
     if (traceXML){
-      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "Parse Loop top state %d '%s'tokenType=%d '%s'\n",
+      printf("Parse Loop top state %d '%s'tokenType=%d '%s'\n",
 	     state,stateNames[state],firstToken->type,tokenTypeNames[firstToken->type]);
       showStack(p,stack,stackPointer);
     }
@@ -1163,7 +1161,7 @@ XMLNode *parseXMLNode(XmlParser *p) {
           XMLToken *valueToken = getTokenNoWS(p);
           XMLToken *nextToken = getTokenNoWS(p);
 	  if (traceXML){
-        zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "ATTR< equalsToken=%s valueToken=%s nextToken=%s\n",
+	    printf("ATTR< equalsToken=%s valueToken=%s nextToken=%s\n",
 		   equalsToken,valueToken,nextToken);
 	  }
           if (equalsToken->type != XMLTOKEN_ATTR_EQUAL) {
@@ -1241,7 +1239,7 @@ XMLNode *parseXMLNode(XmlParser *p) {
 	} else {
 	  syntaxError(p,"junk after document, type=%s",xmlTokenTypeNames[firstToken->type]);
 #ifdef METTLE
-      zowelog(NULL, LOG_COMP_XML, ZOWE_LOG_INFO, "junk linePos = 0x%x len=0x%x\n",p->linePos,p->lineLength);
+	  printf("junk linePos = 0x%x len=0x%x\n",p->linePos,p->lineLength);
 	  dumpbuffer(p->lineBuffer,1024);
 #endif
           return NULL;
