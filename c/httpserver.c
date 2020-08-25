@@ -4063,13 +4063,14 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
            int sscanfSource = sscanf(sourceEncoding, "%d", &sEncoding);
            int sscanfTarget = sscanf(targetEncoding, "%d", &tEncoding);
            if (sscanfSource != 1 || sscanfTarget != 1) {
-             respondWithError(response, HTTP_STATUS_BAD_REQUEST, "source/target encoding value parsing error");
+             respondWithError(response, HTTP_STATUS_BAD_REQUEST, "source/target encoding value parsing error.");
              return;
            }
            streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, sEncoding, tEncoding, asB64);
         }
         else {
-           streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
+          respondWithError(response, HTTP_STATUS_BAD_REQUEST, "force encoding enabled make sure to pass all the requried params");
+          return;
         }
     }
     else if(ccsid == 0) {
