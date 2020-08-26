@@ -3258,7 +3258,7 @@ static int handleHttpService(HttpServer *server,
   printf("service=%s authenticated=%d\n",service->name,request->authenticated);
 #endif
   if (request->authenticated == FALSE){
-    if (service->authFlags & SERVICE_AUTH_FLAG_OPTIONAL == SERVICE_AUTH_FLAG_OPTIONAL) {
+    if (service->authFlags & SERVICE_AUTH_FLAG_OPTIONAL) {
       // Allow the service to decide when to respond with HTTP 401
       serveRequest(service, response, request);
     } else {
