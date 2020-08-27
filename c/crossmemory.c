@@ -4269,7 +4269,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   int status = RC_CMS_OK;
   bool globalResourcesAllocated = false;
   bool serverStarted = false;
-  bool startCallbackSuccess = true;
+  bool startCallbackSuccess = false;
   bool resourceManagerInstalled = false;
 
   if (status == RC_CMS_OK) {
@@ -4358,6 +4358,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   }
 
   if (status == RC_CMS_OK) {
+    startCallbackSuccess = true;
     if (srv->startCallback != NULL) {
       int callbackRC = srv->startCallback(srv->globalArea, srv->callbackData);
       if (callbackRC != 0) {
@@ -4716,6 +4717,42 @@ int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,
       serverName,
       CROSS_MEMORY_SERVER_CONFIG_SERVICE_ID,
       &parmList,
+      NULL
+  );
+  if (serviceRC != RC_CMS_OK) {
+    return serviceRC;
+  }
+
+  *parm = parmList.result;
+
+  return RC_CMS_OK;
+}
+
+int cmsGetConfigParmUnchecked(const CrossMemoryServerName *serverName,
+                              const char *name,
+                              CrossMemoryServerConfigParm *parm) {
+
+  size_t nameLength = strlen(name);
+  if (nameLength > CMS_CONFIG_PARM_MAX_NAME_LENGTH) {
+    return RC_CMS_CONFIG_PARM_NAME_TOO_LONG;
+  }
+
+  CrossMemoryServerConfigServiceParm parmList = {0};
+  memcpy(parmList.eyecatcher, CMS_CONFIG_SERVICE_PARM_EYECATCHER,
+         sizeof(parmList.eyecatcher));
+  memcpy(parmList.nameNullTerm, name, nameLength);
+
+  CrossMemoryServerGlobalArea *cmsGA = NULL;
+  int getGlobalAreaRC = cmsGetGlobalArea(serverName, &cmsGA);
+  if (getGlobalAreaRC != RC_CMS_OK) {
+    return getGlobalAreaRC;
+  }
+
+  int serviceRC = cmsCallService3(
+      cmsGA,
+      CROSS_MEMORY_SERVER_CONFIG_SERVICE_ID,
+      &parmList,
+      CMS_CALL_FLAG_NO_SAF_CHECK,
       NULL
   );
   if (serviceRC != RC_CMS_OK) {
