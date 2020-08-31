@@ -255,7 +255,7 @@ void deleteRLETask(RLETask *task) {
 #endif
 
 #ifdef __ZOWE_OS_ZOS
-int initRLEEnvironment(RLEAnchor *anchor) {
+void initRLEEnvironment(RLEAnchor *anchor) {
 
   establishGlobalEnvironment(anchor);
   RLETask *task = makeRLETask(anchor, 0, NULL);

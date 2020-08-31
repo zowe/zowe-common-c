@@ -741,7 +741,7 @@ int getV4HostByName(char *string){
     /* dumpbuffer((char*)hostent,20); */
     for (i=0; i<hostent->length; i++){
       if (socketTrace){
-	      printf("  addr[%d] = %x\n",i,hostent->addrList[i]);
+        printf("  addr[%d] = %x\n",i,hostent->addrList[i]);
       }
       if (hostent->addrList[i]){
         numericAddress = *(hostent->addrList[i]);
