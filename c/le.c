@@ -265,7 +265,9 @@ void initRLEEnvironment(RLEAnchor *anchor) {
   caa->rleTask = task;
 
   int recoveryRC = recoveryEstablishRouter(RCVR_ROUTER_FLAG_NONE);
-  return recoveryRC;
+  if (recoveryRC != RC_RCV_OK) {
+    printf("le.c: error - recovery router not established\n");
+  }
 }
 
 void termRLEEnvironment() {
