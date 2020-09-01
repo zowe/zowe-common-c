@@ -297,7 +297,7 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
       }
     }
 
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "Plugin=%s, found %d data service(s)\n", plugin->identifier, plugin->dataServiceCount);
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "Plugin=%s, found %d data service(s)\n", plugin->identifier, plugin->dataServiceCount);
     if (plugin->dataServiceCount > 0) {
       plugin->dataServices = (DataService**)safeMalloc(sizeof(DataService*) * plugin->dataServiceCount,"DataServices");
     } else {
@@ -337,7 +337,7 @@ HttpService *makeHttpDataService(DataService *dataService, HttpServer *server) {
   HttpService *httpService = NULL;
   result = makeHttpDataServiceUrlMask(dataService, urlMask, sizeof(urlMask), server->defaultProductURLPrefix);
   if (result != -1) {
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "Installing dataservice %s to URI %s\n", dataService->identifier, urlMask);
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "Installing dataservice %s to URI %s\n", dataService->identifier, urlMask);
     httpService = makeGeneratedService(dataService->identifier, urlMask);
     httpService->authType = SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN; /* The default */
     registerHttpService(server, httpService);
