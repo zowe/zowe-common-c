@@ -4083,32 +4083,11 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 #error Unknown OS
 #endif
         ;
-    char *forceEnabled = getQueryParam(response->request, "force");
-    if (ccsid == 0 && strcmp(forceEnabled, "enable")) {
-        char *sourceEncoding = getQueryParam(response->request, "source");
-        char *targetEncoding = getQueryParam(response->request, "target");
-        int sEncoding;
-        int tEncoding;
-        if(sourceEncoding != NULL && targetEncoding != NULL) {
-           int sscanfSource = sscanf(sourceEncoding, "%d", &sEncoding);
-           int sscanfTarget = sscanf(targetEncoding, "%d", &tEncoding);
-           if (sscanfSource != 1 || sscanfTarget != 1) {
-             respondWithError(response, HTTP_STATUS_BAD_REQUEST, "source/target encoding value parsing error.");
-             return;
-           }
-           streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, sEncoding, tEncoding, asB64);
-        }
-        else {
-          respondWithError(response, HTTP_STATUS_BAD_REQUEST, "force encoding enabled make sure to pass all the requried params");
-          return;
-        }
-    }
-    else if(ccsid == 0) {
-      streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
-    }
-    else {
-      streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, ccsid, webCodePage, asB64);
-    }
+      if (ccsid == 0) {
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
+      } else {
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, ccsid, webCodePage, asB64);
+      }
 
 #ifdef USE_CONTINUE_RESPONSE_HACK
       /* See comments above */
