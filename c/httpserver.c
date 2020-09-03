@@ -3689,11 +3689,10 @@ HttpRequestParam *getCheckedParam(HttpRequest *request, char *paramName){
 static char *getMimeType2(char *extension, int *isBinary, int dotPos);
 
 char *getMimeType(char *extension, int *isBinary) {
-  int dotPos = -1;
-  getMimeType2(extension, isBinary, dotPos);
+  getMimeType2(extension, isBinary, FALSE);
 }
 
-static char *getMimeType2(char *extension, int *isBinary, int dotPos){
+static char *getMimeType2(char *extension, int *isBinary, int isDotFile){
   if (!strcmp(extension,"js")){
     *isBinary = FALSE;
     return "text/javascript";
@@ -3705,7 +3704,7 @@ static char *getMimeType2(char *extension, int *isBinary, int dotPos){
         !strcmp(extension,"cbl") || !strcmp(extension,"cpy") || !strcmp(extension,"asm") ||
         !strcmp(extension,"cpp") || !strcmp(extension,"h") || !strcmp(extension,"log") ||
         !strcmp(extension,"env") ||
-        (dotPos == 0)){
+        (isDotFile == TRUE)){
     *isBinary = FALSE;
     return "text/plain";
   } else if (!strcmp(extension,"html") ||
@@ -3982,12 +3981,22 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 
   if(status == 0) {
     int filenameLen = strlen(absolutePath);
+#ifdef DEBUG
+    printf("Request for file=%s\n",absolutePath);
+#endif
     int dotPos = lastIndexOf(absolutePath, filenameLen, '.');
+    int isDotFile = FALSE;
+    if (dotPos > 0 && (absolutePath[dotPos-1] == '/')){
+      isDotFile = TRUE;
+    }
     char *extension = (dotPos == -1) ? "NULL" : absolutePath + dotPos + 1;
     int isBinary = FALSE;
-    char *mimeType = getMimeType2(extension,&isBinary,dotPos);
+    char *mimeType = getMimeType2(extension,&isBinary,isDotFile);
     long fileSize = fileInfoSize(&info);
     int ccsid = fileInfoCCSID(&info);
+#ifdef DEBUG
+    printf("File ccsid=%d, mimetype=%s\n",ccsid,mimeType);
+#endif
     char tmperr[256] = {0};
 #if defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_LINUX)
     time_t mtime = info.st_mtime;
@@ -4084,7 +4093,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 #endif
         ;
     char *forceEnabled = getQueryParam(response->request, "force");
-    if (ccsid == 0 && strcmp(forceEnabled, "enable")) {
+    if (ccsid == 0 && !strcmp(forceEnabled, "enable")) {
         char *sourceEncoding = getQueryParam(response->request, "source");
         char *targetEncoding = getQueryParam(response->request, "target");
         int sEncoding;
@@ -4096,6 +4105,9 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
              respondWithError(response, HTTP_STATUS_BAD_REQUEST, "source/target encoding value parsing error.");
              return;
            }
+#ifdef DEBUG
+	   printf("Sending with forced conversion between %d and %d\n");
+#endif
            streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, sEncoding, tEncoding, asB64);
         }
         else {
@@ -4104,9 +4116,15 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
         }
     }
     else if(ccsid == 0) {
+#ifdef DEBUG
+	   printf("Sending with default conversion between %d and %d\n", NATIVE_CODEPAGE, webCodePage);
+#endif
       streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
     }
     else {
+#ifdef DEBUG
+	   printf("Sending with tagged conversion between %d and %d\n", ccsid, webCodePage);
+#endif
       streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, ccsid, webCodePage, asB64);
     }
 
