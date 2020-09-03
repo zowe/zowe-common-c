@@ -197,7 +197,10 @@ void deleteUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
   }
 }
 
-void createFileFromUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
+void createArchiveFromUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath) {
+#ifdef METTLE
+  printf("create archive from directory unimplemented in metal\n");
+#else
   if (isDir(absolutePath)) {
 
       char fileNameBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
@@ -231,6 +234,7 @@ void createFileFromUnixDirectoryAndRespond(HttpResponse *response, char *absolut
     respondWithJsonError(response, "Failed to identify a directory with the given name", 400, "Bad Request");
     return;
   }
+#endif
 }
 
 /* Modifies the mode of files/directories */
