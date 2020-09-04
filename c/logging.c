@@ -693,6 +693,7 @@ void _zowelog(LoggingContext *context, uint64 compID, char* path, int line, int 
 		info->path = path;
 		info->compID = compID;
 		destination->handler(context,component,info,formatString,argPointer);
+    free(info);
 	} else {
 		destination->handler(context,component,destination->data,formatString,argPointer);
 	}
