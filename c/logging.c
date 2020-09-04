@@ -647,8 +647,7 @@ int logGetLevel(LoggingContext *context, uint64 compID){
   return component ? component->currentDetailLevel : ZOWE_LOG_NA;
 }
 
-void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...){
-
+void _zowelog(LoggingContext *context, uint64 compID, char* path, int line, int level, char *formatString, ...){
   if (logShouldTrace(context, compID, level) == FALSE) {
     return;
   }
@@ -687,8 +686,16 @@ void zowelog(LoggingContext *context, uint64 compID, int level, char *formatStri
     }
     /* here, pass to a var-args handler */
     va_start(argPointer, formatString);
-
-    destination->handler(context,component,destination->data,formatString,argPointer);
+	if (strncmp(context->eyecatcher, "ZOWECNTX", 7) == 0) {
+		LoggingInfo *info = (LoggingInfo *)safeMalloc(sizeof(LoggingInfo), "LoggingInfo");
+		info->level = level;
+		info->line = line;
+		info->path = path;
+		info->compID = compID;
+		destination->handler(context,component,info,formatString,argPointer);
+	} else {
+		destination->handler(context,component,destination->data,formatString,argPointer);
+	}
  
     va_end(argPointer);
   }
