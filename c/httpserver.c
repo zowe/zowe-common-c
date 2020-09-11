@@ -2486,7 +2486,7 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
 
     authResponse->type = AUTH_TYPE_RACF;
     authResponse->responseDetails.safStatus = status.safStatus;
-    authResponse->authDataFound = (bool)authDataFound;
+    authResponse->authDataFound = authDataFound;
 
     if (pwdCheckRC != 0) {
 #ifdef DEBUG_AUTH
@@ -2870,7 +2870,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   response->sessionCookie = NULL;
 
   AUTH_TRACE("AUTH: tokenCookieText: %s\n",(tokenCookieText ? tokenCookieText : "<noAuthToken>"));
-  authResponse->authDataFound = (bool)(authDataFound || (tokenCookieText != NULL));
+  authResponse->authDataFound = authDataFound || (tokenCookieText != NULL);
   if (tokenCookieText){
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
            "serviceAuthNativeWithSessionToken: tokenCookieText: %s\n",
