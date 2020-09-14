@@ -50,8 +50,10 @@ typedef BPXYGIDN UserInfo;
 /* Function Prototype */
 int gidGetUserInfo(const char *userName,  UserInfo * info,
                          int *returnCode, int *reasonCode);
+int getUserInfo(int uid, UserInfo *info, int *returnCode, int *reasonCode);
 int gidGetGroupInfo(const char *groupName,  GroupInfo *info,
                    int *returnCode, int *reasonCode);
+int getGroupInfo(int gid, GroupInfo *info, int *returnCode, int *reasonCode);
 int userInfoGetUserId (UserInfo *info);
 int groupInfoGetGroupId (GroupInfo *info);
 int userIdGet (char *string, int *returnCode, int *reasonCode);
