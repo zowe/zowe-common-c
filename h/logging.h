@@ -76,8 +76,6 @@ ZOWE_PRAGMA_PACK_RESET
 #define LOG_PROD_ZIS           0x008F000200000000LLU
 #define LOG_PROD_ZSS           0x008F000300000000LLU
 #define LOG_PROD_PLUGINS       0x008F000400000000LLU
-#define LOG_PROD_TEST          0x008F000500000000LLU
-
 
 #define LOG_COMP_ALLOC         0x008F000100010000LLU
 #define LOG_COMP_UTILS         0x008F000100020000LLU
@@ -132,13 +130,6 @@ typedef struct LoggingDestination_tag{
 
 #define MAX_LOGGING_COMPONENTS 256
 #define MAX_LOGGING_DESTINATIONS 32
-
-typedef struct LoggingInfo_tag {
-	int level;
-	int line;
-	char* path;
-	uint64 compID;
-} LoggingInfo;
 
 typedef struct LoggingVendor_tag {
   char eyecatcher[8]; /* RSLOGVNR */
@@ -325,7 +316,6 @@ void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int
   ((component > MAX_LOGGING_COMPONENTS) ? \
    (context->applicationComponents[component].level >= level) : \
    (context->coreComponents[component].level >= level) )
-
 
 #define zowelogx(context, compID, level, formatString, ...) \
   do { \

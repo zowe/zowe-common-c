@@ -439,7 +439,6 @@ LoggingDestination *logConfigureDestination(LoggingContext *context,
   destination->handler = handler;
   destination->dumper = standardDumperFunction;
   destination->state = LOG_DESTINATION_STATE_INIT;
-  destination->handler2 = NULL;
   return destination;
 }
 
@@ -751,12 +750,11 @@ void zowelog2(LoggingContext *context, uint64 compID, int level, void *userData,
     }
     /* here, pass to a var-args handler */
     va_start(argPointer, formatString);
-if (destination->handler2 != NULL) {
-  destination->handler2(context, component, destination->data, level, compID, userData, formatString, argPointer);
-} else {
-  destination->handler(context, component, destination->data, formatString, argPointer);
-}
- 
+    if (destination->handler2 != NULL) {
+      destination->handler2(context, component, destination->data, level, compID, userData, formatString, argPointer);
+    } else {
+      destination->handler(context, component, destination->data, formatString, argPointer);
+    }
     va_end(argPointer);
   }
 }
