@@ -2986,13 +2986,12 @@ static void printDisplayConfigCommandResponse(CrossMemoryServer *server, CMSWTOR
   CART cart = routeInfo->cart;
   int consoleID = routeInfo->consoleID;
   CrossMemoryServerGlobalArea *globalArea = server->globalArea;
-#ifdef CROSS_MEMORY_SERVER_DEBUG
-#define SERVER_INFO_PREFIX CMS_LOG_DISP_CMD_RESULT_MSG"Server name - \'%16.16s\' (debug mode)\n"
-#else
-#define SERVER_INFO_PREFIX CMS_LOG_DISP_CMD_RESULT_MSG"Server name - \'%16.16s\'\n"
-#endif
   zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
-	  SERVER_INFO_PREFIX
+#ifdef CROSS_MEMORY_SERVER_DEBUG
+      CMS_LOG_DISP_CMD_RESULT_MSG"Server name - \'%16.16s\' (debug mode)\n"
+#else
+      CMS_LOG_DISP_CMD_RESULT_MSG"Server name - \'%16.16s\'\n"
+#endif
       "         Global area address = 0x%p\n"
       "           Version          = %d\n"
       "           Key              = %d\n"

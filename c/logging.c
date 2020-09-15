@@ -463,14 +463,14 @@ LoggingDestination *logConfigureDestination3(LoggingContext *context,
                                              LogHandler handler,
                                              DataDumper dumper,
                                              LogHandler2 handler2){
-  if (context == NULL) {
-    context = getLoggingContext();
-  }
-
   LoggingDestination *destination = logConfigureDestination(context, id, name, data, handler);
   if (destination != NULL) {
-    // destination->dumper = dumper;
-    destination->handler2 = handler2;
+    if (destination->handler2 != NULL) {
+      destination->handler2 = handler2;
+    }
+    if (destination->dumper != NULL) {
+      destination->dumper = dumper;
+    }
   }
   return destination;
 }
