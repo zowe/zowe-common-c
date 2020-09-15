@@ -4618,7 +4618,22 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
           ISOTime timeStamp = {0};
           int unixTime = fileInfoUnixCreationTime(&info);
           convertUnixToISO(unixTime, &timeStamp);
-
+          UserInfo userInfo = {0};
+          char user[8+1] = {0};
+          int status = getUserInfo(info.ownerUID, &userInfo, &returnCode, &reasonCode);
+          /* extremely unlikely to get an error here */
+          if (status == 0) {
+            memcpy(user, &userInfo.GIDN_U_NAME, userInfo.GIDN_U_LEN);
+            trimRight(user, strlen(user));
+          }
+          GroupInfo groupInfo = {0};
+          char group[8+1] = {0};
+          status = getGroupInfo(info.ownerGID, &groupInfo, &returnCode, &reasonCode);
+          /* extremely unlikely to get an error here */
+          if (status == 0) {
+            memcpy(group, &groupInfo.GIDS_G_NAME, groupInfo.GIDS_G_LEN);
+            trimRight(group, strlen(group));
+          }
           /*          if(status == 0) { */
             jsonStartObject(out, NULL);
             {
@@ -4629,6 +4644,8 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
               jsonAddInt(out, "ccsid", fileInfoCCSID(&info));
               jsonAddString(out, "createdAt", timeStamp.data);
               jsonAddInt(out, "mode", octalMode);
+              jsonAddString(out, "user", user);
+              jsonAddString(out, "group", group);
             }
             jsonEndObject(out);
             /*          }
