@@ -108,6 +108,15 @@ typedef void (*LogHandler)(struct LoggingContext_tag *context,
                            va_list argList);
 typedef char *(*DataDumper)(char *workBuffer, int workBufferSize, void *data, int dataSize, int lineNumber);
 
+typedef void (*LogHandler2)(struct LoggingContext_tag *context,
+                           LoggingComponent *component, 
+                           void *componentData, // IF: set in existing logConfigureDestination or logConfigureDestination2
+                           int level,
+                           uint64 compID,
+                           void *userData,      // IF: set in the new function logConfigureDestination3                           char *formatString,
+                           char *formatString,
+                           va_list argList);
+
 ZOWE_PRAGMA_PACK
 
 typedef struct LoggingDestination_tag{
@@ -118,6 +127,7 @@ typedef struct LoggingDestination_tag{
   void  *data;          /* used by destination to hold internal state */
   LogHandler handler;
   DataDumper dumper;
+  LogHandler2 handler2;
 } LoggingDestination;
 
 #define MAX_LOGGING_COMPONENTS 256
@@ -307,7 +317,8 @@ bool logShouldTraceInternal(LoggingContext *context, uint64 componentID, int lev
 /* this log message will be sent to the destination associated to the component 
  */
 
-void _zowelog(LoggingContext *context, uint64 compID, char* path, int line, int level, char *formatString, ...);
+void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...);
+void zowelog2(LoggingContext *context, uint64 compID, int level, void *userData, char *formatString, ...);
 void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize);
 
 #define LOGCHECK(context,component,level) \
@@ -315,9 +326,15 @@ void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int
    (context->applicationComponents[component].level >= level) : \
    (context->coreComponents[component].level >= level) )
 
-#define zowelog(context, compID, level, formatString, ...) \
-        _zowelog(context, compID, __FILE__, __LINE__, level, formatString, ##__VA_ARGS__);
 
+#define zowelogx(context, compID, level, formatString, ...) \
+  do { \
+    struct { \
+      char *fileName; \
+      int lineNnumber; \
+    } fileAndLine = {__FILE__, __LINE__}; \
+    zowelog2(context, compID, level, &fileAndLine, formatString, ##__VA_ARGS__); \
+  } while (0)
 LoggingDestination *logConfigureDestination(LoggingContext *context,
                                             unsigned int id,
                                             char *name,
