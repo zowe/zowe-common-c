@@ -216,8 +216,8 @@ void createArchiveFromUnixDirectoryAndRespond(HttpResponse *response, char *abso
       char *tarFileName = (slashPos == -1) ? absolutePath : absolutePath + slashPos + 1;
       snprintf(fileNameBuffer, sizeof(fileNameBuffer), "%s%s", tarFileName, ".tar");
 
-      char *tarCommand = "/bin/sh -c 'tar -cf ";
-      snprintf(commandBuffer, sizeof(commandBuffer), "%s%s%s%s%s", tarCommand, fileNameBuffer, " ", absolutePath, "'");
+      char *tarCommand = "/bin/tar -cf ";
+      snprintf(commandBuffer, sizeof(commandBuffer), "%s%s%s%s", tarCommand, fileNameBuffer, " ", absolutePath);
 
       // system command will create the tar.
       system(commandBuffer);
