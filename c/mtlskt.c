@@ -335,7 +335,6 @@ int setSocketOption(Socket *socket, int level, int optionName, int optionDataLen
          returnCode,
          reasonCodePtr);
   if (returnValue < 0){
-    printf("set sockopt failed, level=0x%x, option=0x%x ret code %d reason 0x%x\n",level,optionName,*returnCode,*reasonCode);
     return -1;
   } else {
     if (socketTrace){

@@ -180,6 +180,8 @@ typedef struct HttpService_tag{
   int    matchFlags;
   int    serviceType; 
   int    authType;
+#define SERVICE_AUTH_FLAG_OPTIONAL 1
+  int    authFlags;
   int    runInSubtask;
   void  *authority; /* NULL unless AUTH_CUSTOM */
   AuthExtract                    *authExtractionFunction;

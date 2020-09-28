@@ -65,7 +65,7 @@ static int string8Compare(void *key1, void *key2){
 
 static void showVersionInfo(DiscoveryContext *context, char *ssName){
   if (context->ssctTraceLevel >= 1){
-    printf("versionInfo can be accessed in authorized mode only\n");
+    zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "versionInfo can be accessed in authorized mode only\n");
   }
 }
 
@@ -138,7 +138,7 @@ static SoftwareInstance *addSoftware(DiscoveryContext *context,
   if (subsystemType != SOFTWARE_TYPE_CICS){   /* CICS names are not determined this early, must be filtered later */
     if (specificBestName &&
         memcmp(specificBestName,bestName,4)){
-      printf("ignoring bestName=%s because not specific request='%s' at 0x%x\n",
+      zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "ignoring bestName=%s because not specific request='%s' at 0x%x\n",
              bestName,
              (specificBestName ? specificBestName : NULL),
              specificBestName);
@@ -148,7 +148,7 @@ static SoftwareInstance *addSoftware(DiscoveryContext *context,
   info->bestName = bestName;
   if ((context->ssctTraceLevel >= 1) ||
       (context->addressSpaceTraceLevel >= 1)){
-    printf("addSoftware info=0x%x type=0x%llx bestName=%s\n",info,info->type,info->bestName);
+    zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "addSoftware info=0x%x type=0x%llx bestName=%s\n",info,info->type,info->bestName);
   }
   if (softwareFlags | SOFTWARE_FLAGS_SUBSYSTEM){
     switch (subsystemType){
@@ -282,10 +282,10 @@ static int walkTCBs1(DiscoveryContext *context,
                      void *visitorContext,
                      char *desiredSubsystemName){
   if (FALSE){
-    printf("TCB at depth=%d\n",depth);
-    printf("  tcbntc(sibling): 0x%x\n",tcb->tcbntc);    
-    printf("  tcbotc(parent ): 0x%x\n",tcb->tcbotc);
-    printf("  tcbltc(child  ): 0x%x\n",tcb->tcbltc);
+    zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "TCB at depth=%d\n",depth);
+    zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "  tcbntc(sibling): 0x%x\n",tcb->tcbntc);
+    zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "  tcbotc(parent ): 0x%x\n",tcb->tcbotc);
+    zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "  tcbltc(child  ): 0x%x\n",tcb->tcbltc);
     /* dumpbuffer((char*)tcb,sizeof(TCB)); */
     fflush(stdout);
   }
@@ -318,44 +318,32 @@ static int walkTCBs1(DiscoveryContext *context,
 static void visitSSCTEntry(DiscoveryContext *context, 
                            SSCT *ssctChain, GDA *gda, int subsystemTypeMask,
                            char *specificBestName){
-  if (context->ssctTraceLevel >= 1){
-    printf("SSCT %.4s at 0x%x specificBestName ptr is 0x%x\n",&(ssctChain->sname),ssctChain,specificBestName);fflush(stdout);
-    dumpbuffer((char*)ssctChain,sizeof(SSCT));
-  }
+  zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "SSCT %.4s at 0x%x specificBestName ptr is 0x%x\n",&(ssctChain->sname),ssctChain,specificBestName);fflush(stdout);
+  dumpbuffer((char*)ssctChain,sizeof(SSCT));
   void *usr1 = (void*)ssctChain->ssctsuse;
-  if (context->ssctTraceLevel >= 1){
-    printf("user pointer at 0x%x COMMON?=%s\n",usr1,isPointerCommon(gda,usr1) ? "YES" : "NO");
-  }
+  zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "user pointer at 0x%x COMMON?=%s\n",usr1,isPointerCommon(gda,usr1) ? "YES" : "NO");
   if (isPointerCommon(gda,usr1)){
     if (context->ssctTraceLevel >= 1){
       dumpbuffer((char*)usr1,48);
     }
     char *sname = &(ssctChain->sname[0]);
     char *usrData = (char*)usr1;
-    if (context->ssctTraceLevel >= 1){
-      printf("sname=%4.4s\n",sname);
-      if (!memcmp(sname,"CICS",4)){
-        dumpbuffer(usrData+0x08,6);
-      }
-      fflush(stdout);
+    zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "sname=%4.4s\n",sname);
+    if (!memcmp(sname,"CICS",4)){
+      dumpbuffer(usrData+0x08,6);
     }
+    fflush(stdout);
     if (!memcmp(usrData+4,"ERLY",4)){  
       ERLYFragment *erly = (ERLYFragment*)usr1;
-      if (context->ssctTraceLevel >= 1){
-        printf("module name %8.8s\n", erly->erlymodn);
-      }
+      zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "module name %8.8s\n", erly->erlymodn);
       if (!memcmp(erly->erlymodn,"CSQ3EPX ",8)){
         if (subsystemTypeMask & SOFTWARE_TYPE_MQ){
-          if (context->ssctTraceLevel >= 1){
-            printf("Possible MQ\n");
-          }
+          zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "Possible MQ\n");
           addSoftware(context,SOFTWARE_TYPE_MQ,0,ssctChain,specificBestName);
         }
       } else if (!memcmp(erly->erlymodn,"DSN3EPX ",8)){
         if (subsystemTypeMask & SOFTWARE_TYPE_DB2){
-          if (context->ssctTraceLevel >= 1){
-            printf("Possible DB2\n");
-          }
+          zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "Possible DB2\n");
           addSoftware(context,
                       SOFTWARE_TYPE_DB2,
                       SOFTWARE_FLAGS_SUBSYSTEM | SOFTWARE_FLAGS_OLTP,
@@ -570,10 +558,8 @@ int findSessions(DiscoveryContext *context,
     nmiBuffer->filters[0].NWMFilterFlags=NWMFILTERRESNAMEMASK;
     memcpy(nmiBuffer->filters[0].NWMFilterResourceName,"TN3270  ",8);   /* is this wrong if TN3270 is not name of TN3270 sever */
 
-    if (context->vtamTraceLevel >= 1){
-      printf("request\n");
-      dumpbuffer((char*)nmiBuffer,0x100);
-    }
+    zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "request\n");
+    dumpbuffer((char*)nmiBuffer,0x100);
     attempts++;
 
     ZISNWMJobName jobName = {.value = "TCPIP   "};
@@ -687,7 +673,7 @@ int findSessions(DiscoveryContext *context,
         case SESSION_KEY_TYPE_IP4_STRING:
         case SESSION_KEY_TYPE_IP6_STRING:
           {
-            printf("Sesssion remote address is %s\n",addressAsString);
+            zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "Sesssion remote address is %s\n",addressAsString);
             
             if (strcmp(stringKeyValue,addressAsString)){
               filtering = TRUE;
@@ -695,7 +681,7 @@ int findSessions(DiscoveryContext *context,
           }
           break;
         default:
-          printf("unsupported SESSION_KEY_TYPE for tn3270 session filtering, %d\n",sessionKeyType);
+          zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "unsupported SESSION_KEY_TYPE for tn3270 session filtering, %d\n",sessionKeyType);
           break;
         }
         zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "fitlering=%d connProto=%d\n",filtering,cnxn->NWMConnProto);
@@ -756,19 +742,16 @@ static void gatherStartedTasks(DiscoveryContext *context, ZOSModel *model){
     if ((ascb->ascbjbni == 0) &&
         (ascb->ascbtsb  == 0)){
       if (ascb->ascbjbns == 0){
-        printf("skipping bogus ASCB found no JBNS, JBNI or TSB for ASID=0x%04x\n",ascb->ascbasid);
+        zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "skipping bogus ASCB found no JBNS, JBNI or TSB for ASID=0x%04x\n",ascb->ascbasid);
         ascb = (ASCB*)ascb->ascbfwdp;
         continue;
       }
-      if ((context->addressSpaceTraceLevel >= 1) ||
-          (context->ssctTraceLevel >= 1)){
-        printf("______________________________________________________________________________________________________\n");
-        printf("STC ASID=0x%04x JOBNAME=%8.8s  jbns=0x%x jbni=0x%x tsb=0x%x\n",
+      zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "______________________________________________________________________________________________________\n");
+      zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "STC ASID=0x%04x JOBNAME=%8.8s  jbns=0x%x jbni=0x%x tsb=0x%x\n",
                (int)(ascb->ascbasid),(jobname ? jobname : "NOJOBNAM"),
                ascb->ascbjbns,
                ascb->ascbjbni,
                ascb->ascbtsb);
-      }
       
       addSTC(context,model,0,0,ascb);
 

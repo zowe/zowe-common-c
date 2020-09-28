@@ -150,7 +150,7 @@ void listDirectory(char *pdsName){
 
   sprintf(filenameBuffer,"//'%s'",pdsName);
   in = fopen(filenameBuffer,"rb");
-  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "fopen in=0x%x errno=%d\n",in,errno);
+   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "fopen in=0x%x errno=%d\n",in,errno);
   while (!feof(in) && !lastBlock){
     /* You should test for the last directory entry (8 bytes of
        X'FF'). Records and blocks after that point are unpredictable. After
@@ -172,7 +172,7 @@ void listDirectory(char *pdsName){
       	break;
       }
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "name='%8s' otherFlags = 0x%x\n",name,flags&0xe0);
-      dumpbuffer(block+posInBlock,blockLength);
+      zowedump(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, block+posInBlock,blockLength);
       posInBlock += blockLength;
     }
   }
@@ -202,9 +202,9 @@ StringList *getPDSMembers(char *pdsName){
 
   sprintf(filenameBuffer,"//'%s'",pdsName);
   in = fopen(filenameBuffer,"rb");
-  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "fopen in=0x%x errno=%d\n",in);
+   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "fopen in=0x%x errno=%d\n",in);
   if (in == 0){
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Error encountered on reading PDS member, returning empty list\n");
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error encountered on reading PDS member, returning empty list\n");
     fflush(stdout);
     return list;
   }
@@ -218,7 +218,7 @@ StringList *getPDSMembers(char *pdsName){
     blockCount++;
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "PDS BLOCK %d, bytesRead=%d\n",blockCount,bytesRead);
     if (bytesRead == 0){
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Error encountered reading PDS member, returning current list\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error encountered reading PDS member, returning current list\n");
       fflush(stdout);
       return list;
     }
@@ -308,7 +308,7 @@ int memberExistsInDDName(char *ddname){
 
   memset(plist,0,GETDSAB_PLIST_LENGTH);
 
-  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "ddname at 0x%x\n",ddname);
+   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "ddname at 0x%x\n",ddname);
   __asm(" GETDSAB DDNAME=(%2),DSABPTR=%1,LOC=ANY,RETCODE=%0,MF=(E,%3) " :
         "=m"(rc), "=m"(dsab) :
         "r"(ddname),  "m"(plist) :
@@ -316,9 +316,9 @@ int memberExistsInDDName(char *ddname){
 
   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "after GETDSAB rc=%d, dsab at 0x%x\n",
          rc,dsab);
-  printf("plist:\n");
-  dumpbuffer(plist,16);
-  printf("dd:\n");
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "plist:\n");
+  zowedump(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, plist,16);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "dd:\n");
   dsabHandle = (DSAB**)((int*)plist)[3];
   /* int foo = ((int*)dsabHandle)[0]; */
   int foo = 0;
@@ -327,9 +327,9 @@ int memberExistsInDDName(char *ddname){
   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "dsabHandle=0x%x ddname2=0x%x foo=0x%x\n",dsabHandle,ddname2,foo);
   
   if (rc == 0){
-    dumpbuffer((char*)dsabHandle,16);
+    zowedump(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,(char*)dsabHandle,16);
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "dsab at 0x%x\n",dsab);
-    dumpbuffer((char*)dsab,64);
+    zowedump(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, (char*)dsab,64);
     
 
     TIOT *tiot = (TIOT*)dsab->dsabtiot;
@@ -344,7 +344,7 @@ int memberExistsInDDName(char *ddname){
          */
     
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "TIOT:\n");
-    dumpbuffer((char*)dsab->dsabtiot,64);
+    zowedump(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,(char*)dsab->dsabtiot,64);
     int tioejfcb = ((int*)dsab->dsabtiot)[3];
     int jfcbSVA = (tioejfcb&0xFFFFFF00)>>8;
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "JFCB SVA = 0x%x\n",jfcbSVA);

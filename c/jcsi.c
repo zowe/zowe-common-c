@@ -25,6 +25,7 @@
 #include "logging.h"
 #include "csi.h"
 #include "jcsi.h"
+
 #define _EDC_ADD_ERRNO2 1
 
 /* 
@@ -67,7 +68,7 @@ csi_parmblock *process_arguments(int argc, char **argv)
     if (0) {
     } else if (0 == strcmp(argv[argindex], "-filter")) {
       if (++argindex >= argc) {
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "missing argument after -filter\n");
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "missing argument after -filter\n");
 	return 0;
       } else {
 	arglen = strlen(argv[argindex]);
@@ -94,13 +95,13 @@ char *csi(csi_parmblock* csi_parms, int *workAreaSize)
   *((int*)work_area) = *workAreaSize;
   IGGCSI00 = (csi_fn *)fetch("IGGCSI00");
   if (0 == IGGCSI00) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "could not fetch IGGCSI00\n");
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "could not fetch IGGCSI00\n");
     return 0;
   }
   /* print_buffer((char*)work_area,256); */
   return_code = (*IGGCSI00)(&reason_code,csi_parms,work_area);
   if (return_code != 0) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "CSI failed ret=%d, rc=%d rchex=%x\n",return_code,reason_code,reason_code);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "CSI failed ret=%d, rc=%d rchex=%x\n", return_code, reason_code, reason_code);
     free(work_area);
     return 0;
   } else {
@@ -158,7 +159,7 @@ int pseudoLS(char *dsn, int fieldCount, char **fieldNames){
         zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "entry name %44.44s\n",entry->name);
         dumpbuffer(entryPointer,0x60);        
         if (entry->flags & CSI_ENTRY_ERROR){
-          zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "entry has error\n");
+          zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "entry has error\n");
           entryPointer += sizeof(EntryData);
         } else{
           switch (entry->type){
@@ -198,7 +199,7 @@ int pseudoLS(char *dsn, int fieldCount, char **fieldNames){
         }
       }
     } else{
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "no entries, no look up failure either\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "no entries, no look up failure either\n");
     }
     safeFree((char*)workArea,WORK_AREA_SIZE);
     return result;
@@ -233,7 +234,7 @@ static char *myFields[] ={ "NAME    ", "LRECL   ", "TYPE    ","VOLSER  ","VOLFLG
 
 EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int workAreaSize, char **fields, int fieldCount, char *resumeName, char *resumeCatalogName, csi_parmblock *returnParms){
   csi_parmblock* csi_parms = returnParms;
-  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "csi query for %s\n",dsn);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "csi query for %s\n", dsn);
   int dsnLen = strlen(dsn);
   char *workArea = NULL;
 
@@ -286,7 +287,7 @@ EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int w
         char type = entry->type;
 
         if (entry->flags & CSI_ENTRY_ERROR){
-	  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "entry has error\n");
+	  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "entry has error\n");
           entryPointer += sizeof(EntryData);
         } else{
           switch (entry->type){
@@ -333,7 +334,7 @@ EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int w
       safeFree((char*)workArea,workAreaSize);
       return entrySet;
     } else{
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "no entries, no look up failure either\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "no entries, no look up failure either\n");
     }
     safeFree((char*)workArea,workAreaSize);
     return entrySet;

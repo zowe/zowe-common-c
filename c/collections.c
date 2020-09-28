@@ -63,7 +63,6 @@ void *fbMgrAlloc(fixedBlockMgr *mgr){
   void *result = NULL;
 
   if (mgr == NULL){
-    printf("fbMgr of %x is NULL!!\n",mgr->owner);
     return NULL;
   }
   if (mgr->freeList != NULL){
