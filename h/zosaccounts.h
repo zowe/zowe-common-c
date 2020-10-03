@@ -18,43 +18,55 @@
 #include "charsets.h"
 #include "unixfile.h"
 
+#define USER_NAME_LEN  8
+#define GROUP_NAME_LEN 8
+
 /* Structure definitioss */
+#pragma pack(packed)
 typedef struct BPXYGIDS_tag {
-  int     GIDS_G_LEN;        // Group name length
-  char    GIDS_G_NAME;       // Group name
-  int     GIDS_G_LEN_ID;     // Group ID length
-  int     GIDS_GROUPID;      // Group ID
-  int     GIDS_COUNT;        // Count of array element
-  int     GIDS_M_LEN;        // Length of member names
-  char    GIDS_M_NAME;       // Name of members
+  int     GIDS_G_LEN;                  // Group name length (always 8)
+  char    GIDS_G_NAME[GROUP_NAME_LEN]; // Group name
+  int     GIDS_G_LEN_ID;               // Group ID length (always 4)
+  int     GIDS_GROUPID;                // Group ID
+  int     GIDS_COUNT;                  // Count of array element
+  struct {
+    int   GIDS_M_LEN;                  // Length of member name (always 8)
+    char  GIDS_M_NAME[USER_NAME_LEN];  // Name of member
+  } GIDS_MEMBERS[];
 }BPXYGIDS;
 
 typedef struct BPXYGIDN_tag {
-  int     GIDN_U_LEN;        // User name length
-  char    GIDN_U_NAME;       // User name
-  int     GIDN_U_LEN_ID;     // User ID length
-  int     GIDN_USERID;       // User ID
-  int     GIDN_G_LEN;        // Group name length
-  int     GIDN_GROUPID;      // Group ID
-  int     GIDN_D_LEN;        // Length of GIDN_D_NAME
-  char    GIDN_D_NAME;       // Initial working directory name
-  int     GIDN_P_LEN;        // Length of GIDN_P_NAME
-  char    GIDN_P_NAME;       // Initial user program name
+  int     GIDN_U_LEN;                 // User name length (always 8)
+  char    GIDN_U_NAME[USER_NAME_LEN]; // User name
+  int     GIDN_U_LEN_ID;              // User ID length (always 4)
+  int     GIDN_USERID;                // User ID
+  int     GIDN_G_LEN;                 // Group ID length (always 4)
+  int     GIDN_GROUPID;               // Group ID
+  int     GIDN_D_LEN;                 // Length of GIDN_D_NAME
+  char    GIDN_D_NAME[];              // Initial working directory name
+  /*
+  GIDN_P_LEN and GIDN_P_NAME cannot be included into the struct.
+  GIDN_D_NAME is a flexible array member and it must be the last member.
+
+  To access GIDN_P_LEN and GIDN_P_NAME use:
+  int GIDN_P_LEN = *(int*)(userInfo->GIDN_D_NAME + userInfo->GIDN_D_LEN);
+  char *GIDN_P_NAME = userInfo->GIDN_D_NAME + userInfo->GIDN_D_LEN + 4;
+ 
+  int     GIDN_P_LEN;                 // Length of GIDN_P_NAME
+  char    GIDN_P_NAME[];              // Initial user program name
+  
+  */
 }BPXYGIDN;
+#pragma pack(reset)
 
 typedef BPXYGIDS GroupInfo;
 typedef BPXYGIDN UserInfo;
 
-#define USER_NAME_LEN 8
-#define GROUP_NAME_LEN 8
-
 /* Function Prototype */
-int gidGetUserInfo(const char *userName,  UserInfo * info,
-                         int *returnCode, int *reasonCode);
-int getUserInfo(int uid, UserInfo *info, int *returnCode, int *reasonCode);
-int gidGetGroupInfo(const char *groupName,  GroupInfo *info,
-                   int *returnCode, int *reasonCode);
-int getGroupInfo(int gid, GroupInfo *info, int *returnCode, int *reasonCode);
+UserInfo *gidGetUserInfo(const char *userName, int *returnCode, int *reasonCode);
+UserInfo *getUserInfo(int uid, int *returnCode, int *reasonCode);
+GroupInfo *gidGetGroupInfo(const char *groupName, int *returnCode, int *reasonCode);
+GroupInfo *getGroupInfo(int gid, int *returnCode, int *reasonCode);
 int userInfoGetUserId (UserInfo *info);
 void userInfoGetUserName (UserInfo *info, char *userNameBuffer);
 int groupInfoGetGroupId (GroupInfo *info);
