@@ -180,8 +180,6 @@ typedef struct HttpService_tag{
   int    matchFlags;
   int    serviceType; 
   int    authType;
-#define SERVICE_AUTH_FLAG_OPTIONAL 1
-  int    authFlags;
   int    runInSubtask;
   void  *authority; /* NULL unless AUTH_CUSTOM */
   AuthExtract                    *authExtractionFunction;
@@ -204,6 +202,8 @@ typedef struct HttpService_tag{
   const char *productURLPrefix; /* provided by the server */
   int doImpersonation;
   AuthValidate                   *authValidateFunction;
+#define SERVICE_AUTH_FLAG_OPTIONAL 1
+  int    authFlags;
 } HttpService;
 
 typedef struct HTTPServerConfig_tag {
