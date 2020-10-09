@@ -1637,11 +1637,6 @@ int directoryChangeTagRecursive(const char *pathName, char *type,
     goto ExitCodeError;
   }
 
-  /* If directory and not recursive, just return */
-  if ((fileInfoIsDirectory(&info) && !recursive)) {
-    goto ExitCode;
-    }
-
   /* Request is for a file. Handle it and exit */
   if (fileInfoIsRegularFile(&info)) {
     if( -1 == patternChangeTagCheck (pathName, &returnCode, 
@@ -1680,21 +1675,17 @@ int directoryChangeTagRecursive(const char *pathName, char *type,
       goto ExitCodeError;
     }
 
-    if (fileInfoIsDirectory(&info)) {
+    if (fileInfoIsDirectory(&info) && recursive) {
       /* Change tag of all sub-directories and files there-in */
       if (-1 ==  directoryChangeTagRecursive(
                          pathBuffer, type, codepage, recursive, pattern,
                          &returnCode, &reasonCode) ){
         goto ExitCodeError;
       }
-    }
-    else {
-      /* change mode of this file, not a directory */
-      if (fileInfoIsRegularFile(&info)) {
-        if( -1 == patternChangeTagCheck (pathBuffer, &returnCode, &reasonCode, 
-                                  codepage, type, pattern)) {
-          goto ExitCodeError;
-        }
+    } else if (fileInfoIsRegularFile(&info)) {
+      if( -1 == patternChangeTagCheck (pathBuffer, &returnCode, &reasonCode, 
+                                codepage, type, pattern)) {
+        goto ExitCodeError;
       }
     }
   } /* End of for loop */
