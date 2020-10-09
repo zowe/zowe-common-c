@@ -488,6 +488,10 @@ char *safeMalloc31(int size, char *site){
     memset(res,0,size);
   } else{
     printf("MALLOC failed, got NULL for size %d at site %s\n",size, site);
+#ifdef TRACK_MEMORY
+    printf("rawBytes=0x%x\n",rawBytes);
+    showOutstanding();
+#endif
   }
 #ifdef TRACK_MEMORY
   safeBytes += size;

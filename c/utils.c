@@ -667,6 +667,9 @@ void hexdump(char *buffer, int length, int nominalStartAddress, int formatWidth,
       } else{
         linePos += sprintf(lineBuffer+linePos,"  ");
       }
+      if ((pos % 4) == 3){
+	linePos += sprintf(lineBuffer+linePos," ");
+      }
     }
     linePos += sprintf(lineBuffer+linePos,"%s|",pad2);
     for (pos=0; pos<formatWidth && (index+pos)<length; pos++){
@@ -1466,16 +1469,20 @@ ShortLivedHeap *makeShortLivedHeap64(int blockSize, int maxBlocks){
 
 char *SLHAlloc(ShortLivedHeap *slh, int size){
   /* expand for fullword alignment */
-  int rem = size & 0x3;
+  int rem = size & 0x7;
   if (rem != 0){
-    size += (4-rem);
+    size += (8-rem);
   }
   char *data;
   /* printf("slh=%d\n",slh);fflush(stdout);
      printf("SLHAlloc me=0x%x size=%d bc=%d\n",slh,size,slh->blockCount);fflush(stdout); */
   int remainingHeapBytes = (slh->blockSize * (slh->maxBlocks - slh->blockCount));
   if (size > remainingHeapBytes){
-    printf("cannot allocate above block size %d > %d mb %d bc %d\n",size,remainingHeapBytes,slh->maxBlocks,slh->blockCount);
+    printf("SLH at 0x%p cannot allocate above block size %d > %d mxbl %d bkct %d bksz %d\n",
+	   slh,size,remainingHeapBytes,slh->maxBlocks,slh->blockCount,slh->blockSize);
+    
+    char *mem = (char*)0;
+    mem[0] = 13;
     return NULL;
   } else if (size > slh->blockSize){
     char *bigBlock = (slh->is64 ? 
