@@ -106,6 +106,8 @@ static void resetESPIE(int token) {
     supervisorMode(TRUE);
   }
 
+  
+
 }
 
 static int setDummyESPIE() {
@@ -133,7 +135,6 @@ static int setDummyESPIE() {
       :
       : "r2"
   );
-
 
   ALLOC_STRUCT31(
     STRUCT31_NAME(parms31),
@@ -897,9 +898,7 @@ void recoveryDESCTs(){
 #endif
 
 RecoveryContext *getRecoveryContext() {
-  srbPrintf("getRecoveryContext()\n");
 #ifdef CUSTOM_CONTEXT_GETTER
-  srbPrintf("custom case\n");
   return rcvrgcxt();
 #else
 #ifdef __ZOWE_OS_ZOS
@@ -1125,8 +1124,6 @@ static int establishRouterInternal(RecoveryContext *userContext,
     context = userContext;
   }
 
-  srbPrintf("recovery.c: about to set recovery context 0x%p frr?=%d\n",
-	    context,frrRequired);
   int setRC = setRecoveryContext(context);
   if (setRC != RC_RCV_OK) {
     rc = RC_RCV_CONTEXT_NOT_SET;
@@ -1695,7 +1692,6 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
                  CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
 
   RecoveryContext *context = getRecoveryContext();
-  srbPrintf("rPush context=0x%p\n",context);
   if (context == NULL) {
     return RC_RCV_CONTEXT_NOT_FOUND;
   }
@@ -1705,16 +1701,13 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
     return RC_RCV_LNKSTACK_ERROR;
   }
 
-  srbPrintf("rpush.1\n");
   RecoveryStateEntry *newEntry =
       addRecoveryStateEntry(context, name, flags, dumpTitle,
                             userAnalysisFunction, analysisFunctionUserData,
                             userCleanupFunction, cleanupFunctionUserData);
-  srbPrintf("rpush.2 newEntry=0x%p\n",newEntry);
   if (newEntry == NULL) {
     return RC_RCV_ALLOC_FAILED;
   }
-  srbPrintf("newEntry=0x%p\n",newEntry);
   newEntry->linkageStackToken = linkageStackToken;
 
   /* Extract key from the newly created stacked state. IPK cannot be used
@@ -1795,8 +1788,6 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
       : "NR:r9"(newEntry)
       : "r2", "r10", "r11", "r14", "r15"
   );
-
-  srbPrintf("rPush after ASM\n");
 
   if (newEntry->state & RECOVERY_STATE_ABENDED) {
     if (newEntry->flags & RCVR_FLAG_DELETE_ON_RETRY) {

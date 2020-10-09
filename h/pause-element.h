@@ -83,6 +83,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define pePause PETPAUSE
 #define peRelease PETRLS
 #define peRetrieveInfo PETINFO
+#define peRetrieveInfo2 PETINF2
 #define peTest PETTEST
 #define peTranfer PETTRNFR
 
@@ -169,6 +170,11 @@ int peRetrieveInfo(const PET *token,
                    PEInfo *info,
                    bool isBranchLinkage);
 
+int peRetrieveInfo2(const PET *token,
+		    PEInfo *info,
+		    bool isBranchLinkage,
+		    bool untrusted);
+
 /**
  * @brief Test a pause element and determines its state. The caller is
  * responsible for providing any needed recovery. The call will ABEND if a bad
@@ -207,11 +213,11 @@ int peTest(const PET *token,
  *
  * @return The IEAVXFR2 return code value.
  */
-int peTranfer(const PET *token, PET *newToken,
-              PEReleaseCode *releaseCode,
-              const PET *targetToken,
-              PEReleaseCode targetReleaseCode,
-              bool isBranchLinkage);
+int peTransfer(const PET *token, PET *newToken,
+	       PEReleaseCode *releaseCode,
+	       const PET *targetToken,
+	       PEReleaseCode targetReleaseCode,
+	       bool isBranchLinkage);
 
 #endif /* SRC_PAUSE_ELEMENT_H_ */
 

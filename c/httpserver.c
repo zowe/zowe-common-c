@@ -3887,6 +3887,8 @@ static MimeType MIME_TYPES[] = {
   {"md", "text/markdown", FALSE},
   {"sh", "application/x-sh", FALSE},
   {"bin", "application/octet-stream", TRUE},
+  {"o", "application/octet-stream", TRUE},
+  {"dbg", "application/octet-stream", TRUE},
   {"gz", "application/gzip", TRUE},
   {"jar", "application/java-archive", TRUE},
   {"tar", "application/x-tar", TRUE},
@@ -3979,6 +3981,7 @@ void respondWithUnixFileContents2 (HttpService* service, HttpResponse* response,
 
 // Response must ALWAYS be finished on return
 void respondWithUnixFileContentsWithAutocvtMode (HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode, int autocvt) {
+  printf("JOE: respondWithUnixFileContentsWithAutocvtMode path=%s, jsonMode=%d autocvt=%d\n",absolutePath,jsonMode,autocvt);
   FileInfo info;
   int returnCode;
   int reasonCode;
@@ -4197,6 +4200,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
       service->customHeadersFunction(service, response);
     }
 
+    printf("JOE: isBinary=%d ccsi=%d\n",isBinary,ccsid);
     if (isBinary || ccsid == -1) {
       writeHeader(response);
 #ifdef DEBUG

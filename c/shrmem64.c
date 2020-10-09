@@ -19,6 +19,7 @@
 #include "stdbool.h"
 #include "stddef.h"
 #include "stdint.h"
+#include "stdio.h"
 #endif
 
 #include "shrmem64.h"
@@ -69,6 +70,48 @@ static MemObj getSharedMemObject(uint64_t segmentCount,
       : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
       : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
         [parm]"r"(&parmList)
+      : "r0", "r1", "r14", "r15"
+  );
+
+  if (iarv64RC) {
+    *iarv64RC = localRC;
+  }
+  if (iarv64RSN) {
+    *iarv64RSN = localRSN;
+  }
+
+  return result;
+}
+
+static MemObj getCommonMemObject(uint64_t segmentCount,
+                                 MemObjToken token,
+				 int key,
+                                 uint32_t *iarv64RC,
+                                 uint32_t *iarv64RSN){
+
+  MemObj result = 0;
+  int localRC = 0;
+  int localRSN = 0;
+  char parmList[IARV64_V4PLIST_SIZE] = {0};
+  char keyByte = key & 0xF;
+  keyByte = (keyByte << 4);  /* because there's always one more thing in MVS */
+
+  __asm(
+      ASM_PREFIX
+      "         IARV64 REQUEST=GETCOMMON"
+      ",MOTKN=(%[token])"
+      ",COND=YES"
+      ",KEY=%[key]"
+      ",FPROT=NO"
+      ",SEGMENTS=(%[size])"
+      ",ORIGIN=(%[result])"
+      ",RETCODE=%[rc]"
+      ",RSNCODE=%[rsn]"
+      ",PLISTVER=4"
+      ",MF=(E,(%[parm]),COMPLETE)                                              \n"
+      : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
+      : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
+        [parm]"r"(&parmList),[key]"m"(keyByte)
       : "r0", "r1", "r14", "r15"
   );
 
@@ -141,6 +184,42 @@ static void detachSingleSharedMemObject(MemObj object,
       ",MOTKNCREATOR=USER"
       ",AFFINITY=LOCAL"
       ",OWNER=YES"
+      ",COND=YES"
+      ",RETCODE=%[rc]"
+      ",RSNCODE=%[rsn]"
+      ",PLISTVER=4"
+      ",MF=(E,(%[parm]),COMPLETE)                                              \n"
+      : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
+      : [mobj]"r"(&object), [parm]"r"(&parmList), [token]"r"(&token)
+      : "r0", "r1", "r14", "r15"
+  );
+
+  if (iarv64RC) {
+    *iarv64RC = localRC;
+  }
+  if (iarv64RSN) {
+    *iarv64RSN = localRSN;
+  }
+
+}
+
+static void detachSingleSharedMemObjectNotOwner(MemObj object,
+						MemObjToken token,
+						uint32_t *iarv64RC,
+						uint32_t *iarv64RSN) {
+  int localRC = 0;
+  int localRSN = 0;
+  char parmList[IARV64_V4PLIST_SIZE] = {0};
+
+  __asm(
+      ASM_PREFIX
+      "         IARV64 REQUEST=DETACH"
+      ",MATCH=SINGLE"
+      ",MEMOBJSTART=(%[mobj])"
+      ",MOTKN=(%[token])"
+      ",MOTKNCREATOR=USER"
+      ",AFFINITY=LOCAL"
+      ",OWNER=NO"
       ",COND=YES"
       ",RETCODE=%[rc]"
       ",RSNCODE=%[rsn]"
@@ -310,6 +389,36 @@ int shrmem64Alloc(MemObjToken userToken, size_t size, void **result, int *rsn) {
   return RC_SHRMEM64_OK;
 }
 
+int shrmem64CommonAlloc(MemObjToken userToken, size_t size, void **result, int *rsn) {
+  return shrmem64CommonAlloc2(userToken,size,0,result,rsn);
+}
+
+int shrmem64CommonAlloc2(MemObjToken userToken, size_t size, int key, void **result, int *rsn) {
+
+  uint32_t iarv64RC = 0, iarv64RSN = 0;
+
+  /*
+   * Convert size in bytes into segments (megabytes), round up if necessary.
+   */
+  uint64_t segmentCount = 0;
+  if ((size & 0xFFFFF) == 0) {
+    segmentCount = size >> 20;
+  } else{
+    segmentCount = (size >> 20) + 1;
+  }
+
+  MemObj mobj = getCommonMemObject(segmentCount, userToken, key,
+                                   &iarv64RC, &iarv64RSN);
+  if (!isIARV64OK(iarv64RC)) {
+    *rsn = makeRSN(RC_SHRMEM64_GETCOMMON_FAILED, iarv64RC, iarv64RSN);
+    return RC_SHRMEM64_GETSHARED_FAILED;
+  }
+
+  *result = (void *)mobj;
+
+  return RC_SHRMEM64_OK;
+}
+
 int shrmem64Release(MemObjToken userToken, void *target, int *rsn) {
 
   uint32_t iarv64RC = 0, iarv64RSN = 0;
@@ -360,6 +469,25 @@ int shrmem64RemoveAccess(MemObjToken userToken, void *target, int *rsn) {
   MemObj mobj = (MemObj)target;
 
   detachSingleSharedMemObject(mobj, userToken, &iarv64RC, &iarv64RSN);
+  if (!isIARV64OK(iarv64RC)) {
+    *rsn = makeRSN(RC_SHRMEM64_DETACH_FAILED, iarv64RC, iarv64RSN);
+    return RC_SHRMEM64_DETACH_FAILED;
+  }
+
+  return RC_SHRMEM64_OK;
+}
+
+int shrmem64RemoveAccess2(MemObjToken userToken, void *target, bool isOwner, int *rsn) {
+
+  uint32_t iarv64RC = 0, iarv64RSN = 0;
+
+  MemObj mobj = (MemObj)target;
+
+  if (isOwner){
+    detachSingleSharedMemObject(mobj, userToken, &iarv64RC, &iarv64RSN);
+  } else{
+    detachSingleSharedMemObjectNotOwner(mobj, userToken, &iarv64RC, &iarv64RSN);
+  }
   if (!isIARV64OK(iarv64RC)) {
     *rsn = makeRSN(RC_SHRMEM64_DETACH_FAILED, iarv64RC, iarv64RSN);
     return RC_SHRMEM64_DETACH_FAILED;

@@ -64,6 +64,11 @@ MemObjToken shrmem64GetAddressSpaceToken(void);
  */
 int shrmem64Alloc(MemObjToken userToken, size_t size, void **result, int *rsn);
 
+/** Variant for common (shared with everybody!) 
+ */
+int shrmem64CommonAlloc(MemObjToken userToken, size_t size, void **result, int *rsn);
+int shrmem64CommonAlloc2(MemObjToken userToken, size_t size, int key, void **result, int *rsn);
+
 /**
  * @brief Releases 64-bit shared storage. The storage will still be accessible
  * in the address spaces that have issued shrmem64GetAccess. No new access can
@@ -121,6 +126,7 @@ int shrmem64GetAccess(MemObjToken userToken, void *target, int *rsn);
  * @return One of the RC_SHRMEM64_xx return codes.
  */
 int shrmem64RemoveAccess(MemObjToken userToken, void *target, int *rsn);
+int shrmem64RemoveAccess2(MemObjToken userToken, void *target, bool isOwner, int *rsn);
 
 #define RC_SHRMEM64_OK                          0
 #define RC_SHRMEM64_GETSHARED_FAILED            8
@@ -128,6 +134,7 @@ int shrmem64RemoveAccess(MemObjToken userToken, void *target, int *rsn);
 #define RC_SHRMEM64_ALL_SYS_DETACH_FAILED       10
 #define RC_SHRMEM64_SINGLE_SYS_DETACH_FAILED    11
 #define RC_SHRMEM64_DETACH_FAILED               12
+#define RC_SHRMEM64_GETCOMMON_FAILED            13
 
 #endif /* SRC_SHRMEM64_H_ */
 

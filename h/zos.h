@@ -673,7 +673,15 @@ typedef struct tcb_tag{
   Addr31 tcbback; /* 0xDC - previous entry on queue */
   Addr31 tcbrtwa; /* 0xE0 - Pointer to RTM2 work area */
   char undifferentiated1[0x1C]; 
-  char undifferentiated2[0x38]; /* 0x100 */
+  /* OFFSET 0x100 */
+  char     tcbtcbid[4];   /* eyecatcher */
+  Addr31   tcbrtm12;
+  char     tcbscbky;   
+  char     tcbestrm;
+  char     tcbertyp;
+  char     tcbmode;
+  /* 0x10C */
+  char undifferentiated2[0x2C]; /* 0x100 */
   Addr31 tcbstcb;
   char undifferentiated3[0x18]; /* 0x100 */
   Addr31 tcbsenv; /* securirt environment, 0 or ACEE, 0 means use ASCB/ASXB env */
@@ -747,6 +755,23 @@ typedef struct stcb_tag{
                       Serialization: run under this task. */
   Addr31 stcblaa;  /* Address of LE Library Anchor Area */
   Addr31 stcbpie;  /* Address of PIE control block */
+  char   stcbpmsk; /* Program mask at time of SPIE initiation */
+  char   stcbflg8; /* Flags include 80-ESPIE-(not-SPIE), 40-ESPIE-SRB-SHOULD-CALL-LE */
+  short  stcbspov; /* count of SPIE/ESPIE overrdies */
+  /* Offset 0x210 */
+  Addr31 stcbrbp;  /* Address of RB which had the program interrupt */
+  char   reserved214;
+  char   stcbilc;  /* instruction length code */
+  unsigned short stcbintc;  /* PIC code */
+  char   stcbppsw[8]; /* PSW at program interrupt */
+  /* Offset 0x220 */
+  Addr31 stcbrpp;     /* PICA (SPIE definition) */
+  Addr31 stcbfrpq;    /* Free RPP queue header */
+  Addr31 stcblscr;    /* Linkage stack control register at time of error for ESPIE */
+  unsigned int stcbsars[16];  /* Access registers at time of error */
+  /* offset 0x26C */
+  char   stcbwork[4]; /* Work area used during ESPIE */
+  
 } STCB;
 
 /* See for OMVS structs:
