@@ -32,6 +32,7 @@ tml
 #include "charsets.h"
 #include "unixfile.h"
 #include "timeutls.h"
+#include "logging.h"
 
 static int accountTrace = FALSE;
 
@@ -88,18 +89,18 @@ int gidGetUserInfo(const char *userName,  UserInfo * info,
     if(returnValue == 0) {
 #ifdef METTLE
       /* Do not add a comma */
-      printf("BPXGPN (%s) FAILED: returnValue: %d, returnCode:"
-             " %d, reasonCode: 0x%08x\n",
-             userName, returnValue, *returnCode, *reasonCode);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXGPN (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+              userName, returnValue, *returnCode, *reasonCode);
 #else
-      printf("BPXGPN (%s) FAILED: returnValue: %d, returnCode: %d,"
-             " reasonCode: 0x%08x, strError: (%s)\n",
-             userName, returnValue, *returnCode, *reasonCode, 
-             strerror(*returnCode));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXGPN (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+              userName, returnValue, *returnCode, *reasonCode, 
+              strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXGPN (%s) OK: returnVal: %d\n", userName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXGPN (%s) OK: returnVal: %d\n", userName, returnValue);
     }
   }
 
@@ -135,18 +136,18 @@ int resetZosUserPassword(const char *userName,  const char *password, const char
     if(returnValue == 0) {
 #ifdef METTLE
       /* Do not add a comma */
-      printf("BPXPWD (%s) FAILED: returnValue: %d, returnCode:"
-             " %d, reasonCode: 0x%08x\n",
-             userName, returnValue, *returnCode, *reasonCode);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXPWD (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+              userName, returnValue, *returnCode, *reasonCode);
 #else
-      printf("BPXPWD (%s) FAILED: returnValue: %d, returnCode: %d,"
-             " reasonCode: 0x%08x, strError: (%s)\n",
-             userName, returnValue, *returnCode, *reasonCode,
-             strerror(*returnCode));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXPWD (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+              userName, returnValue, *returnCode, *reasonCode,
+              strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXPWD (%s) OK: returnVal: %d\n", userName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,"BPXPWD (%s) OK: returnVal: %d\n", userName, returnValue);
     }
   }
 
@@ -183,18 +184,18 @@ int gidGetGroupInfo(const char *groupName,  GroupInfo *info,
   if (accountTrace) {
     if(returnValue == 0) {
 #ifdef METTLE
-      printf("BPXGGN (%s) FAILED: returnValue: %d, returnCode: %d,"
-             " reasonCode: 0x%08x\n",
-             groupName, returnValue, *returnCode, *reasonCode);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, 
+              "BPXGGN (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",,
+              groupName, returnValue, *returnCode, *reasonCode);
 #else
-      printf("BPXGGN (%s) FAILED: returnValue: %d, returnCode: %d,"
-             " reasonCode: 0x%08x, strError: (%s)\n",
-             groupName, returnValue, *returnCode, *reasonCode, 
-             strerror(*returnCode));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, 
+              "BPXGGN (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+              groupName, returnValue, *returnCode, *reasonCode, 
+              strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXGGN (%s) OK: returnVal: %d\n", groupName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXGGN (%s) OK: returnVal: %d\n", groupName, returnValue);
     }
   }
 
