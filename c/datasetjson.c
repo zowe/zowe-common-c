@@ -864,7 +864,7 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
 
   if (daRC != RC_DYNALLOC_OK) {
     zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE,
-            "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+            "error: ds alloc 1 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (update)\n",
             daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
     respondWithDYNALLOCError(response, daRC, daSysRC, daSysRSN,
@@ -1168,7 +1168,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
   
   if (daReturnCode != RC_DYNALLOC_OK) {
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
-            "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+            "error: ds alloc 2 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
             daDatasetName.name, daMemberName.name, daDDName.name,
             daReturnCode, daSysReturnCode, daSysReasonCode);
@@ -1187,7 +1187,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
                                                    ); 
     if (daReturnCode != RC_DYNALLOC_OK) {
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
-              "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+              "error: ds alloc 3 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
               " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
               daDatasetName.name, daMemberName.name, daDDName.name,
               daReturnCode, daSysReturnCode, daSysReasonCode);
@@ -1255,7 +1255,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
 
     if (daReturnCode != RC_DYNALLOC_OK) {
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
-              "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+              "error: ds alloc 4 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
               " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
               daDatasetName.name, daMemberName.name, daDDName.name,
               daReturnCode, daSysReturnCode, daSysReasonCode);
@@ -1584,11 +1584,57 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
   DatasetName dsn;
   DatasetMemberName memberName;
   extractDatasetAndMemberName(absolutePath, &dsn, &memberName);
-
+  
   DynallocDatasetName daDsn;
   DynallocMemberName daMember;
   memcpy(daDsn.name, dsn.value, sizeof(daDsn.name));
   memcpy(daMember.name, memberName.value, sizeof(daMember.name));
+
+  /* new code to detect ENQ header begins */
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+            "ZSS0001I %s Requested dsn=\'%44.44s\', member=\'%8.8s\'\n", __FUNCTION__,
+            daDsn.name, daMember.name);
+
+  int exclusiveENQ = 0; /* FALSE */
+  /* obtain header name&value */
+  
+  HttpHeader *enqHeader = getHeader(request, "ENQ");
+
+  if (enqHeader == NULL){
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+            "ZSS0002I %s HTTP request has no ENQ header\n", __FUNCTION__);
+    }
+    else {
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+        "ZSS0003I %s HTTP request has ENQ header\n", __FUNCTION__);
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+            "ZSS1621I %s Raw ENQ header value is %4.4s\n", __FUNCTION__, enqHeader->value );
+          
+          /* header values are in ASCII, so convert the local EBCDIC string before comparing them. */
+          char enqValue [5] = "true";
+          if(e2a(enqValue, 4) == -1){
+            zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+              "ZSS1626I %s Failed to convert true to ASCII\n", __FUNCTION__);
+          }else{            
+            if (!strncmp(enqHeader->value, enqValue, strlen(enqHeader->value)))
+              {
+                zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+                  "ZSS0005I %s HTTP request is asking for ENQ=true\n", __FUNCTION__);
+              /* request is asking for ENQ */
+                exclusiveENQ = 1; /* TRUE */
+              }
+              else {
+                zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+                  "ZSS0006I %s HTTP request is NOT asking for ENQ=true\n", __FUNCTION__);
+                exclusiveENQ = 0;
+              }
+            }
+
+    } /* end ELSE request has header */
+  
+  /* new code ends   */
+
+
   DynallocDDName daDDname = {.name = "????????"};
 
   int daRC = RC_DYNALLOC_OK, daSysRC = 0, daSysRSN = 0;
@@ -1603,7 +1649,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
 
   if (daRC != RC_DYNALLOC_OK) {
     zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE,
-            "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+            "error: ds alloc 5 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
             daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
     respondWithDYNALLOCError(response, daRC, daSysRC, daSysRSN,
@@ -1611,7 +1657,10 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
     return;
   }
 
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
+/* new code to enqueue dataset starts */
+
+/* new code to enqueue dataset ends */
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
           "debug: reading dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\'\n",
           daDsn.name, daMember.name, daDDname.name);
 
@@ -1619,16 +1668,251 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
   memcpy(&ddName.value, &daDDname.name, sizeof(ddName.value));
   respondWithDatasetInternal(response, absolutePath, &dsn, &ddName, jsonMode);
 
+zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+  "ZSS1778I %s wait around for manual check of ENQ ...\n", __FUNCTION__);
+/* sleep(30); /* wait around for manual check of ENQ */
+zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+  "ZSS1781I %s waiting is over.\n", __FUNCTION__);
+
   daRC = dynallocUnallocDatasetByDDName(&daDDname, DYNALLOC_UNALLOC_FLAG_NONE,
                                         &daSysRC, &daSysRSN);
   if (daRC != RC_DYNALLOC_OK) {
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
             "error: ds unalloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
             daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
   }
 
 }
+
+/* new function for ENQ */
+void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode) {
+
+  HttpRequest *request = response->request;
+
+  if (!isDatasetPathValid(absolutePath)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
+    return;
+  }
+
+  DatasetName dsn;
+  DatasetMemberName memberName;
+  extractDatasetAndMemberName(absolutePath, &dsn, &memberName);
+  
+  DynallocDatasetName daDsn;
+  DynallocMemberName daMember;
+  memcpy(daDsn.name, dsn.value, sizeof(daDsn.name));
+  memcpy(daMember.name, memberName.value, sizeof(daMember.name));
+
+  /* new code to detect ENQ header begins */
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+            "ZSS0001I %s Requested dsn=\'%44.44s\', member=\'%8.8s\'\n", __FUNCTION__,
+            daDsn.name, daMember.name);
+
+  int exclusiveENQ = 0; /* FALSE */
+  /* obtain header name&value */
+  
+  HttpHeader *enqHeader = getHeader(request, "ENQ");
+
+  if (enqHeader == NULL){
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+            "ZSS0002I %s HTTP request has no ENQ header\n", __FUNCTION__);
+    }
+    else {
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+        "ZSS0003I %s HTTP request has ENQ header\n", __FUNCTION__);
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+            "ZSS1621I %s Raw ENQ header value is %4.4s\n", __FUNCTION__, enqHeader->value );
+          
+          /* header values are in ASCII, so convert the local EBCDIC string before comparing them. */
+          char enqValue [5] = "true";
+          if(e2a(enqValue, 4) == -1){
+            zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+              "ZSS1626I %s Failed to convert true to ASCII\n", __FUNCTION__);
+          }else{            
+            if (!strncmp(enqHeader->value, enqValue, strlen(enqHeader->value)))
+              {
+                zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+                  "ZSS0005I %s HTTP request is asking for ENQ=true\n", __FUNCTION__);
+              /* request is asking for ENQ */
+                exclusiveENQ = 1; /* TRUE */
+              }
+              else {
+                zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+                  "ZSS0006I %s HTTP request is NOT asking for ENQ=true\n", __FUNCTION__);
+                exclusiveENQ = 0;
+              }
+            }
+
+    } /* end ELSE request has header */
+  
+  /* new code ends   */
+
+  // DynallocDDName daDDname = {.name = "????????"};
+
+  // int daRC = RC_DYNALLOC_OK, daSysRC = 0, daSysRSN = 0;
+  // daRC = dynallocAllocDataset(
+  //     &daDsn,
+  //     IS_DAMEMBER_EMPTY(daMember) ? NULL : &daMember,
+  //     &daDDname,
+  //     DYNALLOC_DISP_SHR,
+  //     DYNALLOC_ALLOC_FLAG_NO_CONVERSION | DYNALLOC_ALLOC_FLAG_NO_MOUNT,
+  //     &daSysRC, &daSysRSN
+  // );
+
+  // if (daRC != RC_DYNALLOC_OK) {
+  //   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE,
+  //           "error: ds alloc 5 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+  //           " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
+  //           daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
+  //   respondWithDYNALLOCError(response, daRC, daSysRC, daSysRSN,
+  //                            &daDsn, &daMember, "r");
+  //   return;
+  // }
+
+/* new code to enqueue dataset starts */
+#include "isgenq.h" 
+// #include <unistd.h>
+#include <ctype.h>
+#define RESOURCE_NOT_AVAILABLE      0x0404
+/*#define MASK_FFFF                   256 * 256 - 1 */
+/*#define MASK_FFFF                   0xFFFF */
+    struct dsn_member_tag {
+        char  dsn[44];
+        char  membername[8];
+        } dsn_member; /* dataset name plus member, the resource name to be locked */
+
+    RName rname_parm; /* resource name; the name of the resource to acquire; the dataset name + optional member */
+     
+    static const QName MajorQNAME  = {"SPFEDIT "}; 
+        
+    ENQToken lockToken;
+    int lockRC = 0, lockRSN = 0;
+
+    memset(dsn_member.dsn,' ',44);          /* space-fill */
+    memset(dsn_member.membername,' ',8);    /* space-fill */
+    
+    memcpy(dsn_member.membername,daMember.name,8);   /* copy in member */
+    memcpy(dsn_member.dsn,daDsn.name,44); /* copy in dsn */
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+      "ZSS1709I %s dsn_member\n<", __FUNCTION__); 
+    int i;
+    for(i=0; i<52; i++)
+    { 
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"%c",*(dsn_member.dsn+i));
+    }
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,">\n");
+
+    memcpy(rname_parm.value, &dsn_member, sizeof(dsn_member) ); /* copy in dsn+membername */
+    rname_parm.length = 52;
+
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+      "ZSS1720I %s rname_parm\n", __FUNCTION__);
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"<"); 
+    for(i=0; i<52+sizeof(unsigned char); i++)
+    { 
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"%x",*(rname_parm.value+i-sizeof(unsigned char)));
+    }
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,">\n");
+
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"<"); 
+    for(i=0; i<52; i++)
+    { 
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"%c",*(rname_parm.value+i));
+    }
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,">\n");
+    
+/* test lock */
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, 
+      "ZSS1745I %s Try exclusive Lock\n", __FUNCTION__);
+    /*int reasonCode = 0;*/
+/*    printf("TryExclusiveLock\n");  waits forever? CONTENTIONACT=FAIL */
+    lockRC = isgenqTryExclusiveLock(
+        &MajorQNAME, 
+        &rname_parm, 
+        ISGENQ_SCOPE_SYSTEMS, 
+        &lockToken, 
+        &lockRSN);   
+
+    /*printf("lockRC = %d, lockRSN = %x\n" , lockRC , lockRSN );  */
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, 
+      "ZSS1757I %s lockRC = %d, lockRSN = %x\n", __FUNCTION__ , lockRC , lockRSN );  
+/*  fix this call soon ...
+    lockRC = acquireDatasetEnq(dsn_member.dsn, dsn_member.membername, &lockToken);
+ /* memcpy(dsn_member.membername,daMember.name,8);   /* copy in member */
+ /* memcpy(dsn_member.dsn,daDsn.name,44); /* copy in dsn */
+ /*   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, 
+      "ZSS1757I %s acquireDatasetEnq RC = %d\n", __FUNCTION__ , lockRC );  
+ */
+
+    if ( lockRC != 0){
+
+/* does releasing the DYNALLOC prevent a successful retry of an enqueued dataset? */
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_WARNING, 
+              "ZSS1773W %s releasing DYNALLOC after failing to obtain exclusive lock\n", __FUNCTION__);
+  daRC = dynallocUnallocDatasetByDDName(&daDDname, DYNALLOC_UNALLOC_FLAG_NONE,
+                                        &daSysRC, &daSysRSN);              
+  if (daRC != RC_DYNALLOC_OK) {
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+            "error: ds unalloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+            " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
+            daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
+  }
+  /* end of question */
+
+        if (lockRC == 4)
+        {
+            zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_WARNING, 
+              "ZSS1773E %s isgenqTryExclusiveLock Unable to obtain exclusive access to Dataset or member\n"
+              , __FUNCTION__);
+            respondWithError(response,HTTP_STATUS_BAD_REQUEST,
+              "Unable to obtain exclusive access to Dataset or member");
+            return;
+        }
+        else        {
+            zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE, 
+              "ZSS1779E %s isgenqTryExclusiveLock failed, RC = %d, reason code = %08X, %04X\n" , __FUNCTION__, 
+              lockRC , lockRSN, lockRSN & 0xFFFF);
+            respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              "isgenqTryExclusiveLock failed");
+            return;
+        }
+    }
+    else{
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE, 
+              "ZSS1789I %s Lock is available\n", __FUNCTION__);
+    }
+        
+/* test lock end */
+
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+      "ZSS1793I %s GetExclusiveLock\n", __FUNCTION__);
+
+    lockRC = isgenqGetExclusiveLock( 
+        &MajorQNAME, 
+        &rname_parm, 
+        ISGENQ_SCOPE_SYSTEMS, 
+        &lockToken, 
+        &lockRSN);   
+    /* This function WAITs in case of contention.  This should not be a problem because it's preceeded by isgenqTryExclusiveLock */
+    /* the lock is ALWAYS released when the C program exits. */
+
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+      "ZSS1805I %s lockRC = %d, lockRSN = %x\n", __FUNCTION__ , lockRC , lockRSN );      
+
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+      "ZSS1808I %s lockToken<", __FUNCTION__); 
+    for(i=0; i<sizeof(lockToken); i++)
+    {         
+        /*printf("%x",*(char *)&lockToken+i);*/
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"%x",*(lockToken.token+i));
+    }
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,">\n");    
+
+/* new code to enqueue dataset ends */
+
+}
+/* end of new for ENQ */
 
 #define CSI_VSAMTYPE_KSDS  0x8000
 #define CSI_VSAMTYPE_RRDS  0x0200
