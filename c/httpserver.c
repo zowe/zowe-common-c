@@ -92,6 +92,7 @@ typedef struct AuthResponse_tag {
   union {
     SAFAuthStatus safStatus;
   } responseDetails;
+  bool authDataFound;
 } AuthResponse;
 
 /* FIX THIS: a temporary "low profile" way of hiding printfs. Improves
@@ -2485,6 +2486,7 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
 
     authResponse->type = AUTH_TYPE_RACF;
     authResponse->responseDetails.safStatus = status.safStatus;
+    authResponse->authDataFound = authDataFound;
 
     if (pwdCheckRC != 0) {
 #ifdef DEBUG_AUTH
@@ -2868,7 +2870,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   response->sessionCookie = NULL;
 
   AUTH_TRACE("AUTH: tokenCookieText: %s\n",(tokenCookieText ? tokenCookieText : "<noAuthToken>"));
-
+  authResponse->authDataFound = authDataFound || (tokenCookieText != NULL);
   if (tokenCookieText){
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
            "serviceAuthNativeWithSessionToken: tokenCookieText: %s\n",
@@ -2933,7 +2935,8 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
 
 static int serviceAuthWithJwt(HttpService *service,
                               HttpRequest *request,
-                              HttpResponse *response) {
+                              HttpResponse *response,
+                              AuthResponse *authResponse) {
   HttpHeader *const authorizationHeader = getHeader(request, "Authorization");
   char *jwtTokenText = getCookieValue(request,JWT_COOKIE_NAME);
 
@@ -2971,6 +2974,7 @@ static int serviceAuthWithJwt(HttpService *service,
   if (request->authToken == NULL) {
     return FALSE;
   }
+  authResponse->authDataFound = true;
 
   JwtContext *const jwtContext = service->server->config->jwtContext;
   if (jwtContext == NULL) {
@@ -3232,12 +3236,12 @@ static int handleHttpService(HttpServer *server,
 
   int clearSessionToken = FALSE;
 
-  AuthResponse authResponse;
+  AuthResponse authResponse = {0};
 
   switch (service->authType){
    
   case SERVICE_AUTH_NONE:
-    request->authenticated = TRUE;
+    request->authenticated = FALSE;
     break;
   case SERVICE_AUTH_SAF:
     /* SAF Authentication just checks that user is known at ALL to SAF.
@@ -3259,7 +3263,7 @@ static int handleHttpService(HttpServer *server,
     switch (server->config->authTokenType) {
     case SERVICE_AUTH_TOKEN_TYPE_JWT:
     case SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK:
-      request->authenticated = serviceAuthWithJwt(service, request, response);
+      request->authenticated = serviceAuthWithJwt(service, request, response, &authResponse);
 
       if (request->authenticated  ||
           service->server->config->authTokenType
@@ -3275,9 +3279,18 @@ static int handleHttpService(HttpServer *server,
 #ifdef DEBUG
   printf("service=%s authenticated=%d\n",service->name,request->authenticated);
 #endif
+  bool isAuthOptional = service->authFlags & SERVICE_AUTH_FLAG_OPTIONAL; 
+  bool allowUnauthenticated = (service->authType == SERVICE_AUTH_NONE) ||
+                              (isAuthOptional && !authResponse.authDataFound);
+  AUTH_TRACE("authType %d, authenticated %s, authFlagOptional %s, authDataFound %s, allowUnauthenticated %s\n",
+              service->authType,
+              request->authenticated ? "true" : "false",
+              isAuthOptional ? "true" : "false",
+              authResponse.authDataFound ? "true" : "false",
+              allowUnauthenticated ? "true" : "false"
+            );
   if (request->authenticated == FALSE){
-    if (service->authFlags & SERVICE_AUTH_FLAG_OPTIONAL) {
-      // Allow the service to decide when to respond with HTTP 401
+    if (allowUnauthenticated) {
       serveRequest(service, response, request);
     } else {
       respondWithAuthError(response, &authResponse);
