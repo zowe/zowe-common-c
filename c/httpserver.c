@@ -2825,14 +2825,17 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
 
   int encodedLength = 0;
   char *base64Output = encodeBase64(slh,tokenCiphertext,tokenPlaintextLength,&encodedLength,TRUE);
+  if (encodedLength <= 0){
+    return NULL;
+  }
   char *keyValueBuffer = SLHAlloc(slh,512);
   memset(keyValueBuffer,0,512);
   int keyLength = strlen(SESSION_TOKEN_COOKIE_NAME);
   memcpy(keyValueBuffer,SESSION_TOKEN_COOKIE_NAME,keyLength);
-  int offset = keyLength;
   keyValueBuffer[keyLength] = '=';
-  memcpy(keyValueBuffer+keyLength+1,base64Output,strlen(base64Output));
-
+  char *offset = keyValueBuffer+keyLength+1;
+  memcpy((void*)offset,base64Output,encodedLength);
+  sprintf(offset+encodedLength,"; Path=/; HttpOnly");
   return keyValueBuffer;
 }
 
@@ -2873,7 +2876,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
            "serviceAuthNativeWithSessionToken: tokenCookieText: %s\n",
            (tokenCookieText ? tokenCookieText : "<noAuthToken>"));
-           
+
     if (sessionTokenStillValid(service,request,tokenCookieText)){
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
               "serviceAuthNativeWithSessionToken: Cookie still good, renewing cookie\n");
@@ -2888,6 +2891,9 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
                "serviceAuthNativeWithSessionToken: Cookie not valid, auth is good\n");
         char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
+        if (sessionToken == NULL){
+          return FALSE;
+        }
         response->sessionCookie = sessionToken;
         return TRUE;
       } else{
@@ -2912,6 +2918,9 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
               request,request->username,response);
 
       char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
+      if (sessionToken == NULL){
+        return FALSE;
+      }
       response->sessionCookie = sessionToken;
       return TRUE;
     } else{
