@@ -18,6 +18,9 @@
 #ifdef USE_RS_SSL
 #include "rs_ssl.h"
 #endif
+#ifdef USE_ZOWE_TLS
+#include "tls.h"
+#endif
 
 #ifdef __ZOWE_OS_ZOS
 
@@ -189,6 +192,10 @@ typedef struct socket_tag{
   void *userData;        /* a place where users can associate a socket to application data for cleaner
                             callback handling */
   char debugName[SOCKET_DEBUG_NAME_LENGTH];           /* a debugging name */
+#ifdef USE_ZOWE_TLS
+  TlsEnvironment *tlsEnvironment;
+  TlsSocket *tlsSocket;
+#endif
 } Socket;
 
 typedef struct SocketSet_tag{

@@ -66,6 +66,9 @@
 #ifdef USE_RS_SSL
 #include "rs_ssl.h"
 #endif
+#ifdef USE_ZOWE_TLS
+#include "tls.h"
+#endif // USE_ZOWE_TLS
 
 #include "../jwt/jwt/jwt.h"
 
@@ -120,7 +123,7 @@ typedef struct AuthResponse_tag {
 } while (0)
 
 #ifdef DEBUG
-#  define DEBUG_TRACE do { \
+#define DEBUG_TRACE(...) do { \
     printf(__VA_ARGS__); \
     fflush(stdout); \
   } while (0)
@@ -221,7 +224,7 @@ static char crlf[] ={ 0x0d, 0x0a};
 #endif
 
 //No need to fill logs with the same message, warn based on a desired frequency
-#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
+#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_ZOWE_TLS)
 #ifndef TLS_WARN_FREQUENCY
 #define TLS_WARN_FREQUENCY 25
 #endif
@@ -1569,6 +1572,60 @@ HttpServer *makeSecureHttpServer(STCBase *base, int port,
   return server;
 }
 #endif
+
+#ifdef USE_ZOWE_TLS
+HttpServer *makeSecureHttpServer(STCBase *base,
+                                 InetAddr *addr,
+                                 int port,
+                                 TlsEnvironment *tlsEnv,
+                                 int tlsFlags,
+                                 int *returnCode,
+                                 int *reasonCode
+                                ) {
+  logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
+
+  SessionTokenKey sessionTokenKey = {0};
+  if (initSessionTokenKey(&sessionTokenKey) != 0) {
+    return NULL;
+  }
+
+  Socket *listenerSocket = tcpServer2(addr,port,tlsFlags,returnCode,reasonCode);
+  if (listenerSocket == NULL){
+    return NULL;
+  }
+  listenerSocket->tlsEnvironment = tlsEnv;
+  HttpServer *server = (HttpServer*)safeMalloc31(sizeof(HttpServer),"HTTP Server");
+  memset(server,0,sizeof(HttpServer));
+  server->base = base;
+  server->slh = makeShortLivedHeap(65536,100);
+  SocketExtension *listenerSocketExtension = makeSocketExtension(listenerSocket,server->slh,FALSE,server,65536);
+  listenerSocket->userData = listenerSocketExtension;
+  /*
+    FIX THIS: Will make a more clever UID later. For now, we just need something
+    that is guaranteed to be different with each run of the same server
+    */
+  server->serverInstanceUID = (uint64)getFineGrainedTime();
+  stcRegisterSocketExtension(base, listenerSocketExtension, STC_MODULE_JEDHTTP);
+
+#ifdef DEBUG
+#ifdef __ZOWE_OS_WINDOWS
+  printf("ListenerSocket on SocketHandle=0x%x\n",listenerSocket->windowsSocket);
+#else
+  printf("ListenerSocket on SD=%d\n",listenerSocket->sd);
+#endif
+#endif
+
+  server->config = (HttpServerConfig*)safeMalloc31(sizeof(HttpServerConfig),"HttpServerConfig");
+  server->properties = htCreate(4001,stringHash,stringCompare,NULL,NULL);
+  memset(server->config,0,sizeof(HttpServerConfig));
+
+  server->config->sessionTokenKeySize = sizeof (sessionTokenKey);
+  memcpy(&server->config->sessionTokenKey[0], &sessionTokenKey,
+         sizeof (sessionTokenKey));
+  server->config->authTokenType = SERVICE_AUTH_TOKEN_TYPE_LEGACY;
+
+  return server;}
+#endif // USE_ZOWE_TLS
 
 void *getConfiguredProperty(HttpServer *server, char *key){
   return htGet(server->properties,key);
@@ -5426,6 +5483,21 @@ static int httpHandleTCP(STCBase *base,
         }
       }
 #endif
+#ifdef USE_ZOWE_TLS
+      if (NULL != socket->tlsEnvironment) {
+        int rc = tlsSocketInit(socket->tlsEnvironment,
+                               &peerSocket->tlsSocket,
+                               peerSocket->sd,
+                               true);
+        if ((0 != rc) || (NULL == peerSocket->tlsSocket)) {
+#ifdef DEBUG
+          printf("httpserver failed to negotiate TLS with peer; closing socket\n");
+#endif
+          socketClose(peerSocket, &returnCode, &reasonCode);
+          break;
+        }
+      }
+#endif // USE_ZOWE_TLS
       ShortLivedHeap *slh = makeShortLivedHeap(READ_BUFFER_SIZE,100);
   #ifndef __ZOWE_OS_WINDOWS
       int writeBufferSize = 0x40000;
@@ -5485,7 +5557,7 @@ static int httpHandleTCP(STCBase *base,
       printf("peerExtension at 0x%x, httpConversation at 0x%x\n", peerExtension, conversation);
   #endif
 
-#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
+#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_RS_TLS)
       int sxStatus = sxUpdateTLSInfo(peerExtension,
                                      1); /* prevent multiple ioctl calls on repeated reads */
       if (0 != sxStatus) {
