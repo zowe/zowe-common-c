@@ -645,6 +645,20 @@ int httpClientContextInit(HttpClientSettings *settings, LoggingContext *logConte
   return sts;
 }
 
+#ifdef USE_ZOWE_TLS
+int httpClientContextInitSecure(HttpClientSettings *settings,
+                                LoggingContext *logContext,
+                                TlsEnvironment *tlsEnv,
+                                HttpClientContext **outCtx
+                                ) {
+  int sts = httpClientContextInit(settings, logContext, outCtx);
+  if (sts == 0 && *outCtx != NULL) {
+    (*outCtx)->tlsEnvironment = tlsEnv;
+  }
+  return sts;                             
+}
+#endif // USE_ZOWE_TLS
+
 void httpClientSessionDestroy(HttpClientSession *session) {
   int bpxrc = 0, bpxrsn = 0;
   if (session) {
@@ -704,6 +718,17 @@ int httpClientSessionInit(HttpClientContext *ctx, HttpClientSession **outSession
       HTTP_CLIENT_TRACE_VERBOSE("Connected to peer port=%d)\n", ctx->serverAddress->port);
 #endif
     }
+#ifdef USE_ZOWE_TLS
+  if (ctx->tlsEnvironment) {
+    int rc = tlsSocketInit(ctx->tlsEnvironment, &socket->tlsSocket, socket->sd, false);
+    if (rc != 0) {
+      HTTP_CLIENT_TRACE_VERBOSE("failed to init tls socket, rc=%d, (%s)", rc, tlsStrError(rc));
+      socketClose(socket, &bpxrc, &bpxrsn);
+      sts = HTTP_CLIENT_TLS_ERROR;
+      break;
+    }
+  }
+#endif // USE_ZOWE_TLS
     slh = makeShortLivedHeap(HTTP_CLIENT_SLH_BLOCKSIZE, 100);
 
     session = (HttpClientSession*)safeMalloc(sizeof(HttpClientSession), "http client session");
