@@ -1007,7 +1007,7 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
     status = tlsRead(socket->tlsSocket, buffer, desiredBytes, &bytesRead);
     if (0 != status) {
       if (socketTrace){
-        printf("socketRead: tlsRead failed with status: %d\n", status);
+        printf("socketRead: tlsRead failed with status: %d (%s)\n", status, tlsStrError(status));
       }
       return -1;
     } else {
@@ -1069,7 +1069,7 @@ int socketWrite(Socket *socket, const char *buffer, int desiredBytes,
     status = tlsWrite(socket->tlsSocket, buffer, desiredBytes, &bytesWritten);
     if (0 != status) {
       if (socketTrace){
-        printf("socketWrite: tlsWrite failed with status: %d\n", status);
+        printf("socketWrite: tlsWrite failed with status: %d (%s)\n", status, tlsStrError(status));
       }
       return -1;
     } else {
