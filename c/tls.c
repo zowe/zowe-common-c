@@ -129,7 +129,6 @@ int tlsRead(TlsSocket *socket, const char *buf, int size, int *outLength) {
 
 int tlsWrite(TlsSocket *socket, const char *buf, int size, int *outLength) {
   int rc = gsk_secure_socket_write(socket->socketHandle, (char *)buf, size, outLength);
-  if (rc == GSK_WOULD_BLOCK)
   return rc;
 }
 
