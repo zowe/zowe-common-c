@@ -8,7 +8,10 @@
   Copyright Contributors to the Zowe Project.
 */
 #include <stdlib.h>
+#include <errno.h>
 #include "alloc.h"
+#include "bpxnet.h"
+#include "fdpoll.h"
 #include "tls.h"
 
 int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
@@ -45,8 +48,55 @@ int tlsDestroy(TlsEnvironment *env) {
   return rc;
 }
 
+static int waitTimeMs = 200;
+
+static int secureSocketRecv(int fd, void *data, int len, char *userData) {
+  int rc = recv(fd, data, len, 0);
+  if (rc == -1 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
+    while (1) {
+      PollItem item = {0};
+      item.fd = fd;
+      item.events = POLLERDNORM;
+      int returnCode = 0;
+      int reasonCode = 0;
+      int status = fdPoll(&item, 0, 1, waitTimeMs, &returnCode, &reasonCode);
+      if (status == -1) {
+        continue;
+      }
+      if (item.revents & POLLERDNORM) {
+        rc = recv(fd, data, len, 0);
+        break;
+      }
+    }
+  }
+  return rc;
+}
+
+static int secureSocketSend(int fd, void *data, int len, char *userData) {
+  int rc = send(fd, data, len, 0);
+  if (rc == -1 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
+    while (1) {
+      PollItem item = {0};
+      item.fd = fd;
+      item.events = POLLEWRNORM;
+      int returnCode = 0;
+      int reasonCode = 0;
+      int status = fdPoll(&item, 0, 1, waitTimeMs, &returnCode, &reasonCode);
+      if (status == -1) {
+        continue;
+      }
+      if (item.revents & POLLRWRNORM) {
+        rc = send(fd, data, len, 0);
+        break;
+      }
+    }
+  }
+  return rc;
+}
+
 int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isServer) {
   int   rc = 0;
+  gsk_iocallback ioCallbacks = {secureSocketRecv, secureSocketSend, NULL, NULL, NULL, NULL};
   TlsSocket *socket = (TlsSocket*)safeMalloc(sizeof(TlsSocket), "Tls Socket");
   char *label = env->settings->label;
   char *ciphers = env->settings->ciphers;
@@ -61,6 +111,7 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_V3_CIPHER_SPECS_EXPANDED, ciphers, 0);
     rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);
   }
+  rc = rc || gsk_attribute_set_callback(socket->socketHandle, GSK_IO_CALLBACK, &ioCallbacks);
   rc = rc || gsk_secure_socket_init(socket->socketHandle);
   if (rc == 0) {
     *outSocket = socket;
@@ -78,6 +129,7 @@ int tlsRead(TlsSocket *socket, const char *buf, int size, int *outLength) {
 
 int tlsWrite(TlsSocket *socket, const char *buf, int size, int *outLength) {
   int rc = gsk_secure_socket_write(socket->socketHandle, (char *)buf, size, outLength);
+  if (rc == GSK_WOULD_BLOCK)
   return rc;
 }
 
