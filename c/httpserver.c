@@ -2931,7 +2931,7 @@ static int serviceAuthWithJwt(HttpService *service,
       service->authExtractionFunction);
 
    request->authToken = jwtTokenText;
-
+  AUTH_TRACE("jwtText %p\n", jwtTokenText);
   /*
    * The extractor should look at the request and get the raw JWT from anywhere
    * in the request it thinks it can find it (Authorization: Bearer, cookie, URL,
@@ -2957,11 +2957,13 @@ static int serviceAuthWithJwt(HttpService *service,
 
   AUTH_TRACE("serviceAuthWithJwt: request->authToken %p\n", request->authToken);
   if (request->authToken == NULL) {
+    AUTH_TRACE("request->authToken: null \n");
     return FALSE;
   }
 
   JwtContext *const jwtContext = service->server->config->jwtContext;
   if (jwtContext == NULL) {
+    AUTH_TRACE("jwtContext: null \n");
     return FALSE;
   }
 
@@ -2985,13 +2987,16 @@ static int serviceAuthWithJwt(HttpService *service,
   request->authToken = jwt;
 
   if (service->authValidateFunction != NULL) {
+    AUTH_TRACE("serviceAuthWithJwt: service->authValidateFunction %p\n", service->authValidateFunction);
     return service->authValidateFunction(service, request);
   } else {
     if (jwt->subject == NULL) {
+      AUTH_TRACE("jwt->subject: null\n");
       return FALSE;
     }
     request->username = SLHAlloc(request->slh, 1 + strlen(jwt->subject));
     if (request->username == NULL) {
+      AUTH_TRACE("jwt->subject: null \n");
       return FALSE;
     }
     strcpy(request->username, jwt->subject);
@@ -3006,6 +3011,7 @@ static int serviceAuthWithJwt(HttpService *service,
     addStringHeader(response, "Set-Cookie", response->sessionCookie);
     strupcase(request->username);
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "TOKEN VALIDATED\n");
+    AUTH_TRACE("sessionToken %p\n", sessionToken);
     return TRUE;
   }
 }

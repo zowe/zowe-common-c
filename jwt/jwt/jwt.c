@@ -61,13 +61,8 @@ const char *RSJWT_ERROR_DESCRIPTIONS[] = {
 #  define BASE64_IS_EBCDIC 0
 #endif
 
-#ifdef JWT_DEBUG
 #define DEBUG printf
 #define DUMPBUF dumpbuffer
-#else
-#define DEBUG(...) (void)0
-#define DUMPBUF(...) (void)0
-#endif
 
 #define ASCII_PERIOD 0x2e
 
