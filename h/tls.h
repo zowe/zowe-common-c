@@ -11,6 +11,10 @@
 #ifndef __TLS_H__
 #define __TLS_H__
 
+#ifdef METTLE
+#error Metal C not supported
+#endif // METTLE
+
 #include <stdbool.h>
 #include <gskssl.h>
 
