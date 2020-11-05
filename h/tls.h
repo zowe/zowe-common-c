@@ -49,6 +49,8 @@ int tlsRead(TlsSocket *socket, const char *buf, int size, int *outLength);
 int tlsWrite(TlsSocket *socket, const char *buf, int size, int *outLength);
 const char *tlsStrError(int rc);
 
+#define TLS_ALLOC_ERROR (-1)
+
 #endif // __TLS_H__
 
 /*

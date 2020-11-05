@@ -17,6 +17,9 @@
 int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   int rc = 0;
   TlsEnvironment *env = (TlsEnvironment *)safeMalloc(sizeof(*env), "Tls Environment");
+  if (!env) {
+    return TLS_ALLOC_ERROR;
+  }
   env->settings = settings;
   rc = rc || gsk_environment_open(&env->envHandle);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_SSLV2, GSK_PROTOCOL_SSLV2_OFF);
@@ -98,6 +101,9 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
   int   rc = 0;
   gsk_iocallback ioCallbacks = {secureSocketRecv, secureSocketSend, NULL, NULL, NULL, NULL};
   TlsSocket *socket = (TlsSocket*)safeMalloc(sizeof(TlsSocket), "Tls Socket");
+  if (!socket) {
+    return TLS_ALLOC_ERROR;
+  }
   char *label = env->settings->label;
   char *ciphers = env->settings->ciphers;
   rc = rc || gsk_secure_socket_open(env->envHandle, &socket->socketHandle);
@@ -141,6 +147,15 @@ int tlsSocketClose(TlsSocket *socket) {
 }
 
 const char *tlsStrError(int rc) {
+  if (rc < 0 ) {
+    switch (rc) {
+      case TLS_ALLOC_ERROR:
+        return "Failed to allocate memory";
+      default:
+        return "Unknown error";
+    }
+  }
+  // GSK error codes are positive
   return gsk_strerror(rc);
 }
 
