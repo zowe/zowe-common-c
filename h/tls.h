@@ -15,6 +15,10 @@
 #error Metal C not supported
 #endif // METTLE
 
+#ifdef USE_RS_SSL
+#error ZOWE TLS incompatible with RS SSL
+#endif // USE_RS_SSL
+
 #include <stdbool.h>
 #include <gskssl.h>
 
