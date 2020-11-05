@@ -51,7 +51,7 @@ int tlsDestroy(TlsEnvironment *env) {
   return rc;
 }
 
-static int waitTimeMs = 200;
+static const int WAIT_TIME_MS = 200;
 
 static int secureSocketRecv(int fd, void *data, int len, char *userData) {
   int rc = recv(fd, data, len, 0);
@@ -62,7 +62,7 @@ static int secureSocketRecv(int fd, void *data, int len, char *userData) {
       item.events = POLLERDNORM;
       int returnCode = 0;
       int reasonCode = 0;
-      int status = fdPoll(&item, 0, 1, waitTimeMs, &returnCode, &reasonCode);
+      int status = fdPoll(&item, 0, 1, WAIT_TIME_MS, &returnCode, &reasonCode);
       if (status == -1) {
         continue;
       }
@@ -84,7 +84,7 @@ static int secureSocketSend(int fd, void *data, int len, char *userData) {
       item.events = POLLEWRNORM;
       int returnCode = 0;
       int reasonCode = 0;
-      int status = fdPoll(&item, 0, 1, waitTimeMs, &returnCode, &reasonCode);
+      int status = fdPoll(&item, 0, 1, WAIT_TIME_MS, &returnCode, &reasonCode);
       if (status == -1) {
         continue;
       }
