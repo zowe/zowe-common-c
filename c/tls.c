@@ -54,44 +54,40 @@ int tlsDestroy(TlsEnvironment *env) {
 static const int WAIT_TIME_MS = 200;
 
 static int secureSocketRecv(int fd, void *data, int len, char *userData) {
-  int rc = recv(fd, data, len, 0);
-  if (rc == -1 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
-    while (1) {
+  int rc = 0;
+  while (1) {
+    rc = recv(fd, data, len, 0);
+    if (rc == -1 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
       PollItem item = {0};
       item.fd = fd;
       item.events = POLLERDNORM;
       int returnCode = 0;
       int reasonCode = 0;
       int status = fdPoll(&item, 0, 1, WAIT_TIME_MS, &returnCode, &reasonCode);
-      if (status == -1) {
-        continue;
-      }
-      if (item.revents & POLLERDNORM) {
-        rc = recv(fd, data, len, 0);
-        break;
-      }
+      // continue in any case
+      continue;
+    } else {
+      break;
     }
   }
   return rc;
 }
 
 static int secureSocketSend(int fd, void *data, int len, char *userData) {
-  int rc = send(fd, data, len, 0);
-  if (rc == -1 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
-    while (1) {
+  int rc = 0;
+  while (1) {
+    rc = send(fd, data, len, 0);
+    if (rc == -1 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
       PollItem item = {0};
       item.fd = fd;
       item.events = POLLEWRNORM;
       int returnCode = 0;
       int reasonCode = 0;
       int status = fdPoll(&item, 0, 1, WAIT_TIME_MS, &returnCode, &reasonCode);
-      if (status == -1) {
-        continue;
-      }
-      if (item.revents & POLLRWRNORM) {
-        rc = send(fd, data, len, 0);
-        break;
-      }
+      // continue in any case
+      continue;
+    } else {
+      break;
     }
   }
   return rc;
