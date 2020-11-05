@@ -1483,9 +1483,11 @@ static int decodeSessionToken(ShortLivedHeap *slh,
 
 }
 
-HttpServer *makeHttpServer2(STCBase *base,
+static
+HttpServer *makeHttpServer3(STCBase *base,
                            InetAddr *addr,
                            int port,
+                           void *tlsEnv,
                            int tlsFlags,
                            int *returnCode, int *reasonCode){
   logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
@@ -1499,6 +1501,9 @@ HttpServer *makeHttpServer2(STCBase *base,
   if (listenerSocket == NULL){
     return NULL;
   }
+#ifdef USE_ZOWE_TLS
+  listenerSocket->tlsEnvironment = tlsEnv;
+#endif // USE_ZOWE_TLS
   HttpServer *server = (HttpServer*)safeMalloc31(sizeof(HttpServer),"HTTP Server");
   memset(server,0,sizeof(HttpServer));
   server->base = base;
@@ -1530,6 +1535,15 @@ HttpServer *makeHttpServer2(STCBase *base,
   server->config->authTokenType = SERVICE_AUTH_TOKEN_TYPE_LEGACY;
 
   return server;
+}
+
+HttpServer *makeHttpServer2(STCBase *base,
+                           InetAddr *addr,
+                           int port,
+                           int tlsFlags,
+                           int *returnCode,
+                           int *reasonCode){
+  return makeHttpServer3(base, addr, port, NULL, tlsFlags, returnCode, reasonCode);
 }
 
 #ifdef USE_RS_SSL
@@ -1582,49 +1596,8 @@ HttpServer *makeSecureHttpServer(STCBase *base,
                                  int *returnCode,
                                  int *reasonCode
                                 ) {
-  logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
-
-  SessionTokenKey sessionTokenKey = {0};
-  if (initSessionTokenKey(&sessionTokenKey) != 0) {
-    return NULL;
-  }
-
-  Socket *listenerSocket = tcpServer2(addr,port,tlsFlags,returnCode,reasonCode);
-  if (listenerSocket == NULL){
-    return NULL;
-  }
-  listenerSocket->tlsEnvironment = tlsEnv;
-  HttpServer *server = (HttpServer*)safeMalloc31(sizeof(HttpServer),"HTTP Server");
-  memset(server,0,sizeof(HttpServer));
-  server->base = base;
-  server->slh = makeShortLivedHeap(65536,100);
-  SocketExtension *listenerSocketExtension = makeSocketExtension(listenerSocket,server->slh,FALSE,server,65536);
-  listenerSocket->userData = listenerSocketExtension;
-  /*
-    FIX THIS: Will make a more clever UID later. For now, we just need something
-    that is guaranteed to be different with each run of the same server
-    */
-  server->serverInstanceUID = (uint64)getFineGrainedTime();
-  stcRegisterSocketExtension(base, listenerSocketExtension, STC_MODULE_JEDHTTP);
-
-#ifdef DEBUG
-#ifdef __ZOWE_OS_WINDOWS
-  printf("ListenerSocket on SocketHandle=0x%x\n",listenerSocket->windowsSocket);
-#else
-  printf("ListenerSocket on SD=%d\n",listenerSocket->sd);
-#endif
-#endif
-
-  server->config = (HttpServerConfig*)safeMalloc31(sizeof(HttpServerConfig),"HttpServerConfig");
-  server->properties = htCreate(4001,stringHash,stringCompare,NULL,NULL);
-  memset(server->config,0,sizeof(HttpServerConfig));
-
-  server->config->sessionTokenKeySize = sizeof (sessionTokenKey);
-  memcpy(&server->config->sessionTokenKey[0], &sessionTokenKey,
-         sizeof (sessionTokenKey));
-  server->config->authTokenType = SERVICE_AUTH_TOKEN_TYPE_LEGACY;
-
-  return server;}
+  return makeHttpServer3(base, addr, port, tlsEnv, tlsFlags, returnCode, reasonCode);
+}
 #endif // USE_ZOWE_TLS
 
 void *getConfiguredProperty(HttpServer *server, char *key){
