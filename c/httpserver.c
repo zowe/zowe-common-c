@@ -4619,6 +4619,24 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
           int unixTime = fileInfoUnixCreationTime(&info);
           convertUnixToISO(unixTime, &timeStamp);
 
+          char owner[USER_NAME_LEN+1] = {0};
+          int status = userGetName(info.ownerUID, owner, &returnCode, &reasonCode);
+          if (status != 0) {
+            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, 
+                   "failed to obtain user name for uid=%d, returnCode: %d, reasonCode: 0x%08x\n",
+                   info.ownerUID, returnCode, reasonCode);
+          }
+          trimRight(owner, USER_NAME_LEN);
+          
+          char group[GROUP_NAME_LEN+1] = {0};
+          status = groupGetName(info.ownerGID, group, &returnCode, &reasonCode);
+          if (status != 0) {
+            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, 
+                   "failed to obtain group name for gid=%d, returnCode: %d, reasonCode: 0x%08x\n",
+                   info.ownerGID, returnCode, reasonCode);
+          }
+          trimRight(group, GROUP_NAME_LEN);
+          
           /*          if(status == 0) { */
             jsonStartObject(out, NULL);
             {
@@ -4629,6 +4647,8 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
               jsonAddInt(out, "ccsid", fileInfoCCSID(&info));
               jsonAddString(out, "createdAt", timeStamp.data);
               jsonAddInt(out, "mode", octalMode);
+              jsonAddString(out, "owner", owner);
+              jsonAddString(out, "group", group);
             }
             jsonEndObject(out);
             /*          }

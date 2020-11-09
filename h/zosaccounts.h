@@ -45,17 +45,24 @@ typedef struct BPXYGIDN_tag {
 typedef BPXYGIDS GroupInfo;
 typedef BPXYGIDN UserInfo;
 
-
+#define USER_NAME_LEN 8
+#define GROUP_NAME_LEN 8
 
 /* Function Prototype */
 int gidGetUserInfo(const char *userName,  UserInfo * info,
                          int *returnCode, int *reasonCode);
+int getUserInfo(int uid, UserInfo *info, int *returnCode, int *reasonCode);
 int gidGetGroupInfo(const char *groupName,  GroupInfo *info,
                    int *returnCode, int *reasonCode);
+int getGroupInfo(int gid, GroupInfo *info, int *returnCode, int *reasonCode);
 int userInfoGetUserId (UserInfo *info);
+void userInfoGetUserName (UserInfo *info, char *userNameBuffer);
 int groupInfoGetGroupId (GroupInfo *info);
+void groupInfoGetGroupName (GroupInfo *info, char *groupNameBuffer);
 int userIdGet (char *string, int *returnCode, int *reasonCode);
+int userGetName(int uid, char *userNameBuffer, int *returnCode, int *reasonCode);
 int groupIdGet (char *string, int *returnCode, int *reasonCode);
+int groupGetName(int gid, char *groupNameBuffer, int *returnCode, int *reasonCode);
 int resetZosUserPassword(const char *userName,  const char *password, const char *newPassword,
                          int *returnCode, int *reasonCode);
 
