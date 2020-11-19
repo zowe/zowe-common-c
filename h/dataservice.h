@@ -25,6 +25,7 @@ typedef int ExternalAPI();
 struct JsonObject_tag;
 struct HttpServer_tag;
 struct DataService_tag;
+struct Storage_tag;
 
 typedef struct InternalAPIMap_tag {
   int length;
@@ -66,10 +67,13 @@ typedef struct DataService_tag {
   JsonObject *serviceDefinition;
   uint64 loggingIdentifier;
   WebPlugin *plugin;
+  struct Storage_tag *storage;
 } DataService;
 
 WebPlugin *makeWebPlugin(char *baseDir, struct JsonObject_tag *pluginDefintion, InternalAPIMap *internalAPIMap,
                          unsigned int *idMultiplier, int pluginLogLevel);
+WebPlugin *makeWebPlugin2(char *pluginLocation, JsonObject *pluginDefintion, InternalAPIMap *internalAPIMap,
+                         unsigned int *idMultiplier, int pluginLogLevel, struct Storage_tag *storage);
 void initalizeWebPlugin(WebPlugin *plugin, HttpServer *server);
 
 /**
