@@ -38,20 +38,28 @@ static int accountTrace = FALSE;
 
 #ifdef _LP64
 # pragma linkage(BPX4GGN,OS)
+# pragma linkage(BPX4GGI,OS)
 # pragma linkage(BPX4GPN,OS)
+# pragma linkage(BPX4GPU,OS)
 # pragma linkage(BPX4PWD,OS)
 
 # define BPXGGN BPX4GGN
+# define BPXGGI BPX4GGI
 # define BPXGPN BPX4GPN
+# define BPXGPU BPX4GPU
 # define BPXPWD BPX4PWD
 
 #else
 # pragma linkage(BPX1GGN,OS)
+# pragma linkage(BPX1GGI,OS)
 # pragma linkage(BPX1GPN,OS)
+# pragma linkage(BPX1GPU,OS)
 # pragma linkage(BPX1PWD,OS)
 
 # define BPXGGN BPX1GGN
+# define BPXGGI BPX1GGI
 # define BPXGPN BPX1GPN
+# define BPXGPU BPX1GPU
 # define BPXPWD BPX1PWD
 #endif
 
@@ -101,6 +109,51 @@ int gidGetUserInfo(const char *userName,  UserInfo * info,
     }
     else {
       zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXGPN (%s) OK: returnVal: %d\n", userName, returnValue);
+    }
+  }
+
+  return retValue;
+}
+
+/* Obtain the user information structure using UID */
+int getUserInfo(int uid, UserInfo *info, int *returnCode, int *reasonCode) {
+  int *reasonCodePtr;
+  int returnValue;
+  int retValue = -1;
+
+  UserInfo *ptrInfo;
+
+#ifndef _LP64
+  reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
+#else
+  reasonCodePtr = reasonCode;
+#endif
+
+  BPXGPU(uid,
+         &returnValue,
+         returnCode,
+         reasonCodePtr);
+
+  if (returnValue != 0) {
+    memcpy (info, (char *)returnValue, sizeof (UserInfo));
+    retValue = 0;
+  }
+
+  if (accountTrace) {
+    if(returnValue == 0) {
+#ifdef METTLE
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXGPU (%d) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+              uid, returnValue, *returnCode, *reasonCode);
+#else
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXGPU (%d) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+              uid, returnValue, *returnCode, *reasonCode, 
+              strerror(*returnCode));
+#endif
+    }
+    else {
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXGPU (%d) OK: returnVal: %d\n", uid, returnValue);
     }
   }
 
@@ -202,6 +255,50 @@ int gidGetGroupInfo(const char *groupName,  GroupInfo *info,
   return retValue;
 }
 
+/* Obtain the group information structure using GID */
+int getGroupInfo(int gid, GroupInfo *info, int *returnCode, int *reasonCode) {
+  int *reasonCodePtr;
+  int returnValue;
+  int retValue = -1;
+  *returnCode = *reasonCode = 0;
+
+#ifndef _LP64
+  reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
+#else
+  reasonCodePtr = reasonCode;
+#endif
+
+  BPXGGI(gid,
+         &returnValue,
+         returnCode,
+         reasonCodePtr);
+
+  if (returnValue >  0) {
+    memcpy (info, (char *)returnValue, sizeof (GroupInfo));
+    retValue = 0;
+  }
+
+  if (accountTrace) {
+    if(returnValue == 0) {
+#ifdef METTLE
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, 
+              "BPXGGI (%d) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",,
+              gid, returnValue, *returnCode, *reasonCode);
+#else
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, 
+              "BPXGGI (%d) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+              gid, returnValue, *returnCode, *reasonCode, 
+              strerror(*returnCode));
+#endif
+    }
+    else {
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXGGI (%d) OK: returnVal: %d\n", gid, returnValue);
+    }
+  }
+
+  return retValue;
+}
+
 /* Return userId from user info structure */
 int userInfoGetUserId (UserInfo *info) {
   int *temp = (int *)info;
@@ -211,6 +308,11 @@ int userInfoGetUserId (UserInfo *info) {
   return userId;
 }
 
+/* Copy user name from User Info structure into userNameBuffer */
+void userInfoGetUserName (UserInfo *info, char *userNameBuffer) {
+  memcpy(userNameBuffer, (const char*)&info->GIDN_U_NAME, info->GIDN_U_LEN);
+}
+
 /* Return groupId from group info structure */
 int groupInfoGetGroupId (GroupInfo *info) {
   int *temp = (int *)info;
@@ -218,6 +320,11 @@ int groupInfoGetGroupId (GroupInfo *info) {
   int groupLengthindex = (groupLength + 3) /4;
   int groupId = temp[groupLengthindex + 2];
   return groupId;
+}
+
+/* Copy group name from Group Info structure into groupNameBuffer*/
+void groupInfoGetGroupName (GroupInfo *info, char *groupNameBuffer) {
+  memcpy(groupNameBuffer, (const char*)&info->GIDS_G_NAME, info->GIDS_G_LEN);
 }
 
 /* Obtain userId from character string */
@@ -243,6 +350,17 @@ int userIdGet (char *string, int *returnCode, int *reasonCode) {
   return userId;
 }
 
+/* Obtain user name by UID. userNameBuffer must be at least 8 chars long */
+int userGetName(int uid, char *userNameBuffer, int *returnCode, int *reasonCode) {
+  int status = 0;
+  UserInfo userInfo = {0};
+  status = getUserInfo(uid, &userInfo, returnCode, reasonCode);
+  if (status == 0) {
+    userInfoGetUserName(&userInfo, userNameBuffer);
+  }
+  return status;
+}
+
 /* Obtain groupId from character string */
 int groupIdGet (char *string, int *returnCode, int *reasonCode) {
   GroupInfo  groupInfo = {0};
@@ -264,6 +382,17 @@ int groupIdGet (char *string, int *returnCode, int *reasonCode) {
     }
   }
   return groupId;
+}
+
+/* Obtain group name by GID, groupNameBuffer must be at least 8 chars long */
+int groupGetName(int gid, char *groupNameBuffer, int *returnCode, int *reasonCode) {
+  int status = 0;
+  GroupInfo groupInfo = {0};
+  status = getGroupInfo(gid, &groupInfo, returnCode, reasonCode);
+  if (status == 0) {
+    groupInfoGetGroupName(&groupInfo, groupNameBuffer);
+  }
+  return status;
 }
 
 
