@@ -17,6 +17,7 @@
 #include <metal/string.h>
 #include <metal/stdarg.h>  
 #include <metal/limits.h>  
+#include <metal/math.h>
 #include "metalio.h"
 #include "qsam.h"
 #else
@@ -26,6 +27,7 @@
 #include <strings.h>
 #include <stdarg.h>  
 #include <limits.h>
+#include <math.h>
 #endif
 
 #include "zowetypes.h"
@@ -44,11 +46,26 @@ static int parseInteger(const char *str, int *statusOut) {
     return 0;
   }
   if (longValue < INT_MIN || longValue > INT_MAX) {
-    *statusOut = STORAGE_INTEGER_TOO_LONG;
+    *statusOut = STORAGE_INTEGER_OUT_OF_RANGE;
     return 0;
   }
   *statusOut = STORAGE_OK;
   return (int)longValue;
+}
+
+static double parseDouble(const char *str, int *statusOut) {
+  char *end;
+  double value = strtod(str, &end);
+  if(*end != '\0') {
+    *statusOut = STORAGE_VALUE_NOT_DOUBLE;
+    return 0.0;
+  }
+  if (value == HUGE_VAL || value == -HUGE_VAL) {
+    *statusOut = STORAGE_DOUBLE_OUT_OF_RANGE;
+    return 0.0;
+  }
+  *statusOut = STORAGE_OK;
+  return value;
 }
 
 static bool parseBool(const char *str, int *statusOut) {
@@ -65,7 +82,9 @@ static const char *MESSAGES[] = {
     [STORAGE_KEY_NOT_FOUND] = "Key not found",
     [STORAGE_VALUE_NOT_BOOLEAN] = "Value not boolean",
     [STORAGE_VALUE_NOT_INTEGER] = "Value not integer",
-    [STORAGE_INTEGER_TOO_LONG] = "Integer value out of bounds",
+    [STORAGE_INTEGER_OUT_OF_RANGE] = "Integer out of range",
+    [STORAGE_VALUE_NOT_DOUBLE] = "Value not floating-point number",
+    [STORAGE_DOUBLE_OUT_OF_RANGE] = "Double out of range",
 };
 
 #define MESSAGE_COUNT sizeof(MESSAGES)/sizeof(MESSAGES[0])
@@ -82,6 +101,16 @@ int storageGetInt(Storage *storage, const char *key, int *statusOut) {
     return 0;
   }
   return parseInteger(str, statusOut);
+}
+
+double storageGetDouble(Storage *storage, const char *key, int *statusOut) {
+  int status = 0;
+  const char *str = storageGetString(storage, key, &status);
+  if (status) {
+    *statusOut = status;
+    return 0;
+  }
+  return parseDouble(str, statusOut);
 }
 
 bool storageGetBool(Storage *storage, const char *key, int *statusOut) {
@@ -103,6 +132,14 @@ void storageSetString(Storage *storage, const char *key, const char *value, int 
 void storageSetInt(Storage *storage, const char *key, int value, int *statusOut) {
   char buf[INT_LEN+1] = {0};
   snprintf (buf, sizeof(buf), "%d", value);
+  storageSetString(storage, key, buf, statusOut);
+}
+
+#define DOUBLE_LEN 23
+
+void storageSetDouble(Storage *storage, const char *key, double value, int *statusOut) {
+  char buf[DOUBLE_LEN+1] = {0};
+  snprintf (buf, sizeof(buf), "%f", value);
   storageSetString(storage, key, buf, statusOut);
 }
 

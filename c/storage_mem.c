@@ -234,6 +234,11 @@ int main(int argc, char *argv[]) {
   storageSetBool(storage, keyC, bVal, &status);
   printf ("set bool ['%s'] = %s, status %d - %s\n", keyC, bVal ? "true" : "false", status, storageGetStrStatus(storage, status));
 
+  const char *keyD = "keyD";
+  double dVal = 123.456;
+  storageSetDouble(storage, keyD, dVal, &status);
+  printf ("set double ['%s'] = %f, status %d - %s\n", keyD, dVal, status, storageGetStrStatus(storage, status));
+
   sVal = storageGetString(storage, keyA, &status);
   printf ("get str ['%s'] = '%s', status %d - %s\n", keyA, sVal, status, storageGetStrStatus(storage, status));
   
@@ -249,6 +254,12 @@ int main(int argc, char *argv[]) {
   
   bVal =  storageGetBool(storage, keyC, &status);
   printf ("get bool ['%s'] = %s, status %d - %s\n", keyC, bVal ? "true" : "false", status, storageGetStrStatus(storage, status));
+
+  dVal =  storageGetDouble(storage, keyD, &status);
+  printf ("get double ['%s'] = %f, status %d - %s\n", keyD, dVal, status, storageGetStrStatus(storage, status));
+
+  dVal = storageGetDouble(storage, keyA, &status);
+  printf ("get bad double ['%s'] = %f, status %d - %s\n", keyA, dVal, status, storageGetStrStatus(storage, status));
   
   storageRemove(storage, keyC, &status);
   printf ("remove '%s', status %d - %s\n", keyC, status, storageGetStrStatus(storage, status));
