@@ -116,7 +116,7 @@ SocketExtension *makeSocketExtension(Socket *socket,
   return socketExtension;
 }
 
-#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_RS_SSL)
+#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_ZOWE_TLS)
 int sxUpdateTLSInfo(SocketExtension *sext, int onceOnly)
 {
   int sts=0;
