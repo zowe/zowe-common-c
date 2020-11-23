@@ -26,7 +26,11 @@ void storageRemove(Storage *storage, const char *key, int *statusOut);
 const char *storageGetStrStatus(Storage *storage, int status);
 
 #ifndef METTLE
-Storage *makeMemoryStorage();
+typedef struct MemoryStorageOptions_tag {
+  int bucketCount;  // number of buckets in hashtable
+} MemoryStorageOptions;
+
+Storage *makeMemoryStorage(MemoryStorageOptions *options);
 #endif //
 
 #define STORAGE_OK                       0 

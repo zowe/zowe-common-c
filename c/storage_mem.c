@@ -56,12 +56,15 @@ static void freeMemStorage(void *data) {
   memStorageFree(data);
 }
 
-static MemStorage *makeMemStorage() {
+#define DEFAULT_BUCKET_COUNT 257
+
+static MemStorage *makeMemStorage(MemoryStorageOptions *options) {
   MemStorage *storage = (MemStorage*)safeMalloc(sizeof(*storage), "MemStorage");
   if (!storage) {
     return NULL;
   }
-  hashtable *table = htCreate(257, stringHash, stringCompare, freeMemStorage, freeMemStorage);
+  int bucketCount = (options && options->bucketCount) > 0 ? options->bucketCount : DEFAULT_BUCKET_COUNT;
+  hashtable *table = htCreate(bucketCount, stringHash, stringCompare, freeMemStorage, freeMemStorage);
   if (!table) {
     safeFree((char*)storage, sizeof(*storage));
     return NULL;
@@ -169,12 +172,12 @@ static const char *memStorageGetStrStatus(MemStorage *storage, int status) {
   return message;
 }
 
-Storage *makeMemoryStorage() {
+Storage *makeMemoryStorage(MemoryStorageOptions *options) {
   Storage *storage = (Storage*)safeMalloc(sizeof(*storage), "Storage");
   if (!storage) {
     return NULL;
   }
-  MemStorage *memStorage = makeMemStorage();
+  MemStorage *memStorage = makeMemStorage(options);
   if (!memStorage) {
     safeFree((char*)storage, sizeof(*storage));
     return NULL;
@@ -214,7 +217,7 @@ Run: ./storage
 
 int main(int argc, char *argv[]) {
   int status = 0;
-  Storage *storage = makeMemoryStorage();
+  Storage *storage = makeMemoryStorage(NULL);
   if (!storage) {
     printf ("failed to create storage\n");
     exit(1);
