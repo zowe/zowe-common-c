@@ -22,6 +22,9 @@
 #ifdef USE_RS_SSL
 #include "rs_ssl.h"
 #endif
+#ifdef USE_ZOWE_TLS
+#include "tls.h"
+#endif
 
 #ifdef _LP64
 #pragma linkage(BPX4SOC,OS)
@@ -998,6 +1001,20 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
     }
   }
 #endif
+#ifdef USE_ZOWE_TLS
+  if (NULL != socket->tlsSocket) {
+    int bytesRead = 0;
+    status = tlsRead(socket->tlsSocket, buffer, desiredBytes, &bytesRead);
+    if (0 != status) {
+      if (socketTrace){
+        printf("socketRead: tlsRead failed with status: %d (%s)\n", status, tlsStrError(status));
+      }
+      return -1;
+    } else {
+      return bytesRead;
+    }
+  }
+#endif
 
 #ifndef _LP64
   reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
@@ -1046,6 +1063,20 @@ int socketWrite(Socket *socket, const char *buffer, int desiredBytes,
     }
   }
 #endif
+#ifdef USE_ZOWE_TLS
+  if (NULL != socket->tlsSocket) {
+    int bytesWritten = 0;
+    status = tlsWrite(socket->tlsSocket, buffer, desiredBytes, &bytesWritten);
+    if (0 != status) {
+      if (socketTrace){
+        printf("socketWrite: tlsWrite failed with status: %d (%s)\n", status, tlsStrError(status));
+      }
+      return -1;
+    } else {
+      return bytesWritten;
+    }
+  }
+#endif // USE_ZOWE_TLS
 
 #ifndef _LP64
   reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
@@ -1595,7 +1626,16 @@ int socketClose(Socket *socket, int *returnCode, int *reasonCode){
     returnValue = rs_ssl_releaseConnection(socket->sslHandle);
     return returnValue;
   }
-#endif
+#endif // USE_RS_SSL
+#ifdef USE_ZOWE_TLS
+  if (!socket->isServer && socket->tlsSocket) {
+    int rc = tlsSocketClose(socket->tlsSocket);
+    if (rc != 0 && socketTrace) {
+      printf("Error closing tls socket rc=%d (%s)\n", rc, tlsStrError(rc));
+    }
+    socket->tlsSocket = NULL;
+  }
+#endif // USE_ZOWE_TLS
 
   int *reasonCodePtr;
   int status;

@@ -66,6 +66,9 @@
 #ifdef USE_RS_SSL
 #include "rs_ssl.h"
 #endif
+#ifdef USE_ZOWE_TLS
+#include "tls.h"
+#endif // USE_ZOWE_TLS
 
 #include "../jwt/jwt/jwt.h"
 
@@ -120,7 +123,7 @@ typedef struct AuthResponse_tag {
 } while (0)
 
 #ifdef DEBUG
-#  define DEBUG_TRACE do { \
+#define DEBUG_TRACE(...) do { \
     printf(__VA_ARGS__); \
     fflush(stdout); \
   } while (0)
@@ -221,7 +224,7 @@ static char crlf[] ={ 0x0d, 0x0a};
 #endif
 
 //No need to fill logs with the same message, warn based on a desired frequency
-#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
+#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_ZOWE_TLS)
 #ifndef TLS_WARN_FREQUENCY
 #define TLS_WARN_FREQUENCY 25
 #endif
@@ -1480,9 +1483,11 @@ static int decodeSessionToken(ShortLivedHeap *slh,
 
 }
 
-HttpServer *makeHttpServer2(STCBase *base,
+static
+HttpServer *makeHttpServer3(STCBase *base,
                            InetAddr *addr,
                            int port,
+                           void *tlsEnv,
                            int tlsFlags,
                            int *returnCode, int *reasonCode){
   logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
@@ -1496,6 +1501,9 @@ HttpServer *makeHttpServer2(STCBase *base,
   if (listenerSocket == NULL){
     return NULL;
   }
+#ifdef USE_ZOWE_TLS
+  listenerSocket->tlsEnvironment = tlsEnv;
+#endif // USE_ZOWE_TLS
   HttpServer *server = (HttpServer*)safeMalloc31(sizeof(HttpServer),"HTTP Server");
   memset(server,0,sizeof(HttpServer));
   server->base = base;
@@ -1527,6 +1535,15 @@ HttpServer *makeHttpServer2(STCBase *base,
   server->config->authTokenType = SERVICE_AUTH_TOKEN_TYPE_LEGACY;
 
   return server;
+}
+
+HttpServer *makeHttpServer2(STCBase *base,
+                           InetAddr *addr,
+                           int port,
+                           int tlsFlags,
+                           int *returnCode,
+                           int *reasonCode){
+  return makeHttpServer3(base, addr, port, NULL, tlsFlags, returnCode, reasonCode);
 }
 
 #ifdef USE_RS_SSL
@@ -1569,6 +1586,19 @@ HttpServer *makeSecureHttpServer(STCBase *base, int port,
   return server;
 }
 #endif
+
+#ifdef USE_ZOWE_TLS
+HttpServer *makeSecureHttpServer(STCBase *base,
+                                 InetAddr *addr,
+                                 int port,
+                                 TlsEnvironment *tlsEnv,
+                                 int tlsFlags,
+                                 int *returnCode,
+                                 int *reasonCode
+                                ) {
+  return makeHttpServer3(base, addr, port, tlsEnv, tlsFlags, returnCode, reasonCode);
+}
+#endif // USE_ZOWE_TLS
 
 void *getConfiguredProperty(HttpServer *server, char *key){
   return htGet(server->properties,key);
@@ -5426,6 +5456,21 @@ static int httpHandleTCP(STCBase *base,
         }
       }
 #endif
+#ifdef USE_ZOWE_TLS
+      if (NULL != socket->tlsEnvironment) {
+        int rc = tlsSocketInit(socket->tlsEnvironment,
+                               &peerSocket->tlsSocket,
+                               peerSocket->sd,
+                               true);
+        if ((0 != rc) || (NULL == peerSocket->tlsSocket)) {
+#ifdef DEBUG
+          printf("httpserver failed to negotiate TLS with peer; closing socket\n");
+#endif
+          socketClose(peerSocket, &returnCode, &reasonCode);
+          break;
+        }
+      }
+#endif // USE_ZOWE_TLS
       ShortLivedHeap *slh = makeShortLivedHeap(READ_BUFFER_SIZE,100);
   #ifndef __ZOWE_OS_WINDOWS
       int writeBufferSize = 0x40000;
@@ -5485,7 +5530,7 @@ static int httpHandleTCP(STCBase *base,
       printf("peerExtension at 0x%x, httpConversation at 0x%x\n", peerExtension, conversation);
   #endif
 
-#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
+#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_RS_TLS)
       int sxStatus = sxUpdateTLSInfo(peerExtension,
                                      1); /* prevent multiple ioctl calls on repeated reads */
       if (0 != sxStatus) {
