@@ -59,7 +59,7 @@ void addMemberedDatasetMetadata(char *datasetName, int nameLength,
                                 jsonPrinter *jPrinter,
                                 int includeUnprintable);
 void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode);
-void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode);
+void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode, char *sem_table_pointer);
 void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode);
 void respondWithDatasetMetadata(HttpResponse *response);
 void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQueryCache);

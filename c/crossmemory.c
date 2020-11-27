@@ -4396,7 +4396,8 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
         NULL,
         NULL,
         workElementHandler,
-        backgroundHandler
+        backgroundHandler,
+        NULL
     );
 
     printServerReadyMessage(srv);

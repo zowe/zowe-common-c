@@ -76,8 +76,9 @@ typedef struct STCModule_tag {
   void *data;
   int  (*tcpHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *module, Socket *socket);  /* module ID's need to replace HTTP protocol ID's */
   int  (*udpHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *module, Socket *socket);
-  int  (*workElementHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *stcModule, WorkElementPrefix *prefix);
+  int  (*workElementHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *stcModule, WorkElementPrefix *prefix, char *sem_table_pointer);
   int  (*backgroundHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *stcModule, int selectReturnCode);
+  char *sem_table_pointer;
 } STCModule;
 
 typedef struct STCBase_tag{
@@ -162,8 +163,9 @@ STCModule* stcRegisterModule(STCBase *stcBase,
                              void *moduleData,
                              int  (*tcpHandler)(STCBase *stcBase, STCModule *module, Socket *socket),
                              int  (*udpHandler)(STCBase *stcBase, STCModule *module, Socket *socket),
-                             int  (*workElementHandler)(STCBase *stcBase, STCModule *stcModule, WorkElementPrefix *prefix),
-                             int  (*backgroundHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *stcModule, int selectStatus));
+                             int  (*workElementHandler)(STCBase *stcBase, STCModule *stcModule, WorkElementPrefix *prefix, char *sem_table_pointer),
+                             int  (*backgroundHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *stcModule, int selectStatus),
+                             char *sem_table_pointer);
 
 int stcRegisterSocketExtension(STCBase *stcBase,
                                SocketExtension *socketExtension,
