@@ -42,14 +42,14 @@ static int parseInteger(const char *str, int *statusOut) {
   char *end;
   long longValue = strtol(str, &end, 10);
   if(*end != '\0') {
-    *statusOut = STORAGE_VALUE_NOT_INTEGER;
+    *statusOut = STORAGE_STATUS_VALUE_NOT_INTEGER;
     return 0;
   }
   if (longValue < INT_MIN || longValue > INT_MAX) {
-    *statusOut = STORAGE_INTEGER_OUT_OF_RANGE;
+    *statusOut = STORAGE_STATUS_INTEGER_OUT_OF_RANGE;
     return 0;
   }
-  *statusOut = STORAGE_OK;
+  *statusOut = STORAGE_STATUS_OK;
   return (int)longValue;
 }
 
@@ -57,34 +57,37 @@ static double parseDouble(const char *str, int *statusOut) {
   char *end;
   double value = strtod(str, &end);
   if(*end != '\0') {
-    *statusOut = STORAGE_VALUE_NOT_DOUBLE;
+    *statusOut = STORAGE_STATUS_VALUE_NOT_DOUBLE;
     return 0.0;
   }
   if (value == HUGE_VAL || value == -HUGE_VAL) {
-    *statusOut = STORAGE_DOUBLE_OUT_OF_RANGE;
+    *statusOut = STORAGE_STATUS_DOUBLE_OUT_OF_RANGE;
     return 0.0;
   }
-  *statusOut = STORAGE_OK;
+  *statusOut = STORAGE_STATUS_OK;
   return value;
 }
 
 static bool parseBool(const char *str, int *statusOut) {
-  if (strcmp(str, TRUE_STRING) && strcmp(str, FALSE_STRING)) {
-    *statusOut = STORAGE_VALUE_NOT_BOOLEAN;
+  *statusOut = STORAGE_STATUS_OK;
+  if (!strcmp(str, TRUE_STRING)) {
+    return true;
+  }
+  if (!strcmp(str, FALSE_STRING)) {
     return false;
   }
-  *statusOut = STORAGE_OK;
-  return !strcmp(str, TRUE_STRING);
+  *statusOut = STORAGE_STATUS_VALUE_NOT_BOOLEAN;
+  return false;
 }
 
 static const char *MESSAGES[] = {
-    [STORAGE_OK] = "OK",
-    [STORAGE_KEY_NOT_FOUND] = "Key not found",
-    [STORAGE_VALUE_NOT_BOOLEAN] = "Value not boolean",
-    [STORAGE_VALUE_NOT_INTEGER] = "Value not integer",
-    [STORAGE_INTEGER_OUT_OF_RANGE] = "Integer out of range",
-    [STORAGE_VALUE_NOT_DOUBLE] = "Value not floating-point number",
-    [STORAGE_DOUBLE_OUT_OF_RANGE] = "Double out of range",
+    [STORAGE_STATUS_OK] = "OK",
+    [STORAGE_STATUS_KEY_NOT_FOUND] = "Key not found",
+    [STORAGE_STATUS_VALUE_NOT_BOOLEAN] = "Value not boolean",
+    [STORAGE_STATUS_VALUE_NOT_INTEGER] = "Value not integer",
+    [STORAGE_STATUS_INTEGER_OUT_OF_RANGE] = "Integer out of range",
+    [STORAGE_STATUS_VALUE_NOT_DOUBLE] = "Value not floating-point number",
+    [STORAGE_STATUS_DOUBLE_OUT_OF_RANGE] = "Double out of range",
 };
 
 #define MESSAGE_COUNT sizeof(MESSAGES)/sizeof(MESSAGES[0])
@@ -152,7 +155,7 @@ void storageRemove(Storage *storage, const char *key, int *statusOut) {
 }
 
 const char *storageGetStrStatus(Storage* storage, int status) {
-  if (status >= STORAGE_FIRST_CUSTOM_STATUS) {
+  if (status >= STORAGE_STATUS_FIRST_CUSTOM_STATUS) {
     return storage->strStatus(storage->userData, status);
   }
   if (status >= MESSAGE_COUNT || status < 0) {

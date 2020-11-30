@@ -25,31 +25,35 @@
 #include "collections.h"
 #include "storage.h"
 
-#define STOARGE_LOCK_ERROR   (STORAGE_FIRST_CUSTOM_STATUS + 0)
-#define STOARGE_UNLOCK_ERROR (STORAGE_FIRST_CUSTOM_STATUS + 1)
-#define STORAGE_ALLOC_ERROR  (STORAGE_FIRST_CUSTOM_STATUS + 2)
+#define STATUS_STOARGE_LOCK_ERROR   (STORAGE_STATUS_FIRST_CUSTOM_STATUS + 0)
+#define STORAGE_STATUS_UNLOCK_ERROR (STORAGE_STATUS_FIRST_CUSTOM_STATUS + 1)
+#define STORAGE_STATUS_ALLOC_ERROR  (STORAGE_STATUS_FIRST_CUSTOM_STATUS + 2)
 
 typedef struct MemStorage_tag {
   hashtable *table;      // map: key -> value
   pthread_mutex_t lock;  // lock to protect hashtable
 } MemStorage;
 
-static char *memStorageAlloc(int size) {
-  char *data = safeMalloc31(size + 4, "mem storage");
-  if (!data) {
+typedef struct InMemStorageBlock_tag {
+  int size;
+  char data[];
+} InMemStorageBlock;
+
+static void *memStorageAlloc(int size) {
+  InMemStorageBlock *block = (InMemStorageBlock*)safeMalloc(size + sizeof(InMemStorageBlock), "mem storage");
+  if (!block) {
     return NULL;
   }
-  *((int *)data) = size;
-  return (data + 4);
+  block->size = size;
+  return block->data;
 }
 
-static void memStorageFree(char *mem) {
+static void memStorageFree(void *mem) {
   if (!mem) {
     return;
   }
-  char *prefix = mem - 4;
-  int allocSize = ((int *)prefix)[0];
-  safeFree31(prefix, allocSize);
+  InMemStorageBlock *block = (InMemStorageBlock*)((char*)mem - sizeof(InMemStorageBlock));
+  safeFree((char*)block, block->size);
 }
 
 static void freeMemStorage(void *data) {
@@ -63,7 +67,7 @@ static MemStorage *makeMemStorage(MemoryStorageOptions *options) {
   if (!storage) {
     return NULL;
   }
-  int bucketCount = (options && options->bucketCount) > 0 ? options->bucketCount : DEFAULT_BUCKET_COUNT;
+  int bucketCount = (options && options->bucketCount > 0) ? options->bucketCount : DEFAULT_BUCKET_COUNT;
   hashtable *table = htCreate(bucketCount, stringHash, stringCompare, freeMemStorage, freeMemStorage);
   if (!table) {
     safeFree((char*)storage, sizeof(*storage));
@@ -74,6 +78,7 @@ static MemStorage *makeMemStorage(MemoryStorageOptions *options) {
   if (rc) {
     safeFree((char*)storage, sizeof(*storage));
     htDestroy(table);
+    return NULL;
   }
   return storage;
 }
@@ -81,17 +86,17 @@ static MemStorage *makeMemStorage(MemoryStorageOptions *options) {
 static int memStorageLock(MemStorage *storage) {
   int rc = pthread_mutex_lock(&storage->lock);
   if (rc) {
-    return STOARGE_LOCK_ERROR;
+    return STATUS_STOARGE_LOCK_ERROR;
   }
-  return STORAGE_OK;
+  return STORAGE_STATUS_OK;
 }
 
 static int memStorageUnlock(MemStorage *storage) {
   int rc = pthread_mutex_unlock(&storage->lock);
   if (rc) {
-    return STOARGE_UNLOCK_ERROR;
+    return STORAGE_STATUS_UNLOCK_ERROR;
   }
-  return STORAGE_OK;
+  return STORAGE_STATUS_OK;
 }
 
 static char *memStorageCopyString(MemStorage *storage, const char *str) {
@@ -100,8 +105,7 @@ static char *memStorageCopyString(MemStorage *storage, const char *str) {
   if (!newString) {
     return NULL;
   }
-  memset(newString, '\0', len + 1);
-  memcpy(newString, str, len);
+  strcpy(newString, str);
   return newString;
 }
 
@@ -110,16 +114,18 @@ static void memStorageSetString(MemStorage *storage, const char *key, const char
   const char *valueCopy = memStorageCopyString(storage, value);
   if (!keyCopy || !valueCopy) {
     if (keyCopy) {
-      memStorageFree((char*)keyCopy);
+      memStorageFree((void*)keyCopy);
     }
     if (valueCopy) {
-      memStorageFree((char*)valueCopy);
+      memStorageFree((void*)valueCopy);
     }
-    *statusOut = STORAGE_ALLOC_ERROR;
+    *statusOut = STORAGE_STATUS_ALLOC_ERROR;
     return;
   }
   int status = memStorageLock(storage);
   if (status) {
+    memStorageFree((void*)keyCopy);
+    memStorageFree((void*)valueCopy);
     *statusOut = status;
     return;
   }
@@ -137,7 +143,7 @@ static const char *memStorageGetString(MemStorage *storage, const char *key, int
   const char *value = htGet(storage->table, (void*)key);
   bool found = (value != NULL);
   status = memStorageUnlock(storage);
-  *statusOut = !found ? STORAGE_KEY_NOT_FOUND : status;
+  *statusOut = !found ? STORAGE_STATUS_KEY_NOT_FOUND : status;
   return value;
 }
 
@@ -149,19 +155,19 @@ static void memStorageRemove(MemStorage *storage, const char *key, int *statusOu
   }
   int removed = htRemove(storage->table, (void*)key);
   status = memStorageUnlock(storage);
-  *statusOut = !removed ? STORAGE_KEY_NOT_FOUND : status;
+  *statusOut = !removed ? STORAGE_STATUS_KEY_NOT_FOUND : status;
 }
 
 static const char *MESSAGES[] = {
-  [STOARGE_LOCK_ERROR] = "Failed to lock storage",
-  [STOARGE_UNLOCK_ERROR] = "Failed to unlock storage",
-  [STORAGE_ALLOC_ERROR] = "Failed to allocate memory",
+  [STATUS_STOARGE_LOCK_ERROR] = "Failed to lock storage",
+  [STORAGE_STATUS_UNLOCK_ERROR] = "Failed to unlock storage",
+  [STORAGE_STATUS_ALLOC_ERROR] = "Failed to allocate memory",
 };
 
 #define MESSAGE_COUNT sizeof(MESSAGES)/sizeof(MESSAGES[0])
 
 static const char *memStorageGetStrStatus(MemStorage *storage, int status) {
-  int adjustedStatus = status - STORAGE_FIRST_CUSTOM_STATUS;
+  int adjustedStatus = status - STORAGE_STATUS_FIRST_CUSTOM_STATUS;
   if (adjustedStatus >= MESSAGE_COUNT || adjustedStatus < 0) {
     return "Unknown status code";
   }
@@ -215,6 +221,10 @@ Run: ./storage
 
 */
 
+#include <assert.h>
+#include <math.h>
+#include <float.h>
+
 int main(int argc, char *argv[]) {
   int status = 0;
   Storage *storage = makeMemoryStorage(NULL);
@@ -226,52 +236,74 @@ int main(int argc, char *argv[]) {
   const char *sVal = "string-value";
   storageSetString(storage, keyA, sVal, &status);
   printf ("set str ['%s'] = '%s', status %d - %s\n", keyA, sVal, status, storageGetStrStatus(storage, status));
+  assert(status == STORAGE_STATUS_OK);
   
   const char *keyB = "keyB";
   int iVal = 123;
   storageSetInt(storage, keyB, iVal, &status);
   printf ("set int ['%s'] = %d, status %d - %s\n", keyB, iVal, status, storageGetStrStatus(storage, status));
-  
+  assert(status == STORAGE_STATUS_OK);
+
   const char *keyC = "keyC";
   bool bVal = false;
   storageSetBool(storage, keyC, bVal, &status);
   printf ("set bool ['%s'] = %s, status %d - %s\n", keyC, bVal ? "true" : "false", status, storageGetStrStatus(storage, status));
+  assert(status == STORAGE_STATUS_OK);
 
   const char *keyD = "keyD";
   double dVal = 123.456;
   storageSetDouble(storage, keyD, dVal, &status);
   printf ("set double ['%s'] = %f, status %d - %s\n", keyD, dVal, status, storageGetStrStatus(storage, status));
+  assert(status == STORAGE_STATUS_OK);
 
   sVal = storageGetString(storage, keyA, &status);
   printf ("get str ['%s'] = '%s', status %d - %s\n", keyA, sVal, status, storageGetStrStatus(storage, status));
-  
+  assert(status == STORAGE_STATUS_OK);
+  assert(0 == strcmp(sVal, "string-value"));
+
   iVal = storageGetInt(storage, keyB, &status);
   printf ("get int ['%s'] = %d, status %d - %s\n", keyB, iVal, status, storageGetStrStatus(storage, status));
-  
+  assert(status == STORAGE_STATUS_OK);
+  assert(iVal == 123);
+
   iVal = storageGetInt(storage, keyA, &status);
   printf ("get bad int ['%s'] = %d, status %d - %s\n", keyA, iVal, status, storageGetStrStatus(storage, status));
-  
+  assert(status == STORAGE_STATUS_VALUE_NOT_INTEGER);
+  assert(iVal == 0);
+
   const char *badKey = "badKey";
   iVal =  storageGetInt(storage, badKey, &status);
   printf ("get int ['%s'] = %d, status %d - %s\n", badKey, iVal, status, storageGetStrStatus(storage, status));
+  assert(status = STORAGE_STATUS_KEY_NOT_FOUND);
+  assert(iVal == 0);
   
   bVal =  storageGetBool(storage, keyC, &status);
   printf ("get bool ['%s'] = %s, status %d - %s\n", keyC, bVal ? "true" : "false", status, storageGetStrStatus(storage, status));
+  assert(status == STORAGE_STATUS_OK);
+  assert(bVal == false);
 
   dVal =  storageGetDouble(storage, keyD, &status);
   printf ("get double ['%s'] = %f, status %d - %s\n", keyD, dVal, status, storageGetStrStatus(storage, status));
+  assert(status == STORAGE_STATUS_OK);
+  assert(fabs(dVal - 123.456) < DBL_EPSILON);
 
   dVal = storageGetDouble(storage, keyA, &status);
   printf ("get bad double ['%s'] = %f, status %d - %s\n", keyA, dVal, status, storageGetStrStatus(storage, status));
+  assert(status == STORAGE_STATUS_VALUE_NOT_DOUBLE);
+  assert(fabs(dVal) < DBL_EPSILON);
   
   storageRemove(storage, keyC, &status);
   printf ("remove '%s', status %d - %s\n", keyC, status, storageGetStrStatus(storage, status));
+  assert(status == STORAGE_STATUS_OK);
   
   bVal = storageGetBool(storage, keyC, &status);
   printf ("get bool ['%s'] = %s, status %d - %s\n", keyC, bVal ? "true" : "false", status, storageGetStrStatus(storage, status));
+  assert(status == STORAGE_STATUS_KEY_NOT_FOUND);
+  assert(bVal == false);
   
   storageRemove(storage, keyC, &status);
   printf ("remove '%s', status %d - %s\n", keyC, status, storageGetStrStatus(storage, status));
+  assert(status == STORAGE_STATUS_KEY_NOT_FOUND);
 }
 #endif // _TEST
 

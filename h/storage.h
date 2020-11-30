@@ -1,3 +1,13 @@
+/*
+  This program and the accompanying materials are
+  made available under the terms of the Eclipse Public License v2.0 which accompanies
+  this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
+  
+  SPDX-License-Identifier: EPL-2.0
+  
+  Copyright Contributors to the Zowe Project.
+*/
+
 #ifndef STORAGE_H
 #define STORAGE_H
 
@@ -33,15 +43,25 @@ typedef struct MemoryStorageOptions_tag {
 Storage *makeMemoryStorage(MemoryStorageOptions *options);
 #endif //
 
-#define STORAGE_OK                       0 
-#define STORAGE_KEY_NOT_FOUND            1
-#define STORAGE_VALUE_NOT_BOOLEAN        2
-#define STORAGE_VALUE_NOT_INTEGER        3
-#define STORAGE_INTEGER_OUT_OF_RANGE     4
-#define STORAGE_VALUE_NOT_DOUBLE         5
-#define STORAGE_DOUBLE_OUT_OF_RANGE      6
+#define STORAGE_STATUS_OK                       0 
+#define STORAGE_STATUS_KEY_NOT_FOUND            1
+#define STORAGE_STATUS_VALUE_NOT_BOOLEAN        2
+#define STORAGE_STATUS_VALUE_NOT_INTEGER        3
+#define STORAGE_STATUS_INTEGER_OUT_OF_RANGE     4
+#define STORAGE_STATUS_VALUE_NOT_DOUBLE         5
+#define STORAGE_STATUS_DOUBLE_OUT_OF_RANGE      6
 
-#define STORAGE_FIRST_CUSTOM_STATUS 100
+#define STORAGE_STATUS_FIRST_CUSTOM_STATUS 100
 
 
 #endif // STORAGE_H
+
+/*
+  This program and the accompanying materials are
+  made available under the terms of the Eclipse Public License v2.0 which accompanies
+  this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
+  
+  SPDX-License-Identifier: EPL-2.0
+  
+  Copyright Contributors to the Zowe Project.
+*/
