@@ -72,6 +72,10 @@ typedef struct DataService_tag {
 
 WebPlugin *makeWebPlugin(char *baseDir, struct JsonObject_tag *pluginDefintion, InternalAPIMap *internalAPIMap,
                          unsigned int *idMultiplier, int pluginLogLevel);
+
+/**
+ * @brief Make a new Web plugin with ability to use a key/value storage
+ */
 WebPlugin *makeWebPlugin2(char *pluginLocation, JsonObject *pluginDefintion, InternalAPIMap *internalAPIMap,
                          unsigned int *idMultiplier, int pluginLogLevel, struct Storage_tag *storage);
 void initalizeWebPlugin(WebPlugin *plugin, HttpServer *server);
