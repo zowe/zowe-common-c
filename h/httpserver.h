@@ -141,7 +141,7 @@ typedef struct HttpTemplateTag_tag{
 struct HttpService_tag;
 
 typedef int HttpServiceInit(void);
-typedef int HttpServiceServe(struct HttpService_tag *service, HttpResponse *response, ... );
+typedef int HttpServiceServe(struct HttpService_tag *service, HttpResponse *response);
 typedef int AuthExtract(struct HttpService_tag *service, HttpRequest *request);
 typedef int AuthValidate(struct HttpService_tag *service, HttpRequest *request);
 typedef int HttpServiceInsertCustomHeaders(struct HttpService_tag *service, HttpResponse *response);

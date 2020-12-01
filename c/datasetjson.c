@@ -1690,7 +1690,7 @@ zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
 }
 
 /* new function for ENQ */
-void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode, char *sem_table_pointer) {
+void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode) {
 
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
       "ZSS1689I Begin %s\n", __FUNCTION__); 

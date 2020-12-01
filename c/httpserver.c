@@ -3113,8 +3113,7 @@ static void serializeConsiderCloseEnqueue(HttpConversation *conversation, int su
 }
 
 static void serveRequest(HttpService* service, HttpResponse* response,
-                         HttpRequest* request, 
-                         char *sem_table_pointer) {
+                         HttpRequest* request) {
   
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
             "begin %s\n", __FUNCTION__);
@@ -3136,7 +3135,7 @@ static void serveRequest(HttpService* service, HttpResponse* response,
       } else {
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
             "%s, set serviceFunction \n", __FUNCTION__);
-        service->serviceFunction(service, response, sem_table_pointer);
+        service->serviceFunction(service, response);
       }
     }
   }
@@ -3162,8 +3161,7 @@ static void respondWithAuthError(HttpResponse *response, AuthResponse *authRespo
 static int handleHttpService(HttpServer *server,
                              HttpService *service,
                              HttpRequest *request,
-                             HttpResponse *response,
-                             ...){
+                             HttpResponse *response){
 
 zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
             "begin %s\n", __FUNCTION__);
@@ -3284,19 +3282,7 @@ zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
           "ZSS3279I %s Impersonation is Valid\n", __FUNCTION__);
 
-      va_list   intArgumentPointer;
-      va_start( intArgumentPointer, response );  /* name of last fixed parameter */
-      char *sem_table_pointer = va_arg( intArgumentPointer, char * ); /* fetch first variadic parameter */
-      va_end( intArgumentPointer );
-
-      if(sem_table_pointer == NULL)
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-            "ZSS3291I %s sem_table_pointer is NULL\n", __FUNCTION__);
-
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-            "ZSS3291I %s sem_table_pointer %X on its way to serveRequest\n", __FUNCTION__, sem_table_pointer );
-
-      serveRequest(service, response, request, sem_table_pointer); 
+      serveRequest(service, response, request); 
     } else {
       reportImpersonationError(service, impersonating);
       respondWithError(response, HTTP_STATUS_FORBIDDEN,
@@ -3389,7 +3375,7 @@ static int serviceLoop(Socket *socket){
       }
       HttpService *service = findHttpService(NULL,request);
       if (service){
-        handleHttpService(NULL,service,request,response,NULL);
+        handleHttpService(NULL,service,request,response);
       }
     }
   }
@@ -5118,16 +5104,13 @@ static void logHTTPMethodAndURI(ShortLivedHeap *slh, HttpRequest *request) {
 }
 
 // Response is finished on an error
-static void doHttpResponseWork(HttpConversation *conversation, char *sem_table_pointer)
+static void doHttpResponseWork(HttpConversation *conversation)
 {
   HttpRequestParser *parser = conversation->parser;
   HttpHeader *header = NULL;
   HttpResponse *response = NULL;
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
     "ZSS5143I %s conversation\n", __FUNCTION__);
-  
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-            "ZSS5122I %s sem_table_pointer %X on its way in to doHttpResponseWork\n", __FUNCTION__, sem_table_pointer );
   do {
 
     if (conversation->shouldError) {
@@ -5200,9 +5183,7 @@ static void doHttpResponseWork(HttpConversation *conversation, char *sem_table_p
           startHttpTask(conversation->task);
           break;
         }
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-            "ZSS5196I %s sem_table_pointer %X on its way to handleHttpService\n", __FUNCTION__, sem_table_pointer );
-        handleHttpService(conversation->server,service,firstRequest,response, sem_table_pointer);
+        handleHttpService(conversation->server,service,firstRequest,response);
         break;
       }
 #ifdef DEBUG
@@ -5442,7 +5423,7 @@ HttpResponse *pseudoRespond(HttpServer *server, HttpRequest *request, ShortLived
   fflush(stdout);
   if (service){
     /* what about output streams */
-    handleHttpService(server,service,request,response,NULL);
+    handleHttpService(server,service,request,response);
     return response;
   } else{
     printf("could not find service for pseudoRespond\n");
@@ -5452,8 +5433,7 @@ HttpResponse *pseudoRespond(HttpServer *server, HttpRequest *request, ShortLived
 
 int httpWorkElementHandler(STCBase *base,
                            STCModule *module,
-                           WorkElementPrefix *prefix,
-                           char *sem_table_pointer) {
+                           WorkElementPrefix *prefix) {
   int status = 0;
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
     "ZSS5468I %s switch on %d\n", __FUNCTION__, prefix->payloadCode);
@@ -5605,7 +5585,7 @@ int httpWorkElementHandler(STCBase *base,
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
         "ZSS5620I %s HTTP_START_RESPONSE is %d\n", __FUNCTION__, HTTP_START_RESPONSE);
       HttpWorkElement *workElement = (HttpWorkElement*)((char*)prefix + sizeof(WorkElementPrefix));
-      doHttpResponseWork(workElement->conversation, sem_table_pointer);
+      doHttpResponseWork(workElement->conversation);
     }
     break;
 
@@ -5716,8 +5696,7 @@ void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
                                             httpHandleTCP,
                                             NULL,
                                             httpWorkElementHandler,
-                                            httpBackgroundHandler,
-                                            NULL);
+                                            httpBackgroundHandler);
 }
 
 int mainHttpLoop(HttpServer *server){
@@ -5727,25 +5706,11 @@ int mainHttpLoop(HttpServer *server){
 
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
     "ZSS5742I %s Create semaphore table for datasets\n", __FUNCTION__);
-  // /* semaphore table for datasets */
-  // int max_sems = 10;
-  // struct sem_table_type {
-  //   char dsn [44];
-  //   char mem [8];
-  //   int sem_ID;
-  // } sem_table_entry [max_sems];
 
-  
   int i;
   for(i=0; i<N_SEM_TABLE_ENTRIES; i++)
     sem_table_entry[i].sem_ID = 0;  /* initialise */
   
-  /* I don't want to pass a pointer to a structure, so I pass a pointer to char */
-  char *sem_table_pointer = (char *)&sem_table_entry [0]; /* point to start of table */
-
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-            "ZSS1945I %s sem_table_pointer %X\n", __FUNCTION__, sem_table_pointer );
-
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
     "ZSS5731I %s stcRegisterModule\n", __FUNCTION__);
   STCModule *httpModule = stcRegisterModule(base,
@@ -5754,8 +5719,7 @@ int mainHttpLoop(HttpServer *server){
                                             httpHandleTCP,
                                             NULL,
                                             httpWorkElementHandler,
-                                            httpBackgroundHandler,
-                                            sem_table_pointer);
+                                            httpBackgroundHandler);
 
   return stcBaseMainLoop(base, MAIN_WAIT_MILLIS);
 }

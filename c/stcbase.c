@@ -79,7 +79,7 @@ static int stcDrainQueueAndDispatchWork(STCBase *base)
     STCModule *module = base->modules[ PAYLOAD_CODE_TO_INDEX(workElement->payloadCode) ];
     if (NULL != module) {
       if (NULL != module->workElementHandler) {
-        module->workElementHandler(base, module, workElement, module->sem_table_pointer);
+        module->workElementHandler(base, module, workElement);
       } else {
         if (lowLevelTrace) {
           BASETRACE_ALWAYS("no workElementHandler defined for module (%d)\n",
@@ -409,9 +409,8 @@ STCModule* stcRegisterModule(STCBase *base,
                              void *moduleData,
                              int  (*tcpHandler)(STCBase *base, STCModule *module, Socket *socket),
                              int  (*udpHandler)(STCBase *base, STCModule *module, Socket *socket),
-                             int  (*workElementHandler)(STCBase *base, STCModule *stcModule, WorkElementPrefix *prefix, char *sem_table_pointer),
-                             int  (*backgroundHandler)(struct STCBase_tag *base, struct STCModule_tag *stcModule, int selectStatus),
-                             char *sem_table_pointer)
+                             int  (*workElementHandler)(STCBase *base, STCModule *stcModule, WorkElementPrefix *prefix),
+                             int  (*backgroundHandler)(struct STCBase_tag *base, struct STCModule_tag *stcModule, int selectStatus))
 {
   STCModule *module = (STCModule*)safeMalloc(sizeof(STCModule),"STC Module");
 #ifdef DEBUG
@@ -425,7 +424,6 @@ STCModule* stcRegisterModule(STCBase *base,
   module->tcpHandler = tcpHandler;
   module->udpHandler = udpHandler;
   module->workElementHandler = workElementHandler;
-  module->sem_table_pointer = sem_table_pointer;
   module->backgroundHandler = backgroundHandler;
 #ifdef DEBUG
   dumpbuffer((char*)module,sizeof(STCModule));
