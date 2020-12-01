@@ -78,7 +78,6 @@ typedef struct STCModule_tag {
   int  (*udpHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *module, Socket *socket);
   int  (*workElementHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *stcModule, WorkElementPrefix *prefix);
   int  (*backgroundHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *stcModule, int selectReturnCode);
-  char *sem_table_pointer;
 } STCModule;
 
 typedef struct STCBase_tag{
