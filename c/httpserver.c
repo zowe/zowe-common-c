@@ -62,7 +62,6 @@
 #include "charsets.h"
 #include "impersonation.h"
 #include "httpserver.h"
-#include "zssLogging.h"
 
 #ifdef USE_RS_SSL
 #include "rs_ssl.h"
