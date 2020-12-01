@@ -202,6 +202,8 @@ typedef struct HttpService_tag{
   const char *productURLPrefix; /* provided by the server */
   int doImpersonation;
   AuthValidate                   *authValidateFunction;
+#define SERVICE_AUTH_FLAG_OPTIONAL 1
+  int    authFlags;
 } HttpService;
 
 typedef struct HTTPServerConfig_tag {
@@ -421,6 +423,16 @@ HttpServer *makeSecureHttpServer(STCBase *base, int port,
                                  RS_SSL_ENVIRONMENT rsssl_env,
                                  int *returnCode, int *reasonCode);
 #endif
+#ifdef USE_ZOWE_TLS
+HttpServer *makeSecureHttpServer(STCBase *base,
+                                 InetAddr *addr,
+                                 int port,
+                                 TlsEnvironment *tlsEnv,
+                                 int tlsFlags,
+                                 int *returnCode,
+                                 int *reasonCode
+                                );
+#endif // USE_ZOWE_TLS
 
 HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
                                        HttpServer *server);

@@ -174,7 +174,7 @@ void jsonWriteBufferInternal(jsonPrinter *p, char *text, int len) {
       if (newWriteReturn < 0) {
         /* TODO: Replace by zowelog(...) */
         ERROR("JSON: write error, rc %d, return code %d, reason code %08X\n",
-                newWriteReturn, returnCode, reasonCode);
+              newWriteReturn, returnCode, reasonCode);
         jsonSetIOErrorFlag(p);
         break;
       }

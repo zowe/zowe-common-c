@@ -381,6 +381,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define cmsCallService3 CMCALLS3
 #define cmsPrintf CMCMSPRF
 #define cmsGetConfigParm CMGETPRM
+#define cmsGetConfigParmUnchecked CMGETPRU
 #define cmsGetPCLogLevel CMGETLOG
 #define cmsGetStatus CMGETSTS
 #define cmsMakeServerName CMMKSNAM
@@ -472,8 +473,30 @@ int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString,
 int cmsHexDump(const CrossMemoryServerName *serverName,
                const void *data, unsigned size, const char *description);
 
+/**
+ * @brief Get a parameter from the cross-memory server's PARMLIB
+ * @param serverName Cross-memory server whose parameter is to be read
+ * @param name Name of the parameter
+ * @param parm Result parameter entry
+ * @return RC_CMS_OK in case of success, and one of the RC_CMS_nn values in
+ * case of failure
+ */
 int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,
                      CrossMemoryServerConfigParm *parm);
+
+/**
+ * @brief Get a parameter from the cross-memory server's PARMLIB without the
+ * authorization check (the caller must be SUP or system key)
+ * @param serverName Cross-memory server whose parameter is to be read
+ * @param name Name of the parameter
+ * @param parm Result parameter entry
+ * @return RC_CMS_OK in case of success, and one of the RC_CMS_nn values in
+ * case of failure
+ */
+int cmsGetConfigParmUnchecked(const CrossMemoryServerName *serverName,
+                              const char *name,
+                              CrossMemoryServerConfigParm *parm);
+
 int cmsGetPCLogLevel(const CrossMemoryServerName *serverName);
 CrossMemoryServerStatus cmsGetStatus(const CrossMemoryServerName *serverName);
 CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);

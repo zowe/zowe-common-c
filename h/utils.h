@@ -404,6 +404,8 @@ bool stringIsDigit(const char * str);
 const char* strrstr(const char * base, const char * find);
 #endif
 
+void trimRight(char *str, int length);
+
 #if defined(__cplusplus)                                                        
 }           /* end of extern "C" */
 #endif                                                                          

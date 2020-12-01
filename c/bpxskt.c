@@ -22,6 +22,9 @@
 #ifdef USE_RS_SSL
 #include "rs_ssl.h"
 #endif
+#ifdef USE_ZOWE_TLS
+#include "tls.h"
+#endif
 
 #ifdef _LP64
 #pragma linkage(BPX4SOC,OS)
@@ -582,8 +585,6 @@ Socket *socketAccept(Socket *serverSocket, int *returnCode, int *reasonCode){
          returnCode,
          reasonCodePtr);
   if (returnValue == -1){
-    printf("Failed to accept new socket errno=%d reasonCode=0x%x\n",
-           *returnCode,*reasonCode);
     return NULL;
   } else{
     Socket *socket = (Socket*)safeMalloc31(sizeof(Socket),"ServerSideSocket");
@@ -743,7 +744,7 @@ int getV4HostByName(char *string){
     /* dumpbuffer((char*)hostent,20); */
     for (i=0; i<hostent->length; i++){
       if (socketTrace){
-	printf("  addr[%d] = %x\n",i,hostent->addrList[i]);
+        printf("  addr[%d] = %x\n",i,hostent->addrList[i]);
       }
       if (hostent->addrList[i]){
         numericAddress = *(hostent->addrList[i]);
@@ -781,7 +782,6 @@ int tcpIOControl(Socket *socket, int command, int argumentLength, char *argument
           returnCode,
           reasonCodePtr);
   if (returnValue < 0){
-    printf("ioctl failed ret code %d reason 0x%x\n",*returnCode,*reasonCode);
     return -1;
   } else {
     *returnCode = 0;
@@ -842,9 +842,10 @@ static int tcpStatusInternal(Socket *socket, int timeout,
   }
   timeoutSpecHandle = &timeoutSpecPtr;
 
-  
-  printf("tcpStatus sd=%d wordPos %d bitIndex %d maxSoc %d al %d\n",
-         sd,wordPos,bitIndex,maxSoc,activeLength);
+  if (socketTrace){
+    printf("tcpStatus sd=%d wordPos %d bitIndex %d maxSoc %d al %d\n",
+          sd,wordPos,bitIndex,maxSoc,activeLength);
+  }
   if (checkRead){
     rsndmsk[wordPos] = 1 << bitIndex;
   }
@@ -936,7 +937,6 @@ int setSocketBlockingMode(Socket *socket, int isNonBlocking,
           reasonCodePtr);
   
   if (returnValue < 0){
-    printf("BPXFCT failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
     return -1;
   } else {
     if (socketTrace){
@@ -965,7 +965,6 @@ int setSocketBlockingMode(Socket *socket, int isNonBlocking,
           reasonCodePtr);
   
   if (returnValue < 0){
-    printf("BPXFCT failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
     return returnValue;
   } else {
     if (socketTrace){
@@ -993,7 +992,23 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
     int bytesRead = 0;
     status = rs_ssl_read(socket->sslHandle, buffer, desiredBytes, &bytesRead);
     if (0 != status) {
-      printf("socketRead: rs_ssl_read failed with status: %d\n", status);
+      if (socketTrace){
+        printf("socketRead: rs_ssl_read failed with status: %d\n", status);
+      }
+      return -1;
+    } else {
+      return bytesRead;
+    }
+  }
+#endif
+#ifdef USE_ZOWE_TLS
+  if (NULL != socket->tlsSocket) {
+    int bytesRead = 0;
+    status = tlsRead(socket->tlsSocket, buffer, desiredBytes, &bytesRead);
+    if (0 != status) {
+      if (socketTrace){
+        printf("socketRead: tlsRead failed with status: %d (%s)\n", status, tlsStrError(status));
+      }
       return -1;
     } else {
       return bytesRead;
@@ -1006,7 +1021,6 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
 #else
   reasonCodePtr = reasonCode;
 #endif
-  /* printf("before read sd=%d buffer=%x\n",sd,buffer); */
   BPXRED(&sd,
           &buffer,
           &zero,
@@ -1015,7 +1029,6 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
           returnCode,
           reasonCodePtr);
   if (returnValue < 0){
-    printf("read failed ret code %d reason 0x%x\n",*returnCode,*reasonCode);
     return -1;
   } else {
     if (socketTrace > 2){
@@ -1041,20 +1054,35 @@ int socketWrite(Socket *socket, const char *buffer, int desiredBytes,
     int bytesWritten = 0;
     status = rs_ssl_write(socket->sslHandle, buffer, desiredBytes, &bytesWritten);
     if (0 != status) {
-      printf("socketWrite: rs_ssl_write failed with status: %d\n", status);
+      if (socketTrace){
+        printf("socketWrite: rs_ssl_write failed with status: %d\n", status);
+      }
       return -1;
     } else {
       return bytesWritten;
     }
   }
 #endif
+#ifdef USE_ZOWE_TLS
+  if (NULL != socket->tlsSocket) {
+    int bytesWritten = 0;
+    status = tlsWrite(socket->tlsSocket, buffer, desiredBytes, &bytesWritten);
+    if (0 != status) {
+      if (socketTrace){
+        printf("socketWrite: tlsWrite failed with status: %d (%s)\n", status, tlsStrError(status));
+      }
+      return -1;
+    } else {
+      return bytesWritten;
+    }
+  }
+#endif // USE_ZOWE_TLS
 
 #ifndef _LP64
   reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
 #else
   reasonCodePtr = reasonCode;
 #endif
-  /* printf("before write sd=%d buffer=%x\n",sd,buffer); */
   BPXWRT(&sd,
 	  &buffer,
 	  &zero,
@@ -1112,7 +1140,6 @@ int udpSendTo(Socket *socket,
 #else
   reasonCodePtr = reasonCode;
 #endif
-  /* printf("before write sd=%d buffer=%x\n",sd,buffer); */
 
   BPXSTO(&sd,
           &desiredBytes,
@@ -1125,8 +1152,6 @@ int udpSendTo(Socket *socket,
           returnCode,
           reasonCodePtr);
   if (returnValue < 0){
-    printf("send failed, sd=%d desired write len %d buffer at 0x%x, ret code %d reason 0x%x\n",
-	   sd,desiredBytes,buffer,*returnCode,*reasonCode);
     return -1;
   } else {
     if (socketTrace > 2){
@@ -1174,7 +1199,6 @@ int getSocketOption(Socket *socket, int optionName, int *optionDataLength, char 
     printf("after getsockopt, retval=%d ret code %d reason 0x%x\n",returnValue,*returnCode,*reasonCode);
   }
   if (returnValue < 0){
-    printf("get sockopt failed, ret code %d reason 0x%x\n",*returnCode,*reasonCode);
     return -1;
   } else {
     *returnCode = 0;
@@ -1201,7 +1225,6 @@ int setSocketOption(Socket *socket, int level, int optionName, int optionDataLen
 #else
   reasonCodePtr = reasonCode;
 #endif
-  /* printf("before read sd=%d buffer=%x\n",sd,buffer); */
   BPXOPT(&sd,
 	 &setOption,
 	 &level,
@@ -1212,7 +1235,6 @@ int setSocketOption(Socket *socket, int level, int optionName, int optionDataLen
 	 returnCode,
 	 reasonCodePtr);
   if (returnValue < 0){
-    printf("set sockopt failed, level=0x%x, option=0x%x ret code %d reason 0x%x\n",level,optionName,*returnCode,*reasonCode);
     return -1;
   } else {
     *returnCode = 0;
@@ -1275,8 +1297,6 @@ int udpReceiveFrom(Socket *socket,
           returnCode,
           reasonCodePtr);
   if (returnValue < 0){
-    printf("recvFrom failed, sd=%d desired buffer len %d buffer at 0x%x, ret code %d reason 0x%x\n",
-	   sd,bufferLength,buffer,*returnCode,*reasonCode);
     return -1;
   } else {
     if (socketTrace > 2){
@@ -1316,7 +1336,9 @@ void freeSocketAddr(SocketAddress *address){
 }
 
 void freeSocketSet(SocketSet *set){
-  printf("freeSocketSet: NYI\n");
+  if (socketTrace){
+    printf("freeSocketSet: NYI\n");
+  }
   return;
 }
 
@@ -1324,7 +1346,6 @@ int socketSetAdd(SocketSet *set, Socket *socket){
   int sd = socket->sd;
 
   if (sd > set->highestAllowedSD){
-    printf("SD=%d out of range (> %d)\n",sd,set->highestAllowedSD);
     return 12;
   }
 
@@ -1341,7 +1362,6 @@ int socketSetRemove(SocketSet *set, Socket *socket){
   int sd = socket->sd;
 
   if (sd > set->highestAllowedSD){
-    printf("SD=%d out of range (> %d)\n",sd,set->highestAllowedSD);
     return 12;
   }
 
@@ -1441,9 +1461,13 @@ InetAddr *getAddressByName(char *addressString){
 
   if (!isV4Numeric(addressString,&numericAddress)){
     numericAddress = getV4HostByName(addressString);
-    printf("Host name is DNS or non-numeric, %x\n",numericAddress);
+    if (socketTrace){
+      printf("Host name is DNS or non-numeric, %x\n",numericAddress);
+    }
   } else{
-    printf("Host name is numeric %x\n",numericAddress);
+    if (socketTrace){
+      printf("Host name is numeric %x\n",numericAddress);
+    }
   }
   
   if (numericAddress != 0x7F123456){
@@ -1602,7 +1626,16 @@ int socketClose(Socket *socket, int *returnCode, int *reasonCode){
     returnValue = rs_ssl_releaseConnection(socket->sslHandle);
     return returnValue;
   }
-#endif
+#endif // USE_RS_SSL
+#ifdef USE_ZOWE_TLS
+  if (!socket->isServer && socket->tlsSocket) {
+    int rc = tlsSocketClose(socket->tlsSocket);
+    if (rc != 0 && socketTrace) {
+      printf("Error closing tls socket rc=%d (%s)\n", rc, tlsStrError(rc));
+    }
+    socket->tlsSocket = NULL;
+  }
+#endif // USE_ZOWE_TLS
 
   int *reasonCodePtr;
   int status;

@@ -30,6 +30,7 @@
 #include "charsets.h"
 #include "unixfile.h"
 #include "timeutls.h"
+#include "logging.h"
 
 #ifdef _LP64
 #pragma linkage(BPX4RED,OS)
@@ -186,15 +187,15 @@ UnixFile *fileOpen(const char *filename, int options, int mode,
   if (fileTrace) {
     if (returnValue < 0) {
 #ifdef METTLE
-      printf("BPXOPN (%s, 0%o, 0%o) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXOPN (%s, 0%o, 0%o) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              filename, options, mode, returnValue, *returnCode, *reasonCode);
 #else
-      printf("BPXOPN (%s, 0%o, 0%o) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXOPN (%s, 0%o, 0%o) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              filename, options, mode, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXOPN (%s, 0%o, 0%o) OK: returnValue: %d\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXOPN (%s, 0%o, 0%o) OK: returnValue: %d\n",
              filename, options, mode, returnValue);
     }
   }
@@ -211,7 +212,7 @@ UnixFile *fileOpen(const char *filename, int options, int mode,
   file->isDirectory = FALSE;
   if (bufferSize > 0) {
     if (fileTrace) {
-      printf("initializing buffered reading, buffer size = %d\n", bufferSize);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "initializing buffered reading, buffer size = %d\n", bufferSize);
     }
     file->buffer = safeMalloc31(bufferSize,"Unix File Buffer");
     file->bufferSize = bufferSize;
@@ -225,7 +226,7 @@ int fileRead(UnixFile *file, char *buffer, int desiredBytes,
              int *returnCode, int *reasonCode) {
   if (file == NULL) {
     if (fileTrace) {
-      printf("fileRead: File is null\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fileRead: File is null\n");
     }
 #ifdef METTLE
     *returnCode = -1;
@@ -249,7 +250,7 @@ int fileRead(UnixFile *file, char *buffer, int desiredBytes,
 #endif
 
   if (fileTrace) {
-    printf("Before read: fd: %d, buffer: %x\n", fd, buffer);
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "Before read: fd: %d, buffer: %x\n", fd, buffer);
   }
 
   BPXRED(&fd,
@@ -263,14 +264,14 @@ int fileRead(UnixFile *file, char *buffer, int desiredBytes,
   if (fileTrace) {
     if (returnValue < 0) {
   #ifdef METTLE
-        printf("BPXRED FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+        zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRED FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
                returnValue, *returnCode, *reasonCode);
   #else
-        printf("BPXRED FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+        zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRED FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
                returnValue, *returnCode, *reasonCode, strerror(*returnCode));
   #endif
     } else {
-      printf("BPXRED OK: Read %d bytes\n", returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRED OK: Read %d bytes\n", returnValue);
     }
   }
 
@@ -290,7 +291,7 @@ int fileWrite(UnixFile *file, const char *buffer, int desiredBytes,
               int *returnCode, int *reasonCode) {
   if (file == NULL) {
     if (fileTrace) {
-      printf("fileWrite: File is null\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fileWrite: File is null\n");
     }
 #ifdef METTLE
     *returnCode = -1;
@@ -325,15 +326,15 @@ int fileWrite(UnixFile *file, const char *buffer, int desiredBytes,
   if (fileTrace) {
     if (returnValue < 0) {
 #ifdef METTLE
-      printf("BPXWRT (fd: %d, file: %s, desired bytes: %d) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXWRT (fd: %d, file: %s, desired bytes: %d) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              fd, (file->pathname ? file->pathname : "unknown"), desiredBytes, returnValue, *returnCode, *reasonCode);
 #else
-      printf("BPXWRT (fd: %d, file: %s, desired bytes: %d) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXWRT (fd: %d, file: %s, desired bytes: %d) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              fd, (file->pathname ? file->pathname : "unknown"), desiredBytes, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXWRT OK: Wrote %d bytes\n", returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXWRT OK: Wrote %d bytes\n", returnValue);
     }
   }
 
@@ -348,34 +349,34 @@ int fileWrite(UnixFile *file, const char *buffer, int desiredBytes,
 
 int fileGetChar(UnixFile *file, int *returnCode, int *reasonCode) {
 #ifdef DEBUG
-  printf("bufferSize = %d\n",file->bufferSize);
+  zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "bufferSize = %d\n",file->bufferSize);
 #endif
   if (file->bufferSize == 0){
 #ifdef DEBUG
-    printf("fgetc 1\n");
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 1\n");
 #endif
     *returnCode = 8;
     *reasonCode = 0xBFF;
     return -1;
   } else if (file->bufferPos < file->bufferFill){
 #ifdef DEBUG
-    printf("fgetc 2\n");
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 2\n");
 #endif
     return (int)(file->buffer[file->bufferPos++]);
   } else if (file->eofKnown){
 #ifdef DEBUG
-    printf("fgetc 3\n");
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 3\n");
 #endif
     return -1;
   } else{
     /* go after next buffer and pray */
 #ifdef DEBUG
-    printf("fgetc 4\n");
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 4\n");
 #endif
     int bytesRead = fileRead(file,file->buffer,file->bufferSize,returnCode,reasonCode);
     if (bytesRead >= 0) {
 #ifdef DEBUG
-      printf("got more data, bytesRead=%d wanted=%d\n",bytesRead,file->bufferSize);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "got more data, bytesRead=%d wanted=%d\n",bytesRead,file->bufferSize);
       dumpbuffer(file->buffer,file->bufferSize);
 #endif
       if (bytesRead < file->bufferSize) { /* out of data after this read */
@@ -393,7 +394,7 @@ int fileGetChar(UnixFile *file, int *returnCode, int *reasonCode) {
 int fileClose(UnixFile *file, int *returnCode, int *reasonCode) {
   if (file == NULL) {
     if (fileTrace) {
-      printf("fileClose: File is null\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fileClose: File is null\n");
     }
 #ifdef METTLE
     *returnCode = -1;
@@ -436,15 +437,15 @@ int fileClose(UnixFile *file, int *returnCode, int *reasonCode) {
   if (fileTrace) {
     if (returnValue != 0) {
 #ifdef METTLE
-      printf("BPXCLO FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCLO FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              returnValue, *returnCode, *reasonCode);
 #else
-      printf("BPXCLO FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCLO FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXCLO OK: returnValue: %d\n", returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCLO OK: returnValue: %d\n", returnValue);
     }
   }
 
@@ -502,15 +503,15 @@ int fileChangeTagPure(const char *fileName, int *returnCode, int *reasonCode,
   if (fileTrace) {
     if (returnValue != 0) {
 #ifdef METTLE
-      printf("BPXCHR FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCHR FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              returnValue, *returnCode, *reasonCode);
 #else
-      printf("BPXCHR FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCHR FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXCHR (%s) OK: returnValue: %d\n\n", fileName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCHR (%s) OK: returnValue: %d\n\n", fileName, returnValue);
     }
   }
 
@@ -546,15 +547,15 @@ int fileChangeMode(const char *fileName, int *returnCode, int *reasonCode, int m
   if (fileTrace) {
     if (returnValue != 0) {
 # ifdef METTLE
-      printf("BPXCHM FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCHM FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              returnValue, *returnCode, *reasonCode);
 # else
-      printf("BPXCHM FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCHM FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 # endif
     }
     else {
-      printf("BPXCHM (%s) OK: returnValue: %d\n\n", fileName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCHM (%s) OK: returnValue: %d\n\n", fileName, returnValue);
     }
   }
 
@@ -684,15 +685,15 @@ int fileRename(const char *oldFileName, const char *newFileName, int *returnCode
   if (fileTrace) {
     if(returnValue != 0) {
 #ifdef METTLE
-      printf("BPXREN FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXREN FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              returnValue, *returnCode, *reasonCode);
 #else
-      printf("BPXREN FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXREN FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXREN (%s) OK: returnVal: %d\n", oldFileName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXREN (%s) OK: returnVal: %d\n", oldFileName, returnValue);
     }
   }
 
@@ -727,15 +728,15 @@ int fileDelete(const char *fileName, int *returnCode, int *reasonCode){
   if (fileTrace) {
     if(returnValue != 0) {
 #ifdef METTLE
-      printf("BPXUNL (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXUNL (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              fileName, returnValue, *returnCode, *reasonCode);
 #else
-      printf("BPXUNL (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXUNL (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              fileName, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXUNL (%s) OK: returnVal: %d\n", fileName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXUNL (%s) OK: returnVal: %d\n", fileName, returnValue);
     }
   }
 
@@ -772,15 +773,15 @@ int fileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int *reason
   if (fileTrace) {
     if(returnValue != 0) {
 #ifdef METTLE
-      printf("BPXSTA (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXSTA (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              filename, returnValue, *returnCode, *reasonCode);
 #else
-      printf("BPXSTA (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXSTA (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              filename, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXSTA (%s) OK: returnVal: %d, type: %s\n", filename, returnValue, fileTypeString(stats->fileType));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXSTA (%s) OK: returnVal: %d, type: %s\n", filename, returnValue, fileTypeString(stats->fileType));
     }
   }
 
@@ -817,15 +818,15 @@ int symbolicFileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int
   if (fileTrace) {
     if(returnValue != 0) {
 #ifdef METTLE
-      printf("BPXLST (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXLST (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              filename, returnValue, *returnCode, *reasonCode);
 #else
-      printf("BPXLST (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXLST (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              filename, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXLST (%s) OK: returnVal: %d, type: %s\n", filename, returnValue, fileTypeString(stats->fileType));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXLST (%s) OK: returnVal: %d, type: %s\n", filename, returnValue, fileTypeString(stats->fileType));
     }
   }
 
@@ -863,15 +864,15 @@ int fileChangeOwner(const char *fileName, int *returnCode, int *reasonCode,
   if (fileTrace) {
     if (returnValue != 0) {
 #ifdef METTLE
-      printf("BPXLCO FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXLCO FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
              returnValue, *returnCode, *reasonCode);
 #else
-      printf("BPXLCO FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXLCO FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXLCO (%s) OK: returnValue: %d\n\n", fileName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXLCO (%s) OK: returnValue: %d\n\n", fileName, returnValue);
     }
   }
 
@@ -942,15 +943,15 @@ UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonC
   if (fileTrace) {
     if (fd < 0) {
 #ifdef METTLE
-      printf("BPXOPD (%s) FAILED: fd: %d, returnCode: %d, reasonCode: 0x%08x\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXOPD (%s) FAILED: fd: %d, returnCode: %d, reasonCode: 0x%08x\n",
              directoryName, fd, *returnCode, *reasonCode);
 #else
-      printf("BPXOPD (%s) FAILED: fd: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXOPD (%s) FAILED: fd: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
              directoryName, fd, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXOPD (%s) OK: fd: %d\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXOPD (%s) OK: fd: %d\n",
              directoryName, fd);
     }
   }
@@ -972,7 +973,7 @@ UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonC
 int directoryRead(UnixFile *directory, char *entryBuffer, int entryBufferLength, int *returnCode, int *reasonCode) {
   if (directory == NULL) {
     if (fileTrace) {
-      printf("Directory is null\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "Directory is null\n");
     }
 #ifdef METTLE
     *returnCode = -1;
@@ -1006,22 +1007,24 @@ int directoryRead(UnixFile *directory, char *entryBuffer, int entryBufferLength,
   if (fileTrace) {
     if (numberOfEntriesRead < 0) {
 #ifdef METTLE
-      printf("BPXRDD (fd=%d, path=%s) %s: %d entries read, "
-             "returnCode: %d, reasonCode: 0x%08x\n",
-             directory->fd, (directory->pathname ? directory->pathname : "unknown"),
-             (numberOfEntriesRead == 0 ? "PROBABLE EOF" : "FAILED"), numberOfEntriesRead,
-             *returnCode, *reasonCode);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, 
+              "BPXRDD (fd=%d, path=%s) %s: %d entries read, "
+              "returnCode: %d, reasonCode: 0x%08x\n",
+              directory->fd, (directory->pathname ? directory->pathname : "unknown"),
+              (numberOfEntriesRead == 0 ? "PROBABLE EOF" : "FAILED"), numberOfEntriesRead,
+              *returnCode, *reasonCode);
 #else
-      printf("BPXRDD (fd=%d, path=%s) %s: %d entries read, "
-             "returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
-             directory->fd, (directory->pathname ? directory->pathname : "unknown"),
-             (numberOfEntriesRead == 0 ? "PROBABLE EOF" : "FAILED"), numberOfEntriesRead,
-             returnCode, reasonCode, strerror(*returnCode));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXRDD (fd=%d, path=%s) %s: %d entries read, "
+              "returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+              directory->fd, (directory->pathname ? directory->pathname : "unknown"),
+              (numberOfEntriesRead == 0 ? "PROBABLE EOF" : "FAILED"), numberOfEntriesRead,
+              returnCode, reasonCode, strerror(*returnCode));
 
 #endif
     }
     else {
-      printf("BPXRDD (fd=%d, path=%s) OK: %d entries read\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRDD (fd=%d, path=%s) OK: %d entries read\n",
              directory->fd, (directory->pathname ? directory->pathname : "unknown"),
              numberOfEntriesRead);
     }
@@ -1038,7 +1041,7 @@ int directoryRead(UnixFile *directory, char *entryBuffer, int entryBufferLength,
 int directoryClose(UnixFile *directory, int *returnCode, int *reasonCode){
   if (directory == NULL) {
     if (fileTrace) {
-      printf("Directory is null\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "Directory is null\n");
     }
 #ifdef METTLE
     *returnCode = -1;
@@ -1068,19 +1071,21 @@ int directoryClose(UnixFile *directory, int *returnCode, int *reasonCode){
   if (fileTrace) {
     if (returnValue < 0) {
 #ifdef METTLE
-      printf("BPXCLD (fd=%d, path=%s) FAILED: returnValue: %d, "
-             "returnCode: %d, reasonCode: 0x%08x\n",
-             directory->fd, (directory->pathname ? directory->pathname : "unknown"), returnValue,
-             returnValue, *returnCode, *reasonCode);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXCLD (fd=%d, path=%s) FAILED: returnValue: %d, "
+              "returnCode: %d, reasonCode: 0x%08x\n",
+              directory->fd, (directory->pathname ? directory->pathname : "unknown"), returnValue,
+              returnValue, *returnCode, *reasonCode);
 #else
-      printf("BPXCLD (fd=%d, path=%s) FAILED: returnValue: %d, "
-             "returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
-             directory->fd, (directory->pathname ? directory->pathname : "unknown"), returnValue,
-             returnValue, *returnCode, *reasonCode, strerror(*returnCode));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXCLD (fd=%d, path=%s) FAILED: returnValue: %d, "
+              "returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+              directory->fd, (directory->pathname ? directory->pathname : "unknown"), returnValue,
+              returnValue, *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXCLD (fd=%d, path=%s) OK: returnValue: %d\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXCLD (fd=%d, path=%s) OK: returnValue: %d\n",
              directory->fd, (directory->pathname ? directory->pathname : "unknown"),
              returnValue);
     }
@@ -1125,19 +1130,21 @@ int directoryMake(const char *pathName, int mode, int *returnCode, int *reasonCo
   if (fileTrace) {
     if (returnValue != 0) {
 #ifdef METTLE
-      printf("BPXMKD (%s, 0%o) FAILED: returnVal: %d, "
-             "returnCode: %d, reasonCode: 0x%08x\n",
-             pathName, mode, returnValue,
-             *returnCode, *reasonCode);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXMKD (%s, 0%o) FAILED: returnVal: %d, "
+              "returnCode: %d, reasonCode: 0x%08x\n",
+              pathName, mode, returnValue,
+              *returnCode, *reasonCode);
 #else
-      printf("BPXMKD (%s, 0%o) FAILED: returnVal: %d, "
-             "returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
-             pathName, mode, returnValue,
-             *returnCode, *reasonCode, strerror(*returnCode));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXMKD (%s, 0%o) FAILED: returnVal: %d, "
+              "returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+               pathName, mode, returnValue,
+               *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXMKD (%s,) OK: returnValue: %d\n",
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXMKD (%s,) OK: returnValue: %d\n",
              pathName, returnValue);
     }
   }
@@ -1173,17 +1180,19 @@ int directoryDelete(const char *pathName, int *returnCode, int *reasonCode){
   if (fileTrace) {
     if (returnValue != 0) {
 #ifdef METTLE
-      printf("BPXMKD (%s) FAILED: returnVal: %d\n",
-             pathName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, 
+              "BPXMKD (%s) FAILED: returnVal: %d\n",
+              pathName, returnValue);
 #else
-      printf("BPXMKD (%s) FAILED: returnVal: %d, "
-             "returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
-             pathName, returnValue,
-             *returnCode, *reasonCode, strerror(*returnCode));
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXMKD (%s) FAILED: returnVal: %d, "
+              "returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+              pathName, returnValue,
+              *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
-      printf("BPXRMD (%s) OK: returnValue: %d\n", pathName, returnValue);
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRMD (%s) OK: returnValue: %d\n", pathName, returnValue);
     }
   }
 
@@ -1628,11 +1637,6 @@ int directoryChangeTagRecursive(const char *pathName, char *type,
     goto ExitCodeError;
   }
 
-  /* If directory and not recursive, just return */
-  if ((fileInfoIsDirectory(&info) && !recursive)) {
-    goto ExitCode;
-    }
-
   /* Request is for a file. Handle it and exit */
   if (fileInfoIsRegularFile(&info)) {
     if( -1 == patternChangeTagCheck (pathName, &returnCode, 
@@ -1671,21 +1675,17 @@ int directoryChangeTagRecursive(const char *pathName, char *type,
       goto ExitCodeError;
     }
 
-    if (fileInfoIsDirectory(&info)) {
+    if (fileInfoIsDirectory(&info) && recursive) {
       /* Change tag of all sub-directories and files there-in */
       if (-1 ==  directoryChangeTagRecursive(
                          pathBuffer, type, codepage, recursive, pattern,
                          &returnCode, &reasonCode) ){
         goto ExitCodeError;
       }
-    }
-    else {
-      /* change mode of this file, not a directory */
-      if (fileInfoIsRegularFile(&info)) {
-        if( -1 == patternChangeTagCheck (pathBuffer, &returnCode, &reasonCode, 
-                                  codepage, type, pattern)) {
-          goto ExitCodeError;
-        }
+    } else if (fileInfoIsRegularFile(&info)) {
+      if( -1 == patternChangeTagCheck (pathBuffer, &returnCode, &reasonCode, 
+                                codepage, type, pattern)) {
+        goto ExitCodeError;
       }
     }
   } /* End of for loop */
@@ -1698,10 +1698,10 @@ ExitCode:
     *resCode = reasonCode;
   if (fileTrace) {
     if (returnValue  != 0) {
-      printf("directoryChangeModeRecursive: Failed\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeModeRecursive: Failed\n");
     }
     else {
-      printf("directoryChangeModeRecursive: Passed\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeModeRecursive: Passed\n");
    }
   }
   return returnValue;
@@ -1722,13 +1722,13 @@ int setUmask(int mask) {
          &returnValue);
 
   if (fileTrace){
-    printf("setUmask(0%o) return 0%o\n", mask, returnValue);
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "setUmask(0%o) return 0%o\n", mask, returnValue);
   }
   return returnValue;
 }
 
 int getUmask() {
-  printf("UMASK: This is a dirty hack.\n");
+  zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "UMASK: This is a dirty hack.\n");
 
   int previous = setUmask(0000);
   setUmask(previous);
@@ -1885,7 +1885,7 @@ static int patternChangeModeFile (const char *fileName,
   const char * baseName;
 
   if (fileTrace) {
-   printf("ChangeModeFile: %s TO %3o  \n", fileName, mode);
+   zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "ChangeModeFile: %s TO %3o  \n", fileName, mode);
   }
 
   /* Test to see if a substring is part of base name */
@@ -2022,10 +2022,10 @@ int directoryChangeModeRecursive(const char *pathName, int flag,
 ExitCode:
   if (fileTrace) {
     if (returnValue  != 0) {
-      printf("directoryChangeModeRecursive: Failed\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeModeRecursive: Failed\n");
     }
     else {
-      printf("directoryChangeModeRecursive: Passed\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeModeRecursive: Passed\n");
    }
   }
   return returnValue;
@@ -2139,10 +2139,10 @@ ExitCodeError:
 ExitCode:
   if (fileTrace) {
     if (returnValue  != 0) {
-      printf("directoryChangeOwnerRecursive: Failed\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeOwnerRecursive: Failed\n");
     }
     else {
-      printf("directoryChangeOwnerRecursive: Passed\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeOwnerRecursive: Passed\n");
    }
   }
   return returnValue;
