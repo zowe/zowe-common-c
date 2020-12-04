@@ -1873,7 +1873,7 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
             zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_WARNING, 
               "ZSS1773E %s isgenqTryExclusiveLock Unable to obtain exclusive access to Dataset or member\n"
               , __FUNCTION__);
-            respondWithError(response,HTTP_STATUS_BAD_REQUEST,
+            respondWithError(response,HTTP_STATUS_RESOURCE_CONFLICT,
               "Unable to obtain exclusive access to Dataset or member");
             return;
         }
@@ -2028,7 +2028,14 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
               zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
                 "ZSS2020I %s semaphore %d was set\n", __FUNCTION__, semaphoreID);
             }
-            
+
+          /* the HTTP GET that consumes this message insists that the response body be JSON */
+          respondWithMessage(response, HTTP_STATUS_OK,
+                    //  "Enqueue dataset %s successful\n",
+                    //  absolutePath
+                     "{\"records\":[\"Enqueue dataset successful\"]}"
+                     ); 
+
           /********/
           /* wait */
           /********/
@@ -2076,7 +2083,7 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
       { /* , do nothing if already present */
         zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
             "ZSS1997I %s semaphore %d is already present \n", __FUNCTION__, semaphoreID);
-        respondWithError(response, HTTP_STATUS_BAD_REQUEST , "dataset is already enqueued"); 
+        respondWithError(response, HTTP_STATUS_RESOURCE_CONFLICT , "dataset is already enqueued"); 
       } /* end of create semaphore */
   /* end of semaphore section */
 
