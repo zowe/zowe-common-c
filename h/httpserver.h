@@ -380,6 +380,8 @@ typedef struct HttpConversation_tag{
   WSSession         *wsSession;
   RLETask           *task;
   int                zeroLengthReadCount;
+  int                requestCount;
+  bool               isKeepAlive;
 } HttpConversation;
 
 typedef struct HttpWorkElement_tag{

@@ -1063,9 +1063,20 @@ static void traceHeader(const char*line, int len)
   }
 }
 
+#define JED_HTTP_KEEP_ALIVE_MAX 1000
+
 void writeHeader(HttpResponse *response){
   if (response->sessionCookie) {
     addStringHeader(response, "Set-Cookie", response->sessionCookie);
+  }
+  if (response->conversation->isKeepAlive) {
+    if (response->conversation->requestCount == JED_HTTP_KEEP_ALIVE_MAX) {
+      addStringHeader(response, "Connection", "close");
+    }
+    else {
+      addStringHeader(response, "Connection", "keep-alive");
+      addStringHeader(response, "Keep-Alive", "max=1000");
+    }
   }
 
   Socket *socket = response->socket;
@@ -3191,6 +3202,42 @@ static void respondWithAuthError(HttpResponse *response, AuthResponse *authRespo
   }
 }
 
+static int handleServiceFailed(HttpConversation *conversation,
+                               HttpService *service,
+                               HttpResponse *response) {
+
+  if (service->cleanupFunction != NULL) {
+    service->cleanupFunction(service, response);
+  }
+
+  /* Save the conversation response working state, and then set it to false */
+  int workingOnResponse = conversation->workingOnResponse;
+  conversation->workingOnResponse = FALSE;                
+
+  /* Set shouldClose to indicate that the conversation can not continue further */
+  conversation->shouldClose = TRUE;
+
+  /* If not running in a subtask and a considerCloseConversation request has not been queued, queue one */
+  serializeConsiderCloseEnqueue(conversation,FALSE);
+
+  /* Attempt to prevent a double free of a response block
+
+      In most abends it is unlikely that the response block will have been freed
+      before the abend occurred.  In those cases the test below will succeed.  If
+      the response block was freed then the test below will fail, and we must not
+      attempt to free it again.                                                     
+
+      finishResponse can not be used to cleanup for the response because
+      we have already queued the conversation for close processing.  Just
+      free the SLH associated with the response.                           */
+
+  if (workingOnResponse == TRUE) {           
+    SLHFree(response->slh);  
+  }
+
+  return HTTP_SERVICE_FAILED;
+}
+
 static int handleHttpService(HttpServer *server,
                              HttpService *service,
                              HttpRequest *request,
@@ -3198,6 +3245,10 @@ static int handleHttpService(HttpServer *server,
 
 #ifdef __ZOWE_OS_ZOS
   HttpConversation *conversation = response->conversation;
+
+  if (conversation->requestCount > JED_HTTP_KEEP_ALIVE_MAX) {
+    return handleServiceFailed(conversation, service, response);
+  }
 
   HTTPServiceABENDInfo abendInfo = {"RSHTTPAI", 0, 0};
   int recoveryRC = recoveryPush(service->name,
@@ -3222,36 +3273,7 @@ static int handleHttpService(HttpServer *server,
           service->name, recoveryRC);
 #endif
     }
-
-    if (service->cleanupFunction != NULL) {
-      service->cleanupFunction(service, response);
-    }
-
-    /* Save the conversation response working state, and then set it to false */
-    int workingOnResponse = conversation->workingOnResponse;
-    conversation->workingOnResponse = FALSE;                
-
-    /* Set shouldClose to indicate that the conversation can not continue further */
-    conversation->shouldClose = TRUE;
-    /* If not running in a subtask and a considerCloseConversation request has not been queued, queue one */
-    serializeConsiderCloseEnqueue(conversation,FALSE);
-
-    /* Attempt to prevent a double free of a response block
-
-       In most abends it is unlikely that the response block will have been freed
-       before the abend occurred.  In those cases the test below will succeed.  If
-       the response block was freed then the test below will fail, and we must not
-       attempt to free it again.                                                     
-
-       finishResponse can not be used to cleanup for the response because
-       we have already queued the conversation for close processing.  Just
-       free the SLH associated with the response.                           */
-
-    if (workingOnResponse == TRUE) {           
-      SLHFree(response->slh);  
-    }
-
-    return HTTP_SERVICE_FAILED;
+    return handleServiceFailed(conversation, service, response);
   }
 #endif
 #ifdef DEBUG
@@ -3354,6 +3376,8 @@ HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
   conversation->socketExtension = socketExtension;
   conversation->runningTasks = 0;
   conversation->closeEnqueued = FALSE;
+  conversation->requestCount = 0;
+  conversation->isKeepAlive = FALSE;
   socketExtension->protocolHandler = conversation;
   socketExtension->moduleID = STC_MODULE_JEDHTTP;
   socketExtension->isServerSocket = FALSE;
@@ -5263,6 +5287,9 @@ static void doHttpResponseWork(HttpConversation *conversation)
       if (logGetLevel(NULL, LOG_COMP_HTTPSERVER) >= ZOWE_LOG_DEBUG2) {
         logHTTPMethodAndURI(parser->slh, firstRequest);
       }
+
+      conversation->requestCount++;
+      conversation->isKeepAlive = firstRequest->keepAlive;
 
       response = makeHttpResponse(firstRequest,parser->slh,conversation->socketExtension->socket);
       /* parse URI after request and response ready for work, have SLH's, etc */
