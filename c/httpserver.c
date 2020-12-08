@@ -1886,13 +1886,19 @@ static void addRequestHeader(HttpRequestParser *parser){
     if (!compareIgnoringCase(newHeader->nativeValue,"websocket",parser->headerValueLength)){
       parser->isWebSocket = TRUE;
     }
-  } else if (!compareIgnoringCase(newHeader->nativeName, "Connection",
+  }
+  /* Temporarily disable this while investigating and developing solutions to
+     Out of memory issues around the SLH used by each connection running out of memory
+     Due to connections not closing when they should
+  else if (!compareIgnoringCase(newHeader->nativeName, "Connection",
                                   parser->headerNameLength)) {
     if (!compareIgnoringCase(newHeader->nativeValue, "Keep-Alive",
                              parser->headerValueLength)) {
       parser->keepAlive = TRUE;
     }
   }
+  */
+  parser->keepAlive = FALSE;
 
   HttpHeader *headerChain = parser->headerChain;
   if (headerChain){
