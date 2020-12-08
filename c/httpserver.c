@@ -1,5 +1,3 @@
-
-
 /*
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
@@ -1640,8 +1638,7 @@ int registerHttpService(HttpServer *server, HttpService *service){
   if (server->sharedServiceMem != NULL) {
     service->sharedServiceMem = server->sharedServiceMem;
   }
-zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, 
-      "ZSS1608I %s : server path = %llx\n" , __FUNCTION__, server->serverInstanceUID );  
+
   service->serverInstanceUID = server->serverInstanceUID;
   service->productURLPrefix = server->defaultProductURLPrefix;
   return 0;
@@ -1919,13 +1916,19 @@ static void addRequestHeader(HttpRequestParser *parser){
     if (!compareIgnoringCase(newHeader->nativeValue,"websocket",parser->headerValueLength)){
       parser->isWebSocket = TRUE;
     }
-  } else if (!compareIgnoringCase(newHeader->nativeName, "Connection",
+  }
+  /* Temporarily disable this while investigating and developing solutions to
+     Out of memory issues around the SLH used by each connection running out of memory
+     Due to connections not closing when they should
+  else if (!compareIgnoringCase(newHeader->nativeName, "Connection",
                                   parser->headerNameLength)) {
     if (!compareIgnoringCase(newHeader->nativeValue, "Keep-Alive",
                              parser->headerValueLength)) {
       parser->keepAlive = TRUE;
     }
   }
+  */
+  parser->keepAlive = FALSE;
 
   HttpHeader *headerChain = parser->headerChain;
   if (headerChain){
@@ -2414,7 +2417,6 @@ static int proxyServe(HttpService *service,
 }
 
 /* SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN 
-
    a Session Cookie is used 
 */
 
@@ -3155,9 +3157,6 @@ static void serializeConsiderCloseEnqueue(HttpConversation *conversation, int su
 
 static void serveRequest(HttpService* service, HttpResponse* response,
                          HttpRequest* request) {
-  
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-            "begin %s\n", __FUNCTION__);
 
   if ((SERVICE_TYPE_FILES == service->serviceType) ||
       (SERVICE_TYPE_FILES_SECURE == service->serviceType)) {
@@ -3174,8 +3173,6 @@ static void serveRequest(HttpService* service, HttpResponse* response,
         serveSimpleTemplate(service, response);
         // Response is finished on return
       } else {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-            "%s, set serviceFunction \n", __FUNCTION__);
         service->serviceFunction(service, response);
       }
     }
@@ -3203,9 +3200,6 @@ static int handleHttpService(HttpServer *server,
                              HttpService *service,
                              HttpRequest *request,
                              HttpResponse *response){
-
-zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-            "begin %s\n", __FUNCTION__);
 
 #ifdef __ZOWE_OS_ZOS
   HttpConversation *conversation = response->conversation;
@@ -3248,12 +3242,10 @@ zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
     serializeConsiderCloseEnqueue(conversation,FALSE);
 
     /* Attempt to prevent a double free of a response block
-
        In most abends it is unlikely that the response block will have been freed
        before the abend occurred.  In those cases the test below will succeed.  If
        the response block was freed then the test below will fail, and we must not
        attempt to free it again.                                                     
-
        finishResponse can not be used to cleanup for the response because
        we have already queued the conversation for close processing.  Just
        free the SLH associated with the response.                           */
@@ -3329,11 +3321,7 @@ zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
     int impersonating = startImpersonating(service, request);
 
     if (isImpersonationValid(service, impersonating)) {
-
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-          "ZSS3279I %s Impersonation is Valid\n", __FUNCTION__);
-
-      serveRequest(service, response, request); 
+      serveRequest(service, response, request);
     } else {
       reportImpersonationError(service, impersonating);
       respondWithError(response, HTTP_STATUS_FORBIDDEN,
@@ -3383,7 +3371,6 @@ HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
    2 feed buffer at parse state
    3 check some status variables
    - maybe close, maybe continue
-
    */
 
 static int serviceLoop(Socket *socket){
@@ -3394,8 +3381,6 @@ static int serviceLoop(Socket *socket){
   ShortLivedHeap *slh = makeShortLivedHeap(READ_BUFFER_SIZE,16); /* refresh this every N-requests */
   HttpRequestParser *parser = makeHttpRequestParser(slh);
   char *readBuffer = SLHAlloc(slh,READ_BUFFER_SIZE);
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-    "ZSS3379I %s start while(1)\n", __FUNCTION__);
   while (1){
     int socketStatus = tcpStatus(socket,0,0,&returnCode,&reasonCode);
 #ifdef DEBUG
@@ -3549,10 +3534,8 @@ void parseURI(HttpRequest *request){
 }
 
 /*
-
   The 12-byte charset id is really filled with one of these,
   followed by 8 bytes of dung.
-
      struct file_tag {                 File Tag Attributes        
        unsigned short ft_ccsid;          Character Set Id          
        unsigned int   ft_txtflag :1;     Pure Text Flag            
@@ -3991,7 +3974,6 @@ bool isCachedCopyModified(HttpRequest *req, uint64_t etag, time_t mtime) {
        *
       struct tm reqMtimeTm;
       time_t reqMtime;
-
       STRING_TO_STRUCT(imsHeader->nativeValue, "%a, %d %b %Y %H:%M:%S %Z", &reqMtimeTm);
       reqMtime = GMT_STRUCT_TO_TIMESTAMP(&reqMtimeTm);
       // printf("isCacheCopyModified: req mtime %lu\n", reqMtime); 
@@ -4122,7 +4104,6 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
          outside the set representable ny ISO-8859-1. I'm not sure how this is 
          working on z/OS; I suspect that the encoding function is more permissive.
          I think we're going to need:
-
            * A separate lookaside file on non-z/OS platforms to provide the file
              encoding information available on z/OS through tagging.
            * Tagging the files encoded as UTF-8 (using whatever platform-dependent
@@ -5096,8 +5077,6 @@ static void serializeStartRunning(HttpConversation *conversation) {
 #define MAIN_WAIT_MILLIS 10000
 
 static int httpTaskMain(RLETask *task){
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-    "ZSS5143I %s begins\n", __FUNCTION__);
   int serviceResult = 0;
 
   HttpWorkElement *element = (HttpWorkElement*)task->userPointer;
@@ -5259,8 +5238,7 @@ static void doHttpResponseWork(HttpConversation *conversation)
   HttpRequestParser *parser = conversation->parser;
   HttpHeader *header = NULL;
   HttpResponse *response = NULL;
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-    "ZSS5143I %s conversation\n", __FUNCTION__);
+
   do {
 
     if (conversation->shouldError) {
@@ -5323,7 +5301,7 @@ static void doHttpResponseWork(HttpConversation *conversation)
           workElement->response = response;
           response = NULL; /* transfer the ownership of the response to the subtask */
           conversation->task->userPointer = workElement;
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
                   "about to start RLE Task from main at 0x%x wkElement=0x%x pendingService=0x%x\n",
                   conversation->task,workElement,conversation->pendingService);
 
@@ -5618,8 +5596,6 @@ int httpWorkElementHandler(STCBase *base,
                            STCModule *module,
                            WorkElementPrefix *prefix) {
   int status = 0;
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-    "ZSS5468I %s switch on %d\n", __FUNCTION__, prefix->payloadCode);
   switch (prefix->payloadCode) {
   case HTTP_CONSIDER_CLOSE_CONVERSATION:
     {
@@ -5767,8 +5743,6 @@ int httpWorkElementHandler(STCBase *base,
 
   case HTTP_START_RESPONSE:
     {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-        "ZSS5620I %s HTTP_START_RESPONSE is %d\n", __FUNCTION__, HTTP_START_RESPONSE);
       HttpWorkElement *workElement = (HttpWorkElement*)((char*)prefix + sizeof(WorkElementPrefix));
       doHttpResponseWork(workElement->conversation);
     }
@@ -5901,16 +5875,10 @@ int mainHttpLoop(HttpServer *server){
   STCBase *base = server->base;
   /* server pointer will be copied/accessible from module->data */
 
-
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-    "ZSS5742I %s Create semaphore table for datasets\n", __FUNCTION__);
-
-  int i;
-  for(i=0; i<N_SEM_TABLE_ENTRIES; i++)
+  /* Create semaphore table for datasets */
+  for(int i=0; i < N_SEM_TABLE_ENTRIES; i++)
     sem_table_entry[i].sem_ID = 0;  /* initialise */
   
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-    "ZSS5731I %s stcRegisterModule\n", __FUNCTION__);
   STCModule *httpModule = stcRegisterModule(base,
                                             STC_MODULE_JEDHTTP,
                                             server,

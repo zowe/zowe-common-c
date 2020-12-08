@@ -870,7 +870,7 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
   );
 
   if (daRC != RC_DYNALLOC_OK) {
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE,
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "error: ds alloc 1 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (update)\n",
             daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN, "update");
@@ -1174,7 +1174,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
               );
   
   if (daReturnCode != RC_DYNALLOC_OK) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,
             "error: ds alloc 2 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
             daDatasetName.name, daMemberName.name, daDDName.name,
@@ -1193,7 +1193,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
                                                    TRUE /* Delete data set on deallocation */
                                                    ); 
     if (daReturnCode != RC_DYNALLOC_OK) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,
               "error: ds alloc 3 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
               " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
               daDatasetName.name, daMemberName.name, daDDName.name,
@@ -1261,7 +1261,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
     }
 
     if (daReturnCode != RC_DYNALLOC_OK) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,
               "error: ds alloc 4 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
               " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
               daDatasetName.name, daMemberName.name, daDDName.name,
@@ -1597,50 +1597,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
   memcpy(daDsn.name, dsn.value, sizeof(daDsn.name));
   memcpy(daMember.name, memberName.value, sizeof(daMember.name));
 
-  /* new code to detect ENQ header begins */
-  // zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //           "ZSS0001I %s Requested dsn=\'%44.44s\', member=\'%8.8s\'\n", __FUNCTION__,
-  //           daDsn.name, daMember.name);
-
-  // int exclusiveENQ = 0; /* FALSE */
-  // /* obtain header name&value */
   
-  // HttpHeader *enqHeader = getHeader(request, "ENQ");
-
-  // if (enqHeader == NULL){
-  //   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //           "ZSS0002I %s HTTP request has no ENQ header\n", __FUNCTION__);
-  //   }
-  //   else {
-  //     zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //       "ZSS0003I %s HTTP request has ENQ header\n", __FUNCTION__);
-  //         zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //           "ZSS1621I %s Raw ENQ header value is %4.4s\n", __FUNCTION__, enqHeader->value );
-          
-  //         /* header values are in ASCII, so convert the local EBCDIC string before comparing them. */
-  //         char enqValue [5] = "true";
-  //         if(e2a(enqValue, 4) == -1){
-  //           zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //             "ZSS1626I %s Failed to convert true to ASCII\n", __FUNCTION__);
-  //         }else{            
-  //           if (!strncmp(enqHeader->value, enqValue, strlen(enqHeader->value)))
-  //             {
-  //               zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //                 "ZSS0005I %s HTTP request is asking for ENQ=true\n", __FUNCTION__);
-  //             /* request is asking for ENQ */
-  //               exclusiveENQ = 1; /* TRUE */
-  //             }
-  //             else {
-  //               zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //                 "ZSS0006I %s HTTP request is NOT asking for ENQ=true\n", __FUNCTION__);
-  //               exclusiveENQ = 0;
-  //             }
-  //           }
-
-  //   } /* end ELSE request has header */
-  
-  /* new code ends   */
-
 
   DynallocDDName daDDname = {.name = "????????"};
 
@@ -1655,7 +1612,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
   );
 
   if (daRC != RC_DYNALLOC_OK) {
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE,
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "error: ds alloc 5 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
             daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
@@ -1664,7 +1621,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
     return;
   }
 
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
           "debug: reading dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\'\n",
           daDsn.name, daMember.name, daDDname.name);
 
@@ -1672,16 +1629,10 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
   memcpy(&ddName.value, &daDDname.name, sizeof(ddName.value));
   respondWithDatasetInternal(response, absolutePath, &dsn, &ddName, jsonMode);
 
-zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  "ZSS1778I %s wait around for manual check of ENQ ...\n", __FUNCTION__);
-/* sleep(30); /* wait around for manual check of ENQ */
-zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  "ZSS1781I %s waiting is over.\n", __FUNCTION__);
-
   daRC = dynallocUnallocDatasetByDDName(&daDDname, DYNALLOC_UNALLOC_FLAG_NONE,
                                         &daSysRC, &daSysRSN);
   if (daRC != RC_DYNALLOC_OK) {
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "error: ds unalloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
             daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN, "read");
@@ -1692,10 +1643,10 @@ zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
 /* new function for ENQ */
 void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode) {
 
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
       "ZSS1689I Begin %s\n", __FUNCTION__); 
       pid_t pid = getpid();
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
         "ZSS1692I %s PID is %d\n", __FUNCTION__, pid);
 
   HttpRequest *request = response->request;
@@ -1715,70 +1666,8 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
   memcpy(daMember.name, memberName.value, sizeof(daMember.name));
 
   /* new code to detect ENQ header begins */
-  // zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //           "ZSS0001I %s Requested dsn=\'%44.44s\', member=\'%8.8s\'\n", __FUNCTION__,
-  //           daDsn.name, daMember.name);
-
-  // int exclusiveENQ = 0; /* FALSE */
-  // /* obtain header name&value */
-  
-  // HttpHeader *enqHeader = getHeader(request, "ENQ");
-
-  // if (enqHeader == NULL){
-  //   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //           "ZSS0002I %s HTTP request has no ENQ header\n", __FUNCTION__);
-  //   }
-  //   else {
-  //     zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //       "ZSS0003I %s HTTP request has ENQ header\n", __FUNCTION__);
-  //         zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //           "ZSS1621I %s Raw ENQ header value is %4.4s\n", __FUNCTION__, enqHeader->value );
-          
-  //         /* header values are in ASCII, so convert the local EBCDIC string before comparing them. */
-  //         char enqValue [5] = "true";
-  //         if(e2a(enqValue, 4) == -1){
-  //           zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //             "ZSS1626I %s Failed to convert true to ASCII\n", __FUNCTION__);
-  //         }else{            
-  //           if (!strncmp(enqHeader->value, enqValue, strlen(enqHeader->value)))
-  //             {
-  //               zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //                 "ZSS0005I %s HTTP request is asking for ENQ=true\n", __FUNCTION__);
-  //             /* request is asking for ENQ */
-  //               exclusiveENQ = 1; /* TRUE */
-  //             }
-  //             else {
-  //               zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //                 "ZSS0006I %s HTTP request is NOT asking for ENQ=true\n", __FUNCTION__);
-  //               exclusiveENQ = 0;
-  //             }
-  //           }
-
-  //   } /* end ELSE request has header */
   
   /* new code ends   */
-
-  // DynallocDDName daDDname = {.name = "????????"};
-
-  // int daRC = RC_DYNALLOC_OK, daSysRC = 0, daSysRSN = 0;
-  // daRC = dynallocAllocDataset(
-  //     &daDsn,
-  //     IS_DAMEMBER_EMPTY(daMember) ? NULL : &daMember,
-  //     &daDDname,
-  //     DYNALLOC_DISP_SHR,
-  //     DYNALLOC_ALLOC_FLAG_NO_CONVERSION | DYNALLOC_ALLOC_FLAG_NO_MOUNT,
-  //     &daSysRC, &daSysRSN
-  // );
-
-  // if (daRC != RC_DYNALLOC_OK) {
-  //   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE,
-  //           "error: ds alloc 5 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
-  //           " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
-  //           daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
-  //   respondWithDYNALLOCError(response, daRC, daSysRC, daSysRSN,
-  //                            &daDsn, &daMember, "r");
-  //   return;
-  // }
 
 /* new code to enqueue dataset starts */
 #include "isgenq.h" 
@@ -1803,36 +1692,36 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
     
     memcpy(dsn_member.membername,daMember.name,8);   /* copy in member */
     memcpy(dsn_member.dsn,daDsn.name,44); /* copy in dsn */
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
       "ZSS1797I %s dsn_member\n<", __FUNCTION__); 
     int i;
     for(i=0; i<52; i++)
     { 
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"%c",*(dsn_member.dsn+i));
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"%c",*(dsn_member.dsn+i));
     }
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,">\n");
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,">\n");
 
     memcpy(rname_parm.value, &dsn_member, sizeof(dsn_member) ); /* copy in dsn+membername */
     rname_parm.length = 52;
 
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
       "ZSS1809I %s rname_parm\n", __FUNCTION__);
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"<"); 
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"<"); 
     for(i=0; i<52+sizeof(unsigned char); i++)
     { 
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"%x",*(rname_parm.value+i-sizeof(unsigned char)));
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"%x",*(rname_parm.value+i-sizeof(unsigned char)));
     }
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,">\n");
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,">\n");
 
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"<"); 
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"<"); 
     for(i=0; i<52; i++)
     { 
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"%c",*(rname_parm.value+i));
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"%c",*(rname_parm.value+i));
     }
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,">\n");
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,">\n");
     
 /* test lock */
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, 
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, 
       "ZSS1826I %s Try exclusive Lock\n", __FUNCTION__);
     
 /*    printf("TryExclusiveLock\n");  waits forever? CONTENTIONACT=FAIL */
@@ -1843,30 +1732,13 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
         &lockToken, 
         &lockRSN);   
 
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, 
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, 
       "ZSS1757I %s lockRC = %d, lockRSN = %x\n", __FUNCTION__ , lockRC , lockRSN );  
-/*  fix this call soon ...
-    lockRC = acquireDatasetEnq(dsn_member.dsn, dsn_member.membername, &lockToken);
- /* memcpy(dsn_member.membername,daMember.name,8);   /* copy in member */
- /* memcpy(dsn_member.dsn,daDsn.name,44); /* copy in dsn */
- /*   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, 
-      "ZSS1757I %s acquireDatasetEnq RC = %d\n", __FUNCTION__ , lockRC );  
- */
+
 
     if ( lockRC != 0){
 
-/* does releasing the DYNALLOC prevent a successful retry of an enqueued dataset? */
-  // zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_WARNING, 
-  //             "ZSS1773W %s releasing DYNALLOC after failing to obtain exclusive lock\n", __FUNCTION__);
-  // daRC = dynallocUnallocDatasetByDDName(&daDDname, DYNALLOC_UNALLOC_FLAG_NONE,
-  //                                       &daSysRC, &daSysRSN);              
-  // if (daRC != RC_DYNALLOC_OK) {
-  //   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-  //           "error: ds unalloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
-  //           " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
-  //           daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
-  // }
-  /* end of question */
+
 
         if (lockRC == 4)
         {
@@ -1878,7 +1750,7 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
             return;
         }
         else        {
-            zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE, 
+            zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, 
               "ZSS1779E %s isgenqTryExclusiveLock failed, RC = %d, reason code = %08X, %04X\n" , __FUNCTION__, 
               lockRC , lockRSN, lockRSN & 0xFFFF);
             respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -1887,13 +1759,13 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
         }
     }
     else{
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE, 
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, 
               "ZSS1789I %s Lock is available\n", __FUNCTION__);
     }
         
 /* test lock end */
 
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
       "ZSS1793I %s GetExclusiveLock\n", __FUNCTION__);
 
     lockRC = isgenqGetExclusiveLock( 
@@ -1905,44 +1777,27 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
     /* This function WAITs in case of contention.  This should not be a problem because it's preceeded by isgenqTryExclusiveLock */
     /* the lock is ALWAYS released when the C program exits. */
 
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
       "ZSS1805I %s lockRC = %d, lockRSN = %x, PID = %d\n", __FUNCTION__ , lockRC , lockRSN, pid );      
 
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
       "ZSS1808I %s lockToken<", __FUNCTION__); 
     for(i=0; i<sizeof(lockToken); i++)
     {         
         /*printf("%x",*(char *)&lockToken+i);*/
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"%x",*(lockToken.token+i));
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"%x",*(lockToken.token+i));
     }
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,">\n");    
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,">\n");    
 
 /* ----------------- */
 /* semaphore section */
 /* ----------------- */
 
-/* create semaphore for dataset(member) ... */
-    // struct sem_table_type{
-    //     char dsn [44];
-    //     char mem [8];
-    //     int sem_ID;
-    //     }  ;
 
-
-
-    // /* sem_table_pointer is a pointer to char, so cast it back to a pointer to the table structure */
-    // struct sem_table_type *sem_table_struct_pointer = (struct sem_table_type *)sem_table_pointer; /* point to start of table */
-    // zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
-    //         "ZSS1945I %s sem_table_pointer %X\n", __FUNCTION__, sem_table_pointer );
     int semaphoreID;
 
-/* TBD */
-// Create semaphoreID
-       /* find a free slot in the dsn table */
-      // int N_SEM_TABLE_ENTRIES = 10;
-      // struct sem_table_type *p;
-      // for(i=0, p = sem_table_struct_pointer; i<max_sems; i++, p++)
-      for(i=0; i<N_SEM_TABLE_ENTRIES; i++)
+
+      for(i=0; i < N_SEM_TABLE_ENTRIES; i++)
       {  
 
         if (sem_table_entry[i].sem_ID != 0                                  /* semaphore exists */      
@@ -1950,13 +1805,13 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
             && memcmp(sem_table_entry[i].mem, dsn_member.membername, 8) == 0   /* member matches */
             ) /* already present */
         {
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "ZSS1945I %s dsn already in table in row %d with semaphoreID %D\n", __FUNCTION__, i, sem_table_entry[i].sem_ID );  
           break;
         }
         if (sem_table_entry[i].sem_ID == 0) /* found empty slot in table */
         {
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "ZSS1945I %s found empty slot in table in row %d\n", __FUNCTION__, i ); 
           break;
         }
@@ -1965,7 +1820,7 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
 
       if (i >= N_SEM_TABLE_ENTRIES)
       {
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "ZSS1945I %s Table full, delete some\n", __FUNCTION__); 
         respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Number of semaphores exceeded\n");
         return;
@@ -1984,14 +1839,14 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
 
         if (semaphoreID == -1 )
         {
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "ZSS1979I %s Failed to create semaphore\n", __FUNCTION__);
           respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to create semaphore");
           return;
         }
         else
         { /* got semaphore */
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "ZSS1985I %s semaphore obtained, value = %d\n", __FUNCTION__, semaphoreID);
                
           /* fill the table slot */
@@ -2012,27 +1867,25 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
           int     semnum = 0;    /* array index zero */
           int semaphoreRetcode;
 
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
                   "ZSS1916I %s Set semaphore %d, PID %d\n", __FUNCTION__, semaphoreID, pid);
           semaphoreRetcode = semctl(semaphoreID, semnum, SETVAL, arg); /* set the value of our semaphore */
           if (semaphoreRetcode == -1 )
             {
               printf("Failed to set semaphore\n"); 
-              zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+              zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
                 "ZSS2015I %s Failed to set semaphore %d\n", __FUNCTION__, semaphoreID);
               respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to set semaphore");
               return;                  
             }
           else
             {
-              zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+              zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
                 "ZSS2020I %s semaphore %d was set\n", __FUNCTION__, semaphoreID);
             }
 
           /* the HTTP GET that consumes this message insists that the response body be JSON */
           respondWithMessage(response, HTTP_STATUS_OK,
-                    //  "Enqueue dataset %s successful\n",
-                    //  absolutePath
                      "{\"records\":[\"Enqueue dataset successful\"]}"
                      ); 
 
@@ -2040,7 +1893,7 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
           /* wait */
           /********/
           /* WAIT! */
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
                   "ZSS1916I %s wait on semaphore %d, PID %d\n", __FUNCTION__, semaphoreID, pid);
 
           /* define semaphore operation to be performed */
@@ -2058,12 +1911,12 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
           
           if (semaphoreRetcode != 0 )
           {
-              zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+              zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
                 "ZSS1938I %s Failed to wait on semaphore, retcode = %d\n", __FUNCTION__, semaphoreRetcode);
           }
           else
           {
-              zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+              zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
                   "ZSS1931I %s semaphore %d has been posted, PID %d\n", __FUNCTION__, semaphoreID, pid);
               /* destroy our semaphore */
               semaphoreRetcode = semctl(semaphoreID, 0, IPC_RMID);
@@ -2081,7 +1934,7 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
       }
       else
       { /* , do nothing if already present */
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "ZSS1997I %s semaphore %d is already present \n", __FUNCTION__, semaphoreID);
         respondWithError(response, HTTP_STATUS_RESOURCE_CONFLICT , "dataset is already enqueued"); 
       } /* end of create semaphore */
@@ -2093,10 +1946,10 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
 /* new function for DEQ */
 void respondWithDequeue(HttpResponse* response, char* absolutePath, int jsonMode, char *sem_table_pointer) {
 
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
       "ZSS2084I Begin %s\n", __FUNCTION__); 
       pid_t pid = getpid();
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
     "ZSS2087I %s PID is %d\n", __FUNCTION__, pid);
 
   HttpRequest *request = response->request;
@@ -2129,7 +1982,7 @@ void respondWithDequeue(HttpResponse* response, char* absolutePath, int jsonMode
             && memcmp(sem_table_entry[i].mem, daMember.name, 8) == 0   /* member matches */
             ) /* present */
         {
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "ZSS2121I %s dsn found in table at row %d\n", __FUNCTION__ , i);  
           break;
         }
@@ -2137,7 +1990,7 @@ void respondWithDequeue(HttpResponse* response, char* absolutePath, int jsonMode
 
       if (i >= N_SEM_TABLE_ENTRIES)
       {
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "ZSS2130I %s dsn not found in table\n", __FUNCTION__);
         respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "dataset name not found in enqueue list"); 
         return;
@@ -2160,13 +2013,13 @@ void respondWithDequeue(HttpResponse* response, char* absolutePath, int jsonMode
         semaphoreRetcode = semop(semaphoreID, semaphoreOps, semArrayEntries); /* 0=wait, 1=increment */
         if (semaphoreRetcode == -1 )
         {
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "ZSS2150I %s Failed to post semaphore\n", __FUNCTION__);
           respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to dequeue dataset"); 
         }
         else
         {
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "ZSS2155I %s Posted semaphore %d\n", __FUNCTION__, semaphoreID); 
             /*success!*/
           respondWithMessage(response, HTTP_STATUS_OK,
