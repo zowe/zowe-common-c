@@ -53,6 +53,9 @@ struct sem_table_type sem_table_entry [];
 #endif
 #include <sys/sem.h>
 
+#include "isgenq.h" 
+#include <ctype.h>
+
 static char defaultDatasetTypesAllowed[3] = {'A','D','X'};
 static char clusterTypesAllowed[3] = {'C','D','I'}; /* TODO: support 'I' type DSNs */
 static int clusterTypesCount = 3;
@@ -1090,6 +1093,49 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
   int translationLength;
   int outCCSID = NATIVE_CODEPAGE;
 
+  /* Prevent the user from updating the dataset if it's enqueued to a different user*/
+  /* obtain dsn info */
+  DatasetName dsn;
+  DatasetMemberName memberName;
+  extractDatasetAndMemberName(absolutePath, &dsn, &memberName);
+ 
+  DynallocDatasetName daDsn;
+  DynallocMemberName daMember;
+  memcpy(daDsn.name, dsn.value, sizeof(daDsn.name));
+  memcpy(daMember.name, memberName.value, sizeof(daMember.name));
+
+  /* check owner of ENQ is the same as requestor */
+    int i;
+    for(i=0; i < N_SEM_TABLE_ENTRIES; i++)
+      {  
+        if (sem_table_entry[i].sem_ID != 0                                  /* semaphore exists */      
+            && memcmp(sem_table_entry[i].dsn, daDsn.name, 44) == 0          /* DSN matches */
+            && memcmp(sem_table_entry[i].mem, daMember.name, 8) == 0   /* member matches */
+            && memcmp(sem_table_entry[i].usr, response->request->username, 8) != 0  /* user id doesn't match */
+            ) 
+        {
+          /* found mismatched ENQ */
+          zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, 
+            "UPDATE DATASET: found mismatched ENQ, owner=%8.8s, requestor=%s\n",
+          sem_table_entry[i].usr,
+          response->request->username);
+
+          respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Already locked by another user\n");
+          return;
+    
+          // break; 
+        }
+          
+      } /* end FOR loop */
+
+      // if (i < N_SEM_TABLE_ENTRIES)
+      // {
+      //   respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Already locked by another user\n");
+      //   return;
+      // }
+      
+  /* end of prevent */
+
   returnCode = convertCharset(contentBody,
                               bodyLength,
                               CCSID_UTF_8,
@@ -1591,7 +1637,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
   DatasetName dsn;
   DatasetMemberName memberName;
   extractDatasetAndMemberName(absolutePath, &dsn, &memberName);
-  
+ 
   DynallocDatasetName daDsn;
   DynallocMemberName daMember;
   memcpy(daDsn.name, dsn.value, sizeof(daDsn.name));
@@ -1640,15 +1686,10 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
 
 }
 
-/* new function for ENQ */
 void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode) {
 
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-      "ZSS1689I Begin %s\n", __FUNCTION__); 
-      pid_t pid = getpid();
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
-        "ZSS1692I %s PID is %d\n", __FUNCTION__, pid);
-
+  pid_t pid = getpid();
+  
   HttpRequest *request = response->request;
 
   if (!isDatasetPathValid(absolutePath)) {
@@ -1665,16 +1706,6 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
   memcpy(daDsn.name, dsn.value, sizeof(daDsn.name));
   memcpy(daMember.name, memberName.value, sizeof(daMember.name));
 
-  /* new code to detect ENQ header begins */
-  
-  /* new code ends   */
-
-/* new code to enqueue dataset starts */
-#include "isgenq.h" 
-#include <ctype.h>
-#define RESOURCE_NOT_AVAILABLE      0x0404
-/*#define MASK_FFFF                   256 * 256 - 1 */
-/*#define MASK_FFFF                   0xFFFF */
     struct dsn_member_tag {
         char  dsn[44];
         char  membername[8];
@@ -1692,10 +1723,8 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
     
     memcpy(dsn_member.membername,daMember.name,8);   /* copy in member */
     memcpy(dsn_member.dsn,daDsn.name,44); /* copy in dsn */
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-      "ZSS1797I %s dsn_member\n<", __FUNCTION__); 
-    int i;
-    for(i=0; i<52; i++)
+
+    for(int i=0; i < 52; i++)
     { 
         zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"%c",*(dsn_member.dsn+i));
     }
@@ -1704,27 +1733,8 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
     memcpy(rname_parm.value, &dsn_member, sizeof(dsn_member) ); /* copy in dsn+membername */
     rname_parm.length = 52;
 
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-      "ZSS1809I %s rname_parm\n", __FUNCTION__);
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"<"); 
-    for(i=0; i<52+sizeof(unsigned char); i++)
-    { 
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"%x",*(rname_parm.value+i-sizeof(unsigned char)));
-    }
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,">\n");
-
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"<"); 
-    for(i=0; i<52; i++)
-    { 
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"%c",*(rname_parm.value+i));
-    }
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,">\n");
-    
-/* test lock */
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, 
-      "ZSS1826I %s Try exclusive Lock\n", __FUNCTION__);
-    
-/*    printf("TryExclusiveLock\n");  waits forever? CONTENTIONACT=FAIL */
+/* test lock */    
+/* Does not wait forever because CONTENTIONACT=FAIL */
     lockRC = isgenqTryExclusiveLock(
         &MajorQNAME, 
         &rname_parm, 
@@ -1732,41 +1742,20 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
         &lockToken, 
         &lockRSN);   
 
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, 
-      "ZSS1757I %s lockRC = %d, lockRSN = %x\n", __FUNCTION__ , lockRC , lockRSN );  
-
-
     if ( lockRC != 0){
-
-
-
         if (lockRC == 4)
         {
-            zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_WARNING, 
-              "ZSS1773E %s isgenqTryExclusiveLock Unable to obtain exclusive access to Dataset or member\n"
-              , __FUNCTION__);
             respondWithError(response,HTTP_STATUS_RESOURCE_CONFLICT,
               "Unable to obtain exclusive access to Dataset or member");
             return;
         }
         else        {
-            zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, 
-              "ZSS1779E %s isgenqTryExclusiveLock failed, RC = %d, reason code = %08X, %04X\n" , __FUNCTION__, 
-              lockRC , lockRSN, lockRSN & 0xFFFF);
             respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,
               "isgenqTryExclusiveLock failed");
             return;
         }
     }
-    else{
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, 
-              "ZSS1789I %s Lock is available\n", __FUNCTION__);
-    }
-        
 /* test lock end */
-
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-      "ZSS1793I %s GetExclusiveLock\n", __FUNCTION__);
 
     lockRC = isgenqGetExclusiveLock( 
         &MajorQNAME, 
@@ -1777,17 +1766,6 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
     /* This function WAITs in case of contention.  This should not be a problem because it's preceeded by isgenqTryExclusiveLock */
     /* the lock is ALWAYS released when the C program exits. */
 
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-      "ZSS1805I %s lockRC = %d, lockRSN = %x, PID = %d\n", __FUNCTION__ , lockRC , lockRSN, pid );      
-
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-      "ZSS1808I %s lockToken<", __FUNCTION__); 
-    for(i=0; i<sizeof(lockToken); i++)
-    {         
-        /*printf("%x",*(char *)&lockToken+i);*/
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"%x",*(lockToken.token+i));
-    }
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,">\n");    
 
 /* ----------------- */
 /* semaphore section */
@@ -1795,9 +1773,8 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
 
 
     int semaphoreID;
-
-
-      for(i=0; i < N_SEM_TABLE_ENTRIES; i++)
+    int i;
+    for(i=0; i < N_SEM_TABLE_ENTRIES; i++)
       {  
 
         if (sem_table_entry[i].sem_ID != 0                                  /* semaphore exists */      
@@ -1805,14 +1782,10 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
             && memcmp(sem_table_entry[i].mem, dsn_member.membername, 8) == 0   /* member matches */
             ) /* already present */
         {
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-            "ZSS1945I %s dsn already in table in row %d with semaphoreID %D\n", __FUNCTION__, i, sem_table_entry[i].sem_ID );  
           break;
         }
         if (sem_table_entry[i].sem_ID == 0) /* found empty slot in table */
         {
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-            "ZSS1945I %s found empty slot in table in row %d\n", __FUNCTION__, i ); 
           break;
         }
           
@@ -1820,8 +1793,6 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
 
       if (i >= N_SEM_TABLE_ENTRIES)
       {
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-            "ZSS1945I %s Table full, delete some\n", __FUNCTION__); 
         respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Number of semaphores exceeded\n");
         return;
       }
@@ -1839,20 +1810,19 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
 
         if (semaphoreID == -1 )
         {
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-            "ZSS1979I %s Failed to create semaphore\n", __FUNCTION__);
           respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to create semaphore");
           return;
         }
         else
         { /* got semaphore */
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-            "ZSS1985I %s semaphore obtained, value = %d\n", __FUNCTION__, semaphoreID);
-               
           /* fill the table slot */
           sem_table_entry[i].sem_ID = semaphoreID;
           memcpy(sem_table_entry[i].mem, dsn_member.membername, 8);   /* copy in member */
           memcpy(sem_table_entry[i].dsn, dsn_member.dsn, 44); /* copy in dsn */
+          memcpy(sem_table_entry[i].usr, response->request->username, 8); /* copy in user id */
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+"respondWithEnqueue userid is %s\n", response->request->username);
+
 
           /*******/
           /* set */
@@ -1864,26 +1834,16 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
               unsigned short *array;
           } arg;
           arg.val = 1;
-          int     semnum = 0;    /* array index zero */
+          int semnum = 0;    /* array index zero */
           int semaphoreRetcode;
 
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-                  "ZSS1916I %s Set semaphore %d, PID %d\n", __FUNCTION__, semaphoreID, pid);
           semaphoreRetcode = semctl(semaphoreID, semnum, SETVAL, arg); /* set the value of our semaphore */
           if (semaphoreRetcode == -1 )
             {
-              printf("Failed to set semaphore\n"); 
-              zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-                "ZSS2015I %s Failed to set semaphore %d\n", __FUNCTION__, semaphoreID);
               respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to set semaphore");
               return;                  
             }
-          else
-            {
-              zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-                "ZSS2020I %s semaphore %d was set\n", __FUNCTION__, semaphoreID);
-            }
-
+          
           /* the HTTP GET that consumes this message insists that the response body be JSON */
           respondWithMessage(response, HTTP_STATUS_OK,
                      "{\"records\":[\"Enqueue dataset successful\"]}"
@@ -1893,9 +1853,7 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
           /* wait */
           /********/
           /* WAIT! */
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-                  "ZSS1916I %s wait on semaphore %d, PID %d\n", __FUNCTION__, semaphoreID, pid);
-
+          
           /* define semaphore operation to be performed */
           struct sembuf semaphoreBuffer[1]; /* just one semaphore in the array */
           struct sembuf *semaphoreOps = &semaphoreBuffer[0];
@@ -1906,26 +1864,14 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
           /* wait for semaphore to be posted */
           
           semaphoreRetcode = semop(semaphoreID, semaphoreOps, 1); /* 1 = one entry */
-                /* we are now waiting for our semaphore to be posted ... */
-
-          
-          if (semaphoreRetcode != 0 )
+          /* we are now waiting for our semaphore to be posted ... */
+         
+          if (semaphoreRetcode == 0 )
           {
-              zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-                "ZSS1938I %s Failed to wait on semaphore, retcode = %d\n", __FUNCTION__, semaphoreRetcode);
-          }
-          else
-          {
-              zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-                  "ZSS1931I %s semaphore %d has been posted, PID %d\n", __FUNCTION__, semaphoreID, pid);
               /* destroy our semaphore */
               semaphoreRetcode = semctl(semaphoreID, 0, IPC_RMID);
-              if (semaphoreRetcode == -1 )
+              if (semaphoreRetcode != -1 )
               {
-                  printf("ZSS1955I %s Failed to destroy semaphore\n", __FUNCTION__);}
-              else
-              {
-                  printf("ZSS1958I %s Destroyed semaphore %d, PID %d\n", __FUNCTION__, semaphoreID, pid);
                   sem_table_entry[i].sem_ID = 0;  /* mark as deleted */
               }
           }
@@ -1934,23 +1880,13 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
       }
       else
       { /* , do nothing if already present */
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-            "ZSS1997I %s semaphore %d is already present \n", __FUNCTION__, semaphoreID);
         respondWithError(response, HTTP_STATUS_RESOURCE_CONFLICT , "dataset is already enqueued"); 
       } /* end of create semaphore */
   /* end of semaphore section */
 
 } /* end of respondWithEnqueue */
 
-
-/* new function for DEQ */
 void respondWithDequeue(HttpResponse* response, char* absolutePath, int jsonMode, char *sem_table_pointer) {
-
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-      "ZSS2084I Begin %s\n", __FUNCTION__); 
-      pid_t pid = getpid();
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
-    "ZSS2087I %s PID is %d\n", __FUNCTION__, pid);
 
   HttpRequest *request = response->request;
 
@@ -1974,24 +1910,25 @@ void respondWithDequeue(HttpResponse* response, char* absolutePath, int jsonMode
 
 
        /* DEQ dataset */
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
+"respondWithDequeue userid is %s\n", response->request->username);
+
       int i;
       for(i=0; i<N_SEM_TABLE_ENTRIES; i++)
       {  
-        if (sem_table_entry[i].sem_ID != 0                                  /* semaphore exists */      
-            && memcmp(sem_table_entry[i].dsn, daDsn.name, 44) == 0          /* DSN matches */
-            && memcmp(sem_table_entry[i].mem, daMember.name, 8) == 0   /* member matches */
+        if (sem_table_entry[i].sem_ID != 0                                          /* semaphore exists */      
+            && memcmp(sem_table_entry[i].dsn, daDsn.name, 44) == 0                  /* DSN matches */
+            && memcmp(sem_table_entry[i].mem, daMember.name, 8) == 0                /* member matches */
+            && memcmp(sem_table_entry[i].usr, response->request->username, 8) == 0  /* user id matches */
             ) /* present */
         {
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-            "ZSS2121I %s dsn found in table at row %d\n", __FUNCTION__ , i);  
+          /* dsn found in table at row  i */  
           break;
         }
       }
 
       if (i >= N_SEM_TABLE_ENTRIES)
       {
-        zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-            "ZSS2130I %s dsn not found in table\n", __FUNCTION__);
         respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "dataset name not found in enqueue list"); 
         return;
       }
@@ -2013,15 +1950,11 @@ void respondWithDequeue(HttpResponse* response, char* absolutePath, int jsonMode
         semaphoreRetcode = semop(semaphoreID, semaphoreOps, semArrayEntries); /* 0=wait, 1=increment */
         if (semaphoreRetcode == -1 )
         {
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-            "ZSS2150I %s Failed to post semaphore\n", __FUNCTION__);
           respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to dequeue dataset"); 
         }
         else
         {
-          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-            "ZSS2155I %s Posted semaphore %d\n", __FUNCTION__, semaphoreID); 
-            /*success!*/
+          /*success!*/
           respondWithMessage(response, HTTP_STATUS_OK,
                      "dequeue dataset %s successful\n",
                      absolutePath);           
