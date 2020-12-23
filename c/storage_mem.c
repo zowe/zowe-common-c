@@ -25,7 +25,7 @@
 #include "collections.h"
 #include "storage.h"
 
-#define STATUS_STOARGE_LOCK_ERROR   (STORAGE_STATUS_FIRST_CUSTOM_STATUS + 0)
+#define STORAGE_STATUS_LOCK_ERROR   (STORAGE_STATUS_FIRST_CUSTOM_STATUS + 0)
 #define STORAGE_STATUS_UNLOCK_ERROR (STORAGE_STATUS_FIRST_CUSTOM_STATUS + 1)
 #define STORAGE_STATUS_ALLOC_ERROR  (STORAGE_STATUS_FIRST_CUSTOM_STATUS + 2)
 
@@ -86,7 +86,7 @@ static MemStorage *makeMemStorage(MemoryStorageOptions *options) {
 static int memStorageLock(MemStorage *storage) {
   int rc = pthread_mutex_lock(&storage->lock);
   if (rc) {
-    return STATUS_STOARGE_LOCK_ERROR;
+    return STORAGE_STATUS_LOCK_ERROR;
   }
   return STORAGE_STATUS_OK;
 }
@@ -159,7 +159,7 @@ static void memStorageRemove(MemStorage *storage, const char *key, int *statusOu
 }
 
 static const char *MESSAGES[] = {
-  [STATUS_STOARGE_LOCK_ERROR] = "Failed to lock storage",
+  [STORAGE_STATUS_LOCK_ERROR] = "Failed to lock storage",
   [STORAGE_STATUS_UNLOCK_ERROR] = "Failed to unlock storage",
   [STORAGE_STATUS_ALLOC_ERROR] = "Failed to allocate memory",
 };
