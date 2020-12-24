@@ -138,6 +138,9 @@ Storage *makeMemoryStorage(MemoryStorageOptions *options);
 
 #define STORAGE_STATUS_FIRST_CUSTOM_STATUS 100
 
+#ifdef _TEST_STORAGE
+void testStorage(Storage *storage);
+#endif
 
 #endif // STORAGE_H
 

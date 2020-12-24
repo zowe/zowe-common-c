@@ -196,14 +196,15 @@ Storage *makeMemoryStorage(MemoryStorageOptions *options) {
   return storage;
 }
 
-#ifdef _TEST
+#ifdef _TEST_MEMORY_STORAGE
 
 /*
 
 Build:
 
 c89 \
-  -D_TEST=1 \
+  -D_TEST_MEMORY_STORAGE=1 \
+  -D_TEST_STORAGE=1 \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
   -Wc,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) \
@@ -232,80 +233,9 @@ int main(int argc, char *argv[]) {
     printf ("failed to create storage\n");
     exit(1);
   }
-  const char *keyA = "keyA";
-  const char *sVal = "string-value";
-  storageSetString(storage, keyA, sVal, &status);
-  printf ("set str ['%s'] = '%s', status %d - %s\n", keyA, sVal, status, storageGetStrStatus(storage, status));
-  assert(status == STORAGE_STATUS_OK);
-  
-  const char *keyB = "keyB";
-  int iVal = 123;
-  storageSetInt(storage, keyB, iVal, &status);
-  printf ("set int ['%s'] = %d, status %d - %s\n", keyB, iVal, status, storageGetStrStatus(storage, status));
-  assert(status == STORAGE_STATUS_OK);
-
-  const char *keyC = "keyC";
-  bool bVal = false;
-  storageSetBool(storage, keyC, bVal, &status);
-  printf ("set bool ['%s'] = %s, status %d - %s\n", keyC, bVal ? "true" : "false", status, storageGetStrStatus(storage, status));
-  assert(status == STORAGE_STATUS_OK);
-
-  const char *keyD = "keyD";
-  double dVal = 123.456;
-  storageSetDouble(storage, keyD, dVal, &status);
-  printf ("set double ['%s'] = %f, status %d - %s\n", keyD, dVal, status, storageGetStrStatus(storage, status));
-  assert(status == STORAGE_STATUS_OK);
-
-  sVal = storageGetString(storage, keyA, &status);
-  printf ("get str ['%s'] = '%s', status %d - %s\n", keyA, sVal, status, storageGetStrStatus(storage, status));
-  assert(status == STORAGE_STATUS_OK);
-  assert(0 == strcmp(sVal, "string-value"));
-
-  iVal = storageGetInt(storage, keyB, &status);
-  printf ("get int ['%s'] = %d, status %d - %s\n", keyB, iVal, status, storageGetStrStatus(storage, status));
-  assert(status == STORAGE_STATUS_OK);
-  assert(iVal == 123);
-
-  iVal = storageGetInt(storage, keyA, &status);
-  printf ("get bad int ['%s'] = %d, status %d - %s\n", keyA, iVal, status, storageGetStrStatus(storage, status));
-  assert(status == STORAGE_STATUS_VALUE_NOT_INTEGER);
-  assert(iVal == 0);
-
-  const char *badKey = "badKey";
-  iVal =  storageGetInt(storage, badKey, &status);
-  printf ("get int ['%s'] = %d, status %d - %s\n", badKey, iVal, status, storageGetStrStatus(storage, status));
-  assert(status = STORAGE_STATUS_KEY_NOT_FOUND);
-  assert(iVal == 0);
-  
-  bVal =  storageGetBool(storage, keyC, &status);
-  printf ("get bool ['%s'] = %s, status %d - %s\n", keyC, bVal ? "true" : "false", status, storageGetStrStatus(storage, status));
-  assert(status == STORAGE_STATUS_OK);
-  assert(bVal == false);
-
-  dVal =  storageGetDouble(storage, keyD, &status);
-  printf ("get double ['%s'] = %f, status %d - %s\n", keyD, dVal, status, storageGetStrStatus(storage, status));
-  assert(status == STORAGE_STATUS_OK);
-  assert(fabs(dVal - 123.456) < DBL_EPSILON);
-
-  dVal = storageGetDouble(storage, keyA, &status);
-  printf ("get bad double ['%s'] = %f, status %d - %s\n", keyA, dVal, status, storageGetStrStatus(storage, status));
-  assert(status == STORAGE_STATUS_VALUE_NOT_DOUBLE);
-  assert(fabs(dVal) < DBL_EPSILON);
-  
-  storageRemove(storage, keyC, &status);
-  printf ("remove '%s', status %d - %s\n", keyC, status, storageGetStrStatus(storage, status));
-  assert(status == STORAGE_STATUS_OK);
-  
-  bVal = storageGetBool(storage, keyC, &status);
-  printf ("get bool ['%s'] = %s, status %d - %s\n", keyC, bVal ? "true" : "false", status, storageGetStrStatus(storage, status));
-  assert(status == STORAGE_STATUS_KEY_NOT_FOUND);
-  assert(bVal == false);
-  
-  storageRemove(storage, keyC, &status);
-  printf ("remove '%s', status %d - %s\n", keyC, status, storageGetStrStatus(storage, status));
-  assert(status == STORAGE_STATUS_KEY_NOT_FOUND);
+  testStorage(storage);
 }
-#endif // _TEST
+#endif // _TEST_MEMORY_STORAGE
 
 /*
   This program and the accompanying materials are
