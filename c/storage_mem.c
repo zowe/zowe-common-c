@@ -167,11 +167,10 @@ static const char *MESSAGES[] = {
 #define MESSAGE_COUNT sizeof(MESSAGES)/sizeof(MESSAGES[0])
 
 static const char *memStorageGetStrStatus(MemStorage *storage, int status) {
-  int adjustedStatus = status - STORAGE_STATUS_FIRST_CUSTOM_STATUS;
-  if (adjustedStatus >= MESSAGE_COUNT || adjustedStatus < 0) {
+  if (status >= MESSAGE_COUNT || status < STORAGE_STATUS_FIRST_CUSTOM_STATUS) {
     return "Unknown status code";
   }
-  const char *message = MESSAGES[adjustedStatus];
+  const char *message = MESSAGES[status];
   if (!message) {
     return "Unknown status code";
   }
