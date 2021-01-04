@@ -42,6 +42,7 @@
 #include "le.h"
 #include "json.h"
 #include "httpserver.h"
+#include "storage.h"
 #include "dataservice.h"
 
 #define SERVICE_TYPE_SERVICE 1
@@ -142,7 +143,7 @@ static void *lookupDLLEntryPoint(char *libraryName, char *functionName){
 }
 
 static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonObject, char *subURI, InternalAPIMap *namedAPIMap,
-                                    unsigned int *idMultiplier, int pluginLogLevel) {
+                                    unsigned int *idMultiplier, int pluginLogLevel, Storage *storage) {
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "%s begin data service:\n", __FUNCTION__);
   DataService *service = (DataService*) safeMalloc(sizeof (DataService), "DataService");
   memset(service, 0, sizeof (DataService));
@@ -150,6 +151,7 @@ static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonOb
   service->serviceDefinition = serviceJsonObject;
   service->pattern = jsonObjectGetString(serviceJsonObject, "pattern");
   service->subURI = subURI;
+  service->storage = storage;
   if (subURI) { /* group member */
     service->name = jsonObjectGetString(serviceJsonObject, "subserviceName");
   } else {
@@ -258,8 +260,8 @@ static bool isValidServiceDef(JsonObject *serviceDef) {
   return true;
 }
 
-WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, InternalAPIMap *internalAPIMap,
-                         unsigned int *idMultiplier, int pluginLogLevel) {
+WebPlugin *makeWebPlugin2(char *pluginLocation, JsonObject *pluginDefintion, InternalAPIMap *internalAPIMap,
+                         unsigned int *idMultiplier, int pluginLogLevel, Storage *storage) {
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2, "%s begin\n", __FUNCTION__);
   WebPlugin *plugin = (WebPlugin*)safeMalloc(sizeof(WebPlugin),"WebPlugin");
   memset(plugin, 0, sizeof (WebPlugin));
@@ -310,7 +312,7 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
 
       if (!type || !strcmp(type, "service")) {
         plugin->dataServices[k++] = makeDataService(plugin, jsonArrayGetObject(dataServices, i), NULL, internalAPIMap,
-                                                    idMultiplier, pluginLogLevel);
+                                                    idMultiplier, pluginLogLevel, storage);
         (*idMultiplier++);
       } else if (!strcmp(type, "group")) {
         char *subURI = jsonObjectGetString(serviceDef, "name");
@@ -318,7 +320,7 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
         if (group) {
           for (int j = 0; j < jsonArrayGetCount(group); j++) {
             plugin->dataServices[k++] = makeDataService(plugin, jsonArrayGetObject(group, j), subURI, internalAPIMap,
-                                                        idMultiplier, pluginLogLevel);
+                                                        idMultiplier, pluginLogLevel, storage);
             (*idMultiplier++);
           }
         }
@@ -329,6 +331,11 @@ WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, Inte
   }
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2, "%s end\n", __FUNCTION__);
   return plugin;
+}
+
+WebPlugin *makeWebPlugin(char *pluginLocation, JsonObject *pluginDefintion, InternalAPIMap *internalAPIMap,
+                         unsigned int *idMultiplier, int pluginLogLevel) {
+  return makeWebPlugin2(pluginLocation, pluginDefintion, internalAPIMap, idMultiplier, pluginLogLevel, NULL);
 }
 
 HttpService *makeHttpDataService(DataService *dataService, HttpServer *server) {
