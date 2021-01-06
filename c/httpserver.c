@@ -1068,6 +1068,11 @@ static void traceHeader(const char*line, int len)
 void writeHeader(HttpResponse *response){
   if (response->sessionCookie) {
     addStringHeader(response, "Set-Cookie", response->sessionCookie);
+    if (response->sessionTimeout) {
+      addIntHeader(response, "Session-Expires-Seconds", response->sessionTimeout);
+    } else {
+      printf("\ncouldnt set expiration during writeheader\n");
+    }
   }
   if (response->conversation->isKeepAlive) {
     if (response->conversation->requestCount == JED_HTTP_KEEP_ALIVE_MAX) {
@@ -2792,7 +2797,17 @@ static int64 getFineGrainedTime(){
 
 #define SESSION_VALIDITY_IN_SECONDS 3600
 
-static int sessionTokenStillValid(HttpService *service, HttpRequest *request, char *sessionTokenText){
+//0=not found, -1=no expiration, positive int=session in seconds
+static int getSessionValidity(const char *group, const HttpServerConfig *config) {
+  return 0;
+}
+
+//0=not found, -1=no expiration, positive int=session in seconds
+static int getSessionValidity(const char *username, const HttpServerConfig *config) {
+  return 0;
+}
+
+static int sessionTokenStillValid(HttpService *service, HttpRequest *request, char *sessionTokenText, int *sessionValiditySec, int *sessionTimeRemainingSec){
   HttpServer *server = service->server;
   ShortLivedHeap *slh = request->slh;
   char *decodedData = SLHAlloc(slh,strlen(sessionTokenText));
@@ -2826,11 +2841,30 @@ static int sessionTokenStillValid(HttpService *service, HttpRequest *request, ch
   if (colonPos2 == -1){
     return FALSE;
   }
+  
+  char *username = SLHAlloc(slh, colonPos+1);
+  memcpy(username, plaintextSessionToken, colonPos);
+  username[colonPos]=0;
+  strupcase(username);
+
   uint64 decodedTimestamp= strtoull(plaintextSessionToken+colonPos+1, NULL, 16);
   uint64 serverInstanceUID = strtoull(plaintextSessionToken+colonPos2+1, NULL, 16);
   uint64 now = getFineGrainedTime();
+  //determined by lookup or default
+  //int interval = getSessionValidity(username, server->config);
+  //if (interval == 0) { interval = ((uint64)SESSION_VALIDITY_IN_SECONDS)*ONE_SECOND; }
   uint64 interval = ((uint64)SESSION_VALIDITY_IN_SECONDS)*ONE_SECOND;
+  *sessionValidityMs = interval;
+
+  if (serverInstanceUID != service->serverInstanceUID){
+    AUTH_TRACE("token from other server, returning FALSE\n");
+    return FALSE;
+  }
+
+  //  if (interval > 0) {
+  
   uint64 difference = now-decodedTimestamp;
+  *sessionTimeRemainingMs = difference
 
   AUTH_TRACE("decodedTimestamp=%llx;now=%llx;difference=%llx;interval=%llx;tokenUID=%llx;serverUID=%llx\n",
          decodedTimestamp,now,difference,interval, serverInstanceUID, service->serverInstanceUID);
@@ -2840,15 +2874,9 @@ static int sessionTokenStillValid(HttpService *service, HttpRequest *request, ch
     return FALSE;
   }
 
-  if (serverInstanceUID != service->serverInstanceUID){
-    AUTH_TRACE("token from other server, returning FALSE\n");
-    return FALSE;
-  }
+  //  }
 
-  request->username = SLHAlloc(slh, colonPos+1);
-  memcpy(request->username, plaintextSessionToken, colonPos);
-  request->username[colonPos] = 0;
-  strupcase(request->username);
+  request->username = username;
 
   AUTH_TRACE("returning TRUE\n");
   return TRUE;
@@ -2920,14 +2948,16 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
            "serviceAuthNativeWithSessionToken: tokenCookieText: %s\n",
            (tokenCookieText ? tokenCookieText : "<noAuthToken>"));
-           
-    if (sessionTokenStillValid(service,request,tokenCookieText)){
+    int timeRemaining = 0;
+    int sessionLength = 0;
+    if (sessionTokenStillValid(service,request,tokenCookieText,&sessionLength,&timeRemaining)){
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
               "serviceAuthNativeWithSessionToken: Cookie still good, renewing cookie\n");
-      char *sessionToken = generateSessionTokenKeyValue(service, request,request->username);      
+      char *sessionToken = generateSessionTokenKeyValue(service, request,request->username);
       if (sessionToken == NULL){
         return FALSE;
       }
+      response->sessionTimeout = sessionLength;
       response->sessionCookie = sessionToken;
       return TRUE;
     } else if (authDataFound){
@@ -2935,6 +2965,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
                "serviceAuthNativeWithSessionToken: Cookie not valid, auth is good\n");
         char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
+        response->sessionTimeout = sessionLength;
         response->sessionCookie = sessionToken;
         return TRUE;
       } else{
@@ -2959,6 +2990,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
               request,request->username,response);
 
       char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
+      response->sessionTimeout = sessionLength;
       response->sessionCookie = sessionToken;
       return TRUE;
     } else{

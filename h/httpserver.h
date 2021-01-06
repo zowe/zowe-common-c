@@ -131,6 +131,7 @@ typedef struct HttpResponse_tag{
   jsonPrinter    *jp;
   char           *sessionCookie;
   int             standaloneTestMode;
+  int             sessionTimeout;
 } HttpResponse;
 
 
