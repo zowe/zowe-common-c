@@ -319,7 +319,9 @@ static void visitSSCTEntry(DiscoveryContext *context,
                            SSCT *ssctChain, GDA *gda, int subsystemTypeMask,
                            char *specificBestName){
   zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "SSCT %.4s at 0x%x specificBestName ptr is 0x%x\n",&(ssctChain->sname),ssctChain,specificBestName);fflush(stdout);
-  dumpbuffer((char*)ssctChain,sizeof(SSCT));
+  if (context->ssctTraceLevel >= 1){
+    dumpbuffer((char*)ssctChain,sizeof(SSCT));
+  }
   void *usr1 = (void*)ssctChain->ssctsuse;
   zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "user pointer at 0x%x COMMON?=%s\n",usr1,isPointerCommon(gda,usr1) ? "YES" : "NO");
   if (isPointerCommon(gda,usr1)){
@@ -329,7 +331,7 @@ static void visitSSCTEntry(DiscoveryContext *context,
     char *sname = &(ssctChain->sname[0]);
     char *usrData = (char*)usr1;
     zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "sname=%4.4s\n",sname);
-    if (!memcmp(sname,"CICS",4)){
+    if (!memcmp(sname,"CICS",4) && (context->ssctTraceLevel >= 1)){
       dumpbuffer(usrData+0x08,6);
     }
     fflush(stdout);
@@ -559,7 +561,9 @@ int findSessions(DiscoveryContext *context,
     memcpy(nmiBuffer->filters[0].NWMFilterResourceName,"TN3270  ",8);   /* is this wrong if TN3270 is not name of TN3270 sever */
 
     zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "request\n");
-    dumpbuffer((char*)nmiBuffer,0x100);
+    if (context->vtamTraceLevel >= 1){
+      dumpbuffer((char*)nmiBuffer,0x100);
+    }
     attempts++;
 
     ZISNWMJobName jobName = {.value = "TCPIP   "};
