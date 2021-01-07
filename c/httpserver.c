@@ -66,6 +66,9 @@
 #ifdef USE_RS_SSL
 #include "rs_ssl.h"
 #endif
+#ifdef USE_ZOWE_TLS
+#include "tls.h"
+#endif // USE_ZOWE_TLS
 
 #include "../jwt/jwt/jwt.h"
 
@@ -120,7 +123,7 @@ typedef struct AuthResponse_tag {
 } while (0)
 
 #ifdef DEBUG
-#  define DEBUG_TRACE do { \
+#define DEBUG_TRACE(...) do { \
     printf(__VA_ARGS__); \
     fflush(stdout); \
   } while (0)
@@ -221,7 +224,7 @@ static char crlf[] ={ 0x0d, 0x0a};
 #endif
 
 //No need to fill logs with the same message, warn based on a desired frequency
-#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
+#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_ZOWE_TLS)
 #ifndef TLS_WARN_FREQUENCY
 #define TLS_WARN_FREQUENCY 25
 #endif
@@ -1060,9 +1063,20 @@ static void traceHeader(const char*line, int len)
   }
 }
 
+#define JED_HTTP_KEEP_ALIVE_MAX 1000
+
 void writeHeader(HttpResponse *response){
   if (response->sessionCookie) {
     addStringHeader(response, "Set-Cookie", response->sessionCookie);
+  }
+  if (response->conversation->isKeepAlive) {
+    if (response->conversation->requestCount == JED_HTTP_KEEP_ALIVE_MAX) {
+      addStringHeader(response, "Connection", "close");
+    }
+    else {
+      addStringHeader(response, "Connection", "keep-alive");
+      addStringHeader(response, "Keep-Alive", "max=1000");
+    }
   }
 
   Socket *socket = response->socket;
@@ -1480,9 +1494,11 @@ static int decodeSessionToken(ShortLivedHeap *slh,
 
 }
 
-HttpServer *makeHttpServer2(STCBase *base,
+static
+HttpServer *makeHttpServer3(STCBase *base,
                            InetAddr *addr,
                            int port,
+                           void *tlsEnv,
                            int tlsFlags,
                            int *returnCode, int *reasonCode){
   logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
@@ -1496,6 +1512,9 @@ HttpServer *makeHttpServer2(STCBase *base,
   if (listenerSocket == NULL){
     return NULL;
   }
+#ifdef USE_ZOWE_TLS
+  listenerSocket->tlsEnvironment = tlsEnv;
+#endif // USE_ZOWE_TLS
   HttpServer *server = (HttpServer*)safeMalloc31(sizeof(HttpServer),"HTTP Server");
   memset(server,0,sizeof(HttpServer));
   server->base = base;
@@ -1527,6 +1546,15 @@ HttpServer *makeHttpServer2(STCBase *base,
   server->config->authTokenType = SERVICE_AUTH_TOKEN_TYPE_LEGACY;
 
   return server;
+}
+
+HttpServer *makeHttpServer2(STCBase *base,
+                           InetAddr *addr,
+                           int port,
+                           int tlsFlags,
+                           int *returnCode,
+                           int *reasonCode){
+  return makeHttpServer3(base, addr, port, NULL, tlsFlags, returnCode, reasonCode);
 }
 
 #ifdef USE_RS_SSL
@@ -1569,6 +1597,19 @@ HttpServer *makeSecureHttpServer(STCBase *base, int port,
   return server;
 }
 #endif
+
+#ifdef USE_ZOWE_TLS
+HttpServer *makeSecureHttpServer(STCBase *base,
+                                 InetAddr *addr,
+                                 int port,
+                                 TlsEnvironment *tlsEnv,
+                                 int tlsFlags,
+                                 int *returnCode,
+                                 int *reasonCode
+                                ) {
+  return makeHttpServer3(base, addr, port, tlsEnv, tlsFlags, returnCode, reasonCode);
+}
+#endif // USE_ZOWE_TLS
 
 void *getConfiguredProperty(HttpServer *server, char *key){
   return htGet(server->properties,key);
@@ -3167,6 +3208,42 @@ static void respondWithAuthError(HttpResponse *response, AuthResponse *authRespo
   }
 }
 
+static int handleServiceFailed(HttpConversation *conversation,
+                               HttpService *service,
+                               HttpResponse *response) {
+
+  if (service->cleanupFunction != NULL) {
+    service->cleanupFunction(service, response);
+  }
+
+  /* Save the conversation response working state, and then set it to false */
+  int workingOnResponse = conversation->workingOnResponse;
+  conversation->workingOnResponse = FALSE;                
+
+  /* Set shouldClose to indicate that the conversation can not continue further */
+  conversation->shouldClose = TRUE;
+
+  /* If not running in a subtask and a considerCloseConversation request has not been queued, queue one */
+  serializeConsiderCloseEnqueue(conversation,FALSE);
+
+  /* Attempt to prevent a double free of a response block
+
+      In most abends it is unlikely that the response block will have been freed
+      before the abend occurred.  In those cases the test below will succeed.  If
+      the response block was freed then the test below will fail, and we must not
+      attempt to free it again.                                                     
+
+      finishResponse can not be used to cleanup for the response because
+      we have already queued the conversation for close processing.  Just
+      free the SLH associated with the response.                           */
+
+  if (workingOnResponse == TRUE) {           
+    SLHFree(response->slh);  
+  }
+
+  return HTTP_SERVICE_FAILED;
+}
+
 static int handleHttpService(HttpServer *server,
                              HttpService *service,
                              HttpRequest *request,
@@ -3174,6 +3251,10 @@ static int handleHttpService(HttpServer *server,
 
 #ifdef __ZOWE_OS_ZOS
   HttpConversation *conversation = response->conversation;
+
+  if (conversation->requestCount > JED_HTTP_KEEP_ALIVE_MAX) {
+    return handleServiceFailed(conversation, service, response);
+  }
 
   HTTPServiceABENDInfo abendInfo = {"RSHTTPAI", 0, 0};
   int recoveryRC = recoveryPush(service->name,
@@ -3198,36 +3279,7 @@ static int handleHttpService(HttpServer *server,
           service->name, recoveryRC);
 #endif
     }
-
-    if (service->cleanupFunction != NULL) {
-      service->cleanupFunction(service, response);
-    }
-
-    /* Save the conversation response working state, and then set it to false */
-    int workingOnResponse = conversation->workingOnResponse;
-    conversation->workingOnResponse = FALSE;                
-
-    /* Set shouldClose to indicate that the conversation can not continue further */
-    conversation->shouldClose = TRUE;
-    /* If not running in a subtask and a considerCloseConversation request has not been queued, queue one */
-    serializeConsiderCloseEnqueue(conversation,FALSE);
-
-    /* Attempt to prevent a double free of a response block
-
-       In most abends it is unlikely that the response block will have been freed
-       before the abend occurred.  In those cases the test below will succeed.  If
-       the response block was freed then the test below will fail, and we must not
-       attempt to free it again.                                                     
-
-       finishResponse can not be used to cleanup for the response because
-       we have already queued the conversation for close processing.  Just
-       free the SLH associated with the response.                           */
-
-    if (workingOnResponse == TRUE) {           
-      SLHFree(response->slh);  
-    }
-
-    return HTTP_SERVICE_FAILED;
+    return handleServiceFailed(conversation, service, response);
   }
 #endif
 #ifdef DEBUG
@@ -3330,6 +3382,8 @@ HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
   conversation->socketExtension = socketExtension;
   conversation->runningTasks = 0;
   conversation->closeEnqueued = FALSE;
+  conversation->requestCount = 0;
+  conversation->isKeepAlive = FALSE;
   socketExtension->protocolHandler = conversation;
   socketExtension->moduleID = STC_MODULE_JEDHTTP;
   socketExtension->isServerSocket = FALSE;
@@ -5240,6 +5294,9 @@ static void doHttpResponseWork(HttpConversation *conversation)
         logHTTPMethodAndURI(parser->slh, firstRequest);
       }
 
+      conversation->requestCount++;
+      conversation->isKeepAlive = firstRequest->keepAlive;
+
       response = makeHttpResponse(firstRequest,parser->slh,conversation->socketExtension->socket);
       /* parse URI after request and response ready for work, have SLH's, etc */
       parseURI(firstRequest);
@@ -5432,6 +5489,21 @@ static int httpHandleTCP(STCBase *base,
         }
       }
 #endif
+#ifdef USE_ZOWE_TLS
+      if (NULL != socket->tlsEnvironment) {
+        int rc = tlsSocketInit(socket->tlsEnvironment,
+                               &peerSocket->tlsSocket,
+                               peerSocket->sd,
+                               true);
+        if ((0 != rc) || (NULL == peerSocket->tlsSocket)) {
+#ifdef DEBUG
+          printf("httpserver failed to negotiate TLS with peer; closing socket\n");
+#endif
+          socketClose(peerSocket, &returnCode, &reasonCode);
+          break;
+        }
+      }
+#endif // USE_ZOWE_TLS
       ShortLivedHeap *slh = makeShortLivedHeap(READ_BUFFER_SIZE,100);
   #ifndef __ZOWE_OS_WINDOWS
       int writeBufferSize = 0x40000;
@@ -5491,7 +5563,7 @@ static int httpHandleTCP(STCBase *base,
       printf("peerExtension at 0x%x, httpConversation at 0x%x\n", peerExtension, conversation);
   #endif
 
-#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
+#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_RS_TLS)
       int sxStatus = sxUpdateTLSInfo(peerExtension,
                                      1); /* prevent multiple ioctl calls on repeated reads */
       if (0 != sxStatus) {

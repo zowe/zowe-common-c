@@ -380,6 +380,8 @@ typedef struct HttpConversation_tag{
   WSSession         *wsSession;
   RLETask           *task;
   int                zeroLengthReadCount;
+  int                requestCount;
+  bool               isKeepAlive;
 } HttpConversation;
 
 typedef struct HttpWorkElement_tag{
@@ -423,6 +425,16 @@ HttpServer *makeSecureHttpServer(STCBase *base, int port,
                                  RS_SSL_ENVIRONMENT rsssl_env,
                                  int *returnCode, int *reasonCode);
 #endif
+#ifdef USE_ZOWE_TLS
+HttpServer *makeSecureHttpServer(STCBase *base,
+                                 InetAddr *addr,
+                                 int port,
+                                 TlsEnvironment *tlsEnv,
+                                 int tlsFlags,
+                                 int *returnCode,
+                                 int *reasonCode
+                                );
+#endif // USE_ZOWE_TLS
 
 HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
                                        HttpServer *server);

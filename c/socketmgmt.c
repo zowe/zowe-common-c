@@ -38,6 +38,9 @@
 #ifdef USE_RS_SSL
 #include "rs_ssl.h"
 #endif
+#ifdef USE_ZOWE_TLS
+#include "tls.h"
+#endif
 
 #define SOCKETMGMT_TRACE 0
 
@@ -105,7 +108,7 @@ SocketExtension *makeSocketExtension(Socket *socket,
   printf("SocketMgmt.madeSocketExtension\n");
 #endif
   socketExtension->isServerSocket = socket->isServer;
-#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
+#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_ZOWE_TLS)
   socketExtension->tlsFlags = socket->tlsFlags;
   socketExtension->peerCertificate = NULL;
   socketExtension->peerCertificateLength = 0;
@@ -113,7 +116,7 @@ SocketExtension *makeSocketExtension(Socket *socket,
   return socketExtension;
 }
 
-#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL)
+#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_ZOWE_TLS)
 int sxUpdateTLSInfo(SocketExtension *sext, int onceOnly)
 {
   int sts=0;
@@ -121,7 +124,7 @@ int sxUpdateTLSInfo(SocketExtension *sext, int onceOnly)
   int bpxrc=0, bpxrsn=0;
   char* arg = NULL;
 
-#ifndef USE_RS_SSL /* AT-TLS ioctl version */
+#if !defined(USE_RS_SSL) && !defined(USE_ZOWE_TLS) /* AT-TLS ioctl version */
   struct TTLS_IOCTL ioc;            /* ioctl data structure          */
   char certbuf[2048];               /* buffer for certificate        */
   memset(&ioc,0,sizeof(ioc));       /* set all unused fields to zero */
@@ -178,7 +181,7 @@ int sxUpdateTLSInfo(SocketExtension *sext, int onceOnly)
 #endif
     }
   }
-#else /* RS_SSL version */
+#elif USE_RS_SSL /* RS_SSL version */
   if ((0 == sext->isServerSocket) &&
       (NULL != sext->socket->sslHandle))
   {
@@ -201,6 +204,10 @@ int sxUpdateTLSInfo(SocketExtension *sext, int onceOnly)
       safeFree(derbuf, derlen);
     }
     sts = 0;
+  }
+#elif USE_ZOWE_TLS
+  if (!sext->isServerSocket && sext->socket->tlsSocket) {
+    sext->tlsFlags = sext->tlsFlags | RS_TLS_HAVE_TLS;
   }
 #endif
 
