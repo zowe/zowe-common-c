@@ -42,12 +42,14 @@ static int accountTrace = FALSE;
 # pragma linkage(BPX4GPN,OS)
 # pragma linkage(BPX4GPU,OS)
 # pragma linkage(BPX4PWD,OS)
+# pragma linkage(BPX4GUG,OS)
 
 # define BPXGGN BPX4GGN
 # define BPXGGI BPX4GGI
 # define BPXGPN BPX4GPN
 # define BPXGPU BPX4GPU
 # define BPXPWD BPX4PWD
+# define BPXGUG BPX4GUG
 
 #else
 # pragma linkage(BPX1GGN,OS)
@@ -55,12 +57,14 @@ static int accountTrace = FALSE;
 # pragma linkage(BPX1GPN,OS)
 # pragma linkage(BPX1GPU,OS)
 # pragma linkage(BPX1PWD,OS)
+# pragma linkage(BPX1GUG,OS)
 
 # define BPXGGN BPX1GGN
 # define BPXGGI BPX1GGI
 # define BPXGPN BPX1GPN
 # define BPXGPU BPX1GPU
 # define BPXPWD BPX1PWD
+# define BPXGUG BPX1GUG
 #endif
 
 
@@ -393,6 +397,76 @@ int groupGetName(int gid, char *groupNameBuffer, int *returnCode, int *reasonCod
     groupInfoGetGroupName(&groupInfo, groupNameBuffer);
   }
   return status;
+}
+
+/*
+  Get list of groups to which a user belongs.
+
+  Example:
+
+  int count = 0;
+  int rc = 0;
+  int returnCode;
+  int reasonCode;
+
+  const char *user = "root";
+  // obtain group count for user
+  rc = getGroupList(user, NULL, &count, &returnCode, &reasonCode);
+  if (rc == -1) {
+    printf ("failed to obtain group count for user %s\n", user);
+    exit(0);
+  }
+  printf ("found %d groups\n", count);
+  // allocate array for group list
+  int *groups = (int*)safeMalloc(sizeof(int) * count, "groups");
+  // obtain group list
+  rc = getGroupList(user, groups, &count, &returnCode, &reasonCode);
+  if (rc == -1) {
+    printf ("unable to get groups for user %s\n", user);
+    exit(0);
+  }
+  for (int i = 0; i < count; i++) {
+    printf ("group %d\n", groups[i]);
+  }
+*/
+int getGroupList(const char *userName, int *groups, int *groupCount, int *returnCode, int *reasonCode) {
+  int nameLength = strlen(userName);
+  int *reasonCodePtr = NULL;
+  int retValue = -1;
+
+#ifndef _LP64
+  reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
+#else
+  reasonCodePtr = reasonCode;
+#endif
+
+  BPXGUG(&nameLength,
+         userName,
+         groupCount,
+         &groups,
+         groupCount,
+         returnCode,
+         reasonCodePtr);
+  if (*groupCount != -1) {
+    retValue = 0;
+  }
+
+  if (accountTrace) {
+    if (retValue == -1) {
+#ifdef METTLE
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXGUG (%s) FAILED: returnCode: %d, reasonCode: 0x%08x\n",
+              userName, *returnCode, *reasonCode);
+#else
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
+              "BPXGUG (%s) FAILED: returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+              userName, *returnCode, *reasonCode, strerror(*returnCode));
+#endif
+    } else {
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXGUG (%s) OK\n", userName);
+    }
+  }
+  return retValue;
 }
 
 
