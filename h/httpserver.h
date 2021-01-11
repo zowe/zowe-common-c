@@ -214,6 +214,8 @@ typedef struct HTTPServerConfig_tag {
   unsigned char sessionTokenKey[HTTP_SERVER_MAX_SESSION_TOKEN_KEY_SIZE];
   JwtContext *jwtContext;
   int authTokenType; /* SERVICE_AUTH_TOKEN_TYPE_... */
+  hashtable *userTimeouts;
+  hashtable *groupTimeouts;
 } HttpServerConfig;
 
 typedef struct HttpServer_tag{
