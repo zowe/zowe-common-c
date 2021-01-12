@@ -414,7 +414,7 @@ int groupGetName(int gid, char *groupNameBuffer, int *returnCode, int *reasonCod
   rc = getGroupList(user, NULL, &count, &returnCode, &reasonCode);
   if (rc == -1) {
     printf ("failed to obtain group count for user %s\n", user);
-    exit(0);
+    exit(EXIT_FAILURE);
   }
   printf ("found %d groups\n", count);
   // allocate array for group list
@@ -423,7 +423,7 @@ int groupGetName(int gid, char *groupNameBuffer, int *returnCode, int *reasonCod
   rc = getGroupList(user, groups, &count, &returnCode, &reasonCode);
   if (rc == -1) {
     printf ("unable to get groups for user %s\n", user);
-    exit(0);
+    exit(EXIT_FAILURE);
   }
   for (int i = 0; i < count; i++) {
     printf ("group %d\n", groups[i]);
