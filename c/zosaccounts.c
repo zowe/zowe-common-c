@@ -70,14 +70,12 @@ static int accountTrace = FALSE;
 
 
 /* Obtain the user information structure from user name */
-int gidGetUserInfo(const char *userName,  UserInfo * info,
-                         int *returnCode, int *reasonCode) {
+UserInfo *gidGetUserInfo(const char *userName, int *returnCode, int *reasonCode) {
   int nameLength = strlen(userName);
   int *reasonCodePtr;
   int returnValue;
   int retValue = -1;
-
-  UserInfo *ptrInfo;
+  UserInfo *info = NULL;
 
 #ifndef _LP64
   reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
@@ -93,8 +91,7 @@ int gidGetUserInfo(const char *userName,  UserInfo * info,
 
   /* Copy returned structure */
   if (returnValue != 0) {
-    memcpy (info, (char *)returnValue, sizeof (UserInfo));
-    retValue = 0;
+    info = (UserInfo*) returnValue;
   }
 
   if (accountTrace) {
@@ -116,16 +113,16 @@ int gidGetUserInfo(const char *userName,  UserInfo * info,
     }
   }
 
-  return retValue;
+  return info;
 }
 
 /* Obtain the user information structure using UID */
-int getUserInfo(int uid, UserInfo *info, int *returnCode, int *reasonCode) {
+UserInfo *getUserInfo(int uid, int *returnCode, int *reasonCode) {
   int *reasonCodePtr;
   int returnValue;
   int retValue = -1;
 
-  UserInfo *ptrInfo;
+  UserInfo *info = NULL;
 
 #ifndef _LP64
   reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
@@ -139,8 +136,7 @@ int getUserInfo(int uid, UserInfo *info, int *returnCode, int *reasonCode) {
          reasonCodePtr);
 
   if (returnValue != 0) {
-    memcpy (info, (char *)returnValue, sizeof (UserInfo));
-    retValue = 0;
+    info = (UserInfo*) returnValue;
   }
 
   if (accountTrace) {
@@ -161,7 +157,7 @@ int getUserInfo(int uid, UserInfo *info, int *returnCode, int *reasonCode) {
     }
   }
 
-  return retValue;
+  return info;
 }
 
 /* Obtain the user information structure from user name */
@@ -212,13 +208,13 @@ int resetZosUserPassword(const char *userName,  const char *password, const char
 }
 
 /* Obtain the group information structure from group name */
-int gidGetGroupInfo(const char *groupName,  GroupInfo *info,
-                   int *returnCode, int *reasonCode) {
+GroupInfo *gidGetGroupInfo(const char *groupName, int *returnCode, int *reasonCode) {
   int groupLength = strlen(groupName);
   int *reasonCodePtr;
   int returnValue;
   int retValue = -1;
   *returnCode = *reasonCode = 0;
+  GroupInfo *info = NULL;
 
 #ifndef _LP64
   reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
@@ -234,8 +230,7 @@ int gidGetGroupInfo(const char *groupName,  GroupInfo *info,
 
   /* Copy returned structure */
   if (returnValue >  0) {
-    memcpy (info, (char *)returnValue, sizeof (GroupInfo));
-    retValue = 0;
+    info = (GroupInfo *) returnValue;
   }
 
   if (accountTrace) {
@@ -256,15 +251,16 @@ int gidGetGroupInfo(const char *groupName,  GroupInfo *info,
     }
   }
 
-  return retValue;
+  return info;
 }
 
 /* Obtain the group information structure using GID */
-int getGroupInfo(int gid, GroupInfo *info, int *returnCode, int *reasonCode) {
+GroupInfo *getGroupInfo(int gid, int *returnCode, int *reasonCode) {
   int *reasonCodePtr;
   int returnValue;
   int retValue = -1;
   *returnCode = *reasonCode = 0;
+  GroupInfo *info = NULL;
 
 #ifndef _LP64
   reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
@@ -278,8 +274,7 @@ int getGroupInfo(int gid, GroupInfo *info, int *returnCode, int *reasonCode) {
          reasonCodePtr);
 
   if (returnValue >  0) {
-    memcpy (info, (char *)returnValue, sizeof (GroupInfo));
-    retValue = 0;
+    info = (GroupInfo*) returnValue;
   }
 
   if (accountTrace) {
@@ -300,40 +295,31 @@ int getGroupInfo(int gid, GroupInfo *info, int *returnCode, int *reasonCode) {
     }
   }
 
-  return retValue;
+  return info;
 }
 
 /* Return userId from user info structure */
 int userInfoGetUserId (UserInfo *info) {
-  int *temp = (int *)info;
-  int unameLength = info->GIDN_U_LEN;
-  int unameLengthindex = (unameLength + 3) /4;
-  int userId = temp[unameLengthindex + 2];
-  return userId;
+  return info->GIDN_USERID;
 }
 
 /* Copy user name from User Info structure into userNameBuffer */
 void userInfoGetUserName (UserInfo *info, char *userNameBuffer) {
-  memcpy(userNameBuffer, (const char*)&info->GIDN_U_NAME, info->GIDN_U_LEN);
+  memcpy(userNameBuffer, info->GIDN_U_NAME, info->GIDN_U_LEN);
 }
 
 /* Return groupId from group info structure */
 int groupInfoGetGroupId (GroupInfo *info) {
-  int *temp = (int *)info;
-  int groupLength = info->GIDS_G_LEN;
-  int groupLengthindex = (groupLength + 3) /4;
-  int groupId = temp[groupLengthindex + 2];
-  return groupId;
+  return info->GIDS_GROUPID;
 }
 
 /* Copy group name from Group Info structure into groupNameBuffer*/
 void groupInfoGetGroupName (GroupInfo *info, char *groupNameBuffer) {
-  memcpy(groupNameBuffer, (const char*)&info->GIDS_G_NAME, info->GIDS_G_LEN);
+  memcpy(groupNameBuffer, info->GIDS_G_NAME, info->GIDS_G_LEN);
 }
 
 /* Obtain userId from character string */
 int userIdGet (char *string, int *returnCode, int *reasonCode) {
-  UserInfo  userInfo = {0};
   int userId = -1;
   int status;
   
@@ -346,9 +332,9 @@ int userIdGet (char *string, int *returnCode, int *reasonCode) {
   }
   else {
     /* get user info by name */
-    status = gidGetUserInfo(string, &userInfo, returnCode, reasonCode);
-    if (status == 0) {
-      userId = userInfoGetUserId ( &userInfo);
+    UserInfo  *userInfo = gidGetUserInfo(string, returnCode, reasonCode);
+    if (userInfo != NULL) {
+      userId = userInfoGetUserId ( userInfo);
     }
   }
   return userId;
@@ -356,20 +342,18 @@ int userIdGet (char *string, int *returnCode, int *reasonCode) {
 
 /* Obtain user name by UID. userNameBuffer must be at least 8 chars long */
 int userGetName(int uid, char *userNameBuffer, int *returnCode, int *reasonCode) {
-  int status = 0;
-  UserInfo userInfo = {0};
-  status = getUserInfo(uid, &userInfo, returnCode, reasonCode);
-  if (status == 0) {
-    userInfoGetUserName(&userInfo, userNameBuffer);
+  int status = -1;
+  UserInfo *userInfo = getUserInfo(uid, returnCode, reasonCode);
+  if (userInfo != NULL) {
+    status = 0;
+    userInfoGetUserName(userInfo, userNameBuffer);
   }
   return status;
 }
 
 /* Obtain groupId from character string */
 int groupIdGet (char *string, int *returnCode, int *reasonCode) {
-  GroupInfo  groupInfo = {0};
   int groupId = -1;
-  int status;
   
   /* Evaluate user ID */
   if (string == NULL) {
@@ -380,9 +364,9 @@ int groupIdGet (char *string, int *returnCode, int *reasonCode) {
   }
   else {
     /* get group info by name */
-    status = gidGetGroupInfo(string, &groupInfo, returnCode, reasonCode);
-    if (status == 0) {
-      groupId = groupInfoGetGroupId (&groupInfo);
+    GroupInfo *groupInfo = gidGetGroupInfo(string, returnCode, reasonCode);
+    if (groupInfo != NULL) {
+      groupId = groupInfoGetGroupId (groupInfo);
     }
   }
   return groupId;
@@ -390,11 +374,11 @@ int groupIdGet (char *string, int *returnCode, int *reasonCode) {
 
 /* Obtain group name by GID, groupNameBuffer must be at least 8 chars long */
 int groupGetName(int gid, char *groupNameBuffer, int *returnCode, int *reasonCode) {
-  int status = 0;
-  GroupInfo groupInfo = {0};
-  status = getGroupInfo(gid, &groupInfo, returnCode, reasonCode);
-  if (status == 0) {
-    groupInfoGetGroupName(&groupInfo, groupNameBuffer);
+  int status = -1;
+  GroupInfo *groupInfo = getGroupInfo(gid, returnCode, reasonCode);
+  if (groupInfo != NULL) {
+    status = 0;
+    groupInfoGetGroupName(groupInfo, groupNameBuffer);
   }
   return status;
 }
