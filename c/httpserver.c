@@ -2804,9 +2804,14 @@ static int getGroupSessionValidity(const int groupId, const HttpServerConfig *co
   int retVal = groupGetName(groupId, groupName, returnCode, reasonCode);
   if (!retVal) {
     groupName[8]='\0';
+    trimRight(groupName,8);
+    AUTH_TRACE("lookup duration for gid=%d group=%s\n",groupId,groupName);
     if (config->groupTimeouts) {
-      *validitySec = htGet(config->groupTimeouts, groupName);
-      return 0;
+      *validitySec = (int)htGet(config->groupTimeouts, groupName);
+      if (*validitySec){
+        return 0;
+      }
+      retVal = -1;
     } else {
       retVal = -1;
     }
@@ -2818,30 +2823,35 @@ static int getGroupSessionValidity(const int groupId, const HttpServerConfig *co
 static int getUserSessionValidity(const char *username, const HttpServerConfig *config,
                                   int *validitySec, int *returnCode, int *reasonCode) {
   if (config->userTimeouts) {
-    *validitySec = htGet(config->userTimeouts, username);
+    *validitySec = (int)htGet(config->userTimeouts, (void*)username);
+    if (*validitySec){
+       return 0;
+    }
   }
-  if (*validitySec) {
+  if (!*validitySec) {
     int groupCount = 0;
     int retVal = getGroupList(username, NULL, &groupCount, returnCode, reasonCode);
     if (retVal) {
       return retVal;
-    } 
-    int *groups = (int*)safeMalloc(sizeof(int) * count, "groups");
+    }
+    int *groups = (int*)safeMalloc(sizeof(int) * groupCount, "groups");
     retVal = getGroupList(username, groups, &groupCount, returnCode, reasonCode);
-    if (!retVal) {      
+    if (!retVal) {
+      int *currentValiditySec;
       for (int i = 0; i < groupCount; i++) {
-        retVal = getGroupSessionValidity(groups[i], config, validitySec, returnCode, reasonCode);
-        if (retVal) {
-          safeFree((char*)groups, sizeof(int) * count);
-          return retVal;
-        } else if (*validitySec) {
-          safeFree((char*)groups, sizeof(int) * count);
-          return retVal;
+        retVal = getGroupSessionValidity(groups[i], config, currentValiditySec, returnCode, reasonCode);
+        if (*currentValiditySec && *validitySec != -1 && ((*currentValiditySec == -1) || (*currentValiditySec > *validitySec))) {
+          *validitySec = *currentValiditySec;
+          AUTH_TRACE("longer session duration=%d\n",*validitySec);
         }
       }
-      retVal = -1;
+      if (*validitySec){
+        retVal = 0; 
+      } else{
+        retVal = -1;
+      }
     }
-    safeFree((char*)groups, sizeof(int) * count);
+    safeFree((char*)groups, sizeof(int) * groupCount);
     return retVal;
   } else {
     return 0;
@@ -2895,6 +2905,7 @@ static int sessionTokenStillValid(HttpService *service, HttpRequest *request, ch
   int reasonCode = 0;
   int returnCode = 0;
   int retVal = getUserSessionValidity(username, server->config, sessionValiditySec, &returnCode, &reasonCode);
+  AUTH_TRACE("got secs=%d for user=%s, retv=%d, rc=%d, rsn=%d\n",*sessionValiditySec,username,retVal, returnCode, reasonCode);
   if (retVal) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "Error when getting session duration for user '%s'. rc=%d, rsn=%d\n",
             username, returnCode, reasonCode);
@@ -2955,6 +2966,12 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
   return keyValueBuffer;
 }
 
+static void logTimeoutLookupError(const char *username, const int rc, const int rsn){
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING,
+          "serviceAuthNativeWithSessionToken: Error when getting session duration for user '%s'. rc=%d, rsn=%d\n",
+          username, rc, rsn);
+}
+
 static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *request,  HttpResponse *response,
                                              int *clearSessionToken, AuthResponse *authResponse){
   int authDataFound = FALSE; 
@@ -2987,7 +3004,9 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   response->sessionCookie = NULL;
 
   AUTH_TRACE("AUTH: tokenCookieText: %s\n",(tokenCookieText ? tokenCookieText : "<noAuthToken>"));
-
+  int returnCode = 0;
+  int reasonCode = 0;
+  int retVal = 0;
   if (tokenCookieText){
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
            "serviceAuthNativeWithSessionToken: tokenCookieText: %s\n",
@@ -3009,7 +3028,12 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
                "serviceAuthNativeWithSessionToken: Cookie not valid, auth is good\n");
         char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
-        response->sessionTimeout = sessionLengthSec;
+        retVal = getUserSessionValidity(request->username, service->server->config,
+                                      &response->sessionTimeout, &returnCode, &reasonCode);
+        if (retVal) {
+          logTimeoutLookupError(request->username, returnCode, reasonCode);
+          return FALSE;
+        }
         response->sessionCookie = sessionToken;
         return TRUE;
       } else{
@@ -3034,7 +3058,12 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
               request,request->username,response);
 
       char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
-      response->sessionTimeout = getUserSessionValidity(request->username,service->server->config);
+      retVal = getUserSessionValidity(request->username, service->server->config,
+                                      &response->sessionTimeout, &returnCode, &reasonCode);
+      if (retVal) {
+        logTimeoutLookupError(request->username, returnCode, reasonCode);
+        return FALSE;
+      }
       response->sessionCookie = sessionToken;
       return TRUE;
     } else{
