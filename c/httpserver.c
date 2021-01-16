@@ -2918,7 +2918,7 @@ static int sessionTokenStillValid(HttpService *service, HttpRequest *request, ch
     return FALSE;
   }
 
-  if (interval > 0) {
+  if (*sessionValiditySec > 0) {
     uint64 difference = now-decodedTimestamp;
     *sessionTimeRemaining = difference;
 
