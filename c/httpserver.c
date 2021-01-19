@@ -1071,7 +1071,7 @@ void writeHeader(HttpResponse *response){
     if (response->sessionTimeout) {
       addIntHeader(response, "Session-Expires-Seconds", response->sessionTimeout);
     } else {
-      printf("\ncouldnt set expiration during writeheader\n");
+      AUTH_TRACE("\ncouldnt set expiration during writeheader\n");
     }
   }
   if (response->conversation->isKeepAlive) {
