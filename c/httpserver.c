@@ -2798,32 +2798,32 @@ static int64 getFineGrainedTime(){
 #define SESSION_VALIDITY_IN_SECONDS 3600
 
 //validitySec 0=not found, -1=no expiration, positive int=session in seconds
-static int getGroupSessionValidity(const int groupId, const HttpServerConfig *config,
+static int getGroupSessionValidity(int groupId, const HttpServerConfig *config,
                                   int *validitySec, int *returnCode, int *reasonCode) {
-  char groupName[9];
-  int retVal = groupGetName(groupId, groupName, returnCode, reasonCode);
-  if (!retVal) {
-    groupName[8]='\0';
-    trimRight(groupName,8);
-    AUTH_TRACE("lookup duration for gid=%d group=%s\n",groupId,groupName);
-    if (config->groupTimeouts) {
-      *validitySec = (int)htGet(config->groupTimeouts, groupName);
-      if (*validitySec){
-        return 0;
-      }
-      retVal = -1;
-    } else {
-      retVal = -1;
+  int retVal = 0;
+  char gidString[GID_MAX_CHAR_LENGTH+1];
+  convertIntToString(gidString, GID_MAX_CHAR_LENGTH, groupId);
+  gidString[GID_MAX_CHAR_LENGTH]='\0';
+  if (config->groupTimeouts) {
+    *validitySec = (int)htGet(config->groupTimeouts, (void*)gidString);
+    AUTH_TRACE("exp=%d for gid=%s from gid=%d\n",*validitySec, gidString, groupId);
+    if (*validitySec){
+      return 0;
     }
+    retVal = -1;
+  } else {
+    retVal = -1;
   }
   return retVal;
 }
 
 //validitySec 0=not found, -1=no expiration, positive int=session in seconds
-static int getUserSessionValidity(const char *username, const HttpServerConfig *config,
+static int getUserSessionValidity(char *username, const HttpServerConfig *config,
                                   int *validitySec, int *returnCode, int *reasonCode) {
+  strupcase(username);   /* upfold username */
   if (config->userTimeouts) {
     *validitySec = (int)htGet(config->userTimeouts, (void*)username);
+    AUTH_TRACE("user validitySec found=%d\n",*validitySec);
     if (*validitySec){
        return 0;
     }
@@ -2837,11 +2837,11 @@ static int getUserSessionValidity(const char *username, const HttpServerConfig *
     int *groups = (int*)safeMalloc(sizeof(int) * groupCount, "groups");
     retVal = getGroupList(username, groups, &groupCount, returnCode, reasonCode);
     if (!retVal) {
-      int *currentValiditySec;
+      int currentValiditySec;
       for (int i = 0; i < groupCount; i++) {
-        retVal = getGroupSessionValidity(groups[i], config, currentValiditySec, returnCode, reasonCode);
-        if (*currentValiditySec && *validitySec != -1 && ((*currentValiditySec == -1) || (*currentValiditySec > *validitySec))) {
-          *validitySec = *currentValiditySec;
+        retVal = getGroupSessionValidity(groups[i], config, &currentValiditySec, returnCode, reasonCode);
+        if (currentValiditySec && *validitySec != -1 && ((currentValiditySec == -1) || (currentValiditySec > *validitySec))) {
+          *validitySec = currentValiditySec;
           AUTH_TRACE("longer session duration=%d\n",*validitySec);
         }
       }
@@ -2911,7 +2911,8 @@ static int sessionTokenStillValid(HttpService *service, HttpRequest *request, ch
             username, returnCode, reasonCode);
   }
   if (*sessionValiditySec == 0) { *sessionValiditySec = (uint64)SESSION_VALIDITY_IN_SECONDS; }
-  uint64 interval = (*sessionValiditySec)*ONE_SECOND;
+  AUTH_TRACE("session validity sec = %d\n",*sessionValiditySec);
+  uint64 interval = ((uint64)(*sessionValiditySec))*ONE_SECOND;
 
   if (serverInstanceUID != service->serverInstanceUID){
     AUTH_TRACE("token from other server, returning FALSE\n");

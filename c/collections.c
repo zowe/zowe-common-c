@@ -495,12 +495,13 @@ int htRemove(hashtable *ht, void *key){
 
 int stringHash(void *key){
   char *s = (char*)key;
-  int hash = 0;
+  //See: http://www.cse.yorku.ca/~oz/hash.html
+  int hash = 5381;
   int i;
   int len = strlen(s);
 
   for (i=0; i<len; i++){
-    hash = (hash << 4) + s[i];
+    hash = ((hash << 5) + hash) + s[i];
   }
   return hash&0x7fffffff;
 }
