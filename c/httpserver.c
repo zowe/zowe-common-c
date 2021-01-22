@@ -2845,11 +2845,11 @@ static int getUserSessionValidity(char *username, const HttpServerConfig *config
           AUTH_TRACE("longer session duration=%d\n",*validitySec);
         }
       }
-      if (*validitySec){
-        retVal = 0; 
-      } else{
-        retVal = -1;
+      if (!*validitySec){
+        //the default
+        *validitySec=(uint64)SESSION_VALIDITY_IN_SECONDS;
       }
+      retVal = 0;
     }
     safeFree((char*)groups, sizeof(int) * groupCount);
     return retVal;
@@ -2910,7 +2910,6 @@ static int sessionTokenStillValid(HttpService *service, HttpRequest *request, ch
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "Error when getting session duration for user '%s'. rc=%d, rsn=%d\n",
             username, returnCode, reasonCode);
   }
-  if (*sessionValiditySec == 0) { *sessionValiditySec = (uint64)SESSION_VALIDITY_IN_SECONDS; }
   AUTH_TRACE("session validity sec = %d\n",*sessionValiditySec);
   uint64 interval = ((uint64)(*sessionValiditySec))*ONE_SECOND;
 
