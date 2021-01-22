@@ -2798,15 +2798,12 @@ static int64 getFineGrainedTime(){
 #define SESSION_VALIDITY_IN_SECONDS 3600
 
 //validitySec 0=not found, -1=no expiration, positive int=session in seconds
-static int getGroupSessionValidity(int groupId, const HttpServerConfig *config,
+static int getGroupSessionValidity(int *groupId, const HttpServerConfig *config,
                                   int *validitySec, int *returnCode, int *reasonCode) {
   int retVal = 0;
-  char gidString[GID_MAX_CHAR_LENGTH+1];
-  convertIntToString(gidString, GID_MAX_CHAR_LENGTH, groupId);
-  gidString[GID_MAX_CHAR_LENGTH]='\0';
   if (config->groupTimeouts) {
-    *validitySec = (int)htGet(config->groupTimeouts, (void*)gidString);
-    AUTH_TRACE("exp=%d for gid=%s from gid=%d\n",*validitySec, gidString, groupId);
+    *validitySec = (int)htGet(config->groupTimeouts, (void*)groupId);
+    AUTH_TRACE("exp=%d for gid=%d\n",*validitySec, groupId);
     if (*validitySec){
       return 0;
     }
@@ -2839,7 +2836,7 @@ static int getUserSessionValidity(char *username, const HttpServerConfig *config
     if (!retVal) {
       int currentValiditySec;
       for (int i = 0; i < groupCount; i++) {
-        retVal = getGroupSessionValidity(groups[i], config, &currentValiditySec, returnCode, reasonCode);
+        retVal = getGroupSessionValidity(POINTER_FROM_INT(groups[i]), config, &currentValiditySec, returnCode, reasonCode);
         if (currentValiditySec && *validitySec != -1 && ((currentValiditySec == -1) || (currentValiditySec > *validitySec))) {
           *validitySec = currentValiditySec;
           AUTH_TRACE("longer session duration=%d\n",*validitySec);
@@ -2847,7 +2844,7 @@ static int getUserSessionValidity(char *username, const HttpServerConfig *config
       }
       if (!*validitySec){
         //the default
-        *validitySec=(uint64)SESSION_VALIDITY_IN_SECONDS;
+        *validitySec= config->defaultTimeout ? (uint64)config->defaultTimeout : (uint64)SESSION_VALIDITY_IN_SECONDS;
       }
       retVal = 0;
     }
