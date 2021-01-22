@@ -217,6 +217,7 @@ typedef struct HTTPServerConfig_tag {
   int authTokenType; /* SERVICE_AUTH_TOKEN_TYPE_... */
   hashtable *userTimeouts;
   hashtable *groupTimeouts;
+  int defaultTimeout;
 } HttpServerConfig;
 
 typedef struct HttpServer_tag{
