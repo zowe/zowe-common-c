@@ -48,6 +48,9 @@ typedef BPXYGIDN UserInfo;
 #define USER_NAME_LEN 8
 #define GROUP_NAME_LEN 8
 
+#define MAX_GID 2147483647
+#define GID_MAX_CHAR_LENGTH 10
+
 /* Function Prototype */
 int gidGetUserInfo(const char *userName,  UserInfo * info,
                          int *returnCode, int *reasonCode);
