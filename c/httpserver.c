@@ -3366,6 +3366,21 @@ HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
   return conversation;
 }
 
+static int heartbeatMonitoringLoop(STCBase null) {
+  // zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "start %s\n", __FUNCTION__);
+  printf("start heartbeatMonitoringLoop\n");
+  fflush(stdout);
+  
+  while(true) {
+    sleep(30);  
+    printf("loop heartbeatMonitoringLoop\n");
+    fflush(stdout); 
+    // zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "looping %s\n", __FUNCTION__);
+  }
+  // zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "end %s\n", __FUNCTION__);
+  return 0;
+}
+
 /* 
    1 make Parse state,
    2 feed buffer at parse state
@@ -4499,6 +4514,36 @@ int runServiceThread(Socket *socket){
   OSThread osThreadData;
   OSThread *osThread = &osThreadData;
   int createStatus = threadCreate(osThread,(void * (*)(void *))serviceLoop,socket);
+  if (createStatus != 0) {
+#ifdef __ZOWE_OS_WINDOWS
+#ifdef DEBUG
+    printf("CREATE THREAD failure, code=0x%x\n",createStatus);
+#endif
+#else
+    perror("pthread_create() error");
+#endif
+    exit(1);
+  } else{
+#ifdef DEBUG
+    printf("thread create succeeded!\n");
+    fflush(stdout);
+#endif
+  }
+#endif
+  return 0;
+}
+
+int runMonitoringThread(){
+#ifndef METTLE
+  int threadID; /* pthread_t threadID;  */
+  
+#ifdef DEBUG
+  printf("runMonitoringThread\n");
+#endif
+  fflush(stdout);
+  OSThread osThreadData;
+  OSThread *osThread = &osThreadData;
+  int createStatus = threadCreate(osThread,(void * (*)(void *))heartbeatMonitoringLoop, NULL);
   if (createStatus != 0) {
 #ifdef __ZOWE_OS_WINDOWS
 #ifdef DEBUG
@@ -5871,13 +5916,44 @@ void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
                                             httpBackgroundHandler);
 }
 
+static addDatasetHeartbeatMonitoring(STCBase *base) {
+   stcEnqueueWork(base,monitoringFunction(base));
+}
+
+void monitoringFunction(STCBase *base) {
+  printf('monitoringFunction');
+  //checkLastHeartbeatActivity(); //for every user
+  addDatasetHeartbeatMonitoring(base);
+}
+
+static WorkElementPrefix * makeMonitoringWorkElement () {
+  int allocSize = sizeof(WorkElementPrefix);
+  WorkElementPrefix *element =
+      (WorkElementPrefix *)safeMalloc(allocSize, "Monitoring work element");
+  if (element == NULL) {
+    return NULL;
+  }
+  return element;
+}
+
+static int monitoringWorkElementHandler(STCBase *base, STCModule *module, WorkElementPrefix *prefix) {
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "%s\n", __FUNCTION__);
+  sleep(30);
+  WorkElementPrefix *workElement = makeMonitoringWorkElement();
+  stcEnqueueWork(base, workElement);  
+  return 0;
+}
+
+
+
 int mainHttpLoop(HttpServer *server){
   STCBase *base = server->base;
   /* server pointer will be copied/accessible from module->data */
 
   /* Create semaphore table for datasets */
-  for(int i=0; i < N_SEM_TABLE_ENTRIES; i++)
+  for(int i=0; i < N_SEM_TABLE_ENTRIES; i++) {
     sem_table_entry[i].sem_ID = 0;  /* initialise */
+  }
   
   STCModule *httpModule = stcRegisterModule(base,
                                             STC_MODULE_JEDHTTP,
@@ -5886,6 +5962,20 @@ int mainHttpLoop(HttpServer *server){
                                             NULL,
                                             httpWorkElementHandler,
                                             httpBackgroundHandler);
+
+  runMonitoringThread();
+  STCModule *heartbeatMonitoringModule = stcRegisterModule(
+        base,
+        STC_MODULE_GENERIC,
+        server,
+        NULL,
+        NULL,
+        monitoringWorkElementHandler,
+        NULL
+    );
+
+  WorkElementPrefix *workElement = makeMonitoringWorkElement();
+  stcEnqueueWork(base, workElement);
 
   return stcBaseMainLoop(base, MAIN_WAIT_MILLIS);
 }
