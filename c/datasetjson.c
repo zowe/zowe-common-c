@@ -1073,6 +1073,8 @@ static int getMaxRecordLength(char *dscb){
 }
 
 void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
+
+  printf("in updateDataset checking owner.\n");      
 #ifdef __ZOWE_OS_ZOS
   if (jsonMode != TRUE) { /*TODO add support for updating files with raw bytes instead of JSON*/
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Cannot update file without JSON formatted record request");
@@ -1106,8 +1108,17 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
 
   /* check owner of ENQ is the same as requestor */
     int i;
+    int k;
     for(i=0; i < N_SEM_TABLE_ENTRIES; i++)
       {  
+        if (sem_table_entry[i].sem_ID != 0                                  /* semaphore exists */      
+            && memcmp(sem_table_entry[i].dsn, daDsn.name, 44) == 0          /* DSN matches */
+            && memcmp(sem_table_entry[i].mem, daMember.name, 8) == 0   /* member matches */
+            && memcmp(sem_table_entry[i].usr, response->request->username, 8) == 0  /* user id matches */      
+            ) 
+        {
+           k = i;
+        }
         if (sem_table_entry[i].sem_ID != 0                                  /* semaphore exists */      
             && memcmp(sem_table_entry[i].dsn, daDsn.name, 44) == 0          /* DSN matches */
             && memcmp(sem_table_entry[i].mem, daMember.name, 8) == 0   /* member matches */
@@ -1136,6 +1147,9 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
       
   /* end of prevent */
 
+  printf("in updateDataset last matched : %d %s\n", k, sem_table_entry[k].dsn);            
+  printf("in updateDataset last matched : %d %s\n", k, sem_table_entry[k].mem);            
+  printf("in updateDataset last matched : %d %s\n", k, sem_table_entry[k].usr);            
   returnCode = convertCharset(contentBody,
                               bodyLength,
                               CCSID_UTF_8,
@@ -1820,6 +1834,8 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
           memcpy(sem_table_entry[i].mem, dsn_member.membername, 8);   /* copy in member */
           memcpy(sem_table_entry[i].dsn, dsn_member.dsn, 44); /* copy in dsn */
           memcpy(sem_table_entry[i].usr, response->request->username, 8); /* copy in user id */
+          time(&sem_table_entry[i].ltime);        
+          addUserToHbt(sem_table_entry[i].usr);   
           zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,
 "respondWithEnqueue userid is %s\n", response->request->username);
 
@@ -2580,6 +2596,42 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
   metadataQueryCache->cachedCSIParmblocks = returnParmsArray;
   finishResponse(response);     
 #endif /* __ZOWE_OS_ZOS */
+}
+
+/*------JP---*/
+void postSemaphore(int semID) {                                                                             
+
+  /* ----------------- */
+  /* semaphore section */
+  /* ----------------- */
+
+
+       /* DEQ dataset */
+        /* POST! */
+
+        int semaphoreID;
+        semaphoreID = semID;  /* use semaphore saved for that dataset */                    
+
+        /* post semaphore semaphoreOps */
+        size_t semArrayEntries = 1;
+        struct sembuf semaphoreBuffer[1];
+        struct sembuf *semaphoreOps = &semaphoreBuffer[0];
+        semaphoreBuffer[0].sem_num = 0;
+        semaphoreBuffer[0].sem_op  = -1;    /* decrement */
+        semaphoreBuffer[0].sem_flg = 0;
+
+        int semaphoreRetcode;
+        semaphoreRetcode = semop(semaphoreID, semaphoreOps, semArrayEntries); /* 0=wait, 1=increment */
+        if (semaphoreRetcode == -1 )
+        {
+          printf("Failed to dequeue dataset\n");                                                      
+        }
+        else
+        {
+          /*success!*/
+          printf("dequeue dataset successful\n");      
+        }
+       
 }
 
 

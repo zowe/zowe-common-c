@@ -332,6 +332,7 @@ int stcHandleReadySockets(STCBase *base,
 
 int stcEnqueueWork(STCBase *base, WorkElementPrefix *element){
   qInsert(base->workQueue,element);
+  /* printf("in stcEnqueueWork \n"); */
   /* does qInsert have any fail conditions that should skip the next statement and return
      to PC call */
 #ifdef __ZOWE_OS_ZOS

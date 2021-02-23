@@ -144,6 +144,7 @@ typedef struct AuthResponse_tag {
 #include "semTable.h"
 /* define the storage for table */
 extern struct sem_table_type sem_table_entry [N_SEM_TABLE_ENTRIES];
+struct hbt_table_type hbt_table_entry [N_HBT_TABLE_ENTRIES];       
 /***** General Primitives ******************************/
 
 static int traceParse = 0;
@@ -3366,6 +3367,30 @@ HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
   return conversation;
 }
 
+static int heartbeatMonitoringLoop(HttpServer *server) {
+  // zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "start %s\n", __FUNCTION__);
+  printf("start heartbeatMonitoringLoop\n");
+  fflush(stdout);
+
+  time_t T;
+  time(&T);
+  char *key = "HBTime";
+  void *value;
+  printf("Start time: %s\n", ctime(&T));
+  htPut(server->properties,key,ctime(&T));
+  while(true) {
+    printf("htGet:%s\n", htGet(server->properties,key));
+    sleep(30);  
+    time(&T);
+    htPut(server->properties,key,ctime(&T));
+    printf("loop heartbeatMonitoringLoop\n");
+    fflush(stdout); 
+    // zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "looping %s\n", __FUNCTION__);
+  }
+  // zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "end %s\n", __FUNCTION__);
+  return 0;
+}
+
 /* 
    1 make Parse state,
    2 feed buffer at parse state
@@ -4518,6 +4543,36 @@ int runServiceThread(Socket *socket){
   return 0;
 }
 
+int runMonitoringThread(HttpServer *server){
+#ifndef METTLE
+  int threadID; /* pthread_t threadID;  */
+  
+#ifdef DEBUG
+  printf("runMonitoringThread\n");
+#endif
+  fflush(stdout);
+  OSThread osThreadData;
+  OSThread *osThread = &osThreadData;
+  int createStatus = threadCreate(osThread,(void * (*)(void *))heartbeatMonitoringLoop, server);
+  if (createStatus != 0) {
+#ifdef __ZOWE_OS_WINDOWS
+#ifdef DEBUG
+    printf("CREATE THREAD failure, code=0x%x\n",createStatus);
+#endif
+#else
+    perror("pthread_create() error");
+#endif
+    exit(1);
+  } else{
+#ifdef DEBUG
+    printf("thread create succeeded!\n");
+    fflush(stdout);
+#endif
+  }
+#endif
+  return 0;
+}
+
 
 #define DIR_BUFFER_SIZE 1024
 
@@ -5595,6 +5650,7 @@ HttpResponse *pseudoRespond(HttpServer *server, HttpRequest *request, ShortLived
 int httpWorkElementHandler(STCBase *base,
                            STCModule *module,
                            WorkElementPrefix *prefix) {
+  /* printf("in httpWorkElementHandler %s\n", "username ?"); */
   int status = 0;
   switch (prefix->payloadCode) {
   case HTTP_CONSIDER_CLOSE_CONVERSATION:
@@ -5841,6 +5897,8 @@ int httpWorkElementHandler(STCBase *base,
 }
 
 int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
+
+  printf("in httpBackgroundHandler.\n");                                                                         
   if (httpServerIOTrace){
 #ifdef __ZOWE_OS_ZOS
     printf("SELECTX (Mk 2), selectStatus=0x%x, qReadyECB=0x%x\n",selectStatus,base->qReadyECB);
@@ -5859,8 +5917,31 @@ int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
   return 0;
 }
 
+int heartbeatBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
+
+  printf("in heartbeatBackgroundHandler.\n");                                                                       
+  double diff_t;
+  time_t c_time;
+  time(&c_time);
+  for(int j=0; j < N_HBT_TABLE_ENTRIES; j++) {
+    if (hbt_table_entry[j].cnt != -1) {  
+      diff_t = difftime(c_time, hbt_table_entry[j].ltime);
+      printf("...j %d user:%s cnt: %d time_diff: %f\n",  j, hbt_table_entry[j].usr, hbt_table_entry[j].cnt,    
+                                                 diff_t);                                                      
+      if (diff_t > 30){ 
+         int rc = srchUserInSem(hbt_table_entry[j].usr);
+         memcpy(hbt_table_entry[j].usr, "        ", 8);
+         hbt_table_entry[j].cnt   = -1;
+         hbt_table_entry[j].ltime = 0;
+      }
+    }
+  }   
+
+}
+
 void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 {
+  printf("in registerHttpServerModuleWithBase\n");
   /* server pointer will be copied/accessible from module->data */
   STCModule *httpModule = stcRegisterModule(base,
                                             STC_MODULE_JEDHTTP,
@@ -5872,12 +5953,18 @@ void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 }
 
 int mainHttpLoop(HttpServer *server){
+  printf("in mainHttpLoop\n");
   STCBase *base = server->base;
   /* server pointer will be copied/accessible from module->data */
 
   /* Create semaphore table for datasets */
-  for(int i=0; i < N_SEM_TABLE_ENTRIES; i++)
+  for(int i=0; i < N_SEM_TABLE_ENTRIES; i++) {
     sem_table_entry[i].sem_ID = 0;  /* initialise */
+  }
+  
+  for(int j=0; j < N_HBT_TABLE_ENTRIES; j++) {
+    hbt_table_entry[j].cnt = -1;  /* initialise */      
+  }
   
   STCModule *httpModule = stcRegisterModule(base,
                                             STC_MODULE_JEDHTTP,
@@ -5887,11 +5974,17 @@ int mainHttpLoop(HttpServer *server){
                                             httpWorkElementHandler,
                                             httpBackgroundHandler);
 
+  STCModule *heartbeatModule = stcRegisterModule(base,
+                                            STC_MODULE_GENERIC,
+                                            server,
+                                            NULL,
+                                            NULL,
+                                            NULL,
+                                            heartbeatBackgroundHandler);
+  /* runMonitoringThread(server); */
+
   return stcBaseMainLoop(base, MAIN_WAIT_MILLIS);
 }
-
-
-
 
 /*
   This program and the accompanying materials are
