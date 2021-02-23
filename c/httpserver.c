@@ -3367,30 +3367,6 @@ HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
   return conversation;
 }
 
-static int heartbeatMonitoringLoop(HttpServer *server) {
-  // zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "start %s\n", __FUNCTION__);
-  printf("start heartbeatMonitoringLoop\n");
-  fflush(stdout);
-
-  time_t T;
-  time(&T);
-  char *key = "HBTime";
-  void *value;
-  printf("Start time: %s\n", ctime(&T));
-  htPut(server->properties,key,ctime(&T));
-  while(true) {
-    printf("htGet:%s\n", htGet(server->properties,key));
-    sleep(30);  
-    time(&T);
-    htPut(server->properties,key,ctime(&T));
-    printf("loop heartbeatMonitoringLoop\n");
-    fflush(stdout); 
-    // zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "looping %s\n", __FUNCTION__);
-  }
-  // zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "end %s\n", __FUNCTION__);
-  return 0;
-}
-
 /* 
    1 make Parse state,
    2 feed buffer at parse state
@@ -4524,36 +4500,6 @@ int runServiceThread(Socket *socket){
   OSThread osThreadData;
   OSThread *osThread = &osThreadData;
   int createStatus = threadCreate(osThread,(void * (*)(void *))serviceLoop,socket);
-  if (createStatus != 0) {
-#ifdef __ZOWE_OS_WINDOWS
-#ifdef DEBUG
-    printf("CREATE THREAD failure, code=0x%x\n",createStatus);
-#endif
-#else
-    perror("pthread_create() error");
-#endif
-    exit(1);
-  } else{
-#ifdef DEBUG
-    printf("thread create succeeded!\n");
-    fflush(stdout);
-#endif
-  }
-#endif
-  return 0;
-}
-
-int runMonitoringThread(HttpServer *server){
-#ifndef METTLE
-  int threadID; /* pthread_t threadID;  */
-  
-#ifdef DEBUG
-  printf("runMonitoringThread\n");
-#endif
-  fflush(stdout);
-  OSThread osThreadData;
-  OSThread *osThread = &osThreadData;
-  int createStatus = threadCreate(osThread,(void * (*)(void *))heartbeatMonitoringLoop, server);
   if (createStatus != 0) {
 #ifdef __ZOWE_OS_WINDOWS
 #ifdef DEBUG
@@ -5981,7 +5927,6 @@ int mainHttpLoop(HttpServer *server){
                                             NULL,
                                             NULL,
                                             heartbeatBackgroundHandler);
-  /* runMonitoringThread(server); */
 
   return stcBaseMainLoop(base, MAIN_WAIT_MILLIS);
 }
