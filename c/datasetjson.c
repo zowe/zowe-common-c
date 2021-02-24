@@ -78,7 +78,13 @@ typedef struct Volser_tag {
 static int getVolserForDataset(const DatasetName *dataset, Volser *volser);
 static bool memberExists(char* dsName, DynallocMemberName daMemberName);
 
+int streamDataset2(HttpService *service, Socket *socket, char *filename, int recordLength, jsonPrinter *jPrinter);
+
 int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter *jPrinter){
+    streamDataset2(null, socket, filename, recordLength, jPrinter);
+}
+
+int streamDataset2(HttpService *service, Socket *socket, char *filename, int recordLength, jsonPrinter *jPrinter){
 #ifdef __ZOWE_OS_ZOS
   int defaultSize = DATA_STREAM_BUFFER_SIZE;
   FILE *in;
@@ -89,35 +95,62 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
   else {
     in = fopen(filename,"rb, type=record");
   }
+  int returnCode = 0;
+  int reasonCode = 0;
+  int bytesSent = 0;
   int bufferSize = recordLength+1;
   char buffer[bufferSize];
-  jsonStartArray(jPrinter,"records");
-  int contentLength = 0;
-  int bytesRead = 0;
-  if (in) {
-    while (!feof(in)){
-      bytesRead = fread(buffer,1,recordLength,in);
-      if (bytesRead > 0){
-        jsonAddUnterminatedString(jPrinter, NULL, buffer, bytesRead);
-        contentLength = contentLength + bytesRead;
+  char *type = getQueryParam(response->request, "type");
+  if(strcmp(type, "raw")){
+    outPtr = buffer;
+    outLen = (unsigned int)bytesRead;
+#ifdef DEBUG
+    if (outLen % 3) printf("buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
+#endif
+    allocSize = ENCODE64_SIZE(outLen)+1;
+    encodedBuffer = encodeBase64(NULL, outPtr, outLen, &encodedLength, FALSE);
+    outPtr = encodedBuffer;
+    outLen = encodedLength;
+    int allocSize = 0;
+    char *encodedBuffer = NULL;
+#ifdef DEBUG
+    if (outLen % 3) printf("buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
+#endif
+    allocSize = ENCODE64_SIZE(outLen)+1;
+    encodedBuffer = encodeBase64(NULL, outPtr, outLen, &encodedLength, FALSE);
+    outPtr = encodedBuffer;
+    outLen = encodedLength;
+    writeFully(socket,outPtr,(int) outLen);
+    if (NULL != encodedBuffer) safeFree31(encodedBuffer, allocSize);
+      bytesSent += encodedLength;
+  }
+  else{
+    jsonStartArray(jPrinter,"records");
+    int contentLength = 0;
+    int bytesRead = 0;
+    if (in){
+      while (!feof(in)){
+        bytesRead = fread(buffer,1,recordLength,in);
+        if (bytesRead > 0){
+          jsonAddUnterminatedString(jPrinter, NULL, buffer, bytesRead);
+          contentLength = contentLength + bytesRead;
+        }
+        else if (bytesRead == 0){
+          break;
+        }
+        else{
+          zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "Error reading DSN=%s, rc=%d\n",filename,bytesRead);
+          break;
+        }
       }
-      else if (bytesRead == 0){
-        break;
-      }
-      else {
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,  "Error reading DSN=%s, rc=%d\n", filename, bytesRead);
-        break;
-      }
+      fclose(in);
     }
-    fclose(in);
+    else{
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "FAILED TO OPEN FILE\n");
+    }
+    jsonEndArray(jPrinter);
+    safeFree(buffer,recordLength);
   }
-  else {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "FAILED TO OPEN FILE\n");
-  }
-
-  jsonEndArray(jPrinter);
-  safeFree(buffer,recordLength);
-
 #else /* not __ZOWE_OS_ZOS */
 
   /* Currently nothing else has "datasets" */
@@ -1484,7 +1517,28 @@ void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *ac
 
  */
 
+static void respondWithDatasetInternal2(HttpService *service,
+                                       HttpResponse* response,
+                                       const char *datasetPath,
+                                       const DatasetName *dsn,
+                                       const DDName *ddName,
+                                       int jsonMode);
+
 static void respondWithDatasetInternal(HttpResponse* response,
+                                       const char *datasetPath,
+                                       const DatasetName *dsn,
+                                       const DDName *ddName,
+                                       int jsonMode) {
+    respondWithDatasetInternal2(null,
+                              HttpResponse* response,
+                              const char *datasetPath,
+                              const DatasetName *dsn,
+                              const DDName *ddName,
+                              int jsonMode);
+}
+
+static void respondWithDatasetInternal2(HttpService *service,
+                                       HttpResponse* response,
                                        const char *datasetPath,
                                        const DatasetName *dsn,
                                        const DDName *ddName,
@@ -1565,7 +1619,7 @@ static void respondWithDatasetInternal(HttpResponse* response,
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Streaming data for %s\n", datasetPath);
     
     jsonStart(jPrinter);
-    int status = streamDataset(response->socket, ddPath, lrecl, jPrinter);
+    int status = streamDataset2(service, response->socket, ddPath, lrecl, jPrinter);
     jsonEnd(jPrinter);
   }
   finishResponse(response);
@@ -1573,6 +1627,10 @@ static void respondWithDatasetInternal(HttpResponse* response,
 }
 
 void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
+  respondWithDataset2(null, response, absolutePath, jsonMode);
+}
+
+void respondWithDataset2(HttpResponse* response, char* absolutePath, int jsonMode) {
 
   HttpRequest *request = response->request;
 
@@ -1617,7 +1675,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
 
   DDName ddName;
   memcpy(&ddName.value, &daDDname.name, sizeof(ddName.value));
-  respondWithDatasetInternal(response, absolutePath, &dsn, &ddName, jsonMode);
+  respondWithDatasetInternal2(service, response, absolutePath, &dsn, &ddName, jsonMode);
 
   daRC = dynallocUnallocDatasetByDDName(&daDDname, DYNALLOC_UNALLOC_FLAG_NONE,
                                         &daSysRC, &daSysRSN);
