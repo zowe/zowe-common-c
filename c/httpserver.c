@@ -140,13 +140,6 @@ typedef struct AuthResponse_tag {
 #  define DANGEROUS_DUMPBUF(...) do {} while (0)
 #endif
 
-
-#include "semTable.h"
-/* define the storage for table */
-extern struct sem_table_type sem_table_entry [N_SEM_TABLE_ENTRIES];
-struct hbt_table_type hbt_table_entry [N_HBT_TABLE_ENTRIES];       
-/***** General Primitives ******************************/
-
 static int traceParse = 0;
 static int traceDispatch = 0;
 static int traceHeaders = 0;
@@ -5863,28 +5856,6 @@ int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
   return 0;
 }
 
-int heartbeatBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
-
-  printf("in heartbeatBackgroundHandler.\n");                                                                       
-  double diff_t;
-  time_t c_time;
-  time(&c_time);
-  for(int j=0; j < N_HBT_TABLE_ENTRIES; j++) {
-    if (hbt_table_entry[j].cnt != -1) {  
-      diff_t = difftime(c_time, hbt_table_entry[j].ltime);
-      printf("...j %d user:%s cnt: %d time_diff: %f\n",  j, hbt_table_entry[j].usr, hbt_table_entry[j].cnt,    
-                                                 diff_t);                                                      
-      if (diff_t > 30){ 
-         int rc = srchUserInSem(hbt_table_entry[j].usr);
-         memcpy(hbt_table_entry[j].usr, "        ", 8);
-         hbt_table_entry[j].cnt   = -1;
-         hbt_table_entry[j].ltime = 0;
-      }
-    }
-  }   
-
-}
-
 void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 {
   printf("in registerHttpServerModuleWithBase\n");
@@ -5903,15 +5874,6 @@ int mainHttpLoop(HttpServer *server){
   STCBase *base = server->base;
   /* server pointer will be copied/accessible from module->data */
 
-  /* Create semaphore table for datasets */
-  for(int i=0; i < N_SEM_TABLE_ENTRIES; i++) {
-    sem_table_entry[i].sem_ID = 0;  /* initialise */
-  }
-  
-  for(int j=0; j < N_HBT_TABLE_ENTRIES; j++) {
-    hbt_table_entry[j].cnt = -1;  /* initialise */      
-  }
-  
   STCModule *httpModule = stcRegisterModule(base,
                                             STC_MODULE_JEDHTTP,
                                             server,
@@ -5919,14 +5881,6 @@ int mainHttpLoop(HttpServer *server){
                                             NULL,
                                             httpWorkElementHandler,
                                             httpBackgroundHandler);
-
-  STCModule *heartbeatModule = stcRegisterModule(base,
-                                            STC_MODULE_GENERIC,
-                                            server,
-                                            NULL,
-                                            NULL,
-                                            NULL,
-                                            heartbeatBackgroundHandler);
 
   return stcBaseMainLoop(base, MAIN_WAIT_MILLIS);
 }

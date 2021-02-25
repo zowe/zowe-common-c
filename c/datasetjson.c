@@ -47,7 +47,6 @@
 #define INDEXED_DSCB 96
 
 #include "semTable.h"
-struct sem_table_type sem_table_entry [];
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 
 #endif
@@ -87,6 +86,30 @@ typedef struct Volser_tag {
 
 static int getVolserForDataset(const DatasetName *dataset, Volser *volser);
 static bool memberExists(char* dsName, DynallocMemberName daMemberName);
+
+int datasetBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"datasetBackgroundHandle\n");  
+  heartbeatBackgroundHandler();
+  return 0;
+};
+
+void initDatasetLocking(HttpServer *server) {
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"initDatasetLocking\n");  
+  // register background handler
+  STCBase *base = server->base;
+  stcRegisterModule(
+    base,
+    STC_MODULE_GENERIC,
+    server,
+    NULL,
+    NULL,
+    NULL,
+    datasetBackgroundHandler
+  );
+
+  //initialize lock tables
+  initLockResources();
+};
 
 int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter *jPrinter){
 #ifdef __ZOWE_OS_ZOS
