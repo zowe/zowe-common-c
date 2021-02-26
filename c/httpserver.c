@@ -5835,9 +5835,7 @@ int httpWorkElementHandler(STCBase *base,
   return status;
 }
 
-int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
-
-  printf("in httpBackgroundHandler.\n");                                                                         
+int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {                                                                        
   if (httpServerIOTrace){
 #ifdef __ZOWE_OS_ZOS
     printf("SELECTX (Mk 2), selectStatus=0x%x, qReadyECB=0x%x\n",selectStatus,base->qReadyECB);
@@ -5858,7 +5856,6 @@ int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
 
 void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 {
-  printf("in registerHttpServerModuleWithBase\n");
   /* server pointer will be copied/accessible from module->data */
   STCModule *httpModule = stcRegisterModule(base,
                                             STC_MODULE_JEDHTTP,
@@ -5870,7 +5867,6 @@ void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 }
 
 int mainHttpLoop(HttpServer *server){
-  printf("in mainHttpLoop\n");
   STCBase *base = server->base;
   /* server pointer will be copied/accessible from module->data */
 

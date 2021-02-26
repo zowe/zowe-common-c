@@ -8,8 +8,8 @@
   Copyright Contributors to the Zowe Project.
 */
 
-#ifndef __SEMTABLE__
-#define __SEMTABLE__ 1
+#ifndef __DATASETLOCK__
+#define __DATASETLOCK__ 1
 
 #define HEARTBEAT_EXPIRE_TIME 30
 /* declare the table that maps datasets to semaphores */
@@ -37,7 +37,7 @@ struct hbt_table_type {
 struct hbt_table_type hbt_table_entry [N_HBT_TABLE_ENTRIES];       
 
 void initLockResources();
-void heartbeatBackgroundHandler();
+void heartbeatBackgroundHandler(void* server);
 #endif
 /*
   This program and the accompanying materials are

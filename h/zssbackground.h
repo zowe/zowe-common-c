@@ -16,13 +16,14 @@
 
 #define N_TASK_TABLE_ENTRIES 100
 #define ZSS_BACK_SECONDS 10
+#define LEN_TASK_LABEL 30
 
 
-typedef void (*Task)(); 
+typedef void (*Task)(void* server); 
 
 typedef struct Background_Task_type {
   int id;
-  char taskLabel[8];
+  char taskLabel[LEN_TASK_LABEL];
   Task task;
   int timeInterval;
   int countInterval;

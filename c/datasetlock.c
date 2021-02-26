@@ -106,7 +106,7 @@ int srchUserInSem(char user[8]){
 }
 
 
-void heartbeatBackgroundHandler() {
+void heartbeatBackgroundHandler(void* server) {
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"checkUserHeartbeat\n");  
   double diff_t;
   time_t c_time;

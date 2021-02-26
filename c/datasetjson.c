@@ -88,10 +88,8 @@ static int getVolserForDataset(const DatasetName *dataset, Volser *volser);
 static bool memberExists(char* dsName, DynallocMemberName daMemberName);
 
 void initDatasetLocking(HttpServer *server) {
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"initDatasetLocking\n");  
   // register background handler
-  addZssBackgroudTask(&heartbeatBackgroundHandler,"1dlockbg", 10);
-  // addZssBackgroudTask(&heartbeatBackgroundHandler,"2dlockbg", 30);
+  addZssBackgroudTask(&heartbeatBackgroundHandler,"DATASET_HEARTBEAT_TASK", 10);
 
   //initialize lock tables
   initLockResources();
