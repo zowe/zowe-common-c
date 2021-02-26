@@ -46,7 +46,7 @@
 
 #define INDEXED_DSCB 96
 
-#include "semTable.h"
+#include "datasetlock.h"
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 
 #endif
@@ -96,16 +96,8 @@ int datasetBackgroundHandler(STCBase *base, STCModule *module, int selectStatus)
 void initDatasetLocking(HttpServer *server) {
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"initDatasetLocking\n");  
   // register background handler
-  STCBase *base = server->base;
-  stcRegisterModule(
-    base,
-    STC_MODULE_GENERIC,
-    server,
-    NULL,
-    NULL,
-    NULL,
-    datasetBackgroundHandler
-  );
+  addZssBackgroudTask(&heartbeatBackgroundHandler,"1dlockbg", 10);
+  // addZssBackgroudTask(&heartbeatBackgroundHandler,"2dlockbg", 30);
 
   //initialize lock tables
   initLockResources();

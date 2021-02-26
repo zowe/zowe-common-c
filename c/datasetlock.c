@@ -14,7 +14,7 @@
 #include <time.h>
 #endif
 
-#include "semTable.h"
+#include "datasetlock.h"
 #include <sys/sem.h>
 #include "logging.h"
 
