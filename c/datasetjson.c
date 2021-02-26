@@ -87,12 +87,6 @@ typedef struct Volser_tag {
 static int getVolserForDataset(const DatasetName *dataset, Volser *volser);
 static bool memberExists(char* dsName, DynallocMemberName daMemberName);
 
-int datasetBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"datasetBackgroundHandle\n");  
-  heartbeatBackgroundHandler();
-  return 0;
-};
-
 void initDatasetLocking(HttpServer *server) {
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"initDatasetLocking\n");  
   // register background handler

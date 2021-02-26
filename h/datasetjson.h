@@ -70,7 +70,6 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath);
 char getCSIType(char* absolutePath);
 bool isVsam(char CSIType);
 void initDatasetLocking(HttpServer *server);
-int datasetBackgroundHandler(STCBase *base, STCModule *module, int selectStatus);
 
 #endif
 
