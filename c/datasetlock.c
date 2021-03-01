@@ -116,7 +116,7 @@ void heartbeatBackgroundHandler(void* server) {
       diff_t = difftime(c_time, hbt_table_entry[j].ltime);
       printf("...j %d user:%s cnt: %d time_diff: %f\n",  j, hbt_table_entry[j].usr, hbt_table_entry[j].cnt,    
                                                  diff_t);                                                      
-      if (diff_t > HEARTBEAT_EXPIRE_TIME){ 
+      if (diff_t > heartbeat_expiry_time){ 
          int rc = srchUserInSem(hbt_table_entry[j].usr);
          memcpy(hbt_table_entry[j].usr, "        ", 8);
          hbt_table_entry[j].cnt   = -1;

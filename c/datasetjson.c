@@ -89,7 +89,7 @@ static bool memberExists(char* dsName, DynallocMemberName daMemberName);
 
 void initDatasetLocking(HttpServer *server) {
   // register background handler
-  addZssBackgroudTask(&heartbeatBackgroundHandler,"DATASET_HEARTBEAT_TASK", 10);
+  addZssBackgroudTask(&heartbeatBackgroundHandler,"DATASET_HEARTBEAT_TASK", heartbeat_loop_time);
 
   //initialize lock tables
   initLockResources();

@@ -11,9 +11,13 @@
 #ifndef __DATASETLOCK__
 #define __DATASETLOCK__ 1
 
+#define HEARTBEAT_DEFAULT 30
 #define HEARTBEAT_EXPIRE_TIME 30
 /* declare the table that maps datasets to semaphores */
 #define N_SEM_TABLE_ENTRIES 100
+
+int heartbeat_expiry_time=HEARTBEAT_EXPIRE_TIME;
+int heartbeat_loop_time=HEARTBEAT_DEFAULT;
 
 struct sem_table_type {
   char dsn [44];
