@@ -1079,9 +1079,42 @@ static int getMaxRecordLength(char *dscb){
   return lrecl;
 }
 
-void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
+void postSemaphore(int semID) {                                                                             
 
-  printf("in updateDataset checking owner.\n");      
+  /* ----------------- */
+  /* semaphore section */
+  /* ----------------- */
+
+
+       /* DEQ dataset */
+        /* POST! */
+
+        int semaphoreID;
+        semaphoreID = semID;  /* use semaphore saved for that dataset */                    
+
+        /* post semaphore semaphoreOps */
+        size_t semArrayEntries = 1;
+        struct sembuf semaphoreBuffer[1];
+        struct sembuf *semaphoreOps = &semaphoreBuffer[0];
+        semaphoreBuffer[0].sem_num = 0;
+        semaphoreBuffer[0].sem_op  = -1;    /* decrement */
+        semaphoreBuffer[0].sem_flg = 0;
+
+        int semaphoreRetcode;
+        semaphoreRetcode = semop(semaphoreID, semaphoreOps, semArrayEntries); /* 0=wait, 1=increment */
+        if (semaphoreRetcode == -1 )
+        {
+          zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Failed to dequeue dataset\n");                                                      
+        }
+        else
+        {
+          /*success!*/
+          zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,"dequeue dataset successful\n");      
+        }
+       
+}
+
+void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
 #ifdef __ZOWE_OS_ZOS
   if (jsonMode != TRUE) { /*TODO add support for updating files with raw bytes instead of JSON*/
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Cannot update file without JSON formatted record request");
@@ -1154,9 +1187,7 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
       
   /* end of prevent */
 
-  printf("in updateDataset last matched : %d %s\n", k, sem_table_entry[k].dsn);            
-  printf("in updateDataset last matched : %d %s\n", k, sem_table_entry[k].mem);            
-  printf("in updateDataset last matched : %d %s\n", k, sem_table_entry[k].usr);            
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "in updateDataset last matched : %d %s %s %s\n", k, sem_table_entry[k].dsn, sem_table_entry[k].mem, sem_table_entry[k].usr);         
   returnCode = convertCharset(contentBody,
                               bodyLength,
                               CCSID_UTF_8,
@@ -2604,43 +2635,6 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
   finishResponse(response);     
 #endif /* __ZOWE_OS_ZOS */
 }
-
-/*------JP---*/
-void postSemaphore(int semID) {                                                                             
-
-  /* ----------------- */
-  /* semaphore section */
-  /* ----------------- */
-
-
-       /* DEQ dataset */
-        /* POST! */
-
-        int semaphoreID;
-        semaphoreID = semID;  /* use semaphore saved for that dataset */                    
-
-        /* post semaphore semaphoreOps */
-        size_t semArrayEntries = 1;
-        struct sembuf semaphoreBuffer[1];
-        struct sembuf *semaphoreOps = &semaphoreBuffer[0];
-        semaphoreBuffer[0].sem_num = 0;
-        semaphoreBuffer[0].sem_op  = -1;    /* decrement */
-        semaphoreBuffer[0].sem_flg = 0;
-
-        int semaphoreRetcode;
-        semaphoreRetcode = semop(semaphoreID, semaphoreOps, semArrayEntries); /* 0=wait, 1=increment */
-        if (semaphoreRetcode == -1 )
-        {
-          printf("Failed to dequeue dataset\n");                                                      
-        }
-        else
-        {
-          /*success!*/
-          printf("dequeue dataset successful\n");      
-        }
-       
-}
-
 
 #endif /* not METTLE - the whole module */
 

@@ -33,7 +33,7 @@ void initLockResources() {
 
 int addUserToHbt(char user[8]){
 
-  printf("in AddUserToHbt, User: %s\n");
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"%s %s\n", __FUNCTION__, user);  
   int rc = srchUserInHbt(user);
   if (rc == -1) {
     rc = findSlotInHbt();
@@ -43,7 +43,7 @@ int addUserToHbt(char user[8]){
       time(&hbt_table_entry[rc].ltime);
     }
     else {
-      printf("Error - no empty entry in HBT.");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Error - no empty entry in HBT");
     }
 
   }
@@ -91,11 +91,11 @@ int findSlotInHbt(){
 
 int srchUserInSem(char user[8]){
   int rc;
-  printf("in srchUserInSem: user is: %s\n", user);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,"in srchUserInSem: user is: %s\n", user);
   for (int i = 0; i < N_SEM_TABLE_ENTRIES; i++) {
      if (memcmp(sem_table_entry[i].usr, user,8) == 0) {
-       printf("User found in semTable: %d semid: %d\n", i, sem_table_entry[i].sem_ID);
        if (sem_table_entry[i].sem_ID > 0){
+          zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,"User found in semTable: %d semid: %d dataset: %s %s\n", i, sem_table_entry[i].sem_ID, sem_table_entry[i].dsn, sem_table_entry[i].mem);
           postSemaphore(sem_table_entry[i].sem_ID);
        }
      }
@@ -107,14 +107,14 @@ int srchUserInSem(char user[8]){
 
 
 void heartbeatBackgroundHandler(void* server) {
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO,"checkUserHeartbeat\n");  
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"%s\n", __FUNCTION__);  
   double diff_t;
   time_t c_time;
   time(&c_time);
   for(int j=0; j < N_HBT_TABLE_ENTRIES; j++) {
     if (hbt_table_entry[j].cnt != -1) {  
       diff_t = difftime(c_time, hbt_table_entry[j].ltime);
-      printf("...j %d user:%s cnt: %d time_diff: %f\n",  j, hbt_table_entry[j].usr, hbt_table_entry[j].cnt,    
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "...j %d user:%s cnt: %d time_diff: %f\n",  j, hbt_table_entry[j].usr, hbt_table_entry[j].cnt,    
                                                  diff_t);                                                      
       if (diff_t > heartbeat_expiry_time){ 
          int rc = srchUserInSem(hbt_table_entry[j].usr);
