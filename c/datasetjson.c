@@ -783,7 +783,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       int recordLength = strlen(jsonString);
       if (recordLength > maxRecordLength) {
         for (int j = recordLength; j > maxRecordLength-1; j--){
-          if (jsonString[j] > 0x40){            
+          if (jsonString[j] > 0x40){
             zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Invalid record for dataset, recordLength=%d but max for dataset is %d\n", recordLength, maxRecordLength);
             char errorMessage[1024];
             int errorLength = sprintf(errorMessage,"Record #%d with contents \"%s\" is longer than the max record length of %d",i+1,jsonString,maxRecordLength);
