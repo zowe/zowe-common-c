@@ -36,6 +36,7 @@
 #include "openprims.h"
 #include "collections.h"
 #include "stcbase.h"
+#include "scheduling.h"
 
 /* handleReadySockets is a highly system-specific way of waking 
    running asynchronous IO work.   Windows and linux are different enought to need some data-hiding 
