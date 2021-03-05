@@ -36,14 +36,14 @@ typedef struct TlsSettings_tag {
   // certificate label
   char *label;
   // candidate ciphers, list of 4-digit hexadecimal cipher specs, e.g. 000A000D001000130016
-  // https://www.ibm.com/support/knowledgecenter/en/SSLTBW_2.1.0/com.ibm.zos.v2r1.gska100/csdcwh.htm
+  // https://www.ibm.com/support/knowledgecenter/en/SSLTBW_2.2.0/com.ibm.zos.v2r2.gska100/csdcwh.htm
 #define TLS_NULL_WITH_NULL_NULL "0000" // No encryption or message authentication and RSA key exchange
-#define TLS_NULL_WITH_NULL_MD5 "0001" // No encryption with MD5 message authentication and RSA key exchange
+#define TLS_RSA_WITH_NULL_MD5 "0001" // No encryption with MD5 message authentication and RSA key exchange
 #define TLS_RSA_WITH_NULL_SHA "0002" // No encryption with SHA-1 message authentication and RSA key exchange
-#define TLS_RSA_WITH_RC4_40_MD5 "0003" // 40-bit RC4 encryption with MD5 message authentication and RSA key exchange
+#define TLS_RSA_EXPORT_WITH_RC4_40_MD5 "0003" // 40-bit RC4 encryption with MD5 message authentication and RSA (export) key exchange
 #define TLS_RSA_WITH_RC4_128_MD5 "0004" // 128-bit RC4 encryption with MD5 message authentication and RSA key exchange
 #define TLS_RSA_WITH_RC4_128_SHA "0005" // 128-bit RC4 encryption with SHA-1 message authentication and RSA key exchange
-#define TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5 "0006" // 40-bit RC2 encryption with MD5 message authentication and RSA key exchange
+#define TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5 "0006" // 40-bit RC2 encryption with MD5 message authentication and RSA (export) key exchange
 #define TLS_RSA_WITH_DES_CBC_SHA "0009" // 56-bit DES encryption with SHA-1 message authentication and RSA key exchange
 #define TLS_RSA_WITH_3DES_EDE_CBC_SHA "000A" // 168-bit Triple DES encryption with SHA-1 message authentication and RSA key exchange
 #define TLS_DH_DSS_WITH_DES_CBC_SHA "000C" // 56-bit DES encryption with SHA-1 message authentication and fixed Diffie-Hellman key exchange signed with a DSA certificate
