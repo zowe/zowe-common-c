@@ -1095,26 +1095,26 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
 
   /* Prevent the user from updating the dataset if it's enqueued to a different user*/
   /* obtain dsn info */
-  Dsn_Member dsn_member;
-  int parseRet = extractDSNMemberFromRequest(response->request, absolutePath, &dsn_member);
+  DsnMember dsnMember;
+  int parseRet = extractDSNMemberFromRequest(response->request, absolutePath, &dsnMember);
   if (parseRet < 0) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name\n");
   }
 
   /* check owner of ENQ is the same as requestor */
-  SemTable* entry;
-  int entryId=findSemTableEntryByDataset(&dsn_member, &entry);
+  SemEntry* entry;
+  int retFind=findSemTableEntryByDatasetByUser(&dsnMember, response->request->username, &entry);
 
-  if (entry != NULL && strcmp(entry->usr, "") != 0 && strcmp(entry->usr, response->request->username) != 0) {
+  if (retFind == NO_MATCH_USER) {
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, 
             "UPDATE DATASET: found mismatched ENQ, owner=%8.8s, requestor=%s\n",
-          entry->usr,
+          entry->user,
           response->request->username);
     respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Already locked by another user\n");
     return;
   }
  
-  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "in updateDataset last matched : %s %s %s\n", entry->dsn, entry->mem, entry->usr);         
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "in updateDataset last matched : %s %s %s\n", entry->dsnMember.dsn, entry->dsnMember.membername, entry->user);         
   returnCode = convertCharset(contentBody,
                               bodyLength,
                               CCSID_UTF_8,
@@ -1665,7 +1665,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
 
 }
 
-int extractDSNMemberFromRequest(HttpRequest *request, char* absolutePath, Dsn_Member *dsn_member) {
+int extractDSNMemberFromRequest(HttpRequest *request, char* absolutePath, DsnMember *dsnMember) {
 
     if (!isDatasetPathValid(absolutePath)) {
       return -1;
@@ -1680,47 +1680,46 @@ int extractDSNMemberFromRequest(HttpRequest *request, char* absolutePath, Dsn_Me
     memcpy(daDsn.name, dsn.value, sizeof(daDsn.name));
     memcpy(daMember.name, memberName.value, sizeof(daMember.name));
 
-    memset(dsn_member->dsn,' ',44);          /* space-fill */
-    memset(dsn_member->membername,' ',8);    /* space-fill */
+    memset(dsnMember->dsn,' ',DSN_LEN);          /* space-fill */
+    memset(dsnMember->membername,' ',MEMBER_LEN);    /* space-fill */
     
-    memcpy(dsn_member->membername,daMember.name,8);   /* copy in member */
-    memcpy(dsn_member->dsn,daDsn.name,44); /* copy in dsn */
+    memcpy(dsnMember->membername,daMember.name,MEMBER_LEN);   /* copy in member */
+    memcpy(dsnMember->dsn,daDsn.name,DSN_LEN); /* copy in dsn */
 
-    for(int i=0; i < 52; i++) { 
-      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"%c",*(dsn_member->dsn+i));
+    int len = DSN_LEN + MEMBER_LEN;
+    for (int i = 0; i < len; i++) { 
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"%c",*(dsnMember->dsn+i));
     }
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,">\n");
-
     return 0;
 }
 
 void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode) {
-    Dsn_Member dsn_member;
-    int parseRet = extractDSNMemberFromRequest(response->request, absolutePath, &dsn_member);
+    DsnMember dsnMember;
+    int parseRet = extractDSNMemberFromRequest(response->request, absolutePath, &dsnMember);
     if (parseRet<0) {
       respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name\n");
     }
 
-    int entryId;
-    int enqRet=semTableEnqueue(&dsn_member, response->request->username, &entryId);
-    if (enqRet==LOCK_RESOURCE_CONFLICT) {
+    SemEntry* entry;
+    int enqRet=semTableEnqueue(&dsnMember, response->request->username, &entry);
+    if (enqRet == LOCK_RESOURCE_CONFLICT) {
       respondWithError(response,HTTP_STATUS_RESOURCE_CONFLICT,"Unable to obtain exclusive access to Dataset or member");
     }
-    else if (enqRet==LOCK_EXCLUSIVE_ERROR) {
+    else if (enqRet == LOCK_EXCLUSIVE_ERROR) {
       respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"isgenqTryExclusiveLock failed");
     }
-    else if (enqRet==SEMTABLE_CAPACITY_ERROR) {
+    else if (enqRet == SEMTABLE_CAPACITY_ERROR) {
       respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Number of semaphores exceeded");
-    } else if (enqRet==SEMTABLE_SEMGET_ERROR || enqRet==SEMTABLE_UNKNOWN_ERROR) {
+    } else if (enqRet == SEMTABLE_SEMGET_ERROR || enqRet == SEMTABLE_UNKNOWN_ERROR) {
       respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to create semaphore");
-    } else if (enqRet==SEMTABLE_EXISTING_DATASET_LOCKED) {
+    } else if (enqRet == SEMTABLE_EXISTING_DATASET_LOCKED || enqRet == SEMTABLE_EXISTING_SAME_USER) {
       respondWithError(response, HTTP_STATUS_RESOURCE_CONFLICT , "dataset is already enqueued"); 
-    } else if (enqRet==SEMTABLE_UNABLE_SET_SEMAPHORE) {
+    } else if (enqRet == SEMTABLE_UNABLE_SET_SEMAPHORE) {
        respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to set semaphore");
-    } else if (enqRet==SEMTABLE_SUCCESS) {
+    } else if (enqRet == SEMTABLE_SUCCESS) {
       /* the HTTP GET that consumes this message insists that the response body be JSON */
       respondWithMessage(response, HTTP_STATUS_OK, "{\"records\":[\"Enqueue dataset successful\"]}"); 
-      sleepSemaphore(entryId);
+      sleepSemaphore(entry);
     }
     
     return;
@@ -1728,19 +1727,21 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
 
 void respondWithDequeue(HttpResponse* response, char* absolutePath, int jsonMode, char *sem_table_pointer) {
 
-    Dsn_Member dsn_member;
-    int parseRet = extractDSNMemberFromRequest(response->request, absolutePath, &dsn_member);
+    DsnMember dsnMember;
+    int parseRet = extractDSNMemberFromRequest(response->request, absolutePath, &dsnMember);
     if (parseRet<0) {
       respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
     }
 
     /* DEQ dataset */
-    int deqRet=semTableDequeue(&dsn_member, response->request->username);
-    if (deqRet==SEMTABLE_ENTRY_NOT_FOUND) {
+    int deqRet=semTableDequeue(&dsnMember, response->request->username);
+    if (deqRet == SEMTABLE_EXISTING_DATASET_LOCKED) {
+      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "dataset locked by other user");
+    } else if (deqRet == SEMTABLE_ENTRY_NOT_FOUND) {
       respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "dataset name not found in enqueue list");
-    } else if (deqRet==SEMTABLE_SEM_DECREMENT_ERROR) {
+    } else if (deqRet == SEMTABLE_SEM_DECREMENT_ERROR) {
       respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to dequeue dataset"); 
-    } else if (deqRet==SEMTABLE_SUCCESS) {
+    } else if (deqRet == SEMTABLE_SUCCESS) {
       /* the HTTP GET that consumes this message insists that the response body be JSON */
       respondWithMessage(response, HTTP_STATUS_OK,"dequeue dataset %s successful\n",
                   absolutePath);  

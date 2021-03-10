@@ -9,13 +9,13 @@
   Copyright Contributors to the Zowe Project.
 */
 
-#ifndef __ZSSBACKGROUND__
-#define __ZSSBACKGROUND__
+#ifndef __STCBACKGROUND__
+#define __STCBACKGROUND__
 
 #include "stcbase.h"
 
 #define N_TASK_TABLE_ENTRIES 100
-#define ZSS_BACK_SECONDS 10
+#define STC_BACKGROUND_INTERVAL 10
 #define LEN_TASK_LABEL 30
 
 
@@ -31,8 +31,8 @@ typedef struct Background_Task_type {
 
 Background_Task task_list [N_TASK_TABLE_ENTRIES];
 
-int addZssBackgroudTask(Task task, char* taskLabel, int timeInterval);
-int processZssBackgroundHandler(STCBase *base, STCModule *module, int selectStatus);
+int addStcBackgroudTask(Task task, char* taskLabel, int timeInterval);
+int processStcBackgroundHandler(STCBase *base, STCModule *module, int selectStatus);
 #endif 
 /*
   This program and the accompanying materials are
