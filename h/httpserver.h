@@ -131,6 +131,7 @@ typedef struct HttpResponse_tag{
   jsonPrinter    *jp;
   char           *sessionCookie;
   int             standaloneTestMode;
+  int             sessionTimeout;
 } HttpResponse;
 
 
@@ -214,6 +215,9 @@ typedef struct HTTPServerConfig_tag {
   unsigned char sessionTokenKey[HTTP_SERVER_MAX_SESSION_TOKEN_KEY_SIZE];
   JwtContext *jwtContext;
   int authTokenType; /* SERVICE_AUTH_TOKEN_TYPE_... */
+  hashtable *userTimeouts;
+  hashtable *groupTimeouts;
+  int defaultTimeout;
 } HttpServerConfig;
 
 typedef struct HttpServer_tag{
@@ -380,6 +384,8 @@ typedef struct HttpConversation_tag{
   WSSession         *wsSession;
   RLETask           *task;
   int                zeroLengthReadCount;
+  int                requestCount;
+  bool               isKeepAlive;
 } HttpConversation;
 
 typedef struct HttpWorkElement_tag{

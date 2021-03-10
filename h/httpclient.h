@@ -17,6 +17,10 @@
 #include "http.h"
 #include "logging.h"
 
+#ifdef USE_ZOWE_TLS
+#include "tls.h"
+#endif // USE_ZOWE_TLS
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -41,6 +45,7 @@ extern "C" {
 #define HTTP_CLIENT_RESP_PARSE_FAILED     14
 #define HTTP_CLIENT_READ_ERROR            15
 #define HTTP_CLIENT_RESPONSE_ZEROLEN      16
+#define HTTP_CLIENT_TLS_ERROR             17
 
 typedef struct HttpClientSettings_tag {
   char *host;
@@ -53,6 +58,9 @@ typedef struct HttpClientContext_tag {
   LoggingContext *logContext;
   SocketAddress *serverAddress;
   int recvTimeoutSeconds; /* try next server on timeout */
+#ifdef USE_ZOWE_TLS
+  TlsEnvironment *tlsEnvironment;
+#endif
 } HttpClientContext;
 
 typedef struct HttpClientResponse_tag {
@@ -101,6 +109,14 @@ HttpClientSettings *httpClientSettingsCopy(HttpClientSettings *settings);
 void httpClientContextDestroy(HttpClientContext *ctx);
 
 int httpClientContextInit(HttpClientSettings *settings, LoggingContext *logContext, HttpClientContext **outCtx);
+
+#ifdef USE_ZOWE_TLS
+int httpClientContextInitSecure(HttpClientSettings *settings,
+                                LoggingContext *logContext,
+                                TlsEnvironment *tlsEnv,
+                                HttpClientContext **outCtx
+                                );
+#endif // USE_ZOWE_TLS
 
 void httpClientSessionDestroy(HttpClientSession *session);
 
