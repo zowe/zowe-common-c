@@ -1465,7 +1465,8 @@ static int decodeSessionToken(ShortLivedHeap *slh,
 #ifdef __ZOWE_OS_ZOS
 
   unsigned int tokenTextLength = encodedTokenTextLength;
-  char *tokenText = SLHAlloc(slh, tokenTextLength);
+  unsigned int paddingLength = 4;
+  char *tokenText = SLHAlloc(slh, tokenTextLength+paddingLength);
   if (tokenText == NULL) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
     		    "Error: decoded session token buffer not allocated "
@@ -1487,7 +1488,8 @@ static int decodeSessionToken(ShortLivedHeap *slh,
             icsfRC, icsfRSN);
     return FALSE;
   }
-
+  // always null terminate because consumer might be expecting null terminate on other side
+  tokenText[tokenTextLength]=0;
   *result = tokenText;
   return 0;
 
@@ -2903,6 +2905,7 @@ static int sessionTokenStillValid(HttpService *service, HttpRequest *request, ch
   //determined by lookup or default
   int reasonCode = 0;
   int returnCode = 0;
+
   int retVal = getUserSessionValidity(username, server->config, sessionValiditySec, &returnCode, &reasonCode);
   AUTH_TRACE("got secs=%d for user=%s, retv=%d, rc=%d, rsn=%d\n",*sessionValiditySec,username,retVal, returnCode, reasonCode);
   if (retVal) {
