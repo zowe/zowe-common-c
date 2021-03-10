@@ -69,6 +69,7 @@ void deleteVSAMDataset(HttpResponse* response, char* absolutePath);
 void deleteDatasetOrMember(HttpResponse* response, char* absolutePath);
 char getCSIType(char* absolutePath);
 bool isVsam(char CSIType);
+
 #endif
 
 

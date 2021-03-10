@@ -140,12 +140,6 @@ typedef struct AuthResponse_tag {
 #  define DANGEROUS_DUMPBUF(...) do {} while (0)
 #endif
 
-
-#include "semTable.h"
-/* define the storage for table */
-extern struct sem_table_type sem_table_entry [N_SEM_TABLE_ENTRIES];
-/***** General Primitives ******************************/
-
 static int traceParse = 0;
 static int traceDispatch = 0;
 static int traceHeaders = 0;
@@ -5595,6 +5589,7 @@ HttpResponse *pseudoRespond(HttpServer *server, HttpRequest *request, ShortLived
 int httpWorkElementHandler(STCBase *base,
                            STCModule *module,
                            WorkElementPrefix *prefix) {
+  /* printf("in httpWorkElementHandler %s\n", "username ?"); */
   int status = 0;
   switch (prefix->payloadCode) {
   case HTTP_CONSIDER_CLOSE_CONVERSATION:
@@ -5840,7 +5835,7 @@ int httpWorkElementHandler(STCBase *base,
   return status;
 }
 
-int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
+int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {                                                                        
   if (httpServerIOTrace){
 #ifdef __ZOWE_OS_ZOS
     printf("SELECTX (Mk 2), selectStatus=0x%x, qReadyECB=0x%x\n",selectStatus,base->qReadyECB);
@@ -5875,10 +5870,6 @@ int mainHttpLoop(HttpServer *server){
   STCBase *base = server->base;
   /* server pointer will be copied/accessible from module->data */
 
-  /* Create semaphore table for datasets */
-  for(int i=0; i < N_SEM_TABLE_ENTRIES; i++)
-    sem_table_entry[i].sem_ID = 0;  /* initialise */
-  
   STCModule *httpModule = stcRegisterModule(base,
                                             STC_MODULE_JEDHTTP,
                                             server,
@@ -5889,9 +5880,6 @@ int mainHttpLoop(HttpServer *server){
 
   return stcBaseMainLoop(base, MAIN_WAIT_MILLIS);
 }
-
-
-
 
 /*
   This program and the accompanying materials are
