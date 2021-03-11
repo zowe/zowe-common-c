@@ -14,25 +14,22 @@
 
 #include "stcbase.h"
 
-#define N_TASK_TABLE_ENTRIES 100
+#define N_TASK_TABLE_ENTRIES 101
 #define STC_BACKGROUND_INTERVAL 10
 #define LEN_TASK_LABEL 30
 
-
-typedef void (*Task)(void* server); 
-
-typedef struct Background_Task_type {
+typedef void (*Task)(void* server, void* taskInput); 
+typedef struct BackgroundTask_type {
   int id;
   char taskLabel[LEN_TASK_LABEL];
   Task task;
+  void* taskInput;
   int timeInterval;
   int countInterval;
-} Background_Task; 
+} BackgroundTask; 
 
-Background_Task task_list [N_TASK_TABLE_ENTRIES];
-
-int addStcBackgroudTask(Task task, char* taskLabel, int timeInterval);
-int processStcBackgroundHandler(STCBase *base, STCModule *module, int selectStatus);
+STCModule* initBackgroundModule(STCBase *server);
+int addStcBackgroudTask(STCModule *module, Task task, char* taskLabel, int timeInterval, void* taskInput);
 #endif 
 /*
   This program and the accompanying materials are

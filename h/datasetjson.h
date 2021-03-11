@@ -18,6 +18,7 @@
 #include "json.h"
 #include "xml.h"
 #include "jcsi.h"
+#include "datasetlock.h"
 
 #define DATA_STREAM_BUFFER_SIZE 4096
 
@@ -59,11 +60,12 @@ void addMemberedDatasetMetadata(char *datasetName, int nameLength,
                                 jsonPrinter *jPrinter,
                                 int includeUnprintable);
 void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode);
-void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode);
+void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode, DatasetLockService* lockService);
+void respondWithDequeue(HttpResponse* response, char* absolutePath, int jsonMode, DatasetLockService* lockService);
 void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode);
 void respondWithDatasetMetadata(HttpResponse *response);
 void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQueryCache);
-void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode);
+void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode, DatasetLockService* lockService);
 void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *acbTable, int jsonMode);
 void deleteVSAMDataset(HttpResponse* response, char* absolutePath);
 void deleteDatasetOrMember(HttpResponse* response, char* absolutePath);

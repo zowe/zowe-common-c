@@ -1076,7 +1076,7 @@ static int getMaxRecordLength(char *dscb){
   return lrecl;
 }
 
-void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
+void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode, DatasetLockService* lockService) {
 #ifdef __ZOWE_OS_ZOS
   if (jsonMode != TRUE) { /*TODO add support for updating files with raw bytes instead of JSON*/
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Cannot update file without JSON formatted record request");
@@ -1107,7 +1107,7 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
 
   /* check owner of ENQ is the same as requestor */
   SemEntry* entry;
-  int retFind=findSemTableEntryByDatasetByUser(&dsnMember, response->request->username, &entry);
+  int retFind=findSemTableEntryByDatasetByUser(lockService, &dsnMember, response->request->username, &entry);
 
   if (retFind == NO_MATCH_USER) {
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, 
@@ -1626,8 +1626,6 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
   memcpy(daDsn.name, dsn.value, sizeof(daDsn.name));
   memcpy(daMember.name, memberName.value, sizeof(daMember.name));
 
-  
-
   DynallocDDName daDDname = {.name = "????????"};
 
   int daRC = RC_DYNALLOC_OK, daSysRC = 0, daSysRSN = 0;
@@ -1697,7 +1695,7 @@ int extractDSNMemberFromRequest(HttpRequest *request, char* absolutePath, DsnMem
     return 0;
 }
 
-void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode) {
+void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode, DatasetLockService* lockService) {
     DsnMember dsnMember;
     int parseRet = extractDSNMemberFromRequest(response->request, absolutePath, &dsnMember);
     if (parseRet<0) {
@@ -1705,7 +1703,7 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
     }
 
     SemEntry* entry;
-    int enqRet=semTableEnqueue(&dsnMember, response->request->username, &entry);
+    int enqRet=semTableEnqueue(lockService, &dsnMember, response->request->username, &entry);
     if (enqRet == LOCK_RESOURCE_CONFLICT) {
       respondWithError(response,HTTP_STATUS_RESOURCE_CONFLICT,"Unable to obtain exclusive access to Dataset or member");
     }
@@ -1729,7 +1727,7 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
     return;
 } /* end of respondWithEnqueue */
 
-void respondWithDequeue(HttpResponse* response, char* absolutePath, int jsonMode, char *sem_table_pointer) {
+void respondWithDequeue(HttpResponse* response, char* absolutePath, int jsonMode, DatasetLockService* lockService) {
 
     DsnMember dsnMember;
     int parseRet = extractDSNMemberFromRequest(response->request, absolutePath, &dsnMember);
@@ -1738,7 +1736,7 @@ void respondWithDequeue(HttpResponse* response, char* absolutePath, int jsonMode
     }
 
     /* DEQ dataset */
-    int deqRet=semTableDequeue(&dsnMember, response->request->username);
+    int deqRet=semTableDequeue(lockService, &dsnMember, response->request->username);
     if (deqRet == SEMTABLE_EXISTING_DATASET_LOCKED) {
       respondWithError(response, HTTP_STATUS_BAD_REQUEST, "dataset locked by other user");
     } else if (deqRet == SEMTABLE_ENTRY_NOT_FOUND) {

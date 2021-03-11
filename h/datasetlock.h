@@ -66,19 +66,19 @@ typedef struct DatasetLockService_tag {
 DatasetLockService *lockService;     
 
 //initialize
-void initLockResources();
+DatasetLockService* initLockResources(int heartbeat, int expiry);
 
 //heartbeart
-void addUserToHbt(char* user);
-void resetTimeInHbt(char* user);
-void heartbeatBackgroundHandler(void* server);
+void addUserToHbt(DatasetLockService *lockService, char* user);
+void resetTimeInHbt(DatasetLockService *lockService, char* user);
+void heartbeatBackgroundHandler(DatasetLockService *lockService);
 
 // semaphore
 int sleepSemaphore(SemEntry* entry);
-int findSemTableEntryByDatasetByUser(DsnMember *dsnMember, char* username, SemEntry **entryPtr);
-int findSemTableEntryByDataset(DsnMember *dsnMember, SemEntry **entryPtr);
-int semTableEnqueue(DsnMember *dsnMember, char *username,  SemEntry** entryPtr);
-int semTableDequeue(DsnMember *dsnMember, char *username);
+int findSemTableEntryByDatasetByUser(DatasetLockService *lockService, DsnMember *dsnMember, char* username, SemEntry **entryPtr);
+int findSemTableEntryByDataset(DatasetLockService *lockService, DsnMember *dsnMember, SemEntry **entryPtr);
+int semTableEnqueue(DatasetLockService *lockService, DsnMember *dsnMember, char *username,  SemEntry** entryPtr);
+int semTableDequeue(DatasetLockService *lockService, DsnMember *dsnMember, char *username);
 #endif
 /*
   This program and the accompanying materials are
