@@ -1936,9 +1936,6 @@ static void addRequestHeader(HttpRequestParser *parser){
       parser->isWebSocket = TRUE;
     }
   }
-  /* Temporarily disable this while investigating and developing solutions to
-     Out of memory issues around the SLH used by each connection running out of memory
-     Due to connections not closing when they should
   else if (!compareIgnoringCase(newHeader->nativeName, "Connection",
                                   parser->headerNameLength)) {
     if (!compareIgnoringCase(newHeader->nativeValue, "Keep-Alive",
@@ -1946,8 +1943,6 @@ static void addRequestHeader(HttpRequestParser *parser){
       parser->keepAlive = TRUE;
     }
   }
-  */
-  parser->keepAlive = FALSE;
 
   HttpHeader *headerChain = parser->headerChain;
   if (headerChain){
