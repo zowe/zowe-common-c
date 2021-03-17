@@ -1465,7 +1465,7 @@ static int decodeSessionToken(ShortLivedHeap *slh,
 #ifdef __ZOWE_OS_ZOS
 
   unsigned int tokenTextLength = encodedTokenTextLength;
-  unsignted int paddingLength = 4;
+  unsigned int paddingLength = 4;
   char *tokenText = SLHAlloc(slh, tokenTextLength+paddingLength);
   if (tokenText == NULL) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
