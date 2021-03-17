@@ -1465,7 +1465,8 @@ static int decodeSessionToken(ShortLivedHeap *slh,
 #ifdef __ZOWE_OS_ZOS
 
   unsigned int tokenTextLength = encodedTokenTextLength;
-  char *tokenText = SLHAlloc(slh, tokenTextLength);
+  unsignted int paddingLength = 4;
+  char *tokenText = SLHAlloc(slh, tokenTextLength+paddingLength);
   if (tokenText == NULL) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
     		    "Error: decoded session token buffer not allocated "
@@ -1488,6 +1489,8 @@ static int decodeSessionToken(ShortLivedHeap *slh,
     return FALSE;
   }
 
+  // always null terminate because consumer might be expecting null terminate on other side
+  tokenText[tokenTextLength]=0;
   *result = tokenText;
   return 0;
 
@@ -2834,17 +2837,19 @@ static int getUserSessionValidity(char *username, const HttpServerConfig *config
     int *groups = (int*)safeMalloc(sizeof(int) * groupCount, "groups");
     retVal = getGroupList(username, groups, &groupCount, returnCode, reasonCode);
     if (!retVal) {
-      int currentValiditySec;
+      int currentValiditySec = 0;
       for (int i = 0; i < groupCount; i++) {
         retVal = getGroupSessionValidity(POINTER_FROM_INT(groups[i]), config, &currentValiditySec, returnCode, reasonCode);
-        if (currentValiditySec && *validitySec != -1 && ((currentValiditySec == -1) || (currentValiditySec > *validitySec))) {
-          *validitySec = currentValiditySec;
-          AUTH_TRACE("longer session duration=%d\n",*validitySec);
+        if (!retVal) {
+          if (currentValiditySec && *validitySec != -1 && ((currentValiditySec == -1) || (currentValiditySec > *validitySec))) {
+            *validitySec = currentValiditySec;
+            AUTH_TRACE("longer session duration=%d\n",*validitySec);
+          }
         }
       }
       if (!*validitySec){
         //the default
-        *validitySec= config->defaultTimeout ? (uint64)config->defaultTimeout : (uint64)SESSION_VALIDITY_IN_SECONDS;
+        *validitySec= config->defaultTimeout ? config->defaultTimeout : SESSION_VALIDITY_IN_SECONDS;
       }
       retVal = 0;
     }
@@ -2855,7 +2860,7 @@ static int getUserSessionValidity(char *username, const HttpServerConfig *config
   }
 }
 
-static int sessionTokenStillValid(HttpService *service, HttpRequest *request, char *sessionTokenText, int *sessionValiditySec, int *sessionTimeRemaining){
+static int sessionTokenStillValid(HttpService *service, HttpRequest *request, char *sessionTokenText, int *sessionValiditySec, uint64 *sessionTimeRemaining){
   HttpServer *server = service->server;
   ShortLivedHeap *slh = request->slh;
   char *decodedData = SLHAlloc(slh,strlen(sessionTokenText));
@@ -2901,6 +2906,7 @@ static int sessionTokenStillValid(HttpService *service, HttpRequest *request, ch
   //determined by lookup or default
   int reasonCode = 0;
   int returnCode = 0;
+
   int retVal = getUserSessionValidity(username, server->config, sessionValiditySec, &returnCode, &reasonCode);
   AUTH_TRACE("got secs=%d for user=%s, retv=%d, rc=%d, rsn=%d\n",*sessionValiditySec,username,retVal, returnCode, reasonCode);
   if (retVal) {
@@ -3008,7 +3014,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
            "serviceAuthNativeWithSessionToken: tokenCookieText: %s\n",
            (tokenCookieText ? tokenCookieText : "<noAuthToken>"));
-    int timeRemainingStck = 0;
+    uint64 timeRemainingStck = 0;
     int sessionLengthSec = 0;
     if (sessionTokenStillValid(service,request,tokenCookieText,&sessionLengthSec,&timeRemainingStck)){
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
