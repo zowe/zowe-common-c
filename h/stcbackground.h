@@ -28,7 +28,7 @@ typedef struct BackgroundTask_type {
   int countInterval;
 } BackgroundTask; 
 
-STCModule* initBackgroundModule(STCBase *server);
+STCModule* initBackgroundModule(STCBase *base);
 int addStcBackgroudTask(STCModule *module, Task task, char* taskLabel, int timeInterval, void* taskInput);
 #endif 
 /*

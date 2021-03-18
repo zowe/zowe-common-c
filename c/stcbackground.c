@@ -9,7 +9,7 @@ static int processStcBackgroundHandler(STCBase *base, STCModule *module, int sel
       t->countInterval+=STC_BACKGROUND_INTERVAL;
       if (t->countInterval == 0) {
         Task task = t->task;
-        task(module->data, t->taskInput);
+        task(base->httpServer, t->taskInput);
         t->countInterval=-t->timeInterval;
       }
     } else {
