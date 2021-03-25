@@ -1107,13 +1107,10 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode, Dat
 
   /* check owner of ENQ is the same as requestor */
   SemEntry* entry;
-  int retFind=findSemTableEntryByDatasetByUser(lockService, &dsnMember, response->request->username, &entry);
-
+  int retFind = findSemTableEntryByDatasetByUser(lockService, &dsnMember, response->request->username, &entry);
+  
   if (retFind == NO_MATCH_USER) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, 
-            "UPDATE DATASET: found mismatched ENQ, owner=%8.8s, requestor=%s\n",
-          entry->user,
-          response->request->username);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: found mismatched ENQ");
     respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Already locked by another user\n");
     return;
   }
@@ -1721,7 +1718,7 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
     } else if (enqRet == SEMTABLE_SUCCESS) {
       /* the HTTP GET that consumes this message insists that the response body be JSON */
       respondWithMessage(response, HTTP_STATUS_OK, "{\"records\":[\"Enqueue dataset successful\"]}"); 
-      sleepSemaphore(entry);
+      sleepSemaphore(lockService, entry);
     }
     
     return;

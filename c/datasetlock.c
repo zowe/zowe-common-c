@@ -97,13 +97,13 @@ DatasetLockService* initLockResources(int heartbeat, int expiry) {
   lockService->semTable = htCreate(N_SEM_TABLE_ENTRIES, semKeyHash, semKeyCompare, NULL, freeValueSemTable);
   pthread_mutex_init(&lockService->datasetMutex, NULL);
   if (heartbeat > 0) {
-    lockService->heartbeat=heartbeat;
+    lockService->heartbeat = heartbeat;
   } else {
     lockService->heartbeat = HEARTBEAT_DEFAULT;
   }
 
   if (expiry > 0) {
-    lockService->expiry=expiry;
+    lockService->expiry = expiry;
   } else {
     lockService->expiry = LOCK_EXPIRY;
   }
@@ -123,13 +123,12 @@ static int searchUserInSem(DatasetLockService* lockService,char* user) {
   for (int j = 0; j < backboneSize; j++) {
     if (backbone[j] == NULL) continue;
     value = (SemEntry*)backbone[j]->value;
-    if (value==NULL || value->semId == 0) continue;
+    if (value == NULL || value->semId == 0) continue;
 
     if (strcmp(value->user, user) == 0) {
       if (value->semId > 0) {
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO,"heartbeat expire user: %s dataset: %s %s semId: %d \n", value->user, value->dsnMember.dsn, value->dsnMember.membername, value->semId);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,"heartbeat expire user: %s dataset: %s %s semId: %d \n", value->user, value->dsnMember.dsn, value->dsnMember.membername, value->semId);
         wakeSempahore(value->semId);
-        releaseSemTableSlot(lockService, value);
       }
     }
   }
@@ -202,7 +201,7 @@ static int setSemaphore(int semaphoreID) {
   return semaphoreRetcode;
 }
 
-int sleepSemaphore(SemEntry* entry) {
+int sleepSemaphore(DatasetLockService* lockService, SemEntry* entry) {
 
   int semaphoreRetcode;
   int semaphoreID = entry->semId;
@@ -221,7 +220,7 @@ int sleepSemaphore(SemEntry* entry) {
     /* destroy our semaphore */
     semaphoreRetcode = semctl(semaphoreID, 0, IPC_RMID);
     if (semaphoreRetcode != -1 ) {
-        releaseSemTableSlot(entry);
+      releaseSemTableSlot(lockService, entry);
     }
   }
 
@@ -245,7 +244,7 @@ static int wakeSempahore(int semaphoreID) {
 
 static int takeExclusiveLock(DsnMember *dsnMember) {
   RName rname_parm; /* resource name; the name of the resource to acquire; the dataset name + optional member */
-  static const QName MajorQNAME  = {"SPFEDIT "}; 
+  static const QName MajorQNAME = {"SPFEDIT "}; 
 
   ENQToken lockToken;
   int lockRC = 0, lockRSN = 0;
@@ -278,7 +277,7 @@ static int takeExclusiveLock(DsnMember *dsnMember) {
 }
 
 static SemEntry* makeSemTableEntry(int semaphoreID, DsnMember *dsnMember, char* username) {
-  SemEntry* entry= (SemEntry*)safeMalloc(sizeof(SemEntry),"SemEntry");
+  SemEntry* entry = (SemEntry*)safeMalloc(sizeof(SemEntry),"SemEntry");
   entry->semId = semaphoreID;
   memcpy(entry->dsnMember.dsn, dsnMember->dsn, DSN_LEN);/* copy in member */
   memcpy(entry->dsnMember.membername, dsnMember->membername, MEMBER_LEN); /* copy in dsn */
@@ -288,20 +287,20 @@ static SemEntry* makeSemTableEntry(int semaphoreID, DsnMember *dsnMember, char* 
 
 static int fillSemTableEntry(DatasetLockService *lockService, int semaphoreID, DsnMember *dsnMember, char* username, SemEntry** entryPtr) {
   SemEntry* entry;
-  entry=makeSemTableEntry(semaphoreID, dsnMember, username);
-  *entryPtr=entry;
-  int ret=htPut(lockService->semTable,&(entry->dsnMember), entry);
+  entry = makeSemTableEntry(semaphoreID, dsnMember, username);
+  *entryPtr = entry;
+  int ret = htPut(lockService->semTable, &(entry->dsnMember), entry);
   SemEntry* val = (SemEntry*)htGet(lockService->semTable,&(entry->dsnMember));
   addUserToHbt(lockService, username);  
   return ret;
 }
 
 int findSemTableEntryByDataset(DatasetLockService *lockService, DsnMember *dsnMember, SemEntry** entryPtr) {
-  SemEntry* entry=(SemEntry*)htGet(lockService->semTable, dsnMember);
+  SemEntry* entry = (SemEntry*)htGet(lockService->semTable, dsnMember);
 
   if (entry != NULL) {
     zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2,"dataset existing semId:%d dsn:%s %s\n", entry->semId, entry->dsnMember.dsn,__FUNCTION__);  
-    *entryPtr=entry;
+    *entryPtr = entry;
     return 0;
   } 
 
@@ -310,11 +309,11 @@ int findSemTableEntryByDataset(DatasetLockService *lockService, DsnMember *dsnMe
 
 int findSemTableEntryByDatasetByUser(DatasetLockService *lockService, DsnMember *dsnMember, char* username, SemEntry** entryPtr) {
   SemEntry* entry;
-  int ret=findSemTableEntryByDataset(lockService, dsnMember, &entry);
-  if (ret == 0 && entry!=NULL) {
-    if (strcmp(entry->user,username)==0) {
-       zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2,"dataset & user both match");
-      *entryPtr=entry;
+  int ret = findSemTableEntryByDataset(lockService, dsnMember, &entry);
+  if (ret == 0 && entry != NULL) {
+    if (strcmp(entry->user,username) == 0) {
+       zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2,"dataset and user both match\n");
+      *entryPtr = entry;
       return 0; 
     } else {
       zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2,"dataset existing, but different user semId:%d dsn:%s user:%s  request user:%s %s\n", entry->semId, entry->dsnMember.dsn,entry->user, username, __FUNCTION__);  
@@ -326,19 +325,26 @@ int findSemTableEntryByDatasetByUser(DatasetLockService *lockService, DsnMember 
 
 static int acquireSemTableSlot(DatasetLockService* lockService, DsnMember *dsnMember, char* username, SemEntry** entryPtr) {
   SemEntry *entry;
-  int ret=findSemTableEntryByDatasetByUser(lockService, dsnMember, username, &entry);
+  int ret = findSemTableEntryByDatasetByUser(lockService, dsnMember, username, &entry);
   
   if (ret == NO_MATCH_DSN) {
     ret = fillSemTableEntry(lockService, 0, dsnMember, username, &entry);
   } 
 
-  *entryPtr=entry;
+  *entryPtr = entry;
   return ret;
 }
 
 static int releaseSemTableSlot(DatasetLockService *lockService, SemEntry* entry) {
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2,"%s user: %s dsn: %s mem: %s\n", __FUNCTION__, entry->user, entry->dsnMember.dsn,  entry->dsnMember.membername);  
-  return htRemove(lockService->semTable, &entry->dsnMember);
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2,"%s user: %s dsn: %s mem: %s\n", __FUNCTION__, entry->user, entry->dsnMember.dsn,  entry->dsnMember.membername); 
+  int ret = -1;
+  pthread_mutex_lock(&lockService->datasetMutex);
+  {
+    ret = htRemove(lockService->semTable, &entry->dsnMember);
+  }
+  pthread_mutex_unlock(&lockService->datasetMutex);
+
+  return ret;
 }
 
 int accquireLockAndSemaphore(SemEntry* entry) {
@@ -360,7 +366,7 @@ int accquireLockAndSemaphore(SemEntry* entry) {
   }
 
   entry->semId = semaphoreID;
-  int semaphoreRetcode=setSemaphore(semaphoreID);
+  int semaphoreRetcode = setSemaphore(semaphoreID);
   if (semaphoreRetcode == -1 ) {
     zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2,"SEMTABLE_UNABLE_SET_SEMAPHORE %s\n", __FUNCTION__);  
     return SEMTABLE_UNABLE_SET_SEMAPHORE;
@@ -376,7 +382,7 @@ int semTableEnqueue(DatasetLockService *lockService, DsnMember *dsnMember, char 
   SemEntry* entry;
   pthread_mutex_lock(&lockService->datasetMutex);
   {
-    ret=acquireSemTableSlot(lockService, dsnMember, username, &entry);
+    ret = acquireSemTableSlot(lockService, dsnMember, username, &entry);
   }
   pthread_mutex_unlock(&lockService->datasetMutex);
 
@@ -384,7 +390,7 @@ int semTableEnqueue(DatasetLockService *lockService, DsnMember *dsnMember, char 
     return SEMTABLE_EXISTING_DATASET_LOCKED;
   }
 
-  if (ret == 0 && entry->semId>0) {
+  if (ret == 0 && entry->semId > 0) {
     return SEMTABLE_EXISTING_SAME_USER;
   }
 
