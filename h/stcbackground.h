@@ -28,7 +28,12 @@ typedef struct BackgroundTask_type {
   int countInterval;
 } BackgroundTask; 
 
-STCModule* initBackgroundModule(STCBase *base);
+typedef struct BackgroundModuleData_type {
+  void* server;
+  void* taskList;
+} BackgroundModuleData;
+
+STCModule* initBackgroundModule(void* server, STCBase *base);
 int addStcBackgroudTask(STCModule *module, Task task, char* taskLabel, int timeInterval, void* taskInput);
 #endif 
 /*

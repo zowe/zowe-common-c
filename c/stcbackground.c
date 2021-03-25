@@ -2,14 +2,16 @@
 #include "stcbackground.h"
 
 static int processStcBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
-  BackgroundTask* taskList = (BackgroundTask*)(module->data);
+  BackgroundModuleData* moduleData = (BackgroundModuleData*)(module->data);
+  BackgroundTask* taskList = moduleData->taskList;
+
   for (int i = 1; i < N_TASK_TABLE_ENTRIES; i++) {
     BackgroundTask* t = &taskList[i];
     if (t->id != 0)  /* initialise */ {
       t->countInterval+=STC_BACKGROUND_INTERVAL;
       if (t->countInterval == 0) {
         Task task = t->task;
-        task(base->httpServer, t->taskInput);
+        task(moduleData->server, t->taskInput);
         t->countInterval=-t->timeInterval;
       }
     } else {
@@ -28,13 +30,17 @@ static int nextSlot(BackgroundTask* taskList) {
   return -1;
 };
 
-STCModule* initBackgroundModule(STCBase *base) {
+STCModule* initBackgroundModule(void* server, STCBase *base) {
+  BackgroundModuleData* moduleData = (BackgroundModuleData*)safeMalloc(sizeof(BackgroundModuleData),"BackgroundModuleData");
 
   BackgroundTask* taskList = (BackgroundTask*)safeMalloc(sizeof(BackgroundTask)*N_TASK_TABLE_ENTRIES,"BackgroundTask");
+  moduleData->taskList = taskList;
+  moduleData->server = server;
+
   STCModule* stcBackgroundModule=stcRegisterModule(
     base,
     STC_MODULE_BACKGROUND,
-    taskList,
+    moduleData,
     NULL,
     NULL,
     NULL,
@@ -44,7 +50,9 @@ STCModule* initBackgroundModule(STCBase *base) {
 };
 
 int addStcBackgroudTask(STCModule *module, Task task, char* taskLabel, int timeInterval, void* taskInput) {
-  BackgroundTask* taskList = (BackgroundTask*)(module->data);
+  BackgroundModuleData* moduleData = (BackgroundModuleData*)(module->data);
+  BackgroundTask* taskList = moduleData->taskList;
+
   int len;
   int slotId = nextSlot(taskList);
   if (slotId > 0 && slotId<N_TASK_TABLE_ENTRIES) {
@@ -60,5 +68,6 @@ int addStcBackgroudTask(STCModule *module, Task task, char* taskLabel, int timeI
     taskList[slotId].taskInput = taskInput;
     return 0;
   }
+
   return slotId;
 };
