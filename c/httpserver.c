@@ -2958,14 +2958,11 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
 
   int encodedLength = 0;
   char *base64Output = encodeBase64(slh,tokenCiphertext,tokenPlaintextLength,&encodedLength,TRUE);
-  char *keyValueBuffer = SLHAlloc(slh,512);
-  memset(keyValueBuffer,0,512);
-  int keyLength = strlen(SESSION_TOKEN_COOKIE_NAME);
-  memcpy(keyValueBuffer,SESSION_TOKEN_COOKIE_NAME,keyLength);
-  int offset = keyLength;
-  keyValueBuffer[keyLength] = '=';
-  memcpy(keyValueBuffer+keyLength+1,base64Output,strlen(base64Output));
 
+  int keyValueBufferSize = encodedLength + strlen(SESSION_TOKEN_COOKIE_NAME) + 16; //16 for trailing ; Path=/ inclusion
+  char *keyValueBuffer = SLHAlloc(slh, keyValueBufferSize);
+
+  snprintf(keyValueBuffer, keyValueBufferSize, "%s=%s; Path=/", SESSION_TOKEN_COOKIE_NAME, base64Output);
   return keyValueBuffer;
 }
 
