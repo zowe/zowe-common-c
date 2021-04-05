@@ -792,7 +792,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
     }
   }
   /*passed record length check and type check*/
-  int bytesRead = 0;
+  int bytesWritten = 0;
   int recordsWritten = 0;
   char recordBuffer[maxRecordLength+1];
   for (int i = 0; i < recordCount; i++) {
@@ -810,10 +810,10 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       // trim if needed
       len = snprintf (recordBuffer, sizeof(recordBuffer), "%s", record);
     }
-    bytesRead = fwrite(recordBuffer,1,len,outDataset);
+    bytesWritten = fwrite(recordBuffer,1,len,outDataset);
     recordsWritten++;
-    if (bytesRead < 0 && ferror(outDataset)){
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error writing to dataset, rc=%d\n", bytesRead);
+    if (bytesWritten < 0 && ferror(outDataset)){
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error writing to dataset, rc=%d\n", bytesWritten);
       respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"Error writing to dataset");
       fclose(outDataset);
       break;
