@@ -1,18 +1,27 @@
 #include "logging.h"
 #include "stcbackground.h"
 
-static int processStcBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
-  BackgroundModuleData* moduleData = (BackgroundModuleData*)(module->data);
-  BackgroundTask* taskList = moduleData->taskList;
+#define STC_BG_ENTRIES 101
+#define STC_BG_INTERVAL 10
 
-  for (int i = 1; i < N_TASK_TABLE_ENTRIES; i++) {
-    BackgroundTask* t = &taskList[i];
-    if (t->id != 0)  /* initialise */ {
-      t->countInterval+=STC_BACKGROUND_INTERVAL;
-      if (t->countInterval == 0) {
-        Task task = t->task;
-        task(moduleData->server, t->taskInput);
-        t->countInterval=-t->timeInterval;
+
+static int processInterval(STCBase *stcBase, STCModule *module, int selectStatus) {
+  STCCallbackList* moduleData = (STCCallbackList*)(module->data);
+  STCIntervalCallbackData* callbackList = moduleData->callbackList;
+
+  for (int i = 0; i < STC_BG_ENTRIES; i++) {
+    STCIntervalCallbackData* t = &callbackList[i];
+    if (t->id != -1)  /* initialise */ {
+      
+      // giving ability to disable job by making timeInterval less than zero
+      // as we return callbackdata, user can make timeInterval zero
+      if(t->timeInterval<0) continue;
+
+      t->countInterval+=STC_BG_INTERVAL;
+      if (t->countInterval <= 0) {
+        STCIntervalCallback callback = t->callback;
+        callback(moduleData->server, stcBase, module, t, t->userData);
+        t->countInterval = -t->timeInterval;
       }
     } else {
       break;
@@ -21,53 +30,69 @@ static int processStcBackgroundHandler(STCBase *base, STCModule *module, int sel
   return 0;
 };
 
-static int nextSlot(BackgroundTask* taskList) {
-  for (int i = 1; i < N_TASK_TABLE_ENTRIES; i++) {
-    if (taskList[i].id == 0)  /* initialise */ {
+static int nextSlot(STCIntervalCallbackData* callbackList) {
+  for (int i = 0; i < STC_BG_ENTRIES; i++) {
+    if (callbackList[i].id == -1)  /* initialise */ {
       return i;
     }
   }
   return -1;
 };
 
-STCModule* initBackgroundModule(void* server, STCBase *base) {
-  BackgroundModuleData* moduleData = (BackgroundModuleData*)safeMalloc(sizeof(BackgroundModuleData),"BackgroundModuleData");
+STCModule* stcInitBackgroundModule(void* server, STCBase *stcBase) {
+  STCCallbackList* moduleData = (STCCallbackList*)safeMalloc(sizeof(STCCallbackList),"STCCallbackList");
+  if (moduleData == NULL) {
+    return NULL;
+  }
 
-  BackgroundTask* taskList = (BackgroundTask*)safeMalloc(sizeof(BackgroundTask)*N_TASK_TABLE_ENTRIES,"BackgroundTask");
-  moduleData->taskList = taskList;
+  STCIntervalCallbackData* callbackList = (STCIntervalCallbackData*)safeMalloc(sizeof(STCIntervalCallbackData)*STC_BG_ENTRIES,"STCIntervalCallbackData");
+  if (callbackList == NULL) {
+    return NULL;
+  }
+
+  for (int i = 0; i < STC_BG_ENTRIES; i++) {
+    callbackList[i].id = -1;
+  }
+  moduleData->callbackList = callbackList;
   moduleData->server = server;
 
   STCModule* stcBackgroundModule=stcRegisterModule(
-    base,
+    stcBase,
     STC_MODULE_BACKGROUND,
     moduleData,
     NULL,
     NULL,
     NULL,
-    processStcBackgroundHandler
+    processInterval
   );
   return stcBackgroundModule;
 };
 
-int addStcBackgroudTask(STCModule *module, Task task, char* taskLabel, int timeInterval, void* taskInput) {
-  BackgroundModuleData* moduleData = (BackgroundModuleData*)(module->data);
-  BackgroundTask* taskList = moduleData->taskList;
+int stcAddIntervalCallback(STCModule *module, STCIntervalCallback callback, char* callbackLabel, int timeInterval, void* userData) {
+  STCCallbackList* moduleData = (STCCallbackList*)(module->data);
+  STCIntervalCallbackData* callbackList = moduleData->callbackList;
 
   int len;
-  int slotId = nextSlot(taskList);
-  if (slotId > 0 && slotId<N_TASK_TABLE_ENTRIES) {
-    taskList[slotId].id = slotId;
-    len = strlen(taskLabel);
-    if (len > LEN_TASK_LABEL-1) {
-      len = LEN_TASK_LABEL-1;
+  int slotId = nextSlot(callbackList);
+  if (slotId >= 0 && slotId<STC_BG_ENTRIES) {
+    callbackList[slotId].id = slotId;
+    len = strlen(callbackLabel);
+    if (len > STC_BG_CB_LABEL_LEN-1) {
+      len = STC_BG_CB_LABEL_LEN-1;
     }
-    memcpy(taskList[slotId].taskLabel, taskLabel, len);
-    taskList[slotId].task = task;
-    taskList[slotId].timeInterval = timeInterval;
-    taskList[slotId].countInterval = -timeInterval;
-    taskList[slotId].taskInput = taskInput;
+    memcpy(callbackList[slotId].callbackLabel, callbackLabel, len);
+    callbackList[slotId].callback = callback;
+    callbackList[slotId].timeInterval = timeInterval;
+    callbackList[slotId].countInterval = -timeInterval;
+    callbackList[slotId].userData = userData;
     return 0;
   }
 
-  return slotId;
+  return -1;
 };
+
+//if timeInterval < 0, we disable the job
+int stcModifyInterval(STCIntervalCallbackData* callback, int newInterval) {
+  callback->timeInterval = newInterval;
+  callback->countInterval = -newInterval;
+}
