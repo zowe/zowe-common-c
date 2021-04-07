@@ -16,8 +16,8 @@
 #define STC_BG_CB_LABEL_LEN 30
 
 typedef int (*STCIntervalCallback)(void* server,
-                                  struct STCBase_tag *stcBase,
-                                  struct STCModule_tag *module, 
+                                  struct STCBase *stcBase,
+                                  struct STCModule *module, 
                                   STCIntervalCallbackData* callbackData, 
                                   void *userData);
 
@@ -41,7 +41,7 @@ int stcAddIntervalCallback(STCModule *module,
                            char* callbackLabel, 
                            int timeInterval, 
                            void* userData);
-int stcModifyInterval(STCIntervalCallbackData callback, int newInterval);
+int stcModifyInterval(STCIntervalCallbackData* callback, int newInterval);
 
 #endif 
 /*
