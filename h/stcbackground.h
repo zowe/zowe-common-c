@@ -13,28 +13,36 @@
 #define __STCBACKGROUND__
 
 #include "stcbase.h"
+#define STC_BG_CB_LABEL_LEN 30
 
-#define N_TASK_TABLE_ENTRIES 101
-#define STC_BACKGROUND_INTERVAL 10
-#define LEN_TASK_LABEL 30
+typedef int (*STCIntervalCallback)(void* server,
+                                  struct STCBase_tag *stcBase,
+                                  struct STCModule_tag *module, 
+                                  STCIntervalCallbackData* callbackData, 
+                                  void *userData);
 
-typedef void (*Task)(void* server, void* taskInput); 
-typedef struct BackgroundTask_type {
+typedef struct STCIntervalCallbackData_tag {
   int id;
-  char taskLabel[LEN_TASK_LABEL];
-  Task task;
-  void* taskInput;
+  char callbackLabel[STC_BG_CB_LABEL_LEN];
+  STCIntervalCallback callback;
+  void* userData;
   int timeInterval;
   int countInterval;
-} BackgroundTask; 
+} STCIntervalCallbackData; 
 
-typedef struct BackgroundModuleData_type {
+typedef struct STCCallbackList_tag {
   void* server;
-  void* taskList;
-} BackgroundModuleData;
+  void* callbackList;
+} STCCallbackList;
 
-STCModule* initBackgroundModule(void* server, STCBase *base);
-int addStcBackgroudTask(STCModule *module, Task task, char* taskLabel, int timeInterval, void* taskInput);
+STCModule* stcInitBackgroundModule(void* server, STCBase *base);
+int stcAddIntervalCallback(STCModule *module, 
+                           STCIntervalCallback callback, 
+                           char* callbackLabel, 
+                           int timeInterval, 
+                           void* userData);
+int stcModifyInterval(STCIntervalCallbackData callback, int newInterval);
+
 #endif 
 /*
   This program and the accompanying materials are
