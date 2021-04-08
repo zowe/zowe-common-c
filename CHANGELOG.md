@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `1.21.0`
+
+- Set cookie path to root in order to avoid multiple cookies when browser tries to set path automatically
+
 ## `1.16.0`
 
 - Fixed mimetype lookup for dotfiles
