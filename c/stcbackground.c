@@ -10,6 +10,8 @@ typedef struct STCCallbackList_tag {
 } STCCallbackList;
 
 static int processInterval(STCBase *stcBase, STCModule *module, int selectStatus) {
+  printf("processInterval \n");
+
   STCCallbackList* moduleData = (STCCallbackList*)(module->data);
   STCIntervalCallbackData* callbackList = moduleData->callbackList;
 
@@ -24,7 +26,10 @@ static int processInterval(STCBase *stcBase, STCModule *module, int selectStatus
     t->countInterval += STC_BG_INTERVAL_SECS;
     if (t->countInterval <= 0) {
       STCIntervalCallback callback = t->callback;
+
+      printf("label: %s \n", t->callbackLabel);
       callback(stcBase, module, t, t->userData);
+      
       t->countInterval = -t->intervalSeconds;
     }
   }
@@ -73,18 +78,19 @@ STCModule* stcInitBackgroundModule(STCBase *stcBase) {
     processInterval
   );
 
-  stcBaseMainLoop(stcBase, STC_BG_INTERVAL_SECS*1000);
   return stcBackgroundModule;
 };
 
-const char* trimLabel(const char* callbackLabel) {
+const char* truncateLabel(const char* callbackLabel) {
   int len = strlen(callbackLabel);
   if (len > STC_BG_CB_LABEL_LEN-1) {
     len = STC_BG_CB_LABEL_LEN-1;
   }
 
-  char labelCopy[STC_BG_CB_LABEL_LEN] = "";
-  strncpy(labelCopy, callbackLabel, len); 
+  char* labelCopy = (char*)safeMalloc((len+1)*sizeof(char),"char");
+  memcpy(labelCopy, callbackLabel, len);
+  *(labelCopy + len) = '\0';
+
   return labelCopy;
 }
 
@@ -96,13 +102,16 @@ int stcAddIntervalCallback(STCModule *module, STCIntervalCallback callback, cons
   int slotId = nextSlot(callbackList);
   if (slotId >= 0 && slotId < STC_BG_ENTRIES) {
 
-    const char* labelTrim = trimLabel(callbackLabel);
-    if(findCallback(callbackList, labelTrim) != NULL) {
+    const char* labelTruncated = truncateLabel(callbackLabel);
+    if(findCallback(callbackList, labelTruncated) != NULL) {
+      safeFree((char*)labelTruncated,strlen(labelTruncated)+1);
       return STC_BG_CB_DUPLICATE_LABEL_ERR;
     }
 
+    memcpy(callbackList[slotId].callbackLabel, labelTruncated, strlen(labelTruncated)+1);
+    safeFree((char*)labelTruncated,strlen(labelTruncated)+1);
+
     callbackList[slotId].id = slotId;
-    memcpy(callbackList[slotId].callbackLabel, labelTrim, strlen(labelTrim));
     callbackList[slotId].callback = callback;
     callbackList[slotId].intervalSeconds = intervalSeconds;
     callbackList[slotId].countInterval = -intervalSeconds;
