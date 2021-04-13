@@ -787,21 +787,8 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
         }
         recordLength = maxRecordLength;
       }
-      if (isFixed && (recordLength != 0) && (recordLength != maxRecordLength)) {
+      if (isFixed && recordLength < maxRecordLength) {
         zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: record given for fixed datset less than maxLength=%d, len=%d, data:%s\n",maxRecordLength,recordLength,jsonString);
-        char recordBuffer[maxRecordLength+1];        
-        memcpy(recordBuffer,jsonString,recordLength);
-        memset(recordBuffer+recordLength,' ',maxRecordLength-recordLength);
-        recordBuffer[maxRecordLength] = '\0';
-        safeFree(jsonString,recordLength);
-        safeFree((char*)item,sizeof(Json));
-        Json *largerItem = (Json*)safeMalloc(sizeof(Json),"Padded JSON String");
-        largerItem->type = JSON_TYPE_STRING;
-        largerItem->data.string = recordBuffer;
-        recordArray->elements[i] = largerItem;
-        char *updatedRecord = jsonArrayGetString(recordArray,i);
-        int updatedLength = strlen(updatedRecord);
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: record updated to have new length of %d which should match max length of %d, content:%s\n",updatedLength,maxRecordLength,updatedRecord);
       }
     }
     else {
@@ -814,13 +801,14 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
     }
   }
   /*passed record length check and type check*/
-  int bytesRead = 0;
+  int bytesWritten = 0;
   int recordsWritten = 0;
   outDataset = fopen(datasetPath, "wb, recfm=*, type=record");
   if (outDataset == NULL) {
     respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
     return;
   }
+  char recordBuffer[maxRecordLength+1];
   for (int i = 0; i < recordCount; i++) {
     char *record = jsonArrayGetString(recordArray,i);
     int recordLength = strlen(record);
@@ -828,13 +816,18 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       record = " ";
       recordLength = 1;
     }
-    else if (recordLength > maxRecordLength){
-      recordLength = maxRecordLength; //sanitized input above, will cut off extra space/nonprintable here
+    int len;
+    if (isFixed) {
+      // pad with spaces/or trim if needed
+      len = snprintf (recordBuffer, sizeof(recordBuffer), "%-*s", maxRecordLength, record);
+    } else {
+      // trim if needed
+      len = snprintf (recordBuffer, sizeof(recordBuffer), "%s", record);
     }
-    bytesRead = fwrite(record,1,recordLength,outDataset);
+    bytesWritten = fwrite(recordBuffer,1,len,outDataset);
     recordsWritten++;
-    if (bytesRead < 0 && ferror(outDataset)){
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error writing to dataset, rc=%d\n", bytesRead);
+    if (bytesWritten < 0 && ferror(outDataset)){
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error writing to dataset, rc=%d\n", bytesWritten);
       respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"Error writing to dataset");
       fclose(outDataset);
       break;
