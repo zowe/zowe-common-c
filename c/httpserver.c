@@ -5601,9 +5601,10 @@ static int httpHandleTCP(STCBase *base,
                                peerSocket->sd,
                                true);
         if ((0 != rc) || (NULL == peerSocket->tlsSocket)) {
-#ifdef DEBUG
+//#ifdef DEBUG
           printf("httpserver failed to negotiate TLS with peer; closing socket\n");
-#endif
+          printf ("TLS status rc = %d(%s)\n", rc, tlsStrError(rc));
+//#endif
           socketClose(peerSocket, &returnCode, &reasonCode);
           break;
         }
