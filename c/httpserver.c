@@ -1488,6 +1488,7 @@ static int decodeSessionToken(ShortLivedHeap *slh,
             icsfRC, icsfRSN);
     return FALSE;
   }
+
   // always null terminate because consumer might be expecting null terminate on other side
   tokenText[tokenTextLength]=0;
   *result = tokenText;
@@ -2834,7 +2835,8 @@ static int getUserSessionValidity(char *username, const HttpServerConfig *config
       int currentValiditySec = 0;
       for (int i = 0; i < groupCount; i++) {
         retVal = getGroupSessionValidity(POINTER_FROM_INT(groups[i]), config, &currentValiditySec, returnCode, reasonCode);
-        if (!retVal){
+
+        if (!retVal) {
           if (currentValiditySec && *validitySec != -1 && ((currentValiditySec == -1) || (currentValiditySec > *validitySec))) {
             *validitySec = currentValiditySec;
             AUTH_TRACE("longer session duration=%d\n",*validitySec);
@@ -2952,14 +2954,11 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
 
   int encodedLength = 0;
   char *base64Output = encodeBase64(slh,tokenCiphertext,tokenPlaintextLength,&encodedLength,TRUE);
-  char *keyValueBuffer = SLHAlloc(slh,512);
-  memset(keyValueBuffer,0,512);
-  int keyLength = strlen(SESSION_TOKEN_COOKIE_NAME);
-  memcpy(keyValueBuffer,SESSION_TOKEN_COOKIE_NAME,keyLength);
-  int offset = keyLength;
-  keyValueBuffer[keyLength] = '=';
-  memcpy(keyValueBuffer+keyLength+1,base64Output,strlen(base64Output));
 
+  int keyValueBufferSize = encodedLength + strlen(SESSION_TOKEN_COOKIE_NAME) + 16; //16 for trailing ; Path=/ inclusion
+  char *keyValueBuffer = SLHAlloc(slh, keyValueBufferSize);
+
+  snprintf(keyValueBuffer, keyValueBufferSize, "%s=%s; Path=/", SESSION_TOKEN_COOKIE_NAME, base64Output);
   return keyValueBuffer;
 }
 
