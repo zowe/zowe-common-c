@@ -1,8 +1,9 @@
 #include "logging.h"
 #include "stcbackground.h"
 
+#define MAIN_WAIT_MILLIS 10000
 #define STC_BG_ENTRIES 101
-#define STC_BG_INTERVAL_SECS 10
+#define STC_BG_MIN_INTERVAL_SECS MAIN_WAIT_MILLIS/1000
 #define STC_BG_CB_DUPLICATE_LABEL_ERR -2
 
 typedef struct STCCallbackList_tag {
@@ -10,7 +11,6 @@ typedef struct STCCallbackList_tag {
 } STCCallbackList;
 
 static int processInterval(STCBase *stcBase, STCModule *module, int selectStatus) {
-  printf("processInterval \n");
 
   STCCallbackList* moduleData = (STCCallbackList*)(module->data);
   STCIntervalCallbackData* callbackList = moduleData->callbackList;
@@ -23,26 +23,27 @@ static int processInterval(STCBase *stcBase, STCModule *module, int selectStatus
     // as we return callbackdata, user can make intervalSeconds zero
     if (t->intervalSeconds < 0) continue;
 
-    t->countInterval += STC_BG_INTERVAL_SECS;
+    t->countInterval -= STC_BG_MIN_INTERVAL_SECS;
     if (t->countInterval <= 0) {
       STCIntervalCallback callback = t->callback;
 
-      printf("label: %s \n", t->callbackLabel);
       callback(stcBase, module, t, t->userData);
       
-      t->countInterval = -t->intervalSeconds;
+      t->countInterval = t->intervalSeconds;
     }
   }
   return 0;
 };
 
 static STCIntervalCallbackData* findCallback(STCIntervalCallbackData callbackList[], const char* callbackLabel) {
-  for (int i = 0; i < STC_BG_ENTRIES; i++) {
-    STCIntervalCallbackData callbackData  = callbackList[i];
-    if (callbackData.id == -1) break;
+  if(callbackList == NULL || callbackLabel == NULL) return NULL;
 
-    if(!strcmp(callbackData.callbackLabel, callbackLabel)) {
-      return &callbackData;
+  for (int i = 0; i < STC_BG_ENTRIES; i++) {
+    STCIntervalCallbackData* callbackData  = (callbackList + i);
+    if (callbackData->id == -1) break;
+
+    if(!strcmp(callbackData->callbackLabel, callbackLabel)) {
+      return callbackData;
     }
   }
   return NULL;
@@ -114,7 +115,7 @@ int stcAddIntervalCallback(STCModule *module, STCIntervalCallback callback, cons
     callbackList[slotId].id = slotId;
     callbackList[slotId].callback = callback;
     callbackList[slotId].intervalSeconds = intervalSeconds;
-    callbackList[slotId].countInterval = -intervalSeconds;
+    callbackList[slotId].countInterval = intervalSeconds;
     callbackList[slotId].userData = userData;
     return 0;
   }
@@ -125,9 +126,17 @@ int stcAddIntervalCallback(STCModule *module, STCIntervalCallback callback, cons
 //if intervalSeconds < 0, we disable the job
 int stcModifyInterval(STCModule *module, const char* callbackLabel, int newIntervalSeconds) {
   STCCallbackList* moduleData = (STCCallbackList*)(module->data);
-  STCIntervalCallbackData* callbackList = moduleData->callbackList;
+  STCIntervalCallbackData* callbackList;
+  if(moduleData != NULL) {
+    callbackList = moduleData->callbackList;
+  }
 
   STCIntervalCallbackData* callbackData = findCallback(callbackList, callbackLabel);
-  callbackData->intervalSeconds = newIntervalSeconds;
-  callbackData->countInterval = -newIntervalSeconds;
+  if(callbackData != NULL) {
+    callbackData->intervalSeconds = newIntervalSeconds;
+    callbackData->countInterval = newIntervalSeconds;
+    return 0;
+  }
+
+  return -1;
 }
