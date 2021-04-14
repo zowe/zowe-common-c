@@ -5,10 +5,21 @@
 #define STC_BG_ENTRIES 101
 #define STC_BG_MIN_INTERVAL_SECS MAIN_WAIT_MILLIS/1000
 #define STC_BG_CB_DUPLICATE_LABEL_ERR -2
+#define STC_BG_CB_LABEL_LEN 30
+
+struct STCIntervalCallbackData_tag {
+  int id;
+  char callbackLabel[STC_BG_CB_LABEL_LEN];
+  STCIntervalCallback callback;
+  void* userData;
+  int intervalSeconds;
+  int countInterval;
+}; 
 
 typedef struct STCCallbackList_tag {
   STCIntervalCallbackData callbackList[STC_BG_ENTRIES];
 } STCCallbackList;
+
 
 static int processInterval(STCBase *stcBase, STCModule *module, int selectStatus) {
 

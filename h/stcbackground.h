@@ -13,24 +13,14 @@
 #define __STCBACKGROUND__
 
 #include "stcbase.h"
-#define STC_BG_CB_LABEL_LEN 30
 
-struct STCIntervalCallbackData_tag;
+typedef struct STCIntervalCallbackData_tag STCIntervalCallbackData;
 
 typedef int (*STCIntervalCallback)(STCBase* stcBase, 
                                     STCModule* module, 
-                                    struct STCIntervalCallbackData_tag* callbackData, 
+                                    STCIntervalCallbackData* callbackData, 
                                     void* userData
                                    );
-typedef struct STCIntervalCallbackData_tag {
-  int id;
-  char callbackLabel[STC_BG_CB_LABEL_LEN];
-  STCIntervalCallback callback;
-  void* userData;
-  int intervalSeconds;
-  int countInterval;
-} STCIntervalCallbackData; 
-
 
 STCModule* stcInitBackgroundModule(STCBase *base);
 int stcAddIntervalCallback(STCModule *module, STCIntervalCallback callback, const char* callbackLabel, int intervalSeconds, void* userData);
