@@ -5604,8 +5604,12 @@ static int httpHandleTCP(STCBase *base,
 //#ifdef DEBUG
           printf("httpserver failed to negotiate TLS with peer; closing socket\n");
           printf ("TLS status rc = %d(%s)\n", rc, tlsStrError(rc));
-//#endif
+          printf ("GSK TRACE ===>\n");
+          system("gsktrace /tmp/zss.trc");
+          printf ("GSK TRACE <===\n");
           socketClose(peerSocket, &returnCode, &reasonCode);
+          exit(1);
+//#endif
           break;
         }
       }
