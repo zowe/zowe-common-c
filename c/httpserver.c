@@ -3851,13 +3851,14 @@ HttpRequestParam *getCheckedParam(HttpRequest *request, char *paramName){
   return NULL;
 }
 
-static char *getMimeType2(char *extension, int *isBinary, int dotPos);
+static char *getMimeType2(char *extension, int *isBinary, int dotPos, int ccsid);
 
 char *getMimeType(char *extension, int *isBinary) {
-  getMimeType2(extension, isBinary, FALSE);
+  getMimeType2(extension, isBinary, FALSE, -1);
 }
 
-static char *getMimeType2(char *extension, int *isBinary, int isDotFile){
+static char *getMimeType2(char *extension, int *isBinary, int isDotFile, int ccsid){
+  bool isTaggedAsText = (ccsid > 0);
   if (!strcmp(extension,"js")){
     *isBinary = FALSE;
     return "text/javascript";
@@ -3957,7 +3958,10 @@ static char *getMimeType2(char *extension, int *isBinary, int isDotFile){
   } else if(!strcmp(extension,"mp4")) {
     *isBinary = TRUE;
     return "video/mp4";
-  } else{
+  } else if (isTaggedAsText) {
+    *isBinary = FALSE;
+    return "text/plain";
+  } else {
     *isBinary = TRUE;
     return "application/octet-stream";
   }
@@ -4156,11 +4160,11 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     }
     char *extension = (dotPos == -1) ? "NULL" : absolutePath + dotPos + 1;
     int isBinary = FALSE;
-    char *mimeType = getMimeType2(extension,&isBinary,isDotFile);
     long fileSize = fileInfoSize(&info);
     int ccsid = fileInfoCCSID(&info);
+    char *mimeType = getMimeType2(extension,&isBinary,isDotFile, ccsid);
 #ifdef DEBUG
-    printf("File ccsid=%d, mimetype=%s\n",ccsid,mimeType);
+    printf("File ccsid=%d, mimetype=%s isBinary=%s\n",ccsid,mimeType,isBinary ? "true" : "false");
 #endif
     char tmperr[256] = {0};
 #if defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_LINUX)
