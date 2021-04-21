@@ -1,3 +1,4 @@
+#include <time.h>
 #include "logging.h"
 #include "stcbackground.h"
 
@@ -5,15 +6,16 @@
 #define STC_BG_ENTRIES 101
 #define STC_BG_MIN_INTERVAL_SECS MAIN_WAIT_MILLIS/1000
 #define STC_BG_CB_DUPLICATE_LABEL_ERR -2
+#define STC_BG_CB_LABEL_LENGTH_ERR -3
 #define STC_BG_CB_LABEL_LEN 30
 
 struct STCIntervalCallbackData_tag {
-  int id;
+  bool isInitialized;
   char callbackLabel[STC_BG_CB_LABEL_LEN];
   STCIntervalCallback callback;
   void* userData;
   int intervalSeconds;
-  int countInterval;
+  unsigned int timeOfLastRun;
 }; 
 
 typedef struct STCCallbackList_tag {
@@ -26,21 +28,20 @@ static int processInterval(STCBase *stcBase, STCModule *module, int selectStatus
   STCCallbackList* moduleData = (STCCallbackList*)(module->data);
   STCIntervalCallbackData* callbackList = moduleData->callbackList;
 
+  unsigned int currTime = (unsigned)time(NULL);
+
   for (int i = 0; i < STC_BG_ENTRIES; i++) {
     STCIntervalCallbackData* t = (callbackList + i);
-    if (t->id == -1) break;
+    if (!t->isInitialized) break;
 
     // giving ability to disable job by making intervalSeconds less than zero
     // as we return callbackdata, user can make intervalSeconds zero
     if (t->intervalSeconds < 0) continue;
 
-    t->countInterval -= STC_BG_MIN_INTERVAL_SECS;
-    if (t->countInterval <= 0) {
+    if ((currTime - t->timeOfLastRun) >= t->intervalSeconds) {
       STCIntervalCallback callback = t->callback;
-
       callback(stcBase, module, t, t->userData);
-      
-      t->countInterval = t->intervalSeconds;
+      t->timeOfLastRun = (unsigned)time(NULL);
     }
   }
   return 0;
@@ -51,7 +52,7 @@ static STCIntervalCallbackData* findCallback(STCIntervalCallbackData callbackLis
 
   for (int i = 0; i < STC_BG_ENTRIES; i++) {
     STCIntervalCallbackData* callbackData  = (callbackList + i);
-    if (callbackData->id == -1) break;
+    if (!callbackData->isInitialized) break;
 
     if(!strcmp(callbackData->callbackLabel, callbackLabel)) {
       return callbackData;
@@ -62,7 +63,7 @@ static STCIntervalCallbackData* findCallback(STCIntervalCallbackData callbackLis
 
 static int nextSlot(STCIntervalCallbackData* callbackList) {
   for (int i = 0; i < STC_BG_ENTRIES; i++) {
-    if (callbackList[i].id == -1)  /* initialise */ {
+    if (!callbackList[i].isInitialized)  /* initialise */ {
       return i;
     }
   }
@@ -77,7 +78,7 @@ STCModule* stcInitBackgroundModule(STCBase *stcBase) {
 
   STCIntervalCallbackData* callbackList = moduleData->callbackList;
   for (int i = 0; i < STC_BG_ENTRIES; i++) {
-    callbackList[i].id = -1;
+    callbackList[i].isInitialized = false;
   }
 
   STCModule* stcBackgroundModule = stcRegisterModule(
@@ -93,19 +94,6 @@ STCModule* stcInitBackgroundModule(STCBase *stcBase) {
   return stcBackgroundModule;
 };
 
-const char* truncateLabel(const char* callbackLabel) {
-  int len = strlen(callbackLabel);
-  if (len > STC_BG_CB_LABEL_LEN-1) {
-    len = STC_BG_CB_LABEL_LEN-1;
-  }
-
-  char* labelCopy = (char*)safeMalloc((len+1)*sizeof(char),"char");
-  memcpy(labelCopy, callbackLabel, len);
-  *(labelCopy + len) = '\0';
-
-  return labelCopy;
-}
-
 int stcAddIntervalCallback(STCModule *module, STCIntervalCallback callback, const char* callbackLabel, int intervalSeconds, void* userData) {
   STCCallbackList* moduleData = (STCCallbackList*)(module->data);
   STCIntervalCallbackData* callbackList = moduleData->callbackList;
@@ -114,19 +102,21 @@ int stcAddIntervalCallback(STCModule *module, STCIntervalCallback callback, cons
   int slotId = nextSlot(callbackList);
   if (slotId >= 0 && slotId < STC_BG_ENTRIES) {
 
-    const char* labelTruncated = truncateLabel(callbackLabel);
-    if(findCallback(callbackList, labelTruncated) != NULL) {
-      safeFree((char*)labelTruncated,strlen(labelTruncated)+1);
+    int len = strlen(callbackLabel);
+    if (len > STC_BG_CB_LABEL_LEN-1) {
+      return STC_BG_CB_LABEL_LENGTH_ERR;
+    }
+
+    if(findCallback(callbackList, callbackLabel) != NULL) {
       return STC_BG_CB_DUPLICATE_LABEL_ERR;
     }
 
-    memcpy(callbackList[slotId].callbackLabel, labelTruncated, strlen(labelTruncated)+1);
-    safeFree((char*)labelTruncated,strlen(labelTruncated)+1);
+    memcpy(callbackList[slotId].callbackLabel, callbackLabel, len+1);
 
-    callbackList[slotId].id = slotId;
+    callbackList[slotId].isInitialized = true;
     callbackList[slotId].callback = callback;
     callbackList[slotId].intervalSeconds = intervalSeconds;
-    callbackList[slotId].countInterval = intervalSeconds;
+    callbackList[slotId].timeOfLastRun = (unsigned)time(NULL);
     callbackList[slotId].userData = userData;
     return 0;
   }
@@ -145,7 +135,6 @@ int stcModifyInterval(STCModule *module, const char* callbackLabel, int newInter
   STCIntervalCallbackData* callbackData = findCallback(callbackList, callbackLabel);
   if(callbackData != NULL) {
     callbackData->intervalSeconds = newIntervalSeconds;
-    callbackData->countInterval = newIntervalSeconds;
     return 0;
   }
 
