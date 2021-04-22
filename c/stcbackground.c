@@ -11,9 +11,7 @@
 #include "logging.h"
 #include "stcbackground.h"
 
-#define MAIN_WAIT_MILLIS 10000
 #define STC_BG_ENTRIES 101
-#define STC_BG_MIN_INTERVAL_SECS MAIN_WAIT_MILLIS/1000
 #define STC_BG_CB_DUPLICATE_LABEL_ERR -2
 #define STC_BG_CB_LABEL_LENGTH_ERR -3
 #define STC_BG_CB_LABEL_LEN 30
