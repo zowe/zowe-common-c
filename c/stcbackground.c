@@ -42,7 +42,6 @@ static int processInterval(STCBase *stcBase, STCModule *module, int selectStatus
     if (!t->isInitialized) break;
 
     // giving ability to disable job by making intervalSeconds less than zero
-    // as we return callbackdata, user can make intervalSeconds zero
     if (t->intervalSeconds < 0) continue;
 
     if ((currTime - t->timeOfLastRun) >= t->intervalSeconds) {
@@ -131,22 +130,6 @@ int stcAddIntervalCallback(STCModule *module, STCIntervalCallback callback, cons
   return -1;
 };
 
-//if intervalSeconds < 0, we disable the job
-int stcModifyInterval(STCModule *module, const char* callbackLabel, int newIntervalSeconds) {
-  STCCallbackList* moduleData = (STCCallbackList*)(module->data);
-  STCIntervalCallbackData* callbackList;
-  if(moduleData != NULL) {
-    callbackList = moduleData->callbackList;
-  }
-
-  STCIntervalCallbackData* callbackData = findCallback(callbackList, callbackLabel);
-  if(callbackData != NULL) {
-    callbackData->intervalSeconds = newIntervalSeconds;
-    return 0;
-  }
-
-  return -1;
-}
 
 /*
   This program and the accompanying materials are
