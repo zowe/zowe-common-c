@@ -24,7 +24,6 @@ typedef int (*STCIntervalCallback)(STCBase* stcBase,
 
 STCModule* stcInitBackgroundModule(STCBase *base);
 int stcAddIntervalCallback(STCModule *module, STCIntervalCallback callback, const char* callbackLabel, int intervalSeconds, void* userData);
-int stcModifyInterval(STCModule *module, const char* callbackLabel, int newIntervalSeconds);
 
 #endif 
 /*
