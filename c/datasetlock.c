@@ -14,7 +14,6 @@
 #include <time.h>
 #endif
 
-#include <sys/sem.h>
 #include "logging.h"
 #include "isgenq.h"
 #include "datasetlock.h"
@@ -128,7 +127,7 @@ static int searchUserInSem(DatasetLockService* lockService,char* user) {
     if (strcmp(value->user, user) == 0) {
       if (value->semId > 0) {
         zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,"heartbeat expire user: %s dataset: %s %s semId: %d \n", value->user, value->dsnMember.dsn, value->dsnMember.membername, value->semId);
-        wakeSempahore(value->semId);
+        releaseSemTableSlot(lockService, value);
       }
     }
   }
@@ -170,77 +169,7 @@ void heartbeatBackgroundHandler(DatasetLockService* lockService) {
   return;
 }
 
-static int createSemaphore(DsnMember* dsnMember) {
-  int semaphoreID;
-  pid_t pid = getpid();
 
-  /* create semaphore */
-  key_t key = pid + semKeyHash(dsnMember);  /* key to pass to semget() */
-  int nsems = 1;  /* number of semaphores in each 'array' of semaphores to be created */
-  semaphoreID = semget(
-        key,                  /* key value */
-        nsems,                /* number of entries */
-        IPC_CREAT | 0666      /* create a new semaphore with perms rw-rw-rw   */
-        );
-
-  return semaphoreID;
-}
-
-static int setSemaphore(int semaphoreID) {
-  // semctl() changes permissions and other characteristics of a semaphore set
-  union semun {
-      int val;
-      struct semid_ds *buf;
-      unsigned short *array;
-  } arg;
-  arg.val = 1;
-  
-  int semnum = 0;    /* array index zero */
-  int semaphoreRetcode;
-  semaphoreRetcode = semctl(semaphoreID, semnum, SETVAL, arg); /* set the value of our semaphore */
-  return semaphoreRetcode;
-}
-
-int sleepSemaphore(DatasetLockService* lockService, SemEntry* entry) {
-
-  int semaphoreRetcode;
-  int semaphoreID = entry->semId;
-  /* define semaphore operation to be performed */
-  struct sembuf semaphoreBuffer[1]; /* just one semaphore in the array */
-  struct sembuf *semaphoreOps = &semaphoreBuffer[0];
-  semaphoreBuffer[0].sem_num = 0; /* index of first and only semaphore */
-  semaphoreBuffer[0].sem_op  = 0; /* 0 = wait */
-  semaphoreBuffer[0].sem_flg = 0; /* 0 = sychronous + don't undo */
-
-  semaphoreRetcode = semop(semaphoreID, semaphoreOps, 1);
-  /* we are now waiting for our semaphore to be posted ... */
-
-  if (semaphoreRetcode == 0 ) {
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2,"destroy semId:%d %s/n",semaphoreID, __FUNCTION__);
-    /* destroy our semaphore */
-    semaphoreRetcode = semctl(semaphoreID, 0, IPC_RMID);
-    if (semaphoreRetcode != -1 ) {
-      releaseSemTableSlot(lockService, entry);
-    }
-  }
-
-  return semaphoreRetcode;
-}
-
-static int wakeSempahore(int semaphoreID) {
-
-  /* post semaphore semaphoreOps */
-  struct sembuf semaphoreBuffer[1];
-  struct sembuf *semaphoreOps = &semaphoreBuffer[0];
-  semaphoreBuffer[0].sem_num = 0;
-  semaphoreBuffer[0].sem_op  = -1;    /* decrement */
-  semaphoreBuffer[0].sem_flg = 0;
-
-  int semaphoreRetcode;
-  semaphoreRetcode = semop(semaphoreID, semaphoreOps, 1); /* 0=wait, 1=increment */
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2,"semId:%d %d end %s/n",semaphoreID, semaphoreRetcode, __FUNCTION__);
-  return semaphoreRetcode;
-}
 
 static int takeExclusiveLock(DsnMember *dsnMember) {
   RName rname_parm; /* resource name; the name of the resource to acquire; the dataset name + optional member */
@@ -357,20 +286,8 @@ int accquireLockAndSemaphore(SemEntry* entry) {
     }
   }
 
-  int semaphoreID;
-  /* not already present, do nothing if present */
-  semaphoreID = createSemaphore(&(entry->dsnMember));
-  if (semaphoreID == -1 ) {
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2,"SEMTABLE_SEMGET_ERROR %s\n", __FUNCTION__);  
-    return SEMTABLE_SEMGET_ERROR;
-  }
+  entry->semId = 1234;
 
-  entry->semId = semaphoreID;
-  int semaphoreRetcode = setSemaphore(semaphoreID);
-  if (semaphoreRetcode == -1 ) {
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2,"SEMTABLE_UNABLE_SET_SEMAPHORE %s\n", __FUNCTION__);  
-    return SEMTABLE_UNABLE_SET_SEMAPHORE;
-  }
 
   return SEMTABLE_SUCCESS;
 }
@@ -412,8 +329,8 @@ int semTableDequeue(DatasetLockService *lockService, DsnMember *dsnMember, char 
     return SEMTABLE_ENTRY_NOT_FOUND;
   }
 
-  int semaphoreRetcode = wakeSempahore(entry->semId);
-  if (semaphoreRetcode == -1 ) {
+  ret = releaseSemTableSlot(lockService, entry);
+  if (ret == -1 ) {
     return SEMTABLE_SEM_DECREMENT_ERROR;
   }
 
