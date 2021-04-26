@@ -80,6 +80,7 @@ static bool memberExists(char* dsName, DynallocMemberName daMemberName);
 
 int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter *jPrinter){
 #ifdef __ZOWE_OS_ZOS
+  // Note: to allow processing of zero-length records set _EDC_ZERO_RECLEN=Y
   int defaultSize = DATA_STREAM_BUFFER_SIZE;
   FILE *in;
   if (recordLength < 1){
@@ -97,14 +98,13 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
   if (in) {
     while (!feof(in)){
       bytesRead = fread(buffer,1,recordLength,in);
-      if (bytesRead > 0){
+      if (bytesRead > 0 && !ferror(in)) {
         jsonAddUnterminatedString(jPrinter, NULL, buffer, bytesRead);
         contentLength = contentLength + bytesRead;
-      }
-      else if (bytesRead == 0){
-        break;
-      }
-      else {
+      } else if (bytesRead == 0 && !feof(in) && !ferror(in)) {
+        // empty record
+        jsonAddString(jPrinter, NULL, "");
+      } else if (ferror(in)) {
         zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,  "Error reading DSN=%s, rc=%d\n", filename, bytesRead);
         break;
       }
