@@ -3872,7 +3872,7 @@ static MimeType MIME_TYPES[] = {
   {"cbl", "text/plain", FALSE},
   {"asm", "text/plain", FALSE},
   {"cpp", "text/plain", FALSE},
-  {"csv", "text/cvs", FALSE},
+  {"csv", "text/csv", FALSE},
   {"h", "text/plain", FALSE},
   {"log", "text/plain", FALSE},
   {"env", "text/plain", FALSE},
