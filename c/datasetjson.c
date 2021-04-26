@@ -1711,6 +1711,7 @@ void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode
     } else if (enqRet == SEMTABLE_SUCCESS) {
       /* the HTTP GET that consumes this message insists that the response body be JSON */
       respondWithMessage(response, HTTP_STATUS_OK, "{\"records\":[\"Enqueue dataset successful\"]}"); 
+      sleepSemaphore(lockService, entry);
     }
     
     return;

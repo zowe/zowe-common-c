@@ -74,6 +74,7 @@ void resetTimeInHbt(DatasetLockService *lockService, char* user);
 void heartbeatBackgroundHandler(DatasetLockService *lockService);
 
 // semaphore
+int sleepSemaphore(DatasetLockService *lockService, SemEntry* entry);
 int findSemTableEntryByDatasetByUser(DatasetLockService *lockService, DsnMember *dsnMember, char* username, SemEntry **entryPtr);
 int findSemTableEntryByDataset(DatasetLockService *lockService, DsnMember *dsnMember, SemEntry **entryPtr);
 int semTableEnqueue(DatasetLockService *lockService, DsnMember *dsnMember, char *username,  SemEntry** entryPtr);
