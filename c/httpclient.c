@@ -288,7 +288,9 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
         }
         break;
       case HTTP_STATE_RESP_STATUS_GAP2:
-        if (isCR || isLF) {
+        if (isCR) {
+          parser->state = HTTP_STATE_RESP_STATUS_CR_SEEN;
+        } else if (isLF) {
           return ANSI_FAILED;
         } else if (isWhitespace) {
           /* include whitespace in statusReason string */

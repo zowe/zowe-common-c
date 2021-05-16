@@ -21,6 +21,9 @@
 
 ZOWE_PRAGMA_PACK
 
+/**
+ * @brief Contains the information representing a resource manager instance.
+ */
 typedef struct ResourceManagerHandle_tag {
   char eyecatcher[8];
 #define RESMGR_HANDLE_EYECATCHER  "RSRCVRMH"
@@ -29,6 +32,17 @@ typedef struct ResourceManagerHandle_tag {
   unsigned short asid;
 } ResourceManagerHandle;
 
+/**
+ * @brief A user function invoked when the resource manager is triggered.
+ *
+ * @param managerParmList Address of the resource manager parameter list (see
+ * IHARMPL for details).
+ * @param userData User data specified on the resmgrAddXXXXResourceManager call.
+ * @param reasonCode If the return value is 8, the output value 1 instructs
+ * the system to remove the returning resource manager.
+ * @return All values except 8 are ignored. 8 tells the system to honor
+ * the user provided reason code.
+ */
 typedef int (ResourceManagerRouinte)(void * __ptr32 managerParmList, void * __ptr32 userData, int * __ptr32 reasonCode);
 
 ZOWE_PRAGMA_PACK_RESET
@@ -40,69 +54,57 @@ ZOWE_PRAGMA_PACK_RESET
 #define resmgrDeleteAddressSpaceResourceManager RMGRDARM
 #endif
 
-/*****************************************************************************
-* Add task resource manager.
-*
-* Parameters:
-*   userRoutine               - user routine to be called when resource manager
-*                               is invoked
-*   userData                  - user data passed to user routine
-*   handle                    - handle containing resource manager information
-*   managerRC                 - resource manager return code
-*
-* Return value:
-*   RC_RESMGR_OK is returned when resource manager has been added.
-*   RC_RESMGR_SERVICE_FAILED is returned when an error occurred (see managerRC
-*   for details).
-*****************************************************************************/
+/**
+ * @brief Adds a task resource manager.
+ *
+ * @param userRoutine User routine to be called when the resource manager is
+ * invoked.
+ * @param userData User data passed to the user routine.
+ * @param handle Handle containing the resource manager information.
+ * @param managerRC Resource manager return code.
+ * @return RC_RESMGR_OK is returned when the resource manager has been added.
+ * RC_RESMGR_SERVICE_FAILED is returned when an error occurred (see managerRC
+ * for details).
+ */
 int resmgrAddTaskResourceManager(ResourceManagerRouinte * __ptr32 userRoutine, void * __ptr32 userData,
                                  ResourceManagerHandle * __ptr32 handle, int *managerRC);
 
-/*****************************************************************************
-* Add address space resource manager.
-*
-* Parameters:
-*   asid                      - address space to be monitored
-*   userRoutine               - user routine to be called when resource manager
-*                               is invoked (must be in common storage)
-*   userData                  - user data passed to user routine
-*   handle                    - handle containing resource manager information
-*   managerRC                 - resource manager return code
-*
-* Return value:
-*   RC_RESMGR_OK is returned when resource manager has been added.
-*   RC_RESMGR_SERVICE_FAILED is returned when an error occurred (see managerRC
-*   for details).
-*****************************************************************************/
+/**
+ * @brief  Adds an address space resource manager.
+ *
+ * @param asid Address space to be monitored.
+ * @param userRoutine User routine to be called when the resource manager is
+ * invoked (must be in common storage).
+ * @param userData User data passed to the user routine.
+ * @param handle Handle containing the resource manager information.
+ * @param managerRC Resource manager return code.
+ * @return RC_RESMGR_OK is returned when the resource manager has been added.
+ * RC_RESMGR_SERVICE_FAILED is returned when an error occurred (see managerRC
+ * for details).
+ */
 int resmgrAddAddressSpaceResourceManager(unsigned short asid, void * __ptr32 userRoutine, void * __ptr32 userData,
                                          ResourceManagerHandle * __ptr32 handle, int *managerRC);
 
-/*****************************************************************************
-* Delete task resource manager.
-*
-* Parameters:
-*   handle                    - handle containing resource manager information
-*   managerRC                 - resource manager return code
-*
-* Return value:
-*   RC_RESMGR_OK is returned when resource manager has been deleted.
-*   RC_RESMGR_SERVICE_FAILED is returned when an error occurred (see managerRC
-*   for details).
-*****************************************************************************/
+/**
+ * @brief Deletes a task resource manager.
+ *
+ * @param handle Handle containing resource manager information.
+ * @param managerRC Resource manager return code.
+ * @return RC_RESMGR_OK is returned when the resource manager has been deleted.
+ * RC_RESMGR_SERVICE_FAILED is returned when an error occurred (see managerRC
+ * for details).
+ */
 int resmgrDeleteTaskResourceManager(ResourceManagerHandle * __ptr32 handle, int *managerRC);
 
-/*****************************************************************************
-* Delete address space resource manager.
-*
-* Parameters:
-*   handle                    - handle containing resource manager information
-*   managerRC                 - resource manager return code
-*
-* Return value:
-*   RC_RESMGR_OK is returned when resource manager has been deleted.
-*   RC_RESMGR_SERVICE_FAILED is returned when an error occurred (see managerRC
-*   for details).
-*****************************************************************************/
+/**
+ * @brief Deletes an address space resource manager.
+ *
+ * @param handle Handle containing the resource manager information.
+ * @param managerRC Resource manager return code.
+ * @return RC_RESMGR_OK is returned when the resource manager has been deleted.
+ * RC_RESMGR_SERVICE_FAILED is returned when an error occurred (see managerRC
+ * for details).
+ */
 int resmgrDeleteAddressSpaceResourceManager(ResourceManagerHandle * __ptr32 handle, int *managerRC);
 
 #define RC_RESMGR_OK              0

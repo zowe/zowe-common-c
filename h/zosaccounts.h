@@ -48,6 +48,9 @@ typedef BPXYGIDN UserInfo;
 #define USER_NAME_LEN 8
 #define GROUP_NAME_LEN 8
 
+#define MAX_GID 2147483647
+#define GID_MAX_CHAR_LENGTH 10
+
 /* Function Prototype */
 int gidGetUserInfo(const char *userName,  UserInfo * info,
                          int *returnCode, int *reasonCode);
@@ -65,6 +68,16 @@ int groupIdGet (char *string, int *returnCode, int *reasonCode);
 int groupGetName(int gid, char *groupNameBuffer, int *returnCode, int *reasonCode);
 int resetZosUserPassword(const char *userName,  const char *password, const char *newPassword,
                          int *returnCode, int *reasonCode);
+/**
+ * @brief Get list of groups to which a user belongs.
+ * @param userName User name.
+ * @param groups Up to *groupCount groups are returned in array groups.
+ * @param groupCount If *groupCount is 0 then on return it contains number of groups found for user.
+ * If *groupCount greater or equal than number of groups then on return it contains actual number of groups for user.
+ * In case of error *groupCount is -1 on return.
+ * @return -1 on failure , 0 on success.
+ */
+int getGroupList(const char *userName, int *groups, int *groupCount, int *returnCode, int *reasonCode);
 
 #endif  /*  __ZOSACCOUNTS__ */
 

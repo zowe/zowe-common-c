@@ -207,7 +207,7 @@ int writeFully(Socket *socket, char *buffer, int len){
       /* Check for both EAGAIN and EWOULDBLOCK on "older" unix systems
        * for portability.
        */
-      if (WRITE_FORCE && returnCode == EAGAIN || returnCode == EWOULDBLOCK) {
+      if (WRITE_FORCE && (returnCode == EAGAIN || returnCode == EWOULDBLOCK)) {
         PollItem item = {0};
         item.fd = socket->sd;
         item.events = POLLEWRNORM;
