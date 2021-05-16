@@ -782,6 +782,37 @@ int dynallocUnallocDatasetByDDName(const DynallocDDName *ddName,
 #define RC_DYNALLOC_TU_ALLOC_FAILED   8
 #define RC_DYNALLOC_SVC99_FAILED      9
 
+/*
+ The following definitions are used to create a qsam file using BPXWDYN.
+ */
+#define DATASET_DEFAULT_DDNAME       "DUMMY"
+
+typedef struct dataSetRequest_tag {
+  char   *ddName;
+  char   *daName;        /* Name of file */
+  char   *manageClass;
+  char   *storageClass;
+  char   *fileData;      /* Data type: TEXT or BINARY ??? */
+  char   *volume;
+  char   *dsnType;       /* LIBRARY,LIBRAY1,PDS,HFS,EXTREQ,EXTPREF,BASIC,LARGE*/
+  char   *eattr;         /* extended attribute: true/false */
+
+  char   *organization;  /* PS, PO, DA */
+  char   *recordFormat;  /* F - fixed,  */
+  int     recordLength;
+  int     blkSize;
+  int     primary;
+  int     secondary;
+  int     fileSize;      /* Size of file*/
+  int     numGenerations;
+  int     avrBlockLength;
+  char   *dataClass;
+  char   *averageRecord;   /* M, K or U */
+  char   *expiration;
+  char   *spaceUnit;      /* BLKS, TRKS, CYCLS, KB, MB, BYTES */
+  int     dirBlk;
+  } dataSetRequest;
+int allocDataSet( dataSetRequest *request, char* message, int messageLength);
 #endif
 
 

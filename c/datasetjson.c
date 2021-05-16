@@ -2243,9 +2243,7 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
 #endif /* __ZOWE_OS_ZOS */
 }
 
-
 #endif /* not METTLE - the whole module */
-
 
 /*
   This program and the accompanying materials are

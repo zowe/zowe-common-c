@@ -18,6 +18,7 @@
 #include "json.h"
 #include "xml.h"
 #include "jcsi.h"
+#include "qsam.h"
 
 #define DATA_STREAM_BUFFER_SIZE 4096
 
