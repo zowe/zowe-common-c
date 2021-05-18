@@ -1,5 +1,3 @@
-
-
 /*
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
@@ -141,10 +139,6 @@ typedef struct AuthResponse_tag {
 #  define DANGEROUS_TRACE(...)   do {} while (0)
 #  define DANGEROUS_DUMPBUF(...) do {} while (0)
 #endif
-
-
-
-/***** General Primitives ******************************/
 
 static int traceParse = 0;
 static int traceDispatch = 0;
@@ -2436,7 +2430,6 @@ static int proxyServe(HttpService *service,
 }
 
 /* SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN 
-
    a Session Cookie is used 
 */
 
@@ -3503,7 +3496,6 @@ HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
    2 feed buffer at parse state
    3 check some status variables
    - maybe close, maybe continue
-
    */
 
 static int serviceLoop(Socket *socket){
@@ -3667,10 +3659,8 @@ void parseURI(HttpRequest *request){
 }
 
 /*
-
   The 12-byte charset id is really filled with one of these,
   followed by 8 bytes of dung.
-
      struct file_tag {                 File Tag Attributes        
        unsigned short ft_ccsid;          Character Set Id          
        unsigned int   ft_txtflag :1;     Pure Text Flag            
@@ -4080,7 +4070,6 @@ bool isCachedCopyModified(HttpRequest *req, uint64_t etag, time_t mtime) {
        *
       struct tm reqMtimeTm;
       time_t reqMtime;
-
       STRING_TO_STRUCT(imsHeader->nativeValue, "%a, %d %b %Y %H:%M:%S %Z", &reqMtimeTm);
       reqMtime = GMT_STRUCT_TO_TIMESTAMP(&reqMtimeTm);
       // printf("isCacheCopyModified: req mtime %lu\n", reqMtime); 
@@ -4211,7 +4200,6 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
          outside the set representable ny ISO-8859-1. I'm not sure how this is 
          working on z/OS; I suspect that the encoding function is more permissive.
          I think we're going to need:
-
            * A separate lookaside file on non-z/OS platforms to provide the file
              encoding information available on z/OS through tagging.
            * Tagging the files encoded as UTF-8 (using whatever platform-dependent
@@ -5706,6 +5694,7 @@ HttpResponse *pseudoRespond(HttpServer *server, HttpRequest *request, ShortLived
 int httpWorkElementHandler(STCBase *base,
                            STCModule *module,
                            WorkElementPrefix *prefix) {
+  /* printf("in httpWorkElementHandler %s\n", "username ?"); */
   int status = 0;
   switch (prefix->payloadCode) {
   case HTTP_CONSIDER_CLOSE_CONVERSATION:
@@ -5951,7 +5940,7 @@ int httpWorkElementHandler(STCBase *base,
   return status;
 }
 
-int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
+int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {                                                                        
   if (httpServerIOTrace){
 #ifdef __ZOWE_OS_ZOS
     printf("SELECTX (Mk 2), selectStatus=0x%x, qReadyECB=0x%x\n",selectStatus,base->qReadyECB);
@@ -5985,6 +5974,7 @@ void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 int mainHttpLoop(HttpServer *server){
   STCBase *base = server->base;
   /* server pointer will be copied/accessible from module->data */
+
   STCModule *httpModule = stcRegisterModule(base,
                                             STC_MODULE_JEDHTTP,
                                             server,
@@ -5995,9 +5985,6 @@ int mainHttpLoop(HttpServer *server){
 
   return stcBaseMainLoop(base, MAIN_WAIT_MILLIS);
 }
-
-
-
 
 /*
   This program and the accompanying materials are

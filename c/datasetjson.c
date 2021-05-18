@@ -46,6 +46,15 @@
 
 #define INDEXED_DSCB 96
 
+#include "datasetlock.h"
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 
+#endif
+#include <sys/sem.h>
+
+#include "isgenq.h" 
+#include <ctype.h>
+
 static char defaultDatasetTypesAllowed[3] = {'A','D','X'};
 static char clusterTypesAllowed[3] = {'C','D','I'}; /* TODO: support 'I' type DSNs */
 static int clusterTypesCount = 3;
@@ -77,6 +86,7 @@ typedef struct Volser_tag {
 
 static int getVolserForDataset(const DatasetName *dataset, Volser *volser);
 static bool memberExists(char* dsName, DynallocMemberName daMemberName);
+
 
 int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter *jPrinter){
 #ifdef __ZOWE_OS_ZOS
@@ -701,11 +711,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
   JsonArray *recordArray = jsonObjectGetArray(json,"records");
   int recordCount = jsonArrayGetCount(recordArray);
   int maxRecordLength = 80;
-  FILE *outDataset = fopen(datasetPath, "wb, recfm=*, type=record");
-  if (outDataset == NULL) {
-    respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
-    return;
-  }  
+  FILE *outDataset;
   int isFixed = FALSE;
 
   Volser volser;
@@ -732,6 +738,11 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
     }
   }
   else{
+    outDataset = fopen(datasetPath, "wb, recfm=*, type=record");
+    if (outDataset == NULL) {
+      respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
+      return;
+    }
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "fallback for record length discovery\n");
     fldata_t fileinfo = {0};
     char filenameOutput[100];
@@ -771,7 +782,6 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
             int errorLength = sprintf(errorMessage,"Record #%d with contents \"%s\" is longer than the max record length of %d",i+1,jsonString,maxRecordLength);
             errorMessage[errorLength] = '\0';
             respondWithError(response, HTTP_STATUS_BAD_REQUEST,errorMessage);
-            fclose(outDataset);
             return;
           } 
         }
@@ -787,13 +797,17 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       int errorLength = sprintf(errorMessage,"Array position %d is not a string, but must be for record updating",i);
       errorMessage[errorLength] = '\0';
       respondWithError(response, HTTP_STATUS_BAD_REQUEST,errorMessage);
-      fclose(outDataset);      
       return;
     }
   }
   /*passed record length check and type check*/
   int bytesWritten = 0;
   int recordsWritten = 0;
+  outDataset = fopen(datasetPath, "wb, recfm=*, type=record");
+  if (outDataset == NULL) {
+    respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
+    return;
+  }
   char recordBuffer[maxRecordLength+1];
   for (int i = 0; i < recordCount; i++) {
     char *record = jsonArrayGetString(recordArray,i);
@@ -857,7 +871,7 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
 
   if (daRC != RC_DYNALLOC_OK) {
     zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-            "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+            "error: ds alloc 1 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (update)\n",
             daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN, "update");
     respondWithDYNALLOCError(response, daRC, daSysRC, daSysRSN,
@@ -1055,7 +1069,7 @@ static int getMaxRecordLength(char *dscb){
   return lrecl;
 }
 
-void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
+void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode, DatasetLockService* lockService) {
 #ifdef __ZOWE_OS_ZOS
   if (jsonMode != TRUE) { /*TODO add support for updating files with raw bytes instead of JSON*/
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Cannot update file without JSON formatted record request");
@@ -1076,6 +1090,25 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
   int translationLength;
   int outCCSID = NATIVE_CODEPAGE;
 
+  /* Prevent the user from updating the dataset if it's enqueued to a different user*/
+  /* obtain dsn info */
+  DsnMember dsnMember;
+  int parseRet = extractDSNMemberFromRequest(response->request, absolutePath, &dsnMember);
+  if (parseRet < 0) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name\n");
+  }
+
+  /* check owner of ENQ is the same as requestor */
+  SemEntry* entry;
+  int retFind = findSemTableEntryByDatasetByUser(lockService, &dsnMember, response->request->username, &entry);
+  
+  if (retFind == NO_MATCH_USER) {
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: found mismatched ENQ");
+    respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Already locked by another user\n");
+    return;
+  }
+ 
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "in updateDataset last matched : %s %s %s\n", entry->dsnMember.dsn, entry->dsnMember.membername, entry->user);         
   returnCode = convertCharset(contentBody,
                               bodyLength,
                               CCSID_UTF_8,
@@ -1087,7 +1120,7 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
                               &translationLength,
                               &reasonCode);
 
-  if(returnCode == 0) {  
+  if (returnCode == 0) {  
     int blockSize = 0x10000;
     int maxBlockCount = (translationLength*2)/blockSize;
     if (!maxBlockCount){
@@ -1161,7 +1194,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
   
   if (daReturnCode != RC_DYNALLOC_OK) {
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,
-    		    "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+            "error: ds alloc 2 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
             daDatasetName.name, daMemberName.name, daDDName.name,
             daReturnCode, daSysReturnCode, daSysReasonCode);
@@ -1180,7 +1213,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
                                                    ); 
     if (daReturnCode != RC_DYNALLOC_OK) {
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,
-    		      "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+              "error: ds alloc 3 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
               " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
               daDatasetName.name, daMemberName.name, daDDName.name,
               daReturnCode, daSysReturnCode, daSysReasonCode);
@@ -1248,7 +1281,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
 
     if (daReturnCode != RC_DYNALLOC_OK) {
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,
-    		      "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+              "error: ds alloc 4 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
               " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
               daDatasetName.name, daMemberName.name, daDDName.name,
               daReturnCode, daSysReturnCode, daSysReasonCode);
@@ -1444,7 +1477,7 @@ void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *ac
                               &translationLength,
                               &reasonCode);
 
-  if(returnCode == 0) {
+  if (returnCode == 0) {
 
     ShortLivedHeap *slh = makeShortLivedHeap(0x10000,0x10);
     char errorBuffer[2048];
@@ -1577,11 +1610,12 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
   DatasetName dsn;
   DatasetMemberName memberName;
   extractDatasetAndMemberName(absolutePath, &dsn, &memberName);
-
+ 
   DynallocDatasetName daDsn;
   DynallocMemberName daMember;
   memcpy(daDsn.name, dsn.value, sizeof(daDsn.name));
   memcpy(daMember.name, memberName.value, sizeof(daMember.name));
+
   DynallocDDName daDDname = {.name = "????????"};
 
   int daRC = RC_DYNALLOC_OK, daSysRC = 0, daSysRSN = 0;
@@ -1596,7 +1630,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
 
   if (daRC != RC_DYNALLOC_OK) {
     zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-    		    "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+            "error: ds alloc 5 dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
             daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
     respondWithDYNALLOCError(response, daRC, daSysRC, daSysRSN,
@@ -1621,6 +1655,89 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
             daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN, "read");
   }
 
+}
+
+int extractDSNMemberFromRequest(HttpRequest *request, char* absolutePath, DsnMember *dsnMember) {
+
+    if (!isDatasetPathValid(absolutePath)) {
+      return -1;
+    }
+
+    DatasetName dsn;
+    DatasetMemberName memberName;
+    extractDatasetAndMemberName(absolutePath, &dsn, &memberName);
+    
+    DynallocDatasetName daDsn;
+    DynallocMemberName daMember;
+    memcpy(daDsn.name, dsn.value, sizeof(daDsn.name));
+    memcpy(daMember.name, memberName.value, sizeof(daMember.name));
+
+    memset(dsnMember->dsn,' ',DSN_LEN);          /* space-fill */
+    memset(dsnMember->membername,' ',MEMBER_LEN);    /* space-fill */
+    
+    memcpy(dsnMember->membername,daMember.name,MEMBER_LEN);   /* copy in member */
+    memcpy(dsnMember->dsn,daDsn.name,DSN_LEN); /* copy in dsn */
+
+    int len = DSN_LEN + MEMBER_LEN;
+    for (int i = 0; i < len; i++) { 
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,"%c",*(dsnMember->dsn+i));
+    }
+    return 0;
+}
+
+void respondWithEnqueue(HttpResponse* response, char* absolutePath, int jsonMode, DatasetLockService* lockService) {
+    DsnMember dsnMember;
+    int parseRet = extractDSNMemberFromRequest(response->request, absolutePath, &dsnMember);
+    if (parseRet<0) {
+      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name\n");
+    }
+
+    SemEntry* entry;
+    int enqRet=semTableEnqueue(lockService, &dsnMember, response->request->username, &entry);
+    if (enqRet == LOCK_RESOURCE_CONFLICT) {
+      respondWithError(response,HTTP_STATUS_RESOURCE_CONFLICT,"Unable to obtain exclusive access to Dataset or member");
+    }
+    else if (enqRet == LOCK_EXCLUSIVE_ERROR) {
+      respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"isgenqTryExclusiveLock failed");
+    }
+    else if (enqRet == SEMTABLE_CAPACITY_ERROR) {
+      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Number of semaphores exceeded");
+    } else if (enqRet == SEMTABLE_SEMGET_ERROR || enqRet == SEMTABLE_UNKNOWN_ERROR) {
+      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to create semaphore");
+    } else if (enqRet == SEMTABLE_EXISTING_DATASET_LOCKED || enqRet == SEMTABLE_EXISTING_SAME_USER) {
+      respondWithError(response, HTTP_STATUS_RESOURCE_CONFLICT , "dataset is already enqueued"); 
+    } else if (enqRet == SEMTABLE_UNABLE_SET_SEMAPHORE) {
+       respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to set semaphore");
+    } else if (enqRet == SEMTABLE_SUCCESS) {
+      /* the HTTP GET that consumes this message insists that the response body be JSON */
+      respondWithMessage(response, HTTP_STATUS_OK, "{\"records\":[\"Enqueue dataset successful\"]}"); 
+      sleepSemaphore(lockService, entry);
+    }
+    
+    return;
+} /* end of respondWithEnqueue */
+
+void respondWithDequeue(HttpResponse* response, char* absolutePath, int jsonMode, DatasetLockService* lockService) {
+
+    DsnMember dsnMember;
+    int parseRet = extractDSNMemberFromRequest(response->request, absolutePath, &dsnMember);
+    if (parseRet<0) {
+      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
+    }
+
+    /* DEQ dataset */
+    int deqRet=semTableDequeue(lockService, &dsnMember, response->request->username);
+    if (deqRet == SEMTABLE_EXISTING_DATASET_LOCKED) {
+      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "dataset locked by other user");
+    } else if (deqRet == SEMTABLE_ENTRY_NOT_FOUND) {
+      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "dataset name not found in enqueue list");
+    } else if (deqRet == SEMTABLE_SEM_DECREMENT_ERROR) {
+      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to dequeue dataset"); 
+    } else if (deqRet == SEMTABLE_SUCCESS) {
+      /* the HTTP GET that consumes this message insists that the response body be JSON */
+      respondWithMessage(response, HTTP_STATUS_OK,"dequeue dataset %s successful\n",
+                  absolutePath);  
+    }
 }
 
 #define CSI_VSAMTYPE_KSDS  0x8000
@@ -1955,7 +2072,7 @@ void respondWithDatasetMetadata(HttpResponse *response) {
   char *absDsPathTemp = stringConcatenate(response->slh, "//'", percentDecoded);
   char *absDsPath = stringConcatenate(response->slh, absDsPathTemp, "'");
 
-  if(!isDatasetPathValid(absDsPath)){
+  if (!isDatasetPathValid(absDsPath)){
     respondWithError(response,HTTP_STATUS_BAD_REQUEST,"Invalid dataset path");
     return;
   }
@@ -2023,7 +2140,7 @@ void respondWithDatasetMetadata(HttpResponse *response) {
     }
   }
   
-  if(addQualifiersArg != NULL) {
+  if (addQualifiersArg != NULL) {
     int addQualifiers = !strcmp(addQualifiersArg, "true");
 #define DSN_MAX_LEN 44
     char dsnNameNullTerm[DSN_MAX_LEN + 1] = {0}; //+1 for null term
@@ -2242,7 +2359,6 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
   finishResponse(response);     
 #endif /* __ZOWE_OS_ZOS */
 }
-
 
 #endif /* not METTLE - the whole module */
 
