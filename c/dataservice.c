@@ -115,7 +115,7 @@ static void *lookupDLLEntryPoint(char *libraryName, char *functionName){
   status = fileInfo(libraryName, &info, &returnCode, &reasonCode);
   if (status == 0) {
     if (!(info.attributeFlags & BPXYSTAT_ATTR_PROGCTL)) {
-      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, 
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_WARNING,
               "FAILURE: Dataservice: %s does not have the Program Control attribute this may cause unexpected errors therefore will not be loaded\n",
               libraryName);
     } else {
@@ -128,6 +128,7 @@ static void *lookupDLLEntryPoint(char *libraryName, char *functionName){
           zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "%s.%s could not be found -  dlsym error %s\n", libraryName, functionName, dlerror());
         } else {
           zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "%s.%s is at 0x%" PRIxPTR "\n", libraryName, functionName, ep);
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "Dataservice: %s loaded.\n", libraryName);
         }
       } else {
         zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "dlopen error for %s - %s\n",libraryName, dlerror());
