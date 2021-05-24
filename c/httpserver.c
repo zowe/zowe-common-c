@@ -2516,6 +2516,8 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
     printf("u: '%s' p: '%s'\n",request->username,request->password);
  #endif
 #endif
+    printf("SAF auth for user: '%s'\n", request->username);
+    printf("u: '%s' p: '%s'\n",request->username,request->password);
     if (isLowerCasePasswordAllowed() || isPassPhrase(request->password)) {
 #ifdef DEBUG
       printf("mixed-case system or a pass phrase, not upfolding password\n");
@@ -3004,6 +3006,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   response->sessionCookie = NULL;
 
   AUTH_TRACE("AUTH: tokenCookieText: %s\n",(tokenCookieText ? tokenCookieText : "<noAuthToken>"));
+  printf("AUTH data: %d\n\n", authDataFound);
   int returnCode = 0;
   int reasonCode = 0;
   int retVal = 0;
@@ -3400,6 +3403,7 @@ static int handleHttpService(HttpServer *server,
   switch (service->authType){
    
   case SERVICE_AUTH_NONE:
+    
     request->authenticated = TRUE;
     break;
   case SERVICE_AUTH_SAF:
@@ -3410,7 +3414,9 @@ static int handleHttpService(HttpServer *server,
 #ifdef DEBUG
     printf("saf auth needed for service %s\n",service->name);
 #endif
+    printf("\n\nThis should happen before safAuthenticate\n\n");
     request->authenticated = safAuthenticate(service, request, &authResponse);
+    printf("\n\nThis should happen after safAuthenticate - %d\n\n", request->authenticated);
     break;
   case SERVICE_AUTH_CUSTOM:
 #ifdef DEBUG
@@ -3419,6 +3425,25 @@ static int handleHttpService(HttpServer *server,
     request->authenticated = FALSE;
     break;
   case SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN:
+    if (conversation->parser) {
+      HttpRequestParser *parser = conversation->parser;
+      char *method = safeMalloc(1024, "method");
+      char *uri = safeMalloc(1024, "uri");
+      snprintf(uri, 1024, "%s", request->uri); 
+      snprintf(method, 1024, "%s", request->method); 
+      destructivelyNativize(uri);
+      destructivelyNativize(method);
+      char *profileName = safeMalloc(1024, "profileName");
+      // TODO: Remove printf's (not ready for merge)
+      printf("\n\n\nURI, METHOD, PROFILENAME PRE CONVERSION: %s - %s - %s - (old) %s\n\n", uri, method, profileName, request->uri);
+      getProfileNameFromRequest(profileName, uri, method, -1);
+      printf("\n\n\nURI, METHOD, PROFILENAME POST CONVERSION %s - %s - %s\n\n", uri, method, profileName);
+      int rc = serveAuthCheckByParams(service, request->username, "ZOWE", profileName, 2);
+      printf("\n\n\nRC STATUS: %d - profileName %s\n\n", rc, profileName);
+      if (rc != 0) {
+        respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
+      }
+    }
     switch (server->config->authTokenType) {
     case SERVICE_AUTH_TOKEN_TYPE_JWT:
     case SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK:
