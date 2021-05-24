@@ -67,7 +67,8 @@ typedef struct DataService_tag {
   JsonObject *serviceDefinition;
   uint64 loggingIdentifier;
   WebPlugin *plugin;
-  struct Storage_tag *storage;
+  struct Storage_tag *localStorage;
+  struct Storage_tag *remoteStorage;
 } DataService;
 
 WebPlugin *makeWebPlugin(char *baseDir, struct JsonObject_tag *pluginDefintion, InternalAPIMap *internalAPIMap,
