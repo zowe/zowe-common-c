@@ -3425,10 +3425,25 @@ static int handleHttpService(HttpServer *server,
     request->authenticated = FALSE;
     break;
   case SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN:
+    switch (server->config->authTokenType) {
+    case SERVICE_AUTH_TOKEN_TYPE_JWT:
+    case SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK:
+      request->authenticated = serviceAuthWithJwt(service, request, response);
+
+      if (request->authenticated  ||
+          service->server->config->authTokenType
+            != SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK) {
+        break;
+      } /* else fall through */
+    case SERVICE_AUTH_TOKEN_TYPE_LEGACY:
+      request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken, &authResponse);
+      break;
+    }
     if (conversation->parser) {
       HttpRequestParser *parser = conversation->parser;
       char *method = safeMalloc(1024, "method");
       char *uri = safeMalloc(1024, "uri");
+      char *username = safeMalloc(1024, "username");
       snprintf(uri, 1024, "%s", request->uri); 
       snprintf(method, 1024, "%s", request->method); 
       destructivelyNativize(uri);
@@ -3443,20 +3458,6 @@ static int handleHttpService(HttpServer *server,
       if (rc != 0) {
         respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
       }
-    }
-    switch (server->config->authTokenType) {
-    case SERVICE_AUTH_TOKEN_TYPE_JWT:
-    case SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK:
-      request->authenticated = serviceAuthWithJwt(service, request, response);
-
-      if (request->authenticated  ||
-          service->server->config->authTokenType
-            != SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK) {
-        break;
-      } /* else fall through */
-    case SERVICE_AUTH_TOKEN_TYPE_LEGACY:
-      request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken, &authResponse);
-      break;
     }
     break;
   }
