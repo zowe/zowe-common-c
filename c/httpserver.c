@@ -2516,8 +2516,6 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
     printf("u: '%s' p: '%s'\n",request->username,request->password);
  #endif
 #endif
-    printf("SAF auth for user: '%s'\n", request->username);
-    printf("u: '%s' p: '%s'\n",request->username,request->password);
     if (isLowerCasePasswordAllowed() || isPassPhrase(request->password)) {
 #ifdef DEBUG
       printf("mixed-case system or a pass phrase, not upfolding password\n");
