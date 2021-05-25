@@ -1,5 +1,10 @@
 # Zowe Common C Changelog
 
+## `1.22.0`
+
+- Enhancement: Add "remoteStorage" pointer to dataservice struct, for accessing high availability remote storage in addition to or alternatively to local storage.
+- Bugfix: Dataservice loading did not warn if program control was missing, which is essential, so plugin loading would fail silently in that case.
+
 ## `1.21.0`
 
 - Set cookie path to root in order to avoid multiple cookies when browser tries to set path automatically
