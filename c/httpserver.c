@@ -3398,6 +3398,7 @@ static int handleHttpService(HttpServer *server,
 
   AuthResponse authResponse;
 
+  printf("\n\n\nWHAT IS AUTH TYPE? %d\n\n\n", service->authType);
   switch (service->authType){
    
   case SERVICE_AUTH_NONE:
@@ -3422,7 +3423,23 @@ static int handleHttpService(HttpServer *server,
 #endif
     request->authenticated = FALSE;
     break;
-  case SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN:
+  case SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN_NO_RBAC:
+    switch (server->config->authTokenType) {
+    case SERVICE_AUTH_TOKEN_TYPE_JWT:
+    case SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK:
+      request->authenticated = serviceAuthWithJwt(service, request, response);
+
+      if (request->authenticated  ||
+          service->server->config->authTokenType
+            != SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK) {
+        break;
+      } /* else fall through */
+    case SERVICE_AUTH_TOKEN_TYPE_LEGACY:
+      request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken, &authResponse);
+      break;
+    }
+    break;
+  default: /* Type was not found, checking custom handlers */
     switch (server->config->authTokenType) {
     case SERVICE_AUTH_TOKEN_TYPE_JWT:
     case SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK:
@@ -3457,7 +3474,6 @@ static int handleHttpService(HttpServer *server,
         respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
       }
     }
-    break;
   }
 #ifdef DEBUG
   printf("service=%s authenticated=%d\n",service->name,request->authenticated);
@@ -3500,6 +3516,10 @@ static int handleHttpService(HttpServer *server,
      fileService - what about mime guessing
      */
 }
+
+/* static struct registerAuthHandlers() {
+  return NULL;
+} */
 
 HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
                                        HttpServer *server){
