@@ -80,6 +80,7 @@ static bool memberExists(char* dsName, DynallocMemberName daMemberName);
 
 int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter *jPrinter){
 #ifdef __ZOWE_OS_ZOS
+  // Note: to allow processing of zero-length records set _EDC_ZERO_RECLEN=Y
   int defaultSize = DATA_STREAM_BUFFER_SIZE;
   FILE *in;
   if (recordLength < 1){
@@ -97,14 +98,13 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
   if (in) {
     while (!feof(in)){
       bytesRead = fread(buffer,1,recordLength,in);
-      if (bytesRead > 0){
+      if (bytesRead > 0 && !ferror(in)) {
         jsonAddUnterminatedString(jPrinter, NULL, buffer, bytesRead);
         contentLength = contentLength + bytesRead;
-      }
-      else if (bytesRead == 0){
-        break;
-      }
-      else {
+      } else if (bytesRead == 0 && !feof(in) && !ferror(in)) {
+        // empty record
+        jsonAddString(jPrinter, NULL, "");
+      } else if (ferror(in)) {
         zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,  "Error reading DSN=%s, rc=%d\n", filename, bytesRead);
         break;
       }
@@ -777,21 +777,8 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
         }
         recordLength = maxRecordLength;
       }
-      if (isFixed && (recordLength != 0) && (recordLength != maxRecordLength)) {
+      if (isFixed && recordLength < maxRecordLength) {
         zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: record given for fixed datset less than maxLength=%d, len=%d, data:%s\n",maxRecordLength,recordLength,jsonString);
-        char recordBuffer[maxRecordLength+1];        
-        memcpy(recordBuffer,jsonString,recordLength);
-        memset(recordBuffer+recordLength,' ',maxRecordLength-recordLength);
-        recordBuffer[maxRecordLength] = '\0';
-        safeFree(jsonString,recordLength);
-        safeFree((char*)item,sizeof(Json));
-        Json *largerItem = (Json*)safeMalloc(sizeof(Json),"Padded JSON String");
-        largerItem->type = JSON_TYPE_STRING;
-        largerItem->data.string = recordBuffer;
-        recordArray->elements[i] = largerItem;
-        char *updatedRecord = jsonArrayGetString(recordArray,i);
-        int updatedLength = strlen(updatedRecord);
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: record updated to have new length of %d which should match max length of %d, content:%s\n",updatedLength,maxRecordLength,updatedRecord);
       }
     }
     else {
@@ -805,8 +792,9 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
     }
   }
   /*passed record length check and type check*/
-  int bytesRead = 0;
+  int bytesWritten = 0;
   int recordsWritten = 0;
+  char recordBuffer[maxRecordLength+1];
   for (int i = 0; i < recordCount; i++) {
     char *record = jsonArrayGetString(recordArray,i);
     int recordLength = strlen(record);
@@ -814,13 +802,18 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       record = " ";
       recordLength = 1;
     }
-    else if (recordLength > maxRecordLength){
-      recordLength = maxRecordLength; //sanitized input above, will cut off extra space/nonprintable here
+    int len;
+    if (isFixed) {
+      // pad with spaces/or trim if needed
+      len = snprintf (recordBuffer, sizeof(recordBuffer), "%-*s", maxRecordLength, record);
+    } else {
+      // trim if needed
+      len = snprintf (recordBuffer, sizeof(recordBuffer), "%s", record);
     }
-    bytesRead = fwrite(record,1,recordLength,outDataset);
+    bytesWritten = fwrite(recordBuffer,1,len,outDataset);
     recordsWritten++;
-    if (bytesRead < 0 && ferror(outDataset)){
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error writing to dataset, rc=%d\n", bytesRead);
+    if (bytesWritten < 0 && ferror(outDataset)){
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error writing to dataset, rc=%d\n", bytesWritten);
       respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"Error writing to dataset");
       fclose(outDataset);
       break;

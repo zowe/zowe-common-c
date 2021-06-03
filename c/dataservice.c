@@ -115,7 +115,7 @@ static void *lookupDLLEntryPoint(char *libraryName, char *functionName){
   status = fileInfo(libraryName, &info, &returnCode, &reasonCode);
   if (status == 0) {
     if (!(info.attributeFlags & BPXYSTAT_ATTR_PROGCTL)) {
-      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, 
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_WARNING,
               "FAILURE: Dataservice: %s does not have the Program Control attribute this may cause unexpected errors therefore will not be loaded\n",
               libraryName);
     } else {
@@ -128,6 +128,7 @@ static void *lookupDLLEntryPoint(char *libraryName, char *functionName){
           zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "%s.%s could not be found -  dlsym error %s\n", libraryName, functionName, dlerror());
         } else {
           zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "%s.%s is at 0x%" PRIxPTR "\n", libraryName, functionName, ep);
+          zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_INFO, "Dataservice: %s loaded.\n", libraryName);
         }
       } else {
         zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "dlopen error for %s - %s\n",libraryName, dlerror());
@@ -143,7 +144,7 @@ static void *lookupDLLEntryPoint(char *libraryName, char *functionName){
 }
 
 static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonObject, char *subURI, InternalAPIMap *namedAPIMap,
-                                    unsigned int *idMultiplier, int pluginLogLevel, Storage *storage) {
+                                    unsigned int *idMultiplier, int pluginLogLevel, Storage *remoteStorage) {
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "%s begin data service:\n", __FUNCTION__);
   DataService *service = (DataService*) safeMalloc(sizeof (DataService), "DataService");
   memset(service, 0, sizeof (DataService));
@@ -151,7 +152,8 @@ static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonOb
   service->serviceDefinition = serviceJsonObject;
   service->pattern = jsonObjectGetString(serviceJsonObject, "pattern");
   service->subURI = subURI;
-  service->storage = storage;
+  service->remoteStorage = remoteStorage;
+  service->localStorage = makeMemoryStorage(NULL);
   if (subURI) { /* group member */
     service->name = jsonObjectGetString(serviceJsonObject, "subserviceName");
   } else {
@@ -261,7 +263,7 @@ static bool isValidServiceDef(JsonObject *serviceDef) {
 }
 
 WebPlugin *makeWebPlugin2(char *pluginLocation, JsonObject *pluginDefintion, InternalAPIMap *internalAPIMap,
-                         unsigned int *idMultiplier, int pluginLogLevel, Storage *storage) {
+                         unsigned int *idMultiplier, int pluginLogLevel, Storage *remoteStorage) {
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG2, "%s begin\n", __FUNCTION__);
   WebPlugin *plugin = (WebPlugin*)safeMalloc(sizeof(WebPlugin),"WebPlugin");
   memset(plugin, 0, sizeof (WebPlugin));
@@ -312,7 +314,7 @@ WebPlugin *makeWebPlugin2(char *pluginLocation, JsonObject *pluginDefintion, Int
 
       if (!type || !strcmp(type, "service")) {
         plugin->dataServices[k++] = makeDataService(plugin, jsonArrayGetObject(dataServices, i), NULL, internalAPIMap,
-                                                    idMultiplier, pluginLogLevel, storage);
+                                                    idMultiplier, pluginLogLevel, remoteStorage);
         (*idMultiplier++);
       } else if (!strcmp(type, "group")) {
         char *subURI = jsonObjectGetString(serviceDef, "name");
@@ -320,7 +322,7 @@ WebPlugin *makeWebPlugin2(char *pluginLocation, JsonObject *pluginDefintion, Int
         if (group) {
           for (int j = 0; j < jsonArrayGetCount(group); j++) {
             plugin->dataServices[k++] = makeDataService(plugin, jsonArrayGetObject(group, j), subURI, internalAPIMap,
-                                                        idMultiplier, pluginLogLevel, storage);
+                                                        idMultiplier, pluginLogLevel, remoteStorage);
             (*idMultiplier++);
           }
         }
