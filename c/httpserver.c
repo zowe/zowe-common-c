@@ -1545,6 +1545,7 @@ HttpServer *makeHttpServer3(STCBase *base,
 #endif
 
   server->config = (HttpServerConfig*)safeMalloc31(sizeof(HttpServerConfig),"HttpServerConfig");
+  server->authHandler = (HttpAuthHandler*)safeMalloc31(sizeof(HttpAuthHandler),"HttpAuthHandler");
   server->properties = htCreate(4001,stringHash,stringCompare,NULL,NULL);
   memset(server->config,0,sizeof(HttpServerConfig));
 
@@ -3417,12 +3418,12 @@ static int handleHttpService(HttpServer *server,
     request->authenticated = safAuthenticate(service, request, &authResponse);
     printf("\n\nThis should happen after safAuthenticate - %d\n\n", request->authenticated);
     break;
-  case SERVICE_AUTH_CUSTOM:
+  /* case SERVICE_AUTH_CUSTOM: - Safe to remove?
 #ifdef DEBUG
     printf("CUSTOM auth not yet supported\n");
 #endif
     request->authenticated = FALSE;
-    break;
+    break; */
   case SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN_NO_RBAC:
     switch (server->config->authTokenType) {
     case SERVICE_AUTH_TOKEN_TYPE_JWT:
@@ -3454,22 +3455,9 @@ static int handleHttpService(HttpServer *server,
       request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken, &authResponse);
       break;
     }
+    /* TODO: authHandlers needs to be an array of structs, not just 1 custom type */
     if (conversation->parser) {
-      HttpRequestParser *parser = conversation->parser;
-      char *method = safeMalloc(1024, "method");
-      char *uri = safeMalloc(1024, "uri");
-      char *username = safeMalloc(1024, "username");
-      snprintf(uri, 1024, "%s", request->uri); 
-      snprintf(method, 1024, "%s", request->method); 
-      destructivelyNativize(uri);
-      destructivelyNativize(method);
-      char *profileName = safeMalloc(1024, "profileName");
-      // TODO: Remove printf's (not ready for merge)
-      printf("\n\n\nURI, METHOD, PROFILENAME PRE CONVERSION: %s - %s - %s - (old) %s\n\n", uri, method, profileName, request->uri);
-      getProfileNameFromRequest(profileName, uri, method, -1);
-      printf("\n\n\nURI, METHOD, PROFILENAME POST CONVERSION %s - %s - %s\n\n", uri, method, profileName);
-      int rc = serveAuthCheckByParams(service, request->username, "ZOWE", profileName, 2);
-      printf("\n\n\nRC STATUS: %d - profileName %s\n\n", rc, profileName);
+      int rc = service->server->authHandler->authFunction(conversation, request, service);
       if (rc != 0) {
         respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
       }
