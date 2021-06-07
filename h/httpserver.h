@@ -45,10 +45,10 @@
 #define SERVICE_TYPE_FILES_SECURE    6
 
 /* TODO: These need to become strings so they can be more mobile i.e. "NATIVE_WITH_SESSION_TOKEN" */
-#define SERVICE_AUTH_NONE   1
-#define SERVICE_AUTH_SAF    2
-#define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN 3
-#define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN_NO_RBAC 4
+#define SERVICE_AUTH_NONE   "NONE"
+#define SERVICE_AUTH_SAF    "SAF"
+#define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN "NATIVE_WITH_SESSION_TOKEN"
+#define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN_NO_RBAC "NATIVE_WITH_SESSION_TOKEN_NO_RBAC"
 
 #define SERVICE_AUTH_TOKEN_TYPE_LEGACY                    0
 #define SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK  1
@@ -182,7 +182,7 @@ typedef struct HttpService_tag{
   char **parsedMaskParts;
   int    matchFlags;
   int    serviceType; 
-  int    authType;
+  char   *authType;
   int    runInSubtask;
   void  *authority; /* NULL unless AUTH_CUSTOM */
   AuthExtract                    *authExtractionFunction;
@@ -236,7 +236,7 @@ typedef struct HttpServer_tag{
   uint64           serverInstanceUID;   /* may be something smart at some point. Now just startup STCK */
   void             *sharedServiceMem; /* address shared by all HttpServices */
   hashtable        *loggingIdsByName; /* contains a map of pluginID -> loggingID */
-  HttpAuthHandler  *authHandler[64]; /* TODO: Needs to be an array of handlers */ 
+  HttpAuthHandler  *authHandler[64]; /* contains array of authHandlers (type + auth func) for HttpServices */
 } HttpServer;
 
 typedef struct WSReadMachine_tag{
