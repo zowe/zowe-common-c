@@ -3004,7 +3004,6 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   response->sessionCookie = NULL;
 
   AUTH_TRACE("AUTH: tokenCookieText: %s\n",(tokenCookieText ? tokenCookieText : "<noAuthToken>"));
-  printf("AUTH data: %d\n\n", authDataFound);
   int returnCode = 0;
   int reasonCode = 0;
   int retVal = 0;
@@ -3411,9 +3410,7 @@ static int handleHttpService(HttpServer *server,
 #ifdef DEBUG
     printf("saf auth needed for service %s\n",service->name);
 #endif
-    printf("\n\nThis should happen before safAuthenticate\n\n");
     request->authenticated = safAuthenticate(service, request, &authResponse);
-    printf("\n\nThis should happen after safAuthenticate - %d\n\n", request->authenticated);
   }
   /* case SERVICE_AUTH_CUSTOM: - Safe to remove?
 #ifdef DEBUG
@@ -3965,14 +3962,6 @@ static char *getMimeType2(char *extension, int *isBinary, int isDotFile, int ccs
     return mimeType->mimeType;
   }
   if (isTaggedAsText) {
-    *isBinary = FALSE;
-    return "text/typescript";
-  } else if (!strcmp(extension,"txt") ||
-        !strcmp(extension,"c") || !strcmp(extension,"py") || !strcmp(extension,"rexx") ||
-        !strcmp(extension,"cbl") || !strcmp(extension,"cpy") || !strcmp(extension,"asm") ||
-        !strcmp(extension,"cpp") || !strcmp(extension,"h") || !strcmp(extension,"log") ||
-        !strcmp(extension,"env") ||
-        (isDotFile == TRUE)){
     *isBinary = FALSE;
     return "text/plain";
   }
