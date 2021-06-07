@@ -44,7 +44,6 @@
 #define SERVICE_TYPE_PROXY           5
 #define SERVICE_TYPE_FILES_SECURE    6
 
-/* TODO: These need to become strings so they can be more mobile i.e. "NATIVE_WITH_SESSION_TOKEN" */
 #define SERVICE_AUTH_NONE   "NONE"
 #define SERVICE_AUTH_SAF    "SAF"
 #define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN "NATIVE_WITH_SESSION_TOKEN"
