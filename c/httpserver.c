@@ -3508,10 +3508,6 @@ static int handleHttpService(HttpServer *server,
      */
 }
 
-/* static struct registerAuthHandlers() {
-  return NULL;
-} */
-
 HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
                                        HttpServer *server){
   HttpConversation *conversation = (HttpConversation*)safeMalloc31(sizeof(HttpConversation),"HttpConversation");
