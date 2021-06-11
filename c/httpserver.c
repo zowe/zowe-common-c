@@ -3456,7 +3456,7 @@ static int handleHttpService(HttpServer *server,
       if (server->authHandler[i] != NULL) {
         if (strcmp(server->authHandler[i]->type, SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN) == 0)
         {
-          int rc = service->server->authHandler[i]->authFunction(conversation, request, service);
+          int rc = service->server->authHandler[i]->authFunction(conversation, request, service, response);
           if (rc != 0) {
             respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
           }
