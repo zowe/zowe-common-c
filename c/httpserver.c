@@ -3852,116 +3852,87 @@ HttpRequestParam *getCheckedParam(HttpRequest *request, char *paramName){
   return NULL;
 }
 
-static char *getMimeType2(char *extension, int *isBinary, int dotPos);
+static char *getMimeType2(char *extension, int *isBinary, int dotPos, int ccsid);
 
 char *getMimeType(char *extension, int *isBinary) {
-  getMimeType2(extension, isBinary, FALSE);
+  getMimeType2(extension, isBinary, FALSE, -1);
 }
 
-static char *getMimeType2(char *extension, int *isBinary, int isDotFile){
-  if (!strcmp(extension,"js")){
-    *isBinary = FALSE;
-    return "text/javascript";
-  } else if (!strcmp(extension,"ts")){
-    *isBinary = FALSE;
-    return "text/typescript";
-  } else if (!strcmp(extension,"txt") ||
-        !strcmp(extension,"c") || !strcmp(extension,"py") || !strcmp(extension,"rexx") ||
-        !strcmp(extension,"cbl") || !strcmp(extension,"cpy") || !strcmp(extension,"asm") ||
-        !strcmp(extension,"cpp") || !strcmp(extension,"h") || !strcmp(extension,"log") ||
-        !strcmp(extension,"env") ||
-        (isDotFile == TRUE)){
+typedef struct MimeType_tag {
+  char *extension;
+  char *mimeType;
+  int isBinary;
+} MimeType;
+
+static MimeType MIME_TYPES[] = {
+  {"js", "text/javascript", FALSE},
+  {"json", "application/json", FALSE},
+  {"ts", "text/typescript", FALSE},
+  {"c", "text/plain", FALSE},
+  {"py", "text/plain", FALSE},
+  {"cbl", "text/plain", FALSE},
+  {"asm", "text/plain", FALSE},
+  {"cpp", "text/plain", FALSE},
+  {"csv", "text/csv", FALSE},
+  {"h", "text/plain", FALSE},
+  {"log", "text/plain", FALSE},
+  {"env", "text/plain", FALSE},
+  {"html", "text/html", FALSE},
+  {"htm", "text/html", FALSE},
+  {"css", "text/css", FALSE},
+  {"md", "text/markdown", FALSE},
+  {"sh", "application/x-sh", FALSE},
+  {"bin", "application/octet-stream", TRUE},
+  {"gz", "application/gzip", TRUE},
+  {"jar", "application/java-archive", TRUE},
+  {"tar", "application/x-tar", TRUE},
+  {"gif", "image/gif", TRUE},
+  {"png", "image/png", TRUE},
+  {"jpg", "image/jpg", TRUE},
+  {"bmp", "image/bmp", TRUE},
+  {"mpg", "video/mpeg", TRUE},
+  {"woff2", "application/font-woff2", TRUE},
+  {"ttf", "application/font-ttf", TRUE},
+  {"avi", "video/x-msvideo", TRUE},
+  {"doc", "application/msword", TRUE },
+  {"docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", TRUE},
+  {"mp3", "audio/mpeg", TRUE},
+  {"jsonld", "application/ld+json", TRUE},
+  {"pdf", "application/pdf", TRUE},
+  {"xls", "application/vnd.ms-excel", TRUE},
+  {"zip", "application/zip", TRUE},
+  {"7z", "application/x-7z-compressed", TRUE},
+  {"webm", "video/webm", TRUE}
+};
+
+#define MIME_TYPE_COUNT sizeof(MIME_TYPES)/sizeof(MIME_TYPES[0])
+
+static MimeType *findMimeTypeByExtension(const char *extention) {
+  for (int i = 0; i < MIME_TYPE_COUNT; i++) {
+    if (0 == strcmp(extention, MIME_TYPES[i].extension)) {
+      return &MIME_TYPES[i];
+    }
+  }
+  return NULL;
+}
+
+static char *getMimeType2(char *extension, int *isBinary, int isDotFile, int ccsid){
+  bool isTaggedAsText = (ccsid > 0);
+  if (isDotFile) {
     *isBinary = FALSE;
     return "text/plain";
-  } else if (!strcmp(extension,"html") ||
-	     !strcmp(extension,"htm")){
-    *isBinary = FALSE;
-    return "text/html";
-  } else if (!strcmp(extension,"css")){
-    *isBinary = FALSE;
-    return "text/css";
-  } else if(!strcmp(extension,"md")) {
-    *isBinary = FALSE;
-    return "text/markdown";
-  } else if(!strcmp(extension,"bin")) {
-    *isBinary = TRUE;
-    return "application/octet-stream";
-  } else if(!strcmp(extension,"gz")) {
-    *isBinary = TRUE;
-    return "application/gzip";
-  } else if(!strcmp(extension,"jar")) {
-    *isBinary = TRUE;
-    return "application/java-archive";
-  } else if(!strcmp(extension,"json")) {
-    *isBinary = FALSE;
-    return "application/json";
-  } else if(!strcmp(extension,"sh")) {
-    *isBinary = FALSE;
-    return "application/x-sh";
-  } else if(!strcmp(extension,"tar")) {
-    *isBinary = TRUE;
-    return "application/x-tar";
-  } else if (!strcmp(extension,"gif")){
-    *isBinary = TRUE;
-    return "image/gif";
-  } else if (!strcmp(extension,"jpg")){
-    *isBinary = TRUE;
-    return "image/jpeg";
-  } else if (!strcmp(extension,"png")){
-    *isBinary = TRUE;
-    return "image/png";
-  } else if (!strcmp(extension,"mpg")){
-    *isBinary = TRUE;
-    return "video/mpeg";
-  } else if (!strcmp(extension,"woff2")){
-    *isBinary = TRUE;
-    return "application/font-woff2";
-  } else if (!strcmp(extension,"ttf")){
-    *isBinary = TRUE;
-    return "application/font-ttf";
-  } else if(!strcmp(extension,"avi")) {
-    *isBinary = TRUE;
-    return "video/x-msvideo";
-  } else if(!strcmp(extension,"bmp")) {
-    *isBinary = TRUE;
-    return "image/bmp";
-  } else if(!strcmp(extension,"csv")) {
-    *isBinary = FALSE;
-    return "text/csv";
-  } else if(!strcmp(extension,"doc")) {
-    *isBinary = FALSE;
-    return "application/msword";
-  } else if(!strcmp(extension,"docx")) {
-    *isBinary = FALSE;
-    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-  } else if(!strcmp(extension,"mp3")) {
-    *isBinary = TRUE;
-    return "audio/mpeg";
-  } else if(!strcmp(extension,"jsonld")) {
-    *isBinary = TRUE;
-    return "application/ld+json";
-  } else if(!strcmp(extension,"pdf")) {
-    *isBinary = TRUE;
-    return "application/pdf";
-  } else if(!strcmp(extension,"xls")) {
-    *isBinary = FALSE;
-    return "application/vnd.ms-excel";
-  } else if(!strcmp(extension,"zip")) {
-    *isBinary = TRUE;
-    return "application/zip";
-  } else if(!strcmp(extension,"7z")) {
-    *isBinary = TRUE;
-    return "application/x-7z-compressed";
-  } else if(!strcmp(extension,"webm")) {
-    *isBinary = TRUE;
-    return "video/webm";
-  } else if(!strcmp(extension,"mp4")) {
-    *isBinary = TRUE;
-    return "video/mp4";
-  } else{
-    *isBinary = TRUE;
-    return "application/octet-stream";
   }
+  MimeType *mimeType = findMimeTypeByExtension(extension);
+  if (mimeType) {
+    *isBinary = isTaggedAsText ? FALSE : mimeType->isBinary;
+    return mimeType->mimeType;
+  }
+  if (isTaggedAsText) {
+    *isBinary = FALSE;
+    return "text/plain";
+  }
+  *isBinary = TRUE;
+  return "application/octet-stream";
 }
 
 static void respondWithUnixFileInternal(HttpResponse* response, char* absolutePath, int jsonMode, int secureFlag);
@@ -4157,11 +4128,11 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     }
     char *extension = (dotPos == -1) ? "NULL" : absolutePath + dotPos + 1;
     int isBinary = FALSE;
-    char *mimeType = getMimeType2(extension,&isBinary,isDotFile);
     long fileSize = fileInfoSize(&info);
     int ccsid = fileInfoCCSID(&info);
+    char *mimeType = getMimeType2(extension,&isBinary,isDotFile, ccsid);
 #ifdef DEBUG
-    printf("File ccsid=%d, mimetype=%s\n",ccsid,mimeType);
+    printf("File ccsid=%d, mimetype=%s isBinary=%s\n",ccsid,mimeType,isBinary ? "true" : "false");
 #endif
     char tmperr[256] = {0};
 #if defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_LINUX)
