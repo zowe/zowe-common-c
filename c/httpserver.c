@@ -3397,6 +3397,8 @@ static int handleHttpService(HttpServer *server,
 
   AuthResponse authResponse;
 
+  int authorized = TRUE;
+
   if (strcmp(service->authType, SERVICE_AUTH_NONE) == 0)
   {
     request->authenticated = TRUE;
@@ -3451,23 +3453,26 @@ static int handleHttpService(HttpServer *server,
       request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken, &authResponse);
       break;
     }
-    int size = sizeof server->authHandler / sizeof server->authHandler[0];
-    for (int i = 0; i < size; i++) {
-      if (server->authHandler[i] != NULL) {
-        if (strcmp(server->authHandler[i]->type, SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN) == 0)
-        {
-          int rc = service->server->authHandler[i]->authFunction(conversation, request, service, response);
-          if (rc != 0) {
-            respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
+    if (request->authenticated) {
+      int size = sizeof(server->authHandler)/sizeof(server->authHandler[0]);
+      for (int i = 0; i < size; i++) {
+        if (server->authHandler[i] != NULL) {
+          if (strcmp(server->authHandler[i]->type, SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN) == 0) {
+            authorized = service->server->authHandler[i]->authFunction(service, request, response);
+            if (!authorized) {
+              break;
+            }
           }
+        } else {
+          break;
         }
-      } else {
-        i = size;
       }
+    } else {
+      authorized = FALSE;
     }
   }
 #ifdef DEBUG
-  printf("service=%s authenticated=%d\n",service->name,request->authenticated);
+  printf("service=%s authenticated=%d authorized=%d\n",service->name,request->authenticated,authorized);
 #endif
   if (request->authenticated == FALSE){
     if (service->authFlags & SERVICE_AUTH_FLAG_OPTIONAL) {
@@ -3476,6 +3481,8 @@ static int handleHttpService(HttpServer *server,
     } else {
       respondWithAuthError(response, &authResponse);
     }
+  } else if (!authorized) {
+    respondWithError(response, HTTP_STATUS_FORBIDDEN, "Forbidden");
     // Response is finished on return
   } else {
 

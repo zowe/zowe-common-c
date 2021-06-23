@@ -146,7 +146,7 @@ typedef int HttpServiceServe(struct HttpService_tag *service, HttpResponse *resp
 typedef int AuthExtract(struct HttpService_tag *service, HttpRequest *request);
 typedef int AuthValidate(struct HttpService_tag *service, HttpRequest *request);
 typedef int HttpServiceInsertCustomHeaders(struct HttpService_tag *service, HttpResponse *response);
-typedef int AuthHandle();
+typedef int AuthHandle(struct HttpService_tag *service, HttpRequest *request, HttpResponse *response);
 
 /*
   returns HTTP_SERVICE_SUCCESS or other fail codes in same group 
