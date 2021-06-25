@@ -44,10 +44,10 @@
 #define SERVICE_TYPE_PROXY           5
 #define SERVICE_TYPE_FILES_SECURE    6
 
-#define SERVICE_AUTH_NONE   1
-#define SERVICE_AUTH_SAF    2
-#define SERVICE_AUTH_CUSTOM 3 /* done by service */
-#define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN 4
+#define SERVICE_AUTH_NONE   "NONE"
+#define SERVICE_AUTH_SAF    "SAF"
+#define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN "NATIVE_WITH_SESSION_TOKEN"
+#define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN_NO_RBAC "NATIVE_WITH_SESSION_TOKEN_NO_RBAC"
 
 #define SERVICE_AUTH_TOKEN_TYPE_LEGACY                    0
 #define SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK  1
@@ -146,6 +146,7 @@ typedef int HttpServiceServe(struct HttpService_tag *service, HttpResponse *resp
 typedef int AuthExtract(struct HttpService_tag *service, HttpRequest *request);
 typedef int AuthValidate(struct HttpService_tag *service, HttpRequest *request);
 typedef int HttpServiceInsertCustomHeaders(struct HttpService_tag *service, HttpResponse *response);
+typedef int AuthHandle(struct HttpService_tag *service, HttpRequest *request, HttpResponse *response);
 
 /*
   returns HTTP_SERVICE_SUCCESS or other fail codes in same group 
@@ -180,7 +181,7 @@ typedef struct HttpService_tag{
   char **parsedMaskParts;
   int    matchFlags;
   int    serviceType; 
-  int    authType;
+  char   *authType;
   int    runInSubtask;
   void  *authority; /* NULL unless AUTH_CUSTOM */
   AuthExtract                    *authExtractionFunction;
@@ -207,6 +208,11 @@ typedef struct HttpService_tag{
   int    authFlags;
 } HttpService;
 
+typedef struct HttpAuthHandler_tag{
+  char             *type;
+  AuthHandle       *authFunction;
+} HttpAuthHandler;
+
 typedef struct HTTPServerConfig_tag {
   int port;
   HttpService *serviceList;
@@ -229,6 +235,7 @@ typedef struct HttpServer_tag{
   uint64           serverInstanceUID;   /* may be something smart at some point. Now just startup STCK */
   void             *sharedServiceMem; /* address shared by all HttpServices */
   hashtable        *loggingIdsByName; /* contains a map of pluginID -> loggingID */
+  HttpAuthHandler  *authHandler[64]; /* contains array of authHandlers (type + auth func) for HttpServices */
 } HttpServer;
 
 typedef struct WSReadMachine_tag{
