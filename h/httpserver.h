@@ -146,7 +146,7 @@ typedef int HttpServiceServe(struct HttpService_tag *service, HttpResponse *resp
 typedef int AuthExtract(struct HttpService_tag *service, HttpRequest *request);
 typedef int AuthValidate(struct HttpService_tag *service, HttpRequest *request);
 typedef int HttpServiceInsertCustomHeaders(struct HttpService_tag *service, HttpResponse *response);
-typedef int AuthHandle(struct HttpService_tag *service, HttpRequest *request, HttpResponse *response);
+typedef int AuthorizationCheck(struct HttpService_tag *service, HttpRequest *request, HttpResponse *response);
 
 /*
   returns HTTP_SERVICE_SUCCESS or other fail codes in same group 
@@ -205,14 +205,18 @@ typedef struct HttpService_tag{
   int doImpersonation;
   AuthValidate                   *authValidateFunction;
 #define SERVICE_AUTH_FLAG_OPTIONAL 1
-#define SERVICE_AUTH_FLAG_SKIP_AUTHORIZATION 2
   int    authFlags;
+#define SERVICE_AUTHORIZATION_TYPE_DEFAULT  0
+#define SERVICE_AUTHORIZATION_TYPE_NONE     1
+#define SERVICE_AUTHORIZATION_TYPE_CUSTOM   100
+  int authorizationType;
 } HttpService;
 
-typedef struct HttpAuthHandler_tag{
-  int              type;
-  AuthHandle       *authFunction;
-} HttpAuthHandler;
+typedef struct HttpAuthorizationHandler_tag {
+  int authorizationType;
+  AuthorizationCheck *authorizationCheck;
+  struct HttpAuthorizationHandler_tag *next;
+} HttpAuthorizationHandler;
 
 typedef struct HTTPServerConfig_tag {
   int port;
@@ -236,7 +240,7 @@ typedef struct HttpServer_tag{
   uint64           serverInstanceUID;   /* may be something smart at some point. Now just startup STCK */
   void             *sharedServiceMem; /* address shared by all HttpServices */
   hashtable        *loggingIdsByName; /* contains a map of pluginID -> loggingID */
-  HttpAuthHandler  *authHandler[64]; /* contains array of authHandlers (type + auth func) for HttpServices */
+  HttpAuthorizationHandler *authorizationHandlerList;
 } HttpServer;
 
 typedef struct WSReadMachine_tag{
@@ -424,6 +428,9 @@ int httpServerSetSessionTokenKey(HttpServer *server, unsigned int size,
  */
 
 int registerHttpService(HttpServer *server, HttpService *service);
+
+
+void registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, AuthorizationCheck *handleFn);
 
 HttpRequest *dequeueHttpRequest(HttpRequestParser *parser);
 HttpRequestParser *makeHttpRequestParser(ShortLivedHeap *slh);
