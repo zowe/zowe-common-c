@@ -3399,12 +3399,12 @@ static int handleHttpService(HttpServer *server,
 
   int authorized = TRUE;
 
-  if (strcmp(service->authType, SERVICE_AUTH_NONE) == 0)
-  {
+  switch (service->authType){
+   
+  case SERVICE_AUTH_NONE:
     request->authenticated = TRUE;
-  }
-  else if (strcmp(service->authType, SERVICE_AUTH_SAF) == 0)
-  {
+    break;
+  case SERVICE_AUTH_SAF:
     /* SAF Authentication just checks that user is known at ALL to SAF.
        Additional privilege (Facility Class Profile) checking maybe done later
        or added to the generic SAF support in server.
@@ -3413,15 +3413,15 @@ static int handleHttpService(HttpServer *server,
     printf("saf auth needed for service %s\n",service->name);
 #endif
     request->authenticated = safAuthenticate(service, request, &authResponse);
-  }
-  /* case SERVICE_AUTH_CUSTOM: - Safe to remove?
+    break;
+  case SERVICE_AUTH_CUSTOM:
 #ifdef DEBUG
     printf("CUSTOM auth not yet supported\n");
 #endif
     request->authenticated = FALSE;
-    break; */
-  else if (strcmp(service->authType, SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN_NO_RBAC) == 0)
-  {
+    break;
+  case SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN:
+  case SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN_NO_RBAC:
     switch (server->config->authTokenType) {
     case SERVICE_AUTH_TOKEN_TYPE_JWT:
     case SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK:
@@ -3436,40 +3436,24 @@ static int handleHttpService(HttpServer *server,
       request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken, &authResponse);
       break;
     }
+    break;
   }
-  else /* Type was not found, checking custom handlers */
-  {
-    switch (server->config->authTokenType) {
-    case SERVICE_AUTH_TOKEN_TYPE_JWT:
-    case SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK:
-      request->authenticated = serviceAuthWithJwt(service, request, response);
-
-      if (request->authenticated  ||
-          service->server->config->authTokenType
-            != SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK) {
-        break;
-      } /* else fall through */
-    case SERVICE_AUTH_TOKEN_TYPE_LEGACY:
-      request->authenticated = serviceAuthNativeWithSessionToken(service,request,response,&clearSessionToken, &authResponse);
-      break;
-    }
-    if (request->authenticated) {
-      int size = sizeof(server->authHandler)/sizeof(server->authHandler[0]);
-      for (int i = 0; i < size; i++) {
-        if (server->authHandler[i] != NULL) {
-          if (strcmp(server->authHandler[i]->type, SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN) == 0) {
-            authorized = service->server->authHandler[i]->authFunction(service, request, response);
-            if (!authorized) {
-              break;
-            }
+  if (request->authenticated) {
+    int size = sizeof(server->authHandler)/sizeof(server->authHandler[0]);
+    for (int i = 0; i < size; i++) {
+      if (server->authHandler[i] != NULL) {
+        if (server->authHandler[i]->type == service->authType) {
+          authorized = service->server->authHandler[i]->authFunction(service, request, response);
+          if (!authorized) {
+            break;
           }
-        } else {
-          break;
         }
+      } else {
+        break;
       }
-    } else {
-      authorized = FALSE;
     }
+  } else {
+    authorized = FALSE;
   }
 #ifdef DEBUG
   printf("service=%s authenticated=%d authorized=%d\n",service->name,request->authenticated,authorized);
