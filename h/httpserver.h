@@ -48,7 +48,6 @@
 #define SERVICE_AUTH_SAF    2
 #define SERVICE_AUTH_CUSTOM 3 /* done by service */
 #define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN 4
-#define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN_NO_RBAC 5
 
 #define SERVICE_AUTH_TOKEN_TYPE_LEGACY                    0
 #define SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK  1
@@ -206,6 +205,7 @@ typedef struct HttpService_tag{
   int doImpersonation;
   AuthValidate                   *authValidateFunction;
 #define SERVICE_AUTH_FLAG_OPTIONAL 1
+#define SERVICE_AUTH_FLAG_SKIP_AUTHORIZATION 2
   int    authFlags;
 } HttpService;
 

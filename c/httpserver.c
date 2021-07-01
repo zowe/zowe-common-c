@@ -3421,7 +3421,6 @@ static int handleHttpService(HttpServer *server,
     request->authenticated = FALSE;
     break;
   case SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN:
-  case SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN_NO_RBAC:
     switch (server->config->authTokenType) {
     case SERVICE_AUTH_TOKEN_TYPE_JWT:
     case SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK:
@@ -3438,7 +3437,7 @@ static int handleHttpService(HttpServer *server,
     }
     break;
   }
-  if (request->authenticated) {
+  if (request->authenticated && !(service->authFlags & SERVICE_AUTH_FLAG_SKIP_AUTHORIZATION)) {
     int size = sizeof(server->authHandler)/sizeof(server->authHandler[0]);
     for (int i = 0; i < size; i++) {
       if (server->authHandler[i] != NULL) {
