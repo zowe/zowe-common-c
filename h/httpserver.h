@@ -44,10 +44,11 @@
 #define SERVICE_TYPE_PROXY           5
 #define SERVICE_TYPE_FILES_SECURE    6
 
-#define SERVICE_AUTH_NONE   "NONE"
-#define SERVICE_AUTH_SAF    "SAF"
-#define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN "NATIVE_WITH_SESSION_TOKEN"
-#define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN_NO_RBAC "NATIVE_WITH_SESSION_TOKEN_NO_RBAC"
+#define SERVICE_AUTH_NONE   1
+#define SERVICE_AUTH_SAF    2
+#define SERVICE_AUTH_CUSTOM 3 /* done by service */
+#define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN 4
+#define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN_NO_RBAC 5
 
 #define SERVICE_AUTH_TOKEN_TYPE_LEGACY                    0
 #define SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK  1
@@ -181,7 +182,7 @@ typedef struct HttpService_tag{
   char **parsedMaskParts;
   int    matchFlags;
   int    serviceType; 
-  char   *authType;
+  int    authType;
   int    runInSubtask;
   void  *authority; /* NULL unless AUTH_CUSTOM */
   AuthExtract                    *authExtractionFunction;
@@ -209,7 +210,7 @@ typedef struct HttpService_tag{
 } HttpService;
 
 typedef struct HttpAuthHandler_tag{
-  char             *type;
+  int              type;
   AuthHandle       *authFunction;
 } HttpAuthHandler;
 
