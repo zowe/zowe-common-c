@@ -3360,7 +3360,7 @@ static int checkAuthorization(HttpServer *server, HttpService *service, HttpRequ
   HttpAuthorizationHandler *handler = server->authorizationHandlerList;
   while (handler) {
     if (handler->authorizationType == service->authorizationType) {
-      authorized = handler->authorizationCheck(service, request, response);
+      authorized = handler->authorizationCheck(service, request, response, handler->userData);
       if (!authorized) {
         break;
       }
@@ -6020,7 +6020,7 @@ int mainHttpLoop(HttpServer *server){
   return stcBaseMainLoop(base, MAIN_WAIT_MILLIS);
 }
 
-void registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, AuthorizationCheck *authorizationCheck) {
+void registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, AuthorizationCheck *authorizationCheck, void *userData) {
   if (authorizationType == SERVICE_AUTHORIZATION_TYPE_NONE) {
     return;
   }
@@ -6028,6 +6028,7 @@ void registerHttpAuthorizationHandler(HttpServer *server, int authorizationType,
   if (handler) {
     handler->authorizationType = authorizationType;
     handler->authorizationCheck = authorizationCheck;
+    handler->userData = userData;
     handler->next = NULL;
     HttpAuthorizationHandler *head = server->authorizationHandlerList;
     if (!head) {

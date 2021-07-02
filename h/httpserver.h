@@ -146,7 +146,7 @@ typedef int HttpServiceServe(struct HttpService_tag *service, HttpResponse *resp
 typedef int AuthExtract(struct HttpService_tag *service, HttpRequest *request);
 typedef int AuthValidate(struct HttpService_tag *service, HttpRequest *request);
 typedef int HttpServiceInsertCustomHeaders(struct HttpService_tag *service, HttpResponse *response);
-typedef int AuthorizationCheck(struct HttpService_tag *service, HttpRequest *request, HttpResponse *response);
+typedef int AuthorizationCheck(struct HttpService_tag *service, HttpRequest *request, HttpResponse *response, void *userData);
 
 /*
   returns HTTP_SERVICE_SUCCESS or other fail codes in same group 
@@ -215,6 +215,7 @@ typedef struct HttpService_tag{
 typedef struct HttpAuthorizationHandler_tag {
   int authorizationType;
   AuthorizationCheck *authorizationCheck;
+  void *userData;
   struct HttpAuthorizationHandler_tag *next;
 } HttpAuthorizationHandler;
 
@@ -430,7 +431,7 @@ int httpServerSetSessionTokenKey(HttpServer *server, unsigned int size,
 int registerHttpService(HttpServer *server, HttpService *service);
 
 
-void registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, AuthorizationCheck *handleFn);
+void registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, AuthorizationCheck *handleFn, void *userData);
 
 HttpRequest *dequeueHttpRequest(HttpRequestParser *parser);
 HttpRequestParser *makeHttpRequestParser(ShortLivedHeap *slh);
