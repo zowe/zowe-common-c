@@ -146,7 +146,7 @@ typedef int HttpServiceServe(struct HttpService_tag *service, HttpResponse *resp
 typedef int AuthExtract(struct HttpService_tag *service, HttpRequest *request);
 typedef int AuthValidate(struct HttpService_tag *service, HttpRequest *request);
 typedef int HttpServiceInsertCustomHeaders(struct HttpService_tag *service, HttpResponse *response);
-typedef int AuthorizationCheck(struct HttpService_tag *service, HttpRequest *request, HttpResponse *response, void *userData);
+typedef int AuthorizationHandler(struct HttpService_tag *service, HttpRequest *request, HttpResponse *response, void *userData);
 
 /*
   returns HTTP_SERVICE_SUCCESS or other fail codes in same group 
@@ -208,13 +208,15 @@ typedef struct HttpService_tag{
   int    authFlags;
 #define SERVICE_AUTHORIZATION_TYPE_DEFAULT  0
 #define SERVICE_AUTHORIZATION_TYPE_NONE     1
-#define SERVICE_AUTHORIZATION_TYPE_CUSTOM   100
+// Range 2..99 is reserved for future use
+#define SERVICE_AUTHORIZATION_TYPE_FIRST_CUSTOM 100
+// SERVICE_AUTHORIZATION_TYPE_FIRST_CUSTOM and higher can be defined and used by an application.
   int authorizationType;
 } HttpService;
 
 typedef struct HttpAuthorizationHandler_tag {
   int authorizationType;
-  AuthorizationCheck *authorizationCheck;
+  AuthorizationHandler *authorizationHandler;
   void *userData;
   struct HttpAuthorizationHandler_tag *next;
 } HttpAuthorizationHandler;
@@ -431,7 +433,15 @@ int httpServerSetSessionTokenKey(HttpServer *server, unsigned int size,
 int registerHttpService(HttpServer *server, HttpService *service);
 
 
-void registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, AuthorizationCheck *handleFn, void *userData);
+/*
+ * @brief Register an Authorization handler.
+ * @param server HTTP Server
+ * @param authorizationType
+ * @param authorizationHandler Function that performs authorization. 
+ *        The function has to return TRUE if the user succesfully authorized, otherwise - FALSe.
+ * @param userData Additional data for authorizationHandler
+ */
+void registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, AuthorizationHandler *authorizationHandler, void *userData);
 
 HttpRequest *dequeueHttpRequest(HttpRequestParser *parser);
 HttpRequestParser *makeHttpRequestParser(ShortLivedHeap *slh);
