@@ -151,7 +151,7 @@ static int traceDispatch = 0;
 static int traceHeaders = 0;
 static int traceSocket = 0;
 static int traceHttpCloseConversation = 0;
-static int traceAuth = 0;
+static int traceAuth = 1;
 
 int setHttpParseTrace(int toWhat) {
   int was = traceParse;
