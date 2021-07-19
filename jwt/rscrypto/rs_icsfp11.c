@@ -12,6 +12,10 @@
 #include "rs_icsfp11.h"
 #include "rs_crypto_errors.h"
 
+#ifndef DEBUG
+#define DEBUG
+#endif
+
 #ifdef _LP64
 #pragma linkage(CSFPHMG6,OS) /* hmac generate */
 #pragma linkage(CSFPGSK6,OS) /* gen secret key */
