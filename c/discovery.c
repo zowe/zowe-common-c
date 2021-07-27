@@ -922,7 +922,7 @@ ZOSModel *makeZOSModel2(CrossMemoryServerName *privilegedServerName,
   if (privilegedServerName != NULL) {
     printf("makeZOSModel case 1 0x%x\n",privilegedServerName);
     model->privilegedServerName = *privilegedServerName;
-    dumpbuffer(&(model->privilegedServerName),16);
+    dumpbuffer(model->privilegedServerName.nameSpacePadded,16);
   } else  {
     model->privilegedServerName = zisGetDefaultServerName();
   }
