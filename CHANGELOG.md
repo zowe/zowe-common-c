@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `1.23.0`
+
+- Bugfix: HTTP server did not send empty files correctly.
+
 ## `1.22.0`
 
 - Enhancement: Add "remoteStorage" pointer to dataservice struct, for accessing high availability remote storage in addition to or alternatively to local storage.
