@@ -171,7 +171,7 @@ char *toASCIIUTF8(char *buffer, int len) {
     char translatedChar = buffer[i];
 #endif
     if (translatedChar > 126){
-      printf("toASCIIUTF8 warning, saw value 0x%x which is not in the 7-bit subset\n",translatedChar);
+    	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "toASCIIUTF8 warning, saw value 0x%x which is not in the 7-bit subset\n",translatedChar);
     }
     buffer[i] = translatedChar;
   }
@@ -195,7 +195,6 @@ int writeFully(Socket *socket, char *buffer, int len){
   /* this is a sanity check for a bug that once happened on ZOS */
 #ifdef __ZOWE_OS_ZOS
   if (((int)socket) < 0x1000000){
-    printf("*** WARNING *** bad socket pointer!! 0x%x\n",socket);
     return 0;
   }
 #endif
@@ -208,7 +207,7 @@ int writeFully(Socket *socket, char *buffer, int len){
       /* Check for both EAGAIN and EWOULDBLOCK on "older" unix systems
        * for portability.
        */
-      if (WRITE_FORCE && returnCode == EAGAIN || returnCode == EWOULDBLOCK) {
+      if (WRITE_FORCE && (returnCode == EAGAIN || returnCode == EWOULDBLOCK)) {
         PollItem item = {0};
         item.fd = socket->sd;
         item.events = POLLEWRNORM;

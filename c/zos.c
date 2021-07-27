@@ -662,7 +662,9 @@ static safp *makeSAFCallData(int requestNumber,
     version = SAFPRL7709;
     break;
   default:
-    printf("unknown request number %d\n",requestNumber);
+    if (safTrace){
+      printf("unknown request number %d\n",requestNumber);
+    }
   }
   if (specificDataSize == -1){
     return NULL;
@@ -748,7 +750,9 @@ static char *makeCountedString(char *name,
   int allocSize = 0;
   int len = string ? strlen(string) : 0;
   if (len > maxLength){
-    printf("%s too long\n", name);
+    if (safTrace){
+      printf("%s too long\n", name);
+    }
     return 0;
   }
   int prefixLen = isEntity ? 4 : 1;
@@ -1055,7 +1059,9 @@ static int safAuth_internal(int options, char *safClass, char *entity, int acces
     int locateStatus = locate(entity,&volserCount,firstVolser);
     firstVolser[6] = 0;
     if (locateStatus || !strcmp(firstVolser,"MIGRAT") || !strcmp(firstVolser,"ARCIVE")){
-      printf("could not locate dataset or dataset is migrated\n");
+      if (safTrace){
+        printf("could not locate dataset or dataset is migrated\n");
+      }
       return 0x96;
     }
   }
@@ -1601,4 +1607,3 @@ void gen_dsects_only_os_c(void) { // Required for __asm invoked macros to be abl
   
   Copyright Contributors to the Zowe Project.
 */
-

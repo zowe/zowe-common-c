@@ -80,6 +80,7 @@ static bool memberExists(char* dsName, DynallocMemberName daMemberName);
 
 int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter *jPrinter){
 #ifdef __ZOWE_OS_ZOS
+  // Note: to allow processing of zero-length records set _EDC_ZERO_RECLEN=Y
   int defaultSize = DATA_STREAM_BUFFER_SIZE;
   FILE *in;
   if (recordLength < 1){
@@ -97,22 +98,21 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
   if (in) {
     while (!feof(in)){
       bytesRead = fread(buffer,1,recordLength,in);
-      if (bytesRead > 0){
+      if (bytesRead > 0 && !ferror(in)) {
         jsonAddUnterminatedString(jPrinter, NULL, buffer, bytesRead);
         contentLength = contentLength + bytesRead;
-      }
-      else if (bytesRead == 0){
-        break;
-      }
-      else {
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "Error reading DSN=%s, rc=%d\n",filename,bytesRead);
+      } else if (bytesRead == 0 && !feof(in) && !ferror(in)) {
+        // empty record
+        jsonAddString(jPrinter, NULL, "");
+      } else if (ferror(in)) {
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,  "Error reading DSN=%s, rc=%d\n", filename, bytesRead);
         break;
       }
     }
     fclose(in);
   }
   else {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "FAILED TO OPEN FILE\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "FAILED TO OPEN FILE\n");
   }
 
   jsonEndArray(jPrinter);
@@ -144,7 +144,7 @@ int streamVSAMDataset(HttpResponse* response, char *acb, int maxRecordLength, in
     rpl = (RPLCommon *)(acb+RPL_COMMON_OFFSET+8);
   } else {
     /* TODO: should never happen, but regardless, close out the JSON before this error so it doesn't look weird? */
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "We were not passed an ACB.\n");
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "We were not passed an ACB.\n");
     /* respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR,"Missing ACB"); should really return this */
     return 8;
   }
@@ -170,7 +170,7 @@ int streamVSAMDataset(HttpResponse* response, char *acb, int maxRecordLength, in
     status = getRecord(acb, buffer, &bytesRead);
     /* TODO: if the user enters a parm to skip the first record, we can call continue in this loop after getRecord, but before JSON gets sent */
     if (bytesRead > bufferSize) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "CRITICAL ERROR: Catalog was wrong about maximum record size.\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "CRITICAL ERROR: Catalog was wrong about maximum record size.\n");
       jsonAddString(jPrinter, NULL, "_ERROR: Catalog Error. Record found was too large.");
       jsonEndArray(jPrinter);
     }
@@ -184,18 +184,18 @@ int streamVSAMDataset(HttpResponse* response, char *acb, int maxRecordLength, in
       memcpy(keyBuffer, &rbaFound, 4);
     }
     if (!bytesRead && rpl->status) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "Read 0 bytes with error: ACB=%08x, rc=%d, rplRC = %0x%06x\n", acb, status, rpl->status, rpl->feedback);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Read 0 bytes with error: ACB=%08x, rc=%d, rplRC = %0x%06x\n", acb, status, rpl->status, rpl->feedback);
       break;
     } else if (rpl->status && (rpl->feedback & 0xFF) == 0x04) { /* TODO: extra eof info to pass into json? */
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "eof found after RBA %d\n", rbaFound);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "eof found after RBA %d\n", rbaFound);
       /* TODO: I suggest we remove our hashtable entry, close the ACB, and free their relative memories here - but confirm this with team first. */
       break;
     } else {
       contentLength = contentLength + bytesRead;
       if (rpl->keyLen) {
-        printf("found (\"%s\",\"%s\") Total bytes = %d.\n", keyBuffer, buffer, contentLength);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "found (\"%s\",\"%s\") Total bytes = %d.\n", keyBuffer, buffer, contentLength);
       } else{
-        printf("found (0x%08x,\"%s\") Total bytes = %d.\n", *(int *)keyBuffer, buffer, contentLength);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "found (0x%08x,\"%s\") Total bytes = %d.\n", *(int *)keyBuffer, buffer, contentLength);
       }
       encodedRecord = encodeBase64(NULL, buffer, bytesRead, &encodedLength, 1);
       encodedKey = encodeBase64(NULL, keyBuffer, keyLen ? keyLen : 4, &encodedKeyLength, 1);
@@ -206,7 +206,7 @@ int streamVSAMDataset(HttpResponse* response, char *acb, int maxRecordLength, in
       safeFree(encodedRecord, encodedLength);
       safeFree(encodedKey, encodedKeyLength);
     }
-    if (rpl->status) zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "New Error: ACB=%08x, rc=%d, rplRC = %02x%06x\n", acb, status, rpl->status, rpl->feedback);
+    if (rpl->status) zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "New Error: ACB=%08x, rc=%d, rplRC = %02x%06x\n", acb, status, rpl->status, rpl->feedback);
   }
 
   jsonEndArray(jPrinter);
@@ -732,7 +732,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
     }
   }
   else{
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "fallback for record length discovery\n");
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "fallback for record length discovery\n");
     fldata_t fileinfo = {0};
     char filenameOutput[100];
     int returnCode = fldata(outDataset,filenameOutput,&fileinfo);
@@ -766,7 +766,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       if (recordLength > maxRecordLength) {
         for (int j = recordLength; j > maxRecordLength-1; j--){
           if (jsonString[j] > 0x40){
-            zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Invalid record for dataset, recordLength=%d but max for dataset is %d\n",recordLength,maxRecordLength);
+            zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Invalid record for dataset, recordLength=%d but max for dataset is %d\n", recordLength, maxRecordLength);
             char errorMessage[1024];
             int errorLength = sprintf(errorMessage,"Record #%d with contents \"%s\" is longer than the max record length of %d",i+1,jsonString,maxRecordLength);
             errorMessage[errorLength] = '\0';
@@ -777,25 +777,12 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
         }
         recordLength = maxRecordLength;
       }
-      if (isFixed && (recordLength != 0) && (recordLength != maxRecordLength)) {
+      if (isFixed && recordLength < maxRecordLength) {
         zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: record given for fixed datset less than maxLength=%d, len=%d, data:%s\n",maxRecordLength,recordLength,jsonString);
-        char recordBuffer[maxRecordLength+1];        
-        memcpy(recordBuffer,jsonString,recordLength);
-        memset(recordBuffer+recordLength,' ',maxRecordLength-recordLength);
-        recordBuffer[maxRecordLength] = '\0';
-        safeFree(jsonString,recordLength);
-        safeFree((char*)item,sizeof(Json));
-        Json *largerItem = (Json*)safeMalloc(sizeof(Json),"Padded JSON String");
-        largerItem->type = JSON_TYPE_STRING;
-        largerItem->data.string = recordBuffer;
-        recordArray->elements[i] = largerItem;
-        char *updatedRecord = jsonArrayGetString(recordArray,i);
-        int updatedLength = strlen(updatedRecord);
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: record updated to have new length of %d which should match max length of %d, content:%s\n",updatedLength,maxRecordLength,updatedRecord);
       }
     }
     else {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Incorrectly formatted array!\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Incorrectly formatted array!\n");
       char errorMessage[1024];
       int errorLength = sprintf(errorMessage,"Array position %d is not a string, but must be for record updating",i);
       errorMessage[errorLength] = '\0';
@@ -805,8 +792,9 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
     }
   }
   /*passed record length check and type check*/
-  int bytesRead = 0;
+  int bytesWritten = 0;
   int recordsWritten = 0;
+  char recordBuffer[maxRecordLength+1];
   for (int i = 0; i < recordCount; i++) {
     char *record = jsonArrayGetString(recordArray,i);
     int recordLength = strlen(record);
@@ -814,13 +802,18 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       record = " ";
       recordLength = 1;
     }
-    else if (recordLength > maxRecordLength){
-      recordLength = maxRecordLength; //sanitized input above, will cut off extra space/nonprintable here
+    int len;
+    if (isFixed) {
+      // pad with spaces/or trim if needed
+      len = snprintf (recordBuffer, sizeof(recordBuffer), "%-*s", maxRecordLength, record);
+    } else {
+      // trim if needed
+      len = snprintf (recordBuffer, sizeof(recordBuffer), "%s", record);
     }
-    bytesRead = fwrite(record,1,recordLength,outDataset);
+    bytesWritten = fwrite(recordBuffer,1,len,outDataset);
     recordsWritten++;
-    if (bytesRead < 0 && ferror(outDataset)){
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Error writing to dataset, rc=%d\n",bytesRead);
+    if (bytesWritten < 0 && ferror(outDataset)){
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error writing to dataset, rc=%d\n", bytesWritten);
       respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"Error writing to dataset");
       fclose(outDataset);
       break;
@@ -863,10 +856,10 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
   );
 
   if (daRC != RC_DYNALLOC_OK) {
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE,
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (update)\n",
-            daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
+            daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN, "update");
     respondWithDYNALLOCError(response, daRC, daSysRC, daSysRSN,
                              &daDsn, &daMember, "w");
     return;
@@ -884,9 +877,9 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
                                         &daSysRC, &daSysRSN);
   if (daRC != RC_DYNALLOC_OK) {
     zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-            "error: ds unalloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+    		    "error: ds unalloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (update)\n",
-            daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
+            daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN, "update");
   }
 
 }
@@ -930,7 +923,7 @@ static void updateVSAMDatasetWithJSON(HttpResponse *response, JsonObject *json, 
       char *jsonString = jsonAsString(item); /* TODO: should be looking at a "str:str" or "str: str" value here? */
       int recordLength = strlen(jsonString); /* TODO: more correctly calculate the recordLength AND keyLength */
       if (recordLength > maxRecordLength) { /* TODO: check recordLength AND keyLength (rpl->keyLen for keyLength) */
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Invalid record for dataset, recordLength=%d but max for dataset is %d\n",recordLength,maxRecordLength);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Invalid record for dataset, recordLength=%d but max for dataset is %d\n",recordLength,maxRecordLength);
         char errorMessage[1024];
         int errorLength = sprintf(errorMessage,"Record #%d with contents \"%s\" is longer than the max record length of %d",i+1,jsonString,maxRecordLength);
         errorMessage[errorLength] = '\0';
@@ -938,7 +931,7 @@ static void updateVSAMDatasetWithJSON(HttpResponse *response, JsonObject *json, 
         return;
       }
     } else {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Incorrectly formatted array!\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Incorrectly formatted array!\n");
       char errorMessage[1024];
       int errorLength = sprintf(errorMessage,"Array position %d is not a string, but must be for record updating",i);
       errorMessage[errorLength] = '\0';
@@ -968,7 +961,7 @@ static void updateVSAMDatasetWithJSON(HttpResponse *response, JsonObject *json, 
     }
     putRecord(outACB, record, recordLength);
     if (rpl->status) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Error writing to dataset, rc=%02x%06x\n",rpl->status,rpl->feedback);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error writing to dataset, rc=%02x%06x\n",rpl->status,rpl->feedback);
       respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"Error writing to dataset");
       break;
     }
@@ -1110,11 +1103,11 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
       if (jsonIsObject(json)){
         updateDatasetWithJSON(response, jsonAsObject(json), absolutePath);
       } else{
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "*** INTERNAL ERROR *** message is JSON, but not an object\n");
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "*** INTERNAL ERROR *** message is JSON, but not an object\n");
       }
     }
     else {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "UPDATE DATASET: body was not JSON!\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: body was not JSON!\n");
       respondWithError(response, HTTP_STATUS_BAD_REQUEST,"POST body could not be parsed as JSON format");      
     }
     SLHFree(slh);
@@ -1167,8 +1160,8 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
               );
   
   if (daReturnCode != RC_DYNALLOC_OK) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
-            "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,
+    		    "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
             daDatasetName.name, daMemberName.name, daDDName.name,
             daReturnCode, daSysReturnCode, daSysReasonCode);
@@ -1186,8 +1179,8 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
                                                    TRUE /* Delete data set on deallocation */
                                                    ); 
     if (daReturnCode != RC_DYNALLOC_OK) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
-              "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,
+    		      "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
               " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
               daDatasetName.name, daMemberName.name, daDDName.name,
               daReturnCode, daSysReturnCode, daSysReasonCode);
@@ -1246,7 +1239,7 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
     if (stowReturnCode != 0) {
       char responseMessage[128];
       snprintf(responseMessage, sizeof(responseMessage), "Member %8.8s could not be deleted\n", daMemberName.name);
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,
               "error: stowReturnCode=%d, stowReasonCode=%d\n",
               stowReturnCode, stowReasonCode);
       respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, responseMessage);
@@ -1254,8 +1247,8 @@ void deleteDatasetOrMember(HttpResponse* response, char* absolutePath) {
     }
 
     if (daReturnCode != RC_DYNALLOC_OK) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE,
-              "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,
+    		      "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
               " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
               daDatasetName.name, daMemberName.name, daDDName.name,
               daReturnCode, daSysReturnCode, daSysReasonCode);
@@ -1463,11 +1456,11 @@ void updateVSAMDataset(HttpResponse* response, char* absolutePath, hashtable *ac
       if (jsonIsObject(json)){
         updateVSAMDatasetWithJSON(response, jsonAsObject(json), absolutePath, acbTable);
       } else{
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "*** INTERNAL ERROR *** message is JSON, but not an object\n");
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "*** INTERNAL ERROR *** message is JSON, but not an object\n");
       }
     }
     else {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "UPDATE DATASET: body was not JSON!\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: body was not JSON!\n");
       respondWithError(response, HTTP_STATUS_BAD_REQUEST,"POST body could not be parsed as JSON format");
     }
     SLHFree(slh);
@@ -1602,8 +1595,8 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
   );
 
   if (daRC != RC_DYNALLOC_OK) {
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE,
-            "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
+    		    "error: ds alloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
             daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
     respondWithDYNALLOCError(response, daRC, daSysRC, daSysRSN,
@@ -1625,7 +1618,7 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
     zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
             "error: ds unalloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
             " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
-            daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN);
+            daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN, "read");
   }
 
 }
@@ -1655,7 +1648,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
     memset(dsn + strlen(absolutePath), ' ', 44 - strlen(absolutePath));
     dsn[44] = 0;
   } else {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "DSN of size %d is too large.\n", strlen(absolutePath));
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "DSN of size %d is too large.\n", strlen(absolutePath));
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Dataset Name must be 44 bytes of less");
     return;
   }
@@ -1755,7 +1748,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
       }
     }
   } else {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Catalog Entry not found for \"%s\"\n", dsn);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Catalog Entry not found for \"%s\"\n", dsn);
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Not Found in Catalog");
     return;
   } /* end Catalog Search */
@@ -1766,7 +1759,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
     EntryData *currentEntry = entrySet->entries[i];
     if (!(entrySet->entries)) break;
     if (currentEntry == (EntryData *)0x000a0000) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_SEVERE, "... how did this happen:\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "... how did this happen:\n");
       dumpbuffer((char *)entrySet, 1000);
     }
     int fieldDataLength = currentEntry->data.fieldInfoHeader.totalLength;
@@ -1821,7 +1814,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
       ddNumber++;
     }
     if (returnCode) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Dynalloc RC = %d, reasonCode = %x\n", returnCode, reasonCode);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Dynalloc RC = %d, reasonCode = %x\n", returnCode, reasonCode);
       respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to allocate a DD for ACB");
       return;
     }
@@ -1882,7 +1875,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
     }
 
     if (returnCode) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "point failed with RC = %08x\n", returnCode);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "point failed with RC = %08x\n", returnCode);
       /* TODO: free the few things that we created above that will otherwise leak */
       respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Could not POINT to the designated search argument.");
       return;
@@ -1901,11 +1894,11 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
 
   writeHeader(response);
 
-  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "Streaming data for %s\n", absolutePath);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Streaming data for %s\n", absolutePath);
   jsonStart(jPrinter);
   /* TODO: if the user submits parms that limit the length of the returned data, modifying the below maxRecords or maxBytes will be needed */
   returnCode = streamVSAMDataset(response, inACB, maxlrecl, maxRecords, maxBytes, keyLoc, keyLen, jPrinter);
-  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_INFO, "Dataset bytesRead = %d\n", returnCode);
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Dataset bytesRead = %d\n", returnCode);
   jsonEnd(jPrinter);
   dumpbuffer((char *)state, sizeof(StatefulACB));
 
@@ -1925,7 +1918,7 @@ int decodePercentByte(char *inString, int inLength, char *outString, int *outStr
   for (int i = 0; i < inLength; i++) {
     if (inString[i] == '%') {
       if (i >= inLength-2) {
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "Error: Percent seen without following 2 hex characters for '%s'\n",inString);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Error: Percent seen without following 2 hex characters for '%s'\n",inString);
         return 2;
       }
       char hex[3];

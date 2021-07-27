@@ -268,7 +268,6 @@ void initRLEEnvironment(RLEAnchor *anchor) {
   if (recoveryRC != RC_RCV_OK) {
     printf("le.c: error - recovery router not established\n");
   }
-
 }
 
 void termRLEEnvironment() {

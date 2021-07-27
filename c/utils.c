@@ -2197,6 +2197,17 @@ const char* strrstr(const char * base, const char * find) {
   return returnPtr;
 }
 
+/* trimRight removes whitespace from the end of a string. */
+void trimRight(char *str, int length) {
+  int i;
+  for (i = length - 1; i >= 0; i--) {
+    if (str[i] != ' ') {
+      break;
+    }
+    str[i] = '\0';
+  }
+}
+
 /*
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies

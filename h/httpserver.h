@@ -110,6 +110,7 @@ typedef struct HttpRequestParser{
   int httpReasonCode;
   char *message;
   HttpRequest *requestQHead;
+  int keepAlive;
 } HttpRequestParser;
 
 
@@ -130,6 +131,7 @@ typedef struct HttpResponse_tag{
   jsonPrinter    *jp;
   char           *sessionCookie;
   int             standaloneTestMode;
+  int             sessionTimeout;
 } HttpResponse;
 
 
@@ -201,6 +203,8 @@ typedef struct HttpService_tag{
   const char *productURLPrefix; /* provided by the server */
   int doImpersonation;
   AuthValidate                   *authValidateFunction;
+#define SERVICE_AUTH_FLAG_OPTIONAL 1
+  int    authFlags;
 } HttpService;
 
 typedef struct HTTPServerConfig_tag {
@@ -211,6 +215,9 @@ typedef struct HTTPServerConfig_tag {
   unsigned char sessionTokenKey[HTTP_SERVER_MAX_SESSION_TOKEN_KEY_SIZE];
   JwtContext *jwtContext;
   int authTokenType; /* SERVICE_AUTH_TOKEN_TYPE_... */
+  hashtable *userTimeouts;
+  hashtable *groupTimeouts;
+  int defaultTimeout;
 } HttpServerConfig;
 
 typedef struct HttpServer_tag{
@@ -377,6 +384,8 @@ typedef struct HttpConversation_tag{
   WSSession         *wsSession;
   RLETask           *task;
   int                zeroLengthReadCount;
+  int                requestCount;
+  bool               isKeepAlive;
 } HttpConversation;
 
 typedef struct HttpWorkElement_tag{
@@ -420,6 +429,16 @@ HttpServer *makeSecureHttpServer(STCBase *base, int port,
                                  RS_SSL_ENVIRONMENT rsssl_env,
                                  int *returnCode, int *reasonCode);
 #endif
+#ifdef USE_ZOWE_TLS
+HttpServer *makeSecureHttpServer(STCBase *base,
+                                 InetAddr *addr,
+                                 int port,
+                                 TlsEnvironment *tlsEnv,
+                                 int tlsFlags,
+                                 int *returnCode,
+                                 int *reasonCode
+                                );
+#endif // USE_ZOWE_TLS
 
 HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
                                        HttpServer *server);

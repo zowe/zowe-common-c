@@ -153,6 +153,7 @@ typedef struct HttpRequest_tag{
   HttpRequestParam *processedParamList;
   struct HttpRequest_tag *next;
   const void *authToken;   /* a JWT or other */
+  int keepAlive;
 } HttpRequest;
 
 /*************** WebSocket Stuff ********************/
