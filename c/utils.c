@@ -596,9 +596,9 @@ void dumpBufferToStream(const char *buffer, int length, /* FILE* */void *traceOu
   for (last_index = length-1; last_index>=0 && 0 == buffer[last_index]; last_index--){}
   if (last_index < 0)
 #ifdef METTLE
-    printf("the buffer is empty at %x\n",buffer);
+    printf("the buffer is empty at %p\n",buffer);
 #else
-    fprintf((FILE*)traceOut,"the buffer is empty at %x\n",buffer);
+    fprintf((FILE*)traceOut,"the buffer is empty at %p\n",buffer);
 #endif
 
   while (index <= last_index){

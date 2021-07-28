@@ -526,11 +526,15 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         LGR   1,11                CONTEXT AS THE FIRST PARM            \n"
       "         LGR   2,9                 SDWA AS THE SECOND PARM              \n"
       "         LLGT  3,RSTAFUD           USER DATA AS THE THIRD PARM          \n"
-      "         LG    4,RSTRGPR+32        STACK                                \n"
+      /* "         LG    4,RSTRGPR+32        STACK                                \n" */
+      "         LG    4,RAFSTPTR          (JOE)ANALYSIS STACK                  \n"
       "         LG    12,RSTRGPR+96       CAA                                  \n"
       "         LLGT  6,RSTAFEP           ANALYSIS FUNCTION ENTRY POINT        \n"
       "         LG    5,RSTAFEV           ANALYSIS FUNCTION ENVIRONMENT        \n"
+      /* "         LA   11,999              \n"
+	 "         ABEND 797                \n"  */
       "         BASR  7,6                 CALL ANALYSIS FUNCTION               \n"
+      "         LG    4,RSTRGPR+32        (JOE) SLIP THE 'REAL' STACK BACK     \n" 
       "         NOPR  0                                                        \n"
 #else
 #ifdef _LP64
@@ -867,6 +871,8 @@ void recoveryDESCTs(){
       "RSTUFPB  DS    CL32                                                     \n"
       "RSTRINF  DS    CL(RCVSINFL)                                             \n"
       "RSTDMTLT DS    CL101                                                    \n"
+      "         DS    0D                                                       \n"
+      "RAFSTPTR DS    D                                                        \n"
       "RSTLEN   EQU   *-RCVSTATE                                               \n"
       "         EJECT ,                                                        \n"
 
@@ -1687,9 +1693,10 @@ static int16_t getLinkageStackToken(void) {
   return token;
 }
 
-int recoveryPush(char *name, int flags, char *dumpTitle,
-                 AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
-                 CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
+int recoveryPush2(char *name, int flags, char *dumpTitle, 
+		  AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
+		  char *analysisFunctionStack, int analysisFunctionStackSize,
+		  CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
 
   RecoveryContext *context = getRecoveryContext();
   if (context == NULL) {
@@ -1789,6 +1796,25 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
       : "r2", "r10", "r11", "r14", "r15"
   );
 
+  /* this need to be set up right as the "correct" value for R13 or R4 on 
+     retry.  
+
+     
+     how to get back on the real stack - analysis function is void so
+     use logic that sets R4/R13 now to be the real stack to resume on
+     
+     */
+#if defined(_LP64) && !defined(METTLE)
+  char *analysisFunctionStackEnd = ((char*)analysisFunctionStack)+analysisFunctionStackSize;
+  /* verify these pointers - tuesday morning */
+
+  long long stackPtr = (long long)analysisFunctionStackEnd-0x1000;  /* give it the 2048 bias + "wiggle room" */
+  newEntry->analysisStackPtr = (analysisFunctionStack ? 
+                                stackPtr :
+				newEntry->retryGPRs[4]);
+#else
+  newEntry->analysisStackPtr = (analysisFunctionStack ? (long long)analysisFunctionStack : newEntry->retryGPRs[13]);
+#endif
   if (newEntry->state & RECOVERY_STATE_ABENDED) {
     if (newEntry->flags & RCVR_FLAG_DELETE_ON_RETRY) {
       removeRecoveryStateEntry(context);
@@ -1799,6 +1825,16 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
 
   return RC_RCV_OK;
 }
+
+int recoveryPush(char *name, int flags, char *dumpTitle,
+		 AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
+		 CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
+  return recoveryPush2(name,flags,dumpTitle,
+		       userAnalysisFunction,analysisFunctionUserData,
+		       NULL,0,
+		       userCleanupFunction,cleanupFunctionUserData);
+}
+
 
 #elif defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_LINUX)
 

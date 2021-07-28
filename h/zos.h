@@ -595,7 +595,7 @@ typedef struct RB_tag{
 #define RBSTAB2_IS_QUEUED      0x40  /* ie. is active */
 #define RBSTAB2_FREE_STORAGE   0x02  /* free storage at exit */
 #define RBSTAT2_RBECBWT        0x01  /* read the Data areas book */
-  int            rbEPOrCDE;          /* Entry point or CDE (24 bit for CDE */
+  int            rbEPOrCDE;          /* Entry point or CDE (24 bit for CDE) */
   int64          rbopsw;             /* old PSW, 31 bit style */
   /* Offset 0x18 */
   Addr31         systemDependent18;

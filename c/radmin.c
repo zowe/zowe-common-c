@@ -402,6 +402,7 @@ int radminRunRACFCommand(
 
   int rc = RC_RADMIN_OK;
   RadminCommandOutput * __ptr32 result = NULL;
+  /* i think the ampersand operator will introduce a 64-bit pointer 3 lines down */
   RadminAPIStatus statusOnStack;
   RadminAPIStatus *__ptr32 apiStatus31 = runRACFCommand(callAuthInfo,
                                                         internalCommand,

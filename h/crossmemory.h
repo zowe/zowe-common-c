@@ -359,6 +359,20 @@ typedef struct CrossMemoryServerStatus_tag {
   char descriptionNullTerm[64];
 } CrossMemoryServerStatus;
 
+typedef struct SAFEnityName_tag {
+  short bufferLength;
+  short entityLength;
+  char entityName[255];
+  char padding[7];
+} SAFEnityName;
+
+typedef enum SAFAccessAttribute_tag {
+  SAF_ACCESS_ATTRIBUTE_READ = 0x02,
+  SAF_ACCESS_ATTRIBUTE_UPDATE = 0x04,
+  SAF_ACCESS_ATTRIBUTE_CONTROL = 0x08,
+  SAF_ACCESS_ATTRIBUTE_ALTER = 0x08,
+} SAFAccessAttribute;
+
 ZOWE_PRAGMA_PACK_RESET
 
 #define LOG_COMP_ID_CMS       0x008F0001000C0001LLU
@@ -427,6 +441,11 @@ int cmsAddConfigParm(CrossMemoryServer *server,
                      const char *name, const void *value,
                      CrossMemoryServerParmType type);
 
+bool cmsTestAuth(CrossMemoryServerGlobalArea *globalArea,
+		 char *className,
+		 char *entityName);
+
+
 /* Use these inside your service functions if they need ECSA.
  * The number of allocated blocks is tracked in the CMS global area. */
 void *cmsAllocateECSAStorage(CrossMemoryServerGlobalArea *globalArea, unsigned int size);
@@ -456,6 +475,11 @@ int cmsCallService3(CrossMemoryServerGlobalArea *cmsGlobalArea,
  * case of failure
  */
 int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, ...);
+
+/* 
+   @brief the var-args version of cmsPrintf, see above
+ */
+int vcmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, va_list argPointer);
 
 /**
  * @brief Print the hex dump of the specified storage to a cross-memory server's
