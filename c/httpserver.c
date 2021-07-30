@@ -2809,11 +2809,11 @@ static int64 getFineGrainedTime(){
 #define SESSION_VALIDITY_IN_SECONDS 3600
 
 //validitySec 0=not found, -1=no expiration, positive int=session in seconds
-static int getGroupSessionValidity(int *groupId, const HttpServerConfig *config,
+static int getGroupSessionValidity(int groupId, const HttpServerConfig *config,
                                   int *validitySec, int *returnCode, int *reasonCode) {
   int retVal = 0;
   if (config->groupTimeouts) {
-    *validitySec = (int)htGet(config->groupTimeouts, (void*)groupId);
+    *validitySec = INT_FROM_POINTER(htGet(config->groupTimeouts, POINTER_FROM_INT(groupId)));
     AUTH_TRACE("exp=%d for gid=%d\n",*validitySec, groupId);
     if (*validitySec){
       return 0;
@@ -2828,14 +2828,9 @@ static int getGroupSessionValidity(int *groupId, const HttpServerConfig *config,
 //validitySec 0=not found, -1=no expiration, positive int=session in seconds
 static int getUserSessionValidity(char *username, const HttpServerConfig *config,
                                   int *validitySec, int *returnCode, int *reasonCode) {
-#ifdef _LP64
-  /* Pointer chaos in 64 bit mode */
-  *validitySec = 300;
-  return 0;
-#else
   strupcase(username);   /* upfold username */
   if (config->userTimeouts) {
-    *validitySec = (int)htGet(config->userTimeouts, (void*)username);
+    *validitySec = INT_FROM_POINTER(htGet(config->userTimeouts, (void*)username));
     AUTH_TRACE("user validitySec found=%d\n",*validitySec);
     if (*validitySec){
        return 0;
@@ -2852,7 +2847,7 @@ static int getUserSessionValidity(char *username, const HttpServerConfig *config
     if (!retVal) {
       int currentValiditySec = 0;
       for (int i = 0; i < groupCount; i++) {
-        retVal = getGroupSessionValidity(POINTER_FROM_INT(groups[i]), config, &currentValiditySec, returnCode, reasonCode);
+        retVal = getGroupSessionValidity(groups[i], config, &currentValiditySec, returnCode, reasonCode);
         if (!retVal) {
           if (currentValiditySec && *validitySec != -1 && ((currentValiditySec == -1) || (currentValiditySec > *validitySec))) {
             *validitySec = currentValiditySec;
@@ -2871,7 +2866,6 @@ static int getUserSessionValidity(char *username, const HttpServerConfig *config
   } else {
     return 0;
   }
-#endif
 }
 
 static int sessionTokenStillValid(HttpService *service, HttpRequest *request, char *sessionTokenText, int *sessionValiditySec, uint64 *sessionTimeRemaining){
