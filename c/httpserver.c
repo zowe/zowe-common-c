@@ -2828,6 +2828,11 @@ static int getGroupSessionValidity(int *groupId, const HttpServerConfig *config,
 //validitySec 0=not found, -1=no expiration, positive int=session in seconds
 static int getUserSessionValidity(char *username, const HttpServerConfig *config,
                                   int *validitySec, int *returnCode, int *reasonCode) {
+#ifdef _LP64
+  /* Pointer chaos in 64 bit mode */
+  *validitySec = 300;
+  return 0;
+#else
   strupcase(username);   /* upfold username */
   if (config->userTimeouts) {
     *validitySec = (int)htGet(config->userTimeouts, (void*)username);
@@ -2866,6 +2871,7 @@ static int getUserSessionValidity(char *username, const HttpServerConfig *config
   } else {
     return 0;
   }
+#endif
 }
 
 static int sessionTokenStillValid(HttpService *service, HttpRequest *request, char *sessionTokenText, int *sessionValiditySec, uint64 *sessionTimeRemaining){
