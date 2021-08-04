@@ -1889,11 +1889,18 @@ static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
 
   int returnCode = RC_CMS_OK;
 
+#ifdef CMS_ABEND_DIAG
   int pushRC = recoveryPush("CMS service function call",
-                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY | RCVR_FLAG_SDWA_TO_LOGREC,
-                            "RCMS", 
-			    extractServiceFunctionAbendInfo, &abendInfo,
-			    NULL, NULL);
+                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY |
+                            RCVR_FLAG_SDWA_TO_LOGREC,
+                            "RCMS",
+                            extractServiceFunctionAbendInfo, &abendInfo,
+                            NULL, NULL);
+#else
+  int pushRC = recoveryPush("CMS service function call",
+                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY | RCVR_FLAG_PRODUCE_DUMP,
+                            "RCMS", NULL, NULL, NULL, NULL);
+#endif
 
   if (pushRC == RC_RCV_OK) {
 
@@ -1947,9 +1954,15 @@ static int handleProgramCall(PCHandlerParmList *parmList, bool isSpaceSwitchPC) 
 
   int returnCode = RC_CMS_OK;
 
+#ifdef CMS_ABEND_DIAG
   int pushRC = recoveryPush("CMS PC handler",
                             RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY | RCVR_FLAG_SDWA_TO_LOGREC,
                             "RCMS", NULL, NULL, NULL, NULL);
+#else
+  int pushRC = recoveryPush("CMS PC handler",
+                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY,
+                            "RCMS", NULL, NULL, NULL, NULL);
+#endif
 
   if (pushRC == RC_RCV_OK) {
 
