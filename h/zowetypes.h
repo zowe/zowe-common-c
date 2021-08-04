@@ -24,7 +24,7 @@
 
 #ifndef __cplusplus
 #ifndef true
-typedef char bool;  /* this is a char on ZOS */
+typedef int bool;
 #define true 1
 #define false 0
 #endif
