@@ -942,6 +942,20 @@ int cmsAddConfigParm(CrossMemoryServer *server,
   return RC_CMS_OK;
 }
 
+typedef struct SAFEnityName_tag {
+  short bufferLength;
+  short entityLength;
+  char entityName[255];
+  char padding[7];
+} SAFEnityName;
+
+typedef enum SAFAccessAttribute_tag {
+  SAF_ACCESS_ATTRIBUTE_READ = 0x02,
+  SAF_ACCESS_ATTRIBUTE_UPDATE = 0x04,
+  SAF_ACCESS_ATTRIBUTE_CONTROL = 0x08,
+  SAF_ACCESS_ATTRIBUTE_ALTER = 0x08,
+  } SAFAccessAttribute;
+
 static void safEntityNameInit(SAFEnityName *string, char *cstring, char padChar) {
   memset(string->entityName, padChar, sizeof(string->entityName));
   unsigned int cstringLength = strlen(cstring);
@@ -1168,8 +1182,8 @@ static bool isAuthCheckRequired(const CrossMemoryServerGlobalArea *globalArea) {
 }
 
 static bool isCallerAuthorized(CrossMemoryServerGlobalArea *globalArea,
-			       char *className,
-			       char *entityName,
+                               char *className,
+                               char *entityName,
                                bool noSAFRequested) {
 
   if (noSAFRequested) {
@@ -1206,8 +1220,8 @@ static bool isCallerAuthorized(CrossMemoryServerGlobalArea *globalArea,
 }
 
 bool cmsTestAuth(CrossMemoryServerGlobalArea *globalArea,
-		 char *className,
-		 char *entityName){
+                  const char *className,
+                  const char *entityName) {
   ACEE callerACEE;
   ACEE *callerACEEAddr = NULL;
   cmGetCallerAddressSpaceACEE(&callerACEE, &callerACEEAddr);
@@ -1215,7 +1229,9 @@ bool cmsTestAuth(CrossMemoryServerGlobalArea *globalArea,
     return FALSE;
   }
   int racfRC = 0, racfRSN = 0;
-  int safRC = racroutFASTAUTH(callerACEEAddr, className, entityName, SAF_ACCESS_ATTRIBUTE_READ, &racfRC, &racfRSN, 0);
+  int safRC = racroutFASTAUTH(callerACEEAddr, (char *)className,
+                              (char *)entityName,
+                              SAF_ACCESS_ATTRIBUTE_READ, &racfRC, &racfRSN, 0);
   if (safRC != 0) {
     return FALSE;
   }
@@ -1840,8 +1856,8 @@ static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
   }
 
   if (!isCallerAuthorized(globalArea,
-			  "FACILITY",
-			  CROSS_MEMORY_SERVER_RACF_PROFILE,
+                          "FACILITY",
+                          CROSS_MEMORY_SERVER_RACF_PROFILE,
                           localParmList.flags & CMS_PARMLIST_FLAG_NO_SAF_CHECK))
   {
     return RC_CMS_PERMISSION_DENIED;
