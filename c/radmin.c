@@ -396,7 +396,7 @@ int radminRunRACFCommand(
                                                         internalCommand,
                                                         resultHandle);
   statusOnStack = *apiStatus31;
-
+  result = *resultHandle;
   if (result != NULL) {
 
     int visitRC = userHandler(statusOnStack, result, userHandlerData);
