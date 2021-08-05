@@ -359,20 +359,6 @@ typedef struct CrossMemoryServerStatus_tag {
   char descriptionNullTerm[64];
 } CrossMemoryServerStatus;
 
-typedef struct SAFEnityName_tag {
-  short bufferLength;
-  short entityLength;
-  char entityName[255];
-  char padding[7];
-} SAFEnityName;
-
-typedef enum SAFAccessAttribute_tag {
-  SAF_ACCESS_ATTRIBUTE_READ = 0x02,
-  SAF_ACCESS_ATTRIBUTE_UPDATE = 0x04,
-  SAF_ACCESS_ATTRIBUTE_CONTROL = 0x08,
-  SAF_ACCESS_ATTRIBUTE_ALTER = 0x08,
-} SAFAccessAttribute;
-
 ZOWE_PRAGMA_PACK_RESET
 
 #define LOG_COMP_ID_CMS       0x008F0001000C0001LLU
@@ -441,9 +427,19 @@ int cmsAddConfigParm(CrossMemoryServer *server,
                      const char *name, const void *value,
                      CrossMemoryServerParmType type);
 
+/**
+ * Checks if the cross-memory caller has read access to the provided class
+ * and entity.
+ *
+ * @param globalArea The global area of the server.
+ * @param className The class to be checked.
+ * @param entityName The entity to be checked.
+ * @return True if the caller has read access to the class/entity, otherwise
+ * false.
+ */
 bool cmsTestAuth(CrossMemoryServerGlobalArea *globalArea,
-		 char *className,
-		 char *entityName);
+                 const char *className,
+                 const char *entityName);
 
 
 /* Use these inside your service functions if they need ECSA.

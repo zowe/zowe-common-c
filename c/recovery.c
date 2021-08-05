@@ -106,8 +106,6 @@ static void resetESPIE(int token) {
     supervisorMode(TRUE);
   }
 
-  
-
 }
 
 static int setDummyESPIE() {
@@ -135,6 +133,7 @@ static int setDummyESPIE() {
       :
       : "r2"
   );
+
 
   ALLOC_STRUCT31(
     STRUCT31_NAME(parms31),
@@ -1166,6 +1165,7 @@ static int establishRouterInternal(RecoveryContext *userContext,
       :
   );
 
+
   if (!frrRequired) {
 
     /* ESTAEX */
@@ -1556,10 +1556,12 @@ int recoveryRemoveRouter() {
 static RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char *name, int flags, char *dumpTitle,
                                                  AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
                                                  CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
+
   RecoveryStateEntry *newEntry = allocRecoveryStateEntry(context);
   if (newEntry == NULL) {
     return NULL;
   }
+
 #if !defined(METTLE) && defined(_LP64)
   if (userAnalysisFunction != NULL) {
     newEntry->analysisFunctionEnvironment = ((uint64 *)userAnalysisFunction)[0];
@@ -1573,8 +1575,10 @@ static RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char 
   newEntry->analysisFunction = (void * __ptr32 )userAnalysisFunction;
   newEntry->cleanupFunctionEntryPoint = (void * __ptr32 )userCleanupFunction;
 #endif
+
   newEntry->analysisFunctionUserData = analysisFunctionUserData;
   newEntry->cleanupFunctionUserData = cleanupFunctionUserData;
+
   if (name != NULL) {
     int stateNameLength = strlen(name);
     if (stateNameLength > sizeof(newEntry->serviceInfo.stateName)) {
@@ -1583,6 +1587,7 @@ static RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char 
     newEntry->serviceInfo.stateNameLength = stateNameLength;
     memcpy(newEntry->serviceInfo.stateName, name, stateNameLength);
   }
+
   newEntry->flags |= flags;
   newEntry->state = (flags & RCVR_FLAG_DISABLE) ? RECOVERY_STATE_DISABLED : RECOVERY_STATE_ENABLED;
   memset(newEntry->dumpTitle.title, ' ', sizeof(newEntry->dumpTitle.title));
@@ -1600,12 +1605,14 @@ static RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char 
 }
 
 static void removeRecoveryStateEntry(RecoveryContext *context) {
+
   RecoveryStateEntry *entryToRemove = context->recoveryStateChain;
   if (entryToRemove != NULL) {
     context->recoveryStateChain = entryToRemove->next;
   } else {
     return;
   }
+
   freeRecoveryStateEntry(context, entryToRemove);
   entryToRemove = NULL;
 }
@@ -1651,14 +1658,15 @@ RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char *name, 
 }
 
 static void removeRecoveryStateEntry(RecoveryContext *context) {
+
   RecoveryStateEntry *entryToRemove = context->recoveryStateChain;
   if (entryToRemove != NULL) {
     context->recoveryStateChain = entryToRemove->next;
   }
+
   safeFree((char *)entryToRemove, sizeof(RecoveryStateEntry));
   entryToRemove = NULL;
 }
-
 
 #endif /* __ZOWE_OS_ZOS */
 
@@ -1715,6 +1723,7 @@ int recoveryPush2(char *name, int flags, char *dumpTitle,
   if (newEntry == NULL) {
     return RC_RCV_ALLOC_FAILED;
   }
+
   newEntry->linkageStackToken = linkageStackToken;
 
   /* Extract key from the newly created stacked state. IPK cannot be used
@@ -2026,6 +2035,7 @@ void recoveryUpdateStateServiceInfo(char *loadModuleName, char *csect, char *rec
                     componentID, subcomponentName,
                     buildDate, version, componentIDBaseNumber,
                     stateName);
+
 }
 
 void recoveryGetABENDCode(SDWA *sdwa, int *completionCode, int *reasonCode) {
