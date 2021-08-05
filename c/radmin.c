@@ -259,14 +259,6 @@ static void *invokeRadmin(char * __ptr32 workArea,
   int oldKey = setKey(0);
 #endif
 
-
-  printf("right before assembler code arguments at 0x%x\n",argumentsAddress);
-  dumpbuffer((char*)arguments,sizeof(IRRSEQ00Arguments));
-  printf("status block\n");
-  dumpbuffer((char*)status,sizeof(RadminAPIStatus));
-  printf("Data 31 at 0x%p\n",data31);
-  dumpbuffer(data31,DATA31_LENGTH);
-
   __asm(ASM_PREFIX
         /* still need compiled C-code addressing mode to get this address */
         " XGR  1,1   \n"
@@ -292,12 +284,6 @@ static void *invokeRadmin(char * __ptr32 workArea,
 #endif
 
   void *result = (void*)((int*)data31)[2];
-  printf("right after assembler code result=0x%p\n");
-  dumpbuffer((char*)arguments,sizeof(IRRSEQ00Arguments));
-  printf("status block\n");
-  dumpbuffer((char*)status,sizeof(RadminAPIStatus));
-  printf("Data 31\n");
-  dumpbuffer(data31,DATA31_LENGTH);
 
   safeFree31(data31,DATA31_LENGTH);
   safeFree31((char*)arguments,sizeof(IRRSEQ00Arguments));
@@ -402,11 +388,13 @@ int radminRunRACFCommand(
 
   int rc = RC_RADMIN_OK;
   RadminCommandOutput * __ptr32 result = NULL;
+  RadminCommandOutput * __ptr32 * __ptr32 resultHandle = (RadminCommandOutput * __ptr32 * __ptr32)safeMalloc31(4,"RACF Result Handle");
+  *resultHandle = result;
   /* i think the ampersand operator will introduce a 64-bit pointer 3 lines down */
   RadminAPIStatus statusOnStack;
   RadminAPIStatus *__ptr32 apiStatus31 = runRACFCommand(callAuthInfo,
                                                         internalCommand,
-                                                        &result);
+                                                        resultHandle);
   statusOnStack = *apiStatus31;
 
   if (result != NULL) {
@@ -432,6 +420,7 @@ int radminRunRACFCommand(
     freeCommandOutput(result);
     result = NULL;
   }
+  safeFree31((char*)resultHandle,4);
 
   freeAPIStatus(apiStatus31);
   return rc;
