@@ -525,15 +525,11 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         LGR   1,11                CONTEXT AS THE FIRST PARM            \n"
       "         LGR   2,9                 SDWA AS THE SECOND PARM              \n"
       "         LLGT  3,RSTAFUD           USER DATA AS THE THIRD PARM          \n"
-      /* "         LG    4,RSTRGPR+32        STACK                                \n" */
-      "         LG    4,RAFSTPTR          (JOE)ANALYSIS STACK                  \n"
+      "         LG    4,RSTRGPR+32        STACK                                \n"
       "         LG    12,RSTRGPR+96       CAA                                  \n"
       "         LLGT  6,RSTAFEP           ANALYSIS FUNCTION ENTRY POINT        \n"
       "         LG    5,RSTAFEV           ANALYSIS FUNCTION ENVIRONMENT        \n"
-      /* "         LA   11,999              \n"
-	 "         ABEND 797                \n"  */
       "         BASR  7,6                 CALL ANALYSIS FUNCTION               \n"
-      "         LG    4,RSTRGPR+32        (JOE) SLIP THE 'REAL' STACK BACK     \n" 
       "         NOPR  0                                                        \n"
 #else
 #ifdef _LP64
@@ -1701,11 +1697,12 @@ static int16_t getLinkageStackToken(void) {
   return token;
 }
 
-int recoveryPush2(char *name, int flags, char *dumpTitle, 
-		  AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
-		  char *analysisFunctionStack, int analysisFunctionStackSize,
-		  CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
-
+int recoveryPush(char *name, int flags, char *dumpTitle, 
+		 AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
+		 CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
+  char *analysisFunctionStack = NULL;
+  int analysisFunctionStackSize = 0;
+  
   RecoveryContext *context = getRecoveryContext();
   if (context == NULL) {
     return RC_RCV_CONTEXT_NOT_FOUND;
@@ -1835,13 +1832,20 @@ int recoveryPush2(char *name, int flags, char *dumpTitle,
   return RC_RCV_OK;
 }
 
-int recoveryPush(char *name, int flags, char *dumpTitle,
-		 AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
-		 CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
-  return recoveryPush2(name,flags,dumpTitle,
-		       userAnalysisFunction,analysisFunctionUserData,
-		       NULL,0,
-		       userCleanupFunction,cleanupFunctionUserData);
+/* This function is temporarily stubbed until fix available.  It is an 
+   experimental feature with no current callers */
+
+int recoveryPush2(char *name, int flags, char *dumpTitle,
+		  AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
+		  char *analysisFunctionStack, int analysisFunctionStackSize,
+		  CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
+  /*
+    return recoveryPushInternal(name,flags,dumpTitle,
+    userAnalysisFunction,analysisFunctionUserData,
+    analysisFunctionStack,analysisFunctionStackSize,
+    userCleanupFunction,cleanupFunctionUserData);
+    */
+  return 0;
 }
 
 
