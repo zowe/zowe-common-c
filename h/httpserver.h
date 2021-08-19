@@ -48,7 +48,6 @@
 #define SERVICE_AUTH_SAF    2
 #define SERVICE_AUTH_CUSTOM 3 /* done by service */
 #define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN 4
-#define SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN_NO_RBAC 5
 
 #define SERVICE_AUTH_TOKEN_TYPE_LEGACY                    0
 #define SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK  1
@@ -147,7 +146,7 @@ typedef int HttpServiceServe(struct HttpService_tag *service, HttpResponse *resp
 typedef int AuthExtract(struct HttpService_tag *service, HttpRequest *request);
 typedef int AuthValidate(struct HttpService_tag *service, HttpRequest *request);
 typedef int HttpServiceInsertCustomHeaders(struct HttpService_tag *service, HttpResponse *response);
-typedef int AuthHandle(struct HttpService_tag *service, HttpRequest *request, HttpResponse *response);
+typedef int AuthorizationHandler(struct HttpService_tag *service, HttpRequest *request, HttpResponse *response, void *userData);
 
 /*
   returns HTTP_SERVICE_SUCCESS or other fail codes in same group 
@@ -207,12 +206,20 @@ typedef struct HttpService_tag{
   AuthValidate                   *authValidateFunction;
 #define SERVICE_AUTH_FLAG_OPTIONAL 1
   int    authFlags;
+#define SERVICE_AUTHORIZATION_TYPE_DEFAULT  0
+#define SERVICE_AUTHORIZATION_TYPE_NONE     1
+// Range 2..99 is reserved for future use
+#define SERVICE_AUTHORIZATION_TYPE_FIRST_CUSTOM 100
+// SERVICE_AUTHORIZATION_TYPE_FIRST_CUSTOM and higher can be defined and used by an application.
+  int authorizationType;
 } HttpService;
 
-typedef struct HttpAuthHandler_tag{
-  int              type;
-  AuthHandle       *authFunction;
-} HttpAuthHandler;
+typedef struct HttpAuthorizationHandler_tag {
+  int authorizationType;
+  AuthorizationHandler *authorizationHandler;
+  void *userData;
+  struct HttpAuthorizationHandler_tag *next;
+} HttpAuthorizationHandler;
 
 typedef struct HTTPServerConfig_tag {
   int port;
@@ -236,7 +243,7 @@ typedef struct HttpServer_tag{
   uint64           serverInstanceUID;   /* may be something smart at some point. Now just startup STCK */
   void             *sharedServiceMem; /* address shared by all HttpServices */
   hashtable        *loggingIdsByName; /* contains a map of pluginID -> loggingID */
-  HttpAuthHandler  *authHandler[64]; /* contains array of authHandlers (type + auth func) for HttpServices */
+  HttpAuthorizationHandler *authorizationHandlerList;
 } HttpServer;
 
 typedef struct WSReadMachine_tag{
@@ -424,6 +431,17 @@ int httpServerSetSessionTokenKey(HttpServer *server, unsigned int size,
  */
 
 int registerHttpService(HttpServer *server, HttpService *service);
+
+
+/*
+ * @brief Register an Authorization handler.
+ * @param server HTTP Server
+ * @param authorizationType
+ * @param authorizationHandler Function that performs authorization. 
+ *        The function has to return TRUE if the user succesfully authorized, otherwise - FALSe.
+ * @param userData Additional data for authorizationHandler
+ */
+void registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, AuthorizationHandler *authorizationHandler, void *userData);
 
 HttpRequest *dequeueHttpRequest(HttpRequestParser *parser);
 HttpRequestParser *makeHttpRequestParser(ShortLivedHeap *slh);
