@@ -4457,7 +4457,7 @@ static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2,
               "Binary streaming has ended. (return = 0x%x, reason = 0x%x)\n",
               returnCode, reasonCode);
-      return 0;
+      break;
     }
 
     char *encodedBuffer = NULL;
@@ -4531,7 +4531,12 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
       printf("WARNING: UTF8 might not be aligned properly: preserve 3 bytes for the next read cycle to fix UTF boundaries\n");
 #endif
       int bytesRead = fileRead(in,buffer,bufferSize,&returnCode,&reasonCode);
-
+      if (bytesRead <= 0) {
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2,
+                "Text streaming has ended. (return = 0x%x, reason = 0x%x)\n",
+                returnCode, reasonCode);
+        break;
+      }
       unsigned int inLen, outLen;
       int rc;
       char *inPtr, *outPtr;
