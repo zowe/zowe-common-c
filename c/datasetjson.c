@@ -43,6 +43,7 @@
 #include "utils.h"
 #include "vsam.h"
 #include "qsam.h"
+#include "icsf.h"
 
 #define INDEXED_DSCB 96
 
@@ -90,15 +91,22 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
   else {
     in = fopen(filename,"rb, type=record");
   }
+
+  int rcEtag;
+  ICSFDigest digest;
+  char hash[32];
+
   int bufferSize = recordLength+1;
   char buffer[bufferSize];
   jsonStartArray(jPrinter,"records");
   int contentLength = 0;
   int bytesRead = 0;
   if (in) {
+	rcEtag = icsfDigestInit(&digest, ICSF_DIGEST_SHA1);
     while (!feof(in)){
       bytesRead = fread(buffer,1,recordLength,in);
       if (bytesRead > 0 && !ferror(in)) {
+    	rcEtag = icsfDigestUpdate(&digest, buffer, bytesRead);
         jsonAddUnterminatedString(jPrinter, NULL, buffer, bytesRead);
         contentLength = contentLength + bytesRead;
       } else if (bytesRead == 0 && !feof(in) && !ferror(in)) {
@@ -110,6 +118,16 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
       }
     }
     fclose(in);
+    rcEtag = icsfDigestFinish(&digest, hash);
+
+    // Convert hash text to hex.
+    char eTag[70] = "";
+    memset(eTag, '\0', strlen(eTag));
+    sprintf(eTag, "%6s", "eTag->");
+    int len = digest.hashLength;
+    for (int i = 0, j = 6; i < len; ++i, j += 2)
+      sprintf(eTag + j, "%02x", hash[i]);
+    jsonAddString(jPrinter, NULL, eTag);
   }
   else {
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "FAILED TO OPEN FILE\n");
