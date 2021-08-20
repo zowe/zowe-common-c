@@ -2959,10 +2959,15 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
   int encodedLength = 0;
   char *base64Output = encodeBase64(slh,tokenCiphertext,tokenPlaintextLength,&encodedLength,TRUE);
 
+#ifdef INSECURE_COOKIE
   int keyValueBufferSize = encodedLength + strlen(SESSION_TOKEN_COOKIE_NAME) + 16; //16 for trailing ; Path=/ inclusion
   char *keyValueBuffer = SLHAlloc(slh, keyValueBufferSize);
-
   snprintf(keyValueBuffer, keyValueBufferSize, "%s=%s; Path=/", SESSION_TOKEN_COOKIE_NAME, base64Output);
+#else
+  int keyValueBufferSize = encodedLength + strlen(SESSION_TOKEN_COOKIE_NAME) + 40; //40 for cookie properties
+  char *keyValueBuffer = SLHAlloc(slh, keyValueBufferSize);
+  snprintf(keyValueBuffer, keyValueBufferSize, "%s=%s; Path=/; HttpOnly; SameSite=Strict", SESSION_TOKEN_COOKIE_NAME, base64Output);
+#endif
   return keyValueBuffer;
 }
 
