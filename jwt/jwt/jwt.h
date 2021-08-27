@@ -103,9 +103,6 @@ typedef struct JwtContext_tag JwtContext;
 #define JWT_FOR_CLAIMS($jwt, $var) for ($var = ($jwt)->firstCustomClaim; \
     $var != NULL ;$var = ($var)->next)
 
-/* Set jwt tracing; returns prior value */
-int setJwtTrace(int toWhat); 
-
 int jwtParse(const char *base64Text,
              bool ebcdic,
              const ICSFP11_HANDLE_T *keyHandle,

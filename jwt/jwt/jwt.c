@@ -20,8 +20,6 @@
 #include "xlate.h"
 #include "alloc.h"
 #include "timeutls.h"
-#include "logging.h"
-
 
 /* rscrypto */
 #include "rs_icsfp11.h"
@@ -63,19 +61,15 @@ const char *RSJWT_ERROR_DESCRIPTIONS[] = {
 #  define BASE64_IS_EBCDIC 0
 #endif
 
-#define ASCII_PERIOD 0x2e
-
-static int jwtTrace = FALSE;
-
-int setJwtTrace(int toWhat) {
-  int was = jwtTrace;
-#ifndef METTLE
-  if(toWhat >= ZOWE_LOG_DEBUG){
-    jwtTrace = toWhat;
-  }
+#ifdef JWT_DEBUG
+#define DEBUG printf
+#define DUMPBUF dumpbuffer
+#else
+#define DEBUG(...) (void)0
+#define DUMPBUF(...) (void)0
 #endif
-  return was;
-}
+
+#define ASCII_PERIOD 0x2e
 
 /*
  * buf should have extra space for base64url -> base64 conversion
@@ -91,40 +85,40 @@ static int extractParts(char base64Buf[], int maxParts,
       part = strtok_r(NULL, ".", &tokenizer), i++) {
     dparts[i] = part;
     pLen[i] = strlen(part) + 1;
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "found part %s, len %u\n", dparts[i],  pLen[i]);
+    DEBUG("found part %s, len %u\n", dparts[i],  pLen[i]);
   }
   if ((part != NULL) && (i == maxParts)) {
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "error: too many token parts\n");
+    DEBUG("error: too many token parts\n");
     return  RC_JWT_EXTRA_PART;
   }
   nParts = i;
   if (nParts > 0) {
     pLen[nParts - 1] += BASE64URL_EXTRA_BYTES;
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "part %d is now %u bytes\n", nParts - 1, pLen[nParts - 1]);
+    DEBUG("part %d is now %u bytes\n", nParts - 1, pLen[nParts - 1]);
   }
   for (i = nParts - 1; i > 0; i--) {
     char *moved = dparts[i] + i * BASE64URL_EXTRA_BYTES;
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "adding extra space betwen parts: part %d %p -> %p\n", i, dparts[i],
+    DEBUG("adding extra space betwen parts: part %d %p -> %p\n", i, dparts[i],
           moved);
     memmove(moved, dparts[i], pLen[i]);
     dparts[i] = moved;
     pLen[i - 1] += BASE64URL_EXTRA_BYTES;
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "part %d is now %u bytes\n", i - 1, pLen[i - 1]);
+    DEBUG("part %d is now %u bytes\n", i - 1, pLen[i - 1]);
   }
   for (i = 0; i < nParts; i++) {
     int base64Rc = 0;
 
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "decoding part %d: %s[%u]...\n", i, dparts[i], pLen[i]);
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "calling base64urlToBase64()...\n");
+    DEBUG("decoding part %d: %s[%u]...\n", i, dparts[i], pLen[i]);
+    DEBUG("calling base64urlToBase64()...\n");
     if ((base64Rc = base64urlToBase64(dparts[i], pLen[i])) < 0) {
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "error: invalid base64url %d\n", base64Rc);
+      DEBUG("error: invalid base64url %d\n", base64Rc);
       return RC_JWT_INVALID_ENCODING;
     }
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "got base64: %s\n", dparts[i]);
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "calling decodeBase64()...\n");
+    DEBUG("got base64: %s\n", dparts[i]);
+    DEBUG("calling decodeBase64()...\n");
     base64Rc = decodeBase64(dparts[i], decodedText);
     if (base64Rc < 0) {
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "error: invalid base64\n");
+      DEBUG("error: invalid base64\n");
       return RC_JWT_INVALID_ENCODING;
     }
     dparts[i] = decodedText;
@@ -132,7 +126,7 @@ static int extractParts(char base64Buf[], int maxParts,
     decodedText += (unsigned int)base64Rc;
     decodedText[0] = '\0';
     decodedText++;
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "decoded part %d\n", i);
+    DEBUG("decoded part %d\n", i);
   }
   return nParts;
 }
@@ -143,26 +137,26 @@ static int readHeader(char *jsonText, int len,  ShortLivedHeap *slh, Jwt *jwt) {
   char *inputAlg;
 
   JwsHeader *head = &jwt->header;
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "readHeader: calling jsonParseUnterminatedUtf8String()...\n");
+  DEBUG("readHeader: calling jsonParseUnterminatedUtf8String()...\n");
   Json *json = jsonParseUnterminatedUtf8String(slh, JSON_CCSID, jsonText,
       len, errBuf, sizeof (errBuf));
   if (json == NULL) {
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "error: %.128s\n", errBuf);
+    DEBUG("error: %.128s\n", errBuf);
     return RC_JWT_INVALID_JSON;
   }
   JsonObject *obj = jsonAsObject(json);
   if (obj == NULL) {
-     zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "readHeader: jsonAsObject failed()\n");
+     DEBUG("readHeader: jsonAsObject failed()\n");
      return RC_JWT_INVALID_JSON;
    }
   inputAlg = jsonStringProperty(obj, "alg", &status);
   if (inputAlg == NULL) {
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "readHeader: no alg in the json\n");
+    DEBUG("readHeader: no alg in the json\n");
     return RC_JWT_INVALID_JSON;
   }
 #define SET_ALG_IF_MATCHES($alg)            \
   if (strcmp(#$alg, inputAlg) == 0) {       \
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "algorithm %s\n", #$alg);         \
+    DEBUG("algorithm %s\n", #$alg);         \
     head->algorithm = JWS_ALGORITHM_##$alg; \
   } else
 
@@ -174,7 +168,7 @@ static int readHeader(char *jsonText, int len,  ShortLivedHeap *slh, Jwt *jwt) {
 
   head->keyId = jsonStringProperty(obj, "kid", &status);
   if (status == JSON_PROPERTY_UNEXPECTED_TYPE) {
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "readHeader: header.kid type unexpected\n");
+    DEBUG("readHeader: header.kid type unexpected\n");
     return RC_JWT_INVALID_JSON;
   }
   return RC_JWT_OK;
@@ -201,17 +195,17 @@ static int readClaims(char *jsonText, int len, ShortLivedHeap *slh, Jwt *jwt) {
     bool standard = FALSE;
     char *key = p->key;
 
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "property %s, value at %p\n", p->key, p->value);
+    DEBUG("property %s, value at %p\n", p->key, p->value);
 #define KEY_IS($val) (strncmp(key, $val, 4) == 0)
 
 #define SET_STANDARD_STRING($name) do {\
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "standard string\n");          \
+  DEBUG("standard string\n");          \
   standard = TRUE;                     \
   jwt->$name = jsonAsString(p->value); \
 } while (0)
 
 #define SET_STANDARD_NUMBER($name) do {\
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "standard number\n");          \
+  DEBUG("standard number\n");          \
   standard = TRUE;                     \
   jwt->$name = jsonAsNumber(p->value); \
 } while (0)
@@ -236,7 +230,7 @@ static int readClaims(char *jsonText, int len, ShortLivedHeap *slh, Jwt *jwt) {
 #undef SET_STANDARD_NUMBER
 
     if ((slh != NULL) && !standard) {
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "making custom claim %s \n", p->key);
+      DEBUG("making custom claim %s \n", p->key);
       JwtClaim *c = (void *)SLHAlloc(slh, sizeof (*c));
       if (c == NULL) {
         return RC_JWT_MEMORY_ERROR;
@@ -258,19 +252,17 @@ static int checkSignature(JwsAlgorithm algorithm,
                           int sigLen, const uint8_t signature[],
                           int msgLen, const uint8_t message[],
                           ICSFP11_HANDLE_T *keyHandle) {
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "Going to verify the signature of this message: \n");
-  if (jwtTrace) {                            
-    dumpbuffer(message, msgLen);
+  DEBUG("Going to verify the signature of this message: \n");
+  DUMPBUF(message, msgLen);
+  DEBUG("signature: %p\n", signature);
+  if (signature != NULL) {
+    DUMPBUF(signature, sigLen);
   }
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature: %p\n", signature);
-  if (signature != NULL && jwtTrace) {
-    dumpbuffer(signature, sigLen);
+  DEBUG("keyHandle: %p\n", keyHandle);
+  if (keyHandle != NULL) {
+    DUMPBUF((void*)keyHandle, sizeof(ICSFP11_HANDLE_T));
   }
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "keyHandle: %p\n", keyHandle);
-  if (keyHandle != NULL && jwtTrace) {
-    dumpbuffer((void*)keyHandle, sizeof(ICSFP11_HANDLE_T));
-  }
-  
+
   int sts = RC_JWT_OK;
   int p11rc=0, p11rsn=0;
 
@@ -284,21 +276,17 @@ static int checkSignature(JwsAlgorithm algorithm,
       break;
     }
     case JWS_ALGORITHM_RS256: {
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature JWS_ALGORITHM_RS256\n");
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "message:\n");
-      if (jwtTrace) {
-        dumpbuffer(message, msgLen);
-      }
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature:\n");
-      if (jwtTrace) {
-        dumpbuffer(signature, sigLen);
-      }
+      DEBUG("checkSignature JWS_ALGORITHM_RS256\n");
+      DEBUG("message:\n");
+      DUMPBUF(message, msgLen);
+      DEBUG("signature:\n");
+      DUMPBUF(signature, sigLen);
       sts = rs_icsfp11_RS256_verify(keyHandle,
                                     message, (int) msgLen,
                                     signature, (int) sigLen,
                                     &p11rc, &p11rsn);
       if ((0 != sts) || (0 != p11rc)) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature: error from rs_icsfp11_RS256_verify "
+        DEBUG("checkSignature: error from rs_icsfp11_RS256_verify "
               "(sts=%d, rc=%d, rsn=0x%x)\n",
               sts, p11rc, p11rsn);
         sts = RC_JWT_CRYPTO_ERROR;
@@ -309,7 +297,7 @@ static int checkSignature(JwsAlgorithm algorithm,
 
     case JWS_ALGORITHM_HS256: {
       if (sigLen != ICSFP11_SHA256_HASHLEN) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "saw HS256 sig alg with unexpected signature length\n");
+        DEBUG("saw HS256 sig alg with unexpected signature length\n");
         sts = RC_JWT_INVALID_SIGLEN;
         break;
       }
@@ -322,28 +310,26 @@ static int checkSignature(JwsAlgorithm algorithm,
 
       if ((0 != sts) ||
           (0 != p11rc) || (0 != p11rsn)) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature: failed to produce comparison HMAC "
+        DEBUG("checkSignature: failed to produce comparison HMAC "
               "(sts:%d, p11rc:%d, p11rsn:0x%x)\n",
                sts, p11rc, p11rsn);
         sts = RC_JWT_CRYPTO_ERROR;
         break;
       }
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "comparison HMAC value: \n");
-      if (jwtTrace) {
-        dumpbuffer(hmacbuf, sizeof(hmacbuf));
-      }
+      DEBUG("comparison HMAC value: \n");
+      DUMPBUF(hmacbuf, sizeof(hmacbuf));
       if (0 != memcmp(signature, hmacbuf, ICSFP11_SHA256_HASHLEN)) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature verification failed\n");
+        DEBUG("signature verification failed\n");
         sts = RC_JWT_SIG_MISMATCH;
         break;
       }
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature verified successfully\n");
+      DEBUG("signature verified successfully\n");
       break;
     }
 
     case JWS_ALGORITHM_HS384: {
       if (sigLen != ICSFP11_SHA384_HASHLEN) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "saw HS256 sig alg with unexpected signature length\n");
+        DEBUG("saw HS256 sig alg with unexpected signature length\n");
         sts = RC_JWT_INVALID_SIGLEN;
         break;
       }
@@ -357,28 +343,26 @@ static int checkSignature(JwsAlgorithm algorithm,
 
       if ((0 != sts) ||
           (0 != p11rc) || (0 != p11rsn)) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature: failed to produce comparison HMAC "
+        DEBUG("checkSignature: failed to produce comparison HMAC "
               "(sts:%d, p11rc:%d, p11rsn:0x%x)\n",
                sts, p11rc, p11rsn);
         sts = RC_JWT_CRYPTO_ERROR;
         break;
       }
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "comparison HMAC value: \n");
-      if (jwtTrace) {  
-        dumpbuffer(hmacbuf, sizeof(hmacbuf));
-      }
+      DEBUG("comparison HMAC value: \n");
+      DUMPBUF(hmacbuf, sizeof(hmacbuf));
       if (0 != memcmp(signature, hmacbuf, ICSFP11_SHA384_HASHLEN)) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature verification failed\n");
+        DEBUG("signature verification failed\n");
         sts = RC_JWT_SIG_MISMATCH;
         break;
       }
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature verified successfully\n");
+      DEBUG("signature verified successfully\n");
       break;
     }
 
     case JWS_ALGORITHM_HS512: {
       if (sigLen != ICSFP11_SHA512_HASHLEN) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "saw HS256 sig alg with unexpected signature length\n");
+        DEBUG("saw HS256 sig alg with unexpected signature length\n");
         sts = RC_JWT_INVALID_SIGLEN;
         break;
       }
@@ -390,22 +374,20 @@ static int checkSignature(JwsAlgorithm algorithm,
                                   &p11rc, &p11rsn);
       if ((0 != sts) ||
           (0 != p11rc) || (0 != p11rsn))  {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature: failed to produce comparison HMAC "
+        DEBUG("checkSignature: failed to produce comparison HMAC "
               "(sts:%d, p11rc:%d, p11rsn:0x%x)\n",
                sts, p11rc, p11rsn);
         sts = RC_JWT_CRYPTO_ERROR;
         break;
       }
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "comparison HMAC value: \n");
-      if (jwtTrace) {
-        dumpbuffer(hmacbuf, sizeof(hmacbuf));
-      }
+      DEBUG("comparison HMAC value: \n");
+      DUMPBUF(hmacbuf, sizeof(hmacbuf));
       if (0 != memcmp(signature, hmacbuf, ICSFP11_SHA512_HASHLEN)) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature verification failed\n");
+        DEBUG("signature verification failed\n");
         sts = RC_JWT_SIG_MISMATCH;
         break;
       }
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature verified successfully\n");
+      DEBUG("signature verified successfully\n");
       break;
     }
 
@@ -431,7 +413,7 @@ int jwtParse(const char *base64Text, bool ebcdic, ICSFP11_HANDLE_T *keyHandle,
   Jwt *j;
 
   if (slh == NULL) {
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "jwt slh missing\n");
+    DEBUG("jwt slh missing\n");
     return RC_JWT_MEMORY_ERROR;
   }
   j = (void *)SLHAlloc(slh, sizeof (*j));
@@ -439,7 +421,7 @@ int jwtParse(const char *base64Text, bool ebcdic, ICSFP11_HANDLE_T *keyHandle,
     return RC_JWT_MEMORY_ERROR;
   }
   if (!BASE64_IS_EBCDIC && ebcdic) {
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "error: ebcdic on an ascii platform not supported\n");
+    DEBUG("error: ebcdic on an ascii platform not supported\n");
     return RC_JWT_INVALID_ENCODING;
   }
   base64TextCopy = safeMalloc(bufSize, "JWT text copy");
@@ -447,12 +429,12 @@ int jwtParse(const char *base64Text, bool ebcdic, ICSFP11_HANDLE_T *keyHandle,
   decodedText = safeMalloc(bufSize, "decoded JWT text");
 
   if (BASE64_IS_EBCDIC && !ebcdic) {
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "converting to ebcdic...\n");
+    DEBUG("converting to ebcdic...\n");
     a2e(base64TextCopy, base64Len);
   }
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "calling extractParts()...\n");
+  DEBUG("calling extractParts()...\n");
   nparts = extractParts(base64TextCopy, MAX_NPARTS, decodedParts, pLen, decodedText);
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "nparts %d\n", nparts);
+  DEBUG("nparts %d\n", nparts);
   if (nparts < 0) {
     return nparts;
   }
@@ -460,9 +442,9 @@ int jwtParse(const char *base64Text, bool ebcdic, ICSFP11_HANDLE_T *keyHandle,
   if (nparts < 1) {
     return RC_JWT_MISSING_PART;
   }
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "calling readHeader()...\n");
+  DEBUG("calling readHeader()...\n");
   rc = readHeader(decodedParts[0], pLen[0], slh, j);
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "readHeader() rc %d...\n", rc);
+  DEBUG("readHeader() rc %d...\n", rc);
   if (rc != RC_JWT_OK) {
     goto exit;
   }
@@ -470,9 +452,9 @@ int jwtParse(const char *base64Text, bool ebcdic, ICSFP11_HANDLE_T *keyHandle,
   if (nparts < 2) {
     return RC_JWT_MISSING_PART;
   }
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "calling readClaims()...\n");
+  DEBUG("calling readClaims()...\n");
   rc = readClaims(decodedParts[1], pLen[1], slh, j);
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "readClaims() rc %d...\n", rc);
+  DEBUG("readClaims() rc %d...\n", rc);
   if (rc != RC_JWT_OK) {
     goto exit;
   }
@@ -500,10 +482,10 @@ int jwtParse(const char *base64Text, bool ebcdic, ICSFP11_HANDLE_T *keyHandle,
    * `nparts < 3`: we just won't verify the signature, so everything except the
    * header will be ignored
    */
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "calling checkSignature()...\n");
+  DEBUG("calling checkSignature()...\n");
   rc = checkSignature(j->header.algorithm, pLen[2], decodedParts[2],
       prefixLen - 1, asciiBase64, keyHandle);
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature() rc %d...\n", rc);
+  DEBUG("checkSignature() rc %d...\n", rc);
   if (rc != RC_JWT_OK && rc != RC_JWT_INSECURE) {
     goto exit;
   }
@@ -534,21 +516,21 @@ bool jwtAreBasicClaimsValid(const Jwt *jwt, const char *audience) {
   int64_t stck; getSTCK(&stck);
   int64_t currentTime = stckToUnix(stck);
 
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "Time now: %lld, valid after: %lld, expiration: %lld\n",
+  DEBUG("Time now: %lld, valid after: %lld, expiration: %lld\n",
       currentTime, jwt->notBefore, jwt->expirationTime);
   if (!((jwt->notBefore <= currentTime) && (currentTime < jwt->expirationTime))) {
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "JWT expired or not yet active\n");
+    DEBUG("JWT expired or not yet active\n");
     return false;
   }
 
   if (currentTime  < jwt->issuedAt) {
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "JWT issued in the future???\n");
+    DEBUG("JWT issued in the future???\n");
     return false;
   }
 
   if (audience != NULL) {
     if ((jwt->audience == NULL) || (strcmp(audience, jwt->audience) != 0)) {
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "JWT is not for %s\n", audience);
+      DEBUG("JWT is not for %s\n", audience);
       return false;
     }
   }
@@ -636,14 +618,13 @@ static int generateSignature(JwsAlgorithm algorithm,
                              int msgLen, const uint8_t message[],
                              int *sigLen, uint8_t signature[],
                              const ICSFP11_HANDLE_T *keyHandle) {
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "Going to generate the signature for this message: \n");
-  if (jwtTrace) {                               
-    dumpbuffer(message, msgLen);
+  DEBUG("Going to generate the signature for this message: \n");
+  DUMPBUF(message, msgLen);
+  DEBUG("keyHandle: %p\n", keyHandle);
+  if (keyHandle != NULL) {
+    DUMPBUF((void*)keyHandle, sizeof(ICSFP11_HANDLE_T));
   }
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "keyHandle: %p\n", keyHandle);
-  if (keyHandle != NULL && jwtTrace) {
-    dumpbuffer((void*)keyHandle, sizeof(ICSFP11_HANDLE_T));
-  }
+
   int sts = RC_JWT_OK;
   int p11rc=0, p11rsn=0;
 
@@ -653,26 +634,22 @@ static int generateSignature(JwsAlgorithm algorithm,
       break;
     }
     case JWS_ALGORITHM_RS256: {
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "generateSignature JWS_ALGORITHM_RS256\n");
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "message:\n");
-      if (jwtTrace) {
-        dumpbuffer(message, msgLen);
-      }
+      DEBUG("generateSignature JWS_ALGORITHM_RS256\n");
+      DEBUG("message:\n");
+      DUMPBUF(message, msgLen);
       sts = rs_icsfp11_RS256_sign(keyHandle,
                                   message, msgLen,
                                   signature, sigLen,
                                   &p11rc, &p11rsn);
       if ((0 != sts) || (0 != p11rc)) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "generateSignature: error from rs_icsfp11_RS256_verify "
+        DEBUG("generateSignature: error from rs_icsfp11_RS256_verify "
               "(sts=%d, rc=%d, rsn=0x%x)\n",
               sts, p11rc, p11rsn);
         sts = RC_JWT_CRYPTO_ERROR;
         break;
       }
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature:\n");
-      if (jwtTrace) {
-        dumpbuffer(signature, *sigLen);
-      }  
+      DEBUG("signature:\n");
+      DUMPBUF(signature, *sigLen);
       break;
     }
 
@@ -683,17 +660,15 @@ static int generateSignature(JwsAlgorithm algorithm,
                                   &p11rc, &p11rsn);
       if ((0 != sts) ||
           (0 != p11rc) || (0 != p11rsn)) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "generateSignature: failed to produce comparison HMAC "
+        DEBUG("generateSignature: failed to produce comparison HMAC "
               "(sts:%d, p11rc:%d, p11rsn:0x%x)\n",
                sts, p11rc, p11rsn);
         sts = RC_JWT_CRYPTO_ERROR;
         break;
       }
       *sigLen = ICSFP11_SHA256_HASHLEN;
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature:\n");
-      if (jwtTrace) {
-        dumpbuffer(signature, *sigLen);
-      }
+      DEBUG("signature:\n");
+      DUMPBUF(signature, *sigLen);
       break;
     }
 
@@ -704,17 +679,15 @@ static int generateSignature(JwsAlgorithm algorithm,
                                   &p11rc, &p11rsn);
       if ((0 != sts) ||
           (0 != p11rc) || (0 != p11rsn)) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature: failed to produce comparison HMAC "
+        DEBUG("checkSignature: failed to produce comparison HMAC "
               "(sts:%d, p11rc:%d, p11rsn:0x%x)\n",
                sts, p11rc, p11rsn);
         sts = RC_JWT_CRYPTO_ERROR;
         break;
       }
       *sigLen = ICSFP11_SHA384_HASHLEN;
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature:\n");
-      if (jwtTrace) {  
-        dumpbuffer(signature, *sigLen);
-      }
+      DEBUG("signature:\n");
+      DUMPBUF(signature, *sigLen);
       break;
     }
 
@@ -725,17 +698,15 @@ static int generateSignature(JwsAlgorithm algorithm,
                                   &p11rc, &p11rsn);
       if ((0 != sts) ||
           (0 != p11rc) || (0 != p11rsn))  {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature: failed to produce comparison HMAC "
+        DEBUG("checkSignature: failed to produce comparison HMAC "
               "(sts:%d, p11rc:%d, p11rsn:0x%x)\n",
                sts, p11rc, p11rsn);
         sts = RC_JWT_CRYPTO_ERROR;
         break;
       }
       *sigLen = ICSFP11_SHA512_HASHLEN;
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature:\n");
-      if (jwtTrace) {  
-        dumpbuffer(signature, *sigLen);
-      }
+      DEBUG("signature:\n");
+      DUMPBUF(signature, *sigLen);
       break;
     }
 
@@ -758,10 +729,10 @@ int jwtEncode(const Jwt *jwt, bool ebcdic,
     rc = RC_JWT_MEMORY_ERROR;
     goto json_buffer_head_freed;
   }
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "Serializing the header...\n");
+  DEBUG("Serializing the header...\n");
   rc = serializeHeader(jwt, jbufHead);
   if (rc != RC_JWT_OK) {
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "fail, rc %d\n", rc);
+    DEBUG("fail, rc %d\n", rc);
     goto exit;
   }
 
@@ -770,18 +741,15 @@ int jwtEncode(const Jwt *jwt, bool ebcdic,
     rc = RC_JWT_MEMORY_ERROR;
     goto json_buffer_claims_freed;
   }
-  if (jwtTrace) {
-    dumpbuffer(jbufHead->data, jbufHead->len);
-  }
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "Serializing the claims...\n");
+  DUMPBUF(jbufHead->data, jbufHead->len);
+  DEBUG("Serializing the claims...\n");
   rc = serializeClaims(jwt, jbufClaims);
   if (rc != RC_JWT_OK) {
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "fail, rc %d\n", rc);
+    DEBUG("fail, rc %d\n", rc);
     goto exit;
   }
-  if (jwtTrace) {
-    dumpbuffer(jbufClaims->data, jbufClaims->len);
-  }
+  DUMPBUF(jbufClaims->data, jbufClaims->len);
+
   const int resultSize = BASE64_ENCODE_SIZE(jbufHead->len) + 1
       + BASE64_ENCODE_SIZE(jbufClaims->len) + 1
       + BASE64_ENCODE_SIZE(JWT_MAX_SIGNATURE_SIZE) + 1;
@@ -796,15 +764,15 @@ int jwtEncode(const Jwt *jwt, bool ebcdic,
   int base64Size;
   encodeBase64NoAlloc(jbufHead->data, jbufHead->len, result, &base64Size,
                       BASE64_IS_EBCDIC);
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "base64 header: %s[%u]\n", result, base64Size);
+  DEBUG("base64 header: %s[%u]\n", result, base64Size);
   partsLen = base64ToBase64url(result);
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "base64url header: %s[%u]\n", result, partsLen);
+  DEBUG("base64url header: %s[%u]\n", result, partsLen);
   result[partsLen++] = '.';
   encodeBase64NoAlloc(jbufClaims->data, jbufClaims->len, &result[partsLen],
                       &base64Size, BASE64_IS_EBCDIC);
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "base64 claims: %s[%u]\n", &result[partsLen], base64Size);
+  DEBUG("base64 claims: %s[%u]\n", &result[partsLen], base64Size);
   partsLen += base64ToBase64url(&result[partsLen]);
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "base64url header + claims: %.*s[%d]\n", partsLen, result, partsLen);
+  DEBUG("base64url header + claims: %.*s[%d]\n", partsLen, result, partsLen);
 
   if (jwt->header.algorithm != JWS_ALGORITHM_none) {
     int signRc = 0;
@@ -839,7 +807,7 @@ asciiBase64_freed:
     }
 
     if (signRc == RC_JWT_OK) {
-      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signatureLength %d\n", signatureLength);
+      DEBUG("signatureLength %d\n", signatureLength);
       result[partsLen++] = '.';
       encodeBase64NoAlloc(signatureBuf, signatureLength, &result[partsLen],
             &base64Size, BASE64_IS_EBCDIC);
@@ -875,33 +843,26 @@ JwtContext *makeJwtContextForKeyInToken(const char *in_tokenName,
                                          int class,
                                          int *out_rc,
                                          int *out_p11rc, int *out_p11rsn) {
-
-  logConfigureComponent(NULL, LOG_COMP_JWT, "JWT", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
-  if (jwtTrace) {
-    logSetLevel(NULL, LOG_COMP_JWT, jwtTrace);
-  }
   JwtContext *result = (void *)safeMalloc(sizeof (*result), "JwtContext");
   if (result == NULL) {
     *out_rc = RC_JWT_CONTEXT_ALLOCATION_FAILED;
     goto context_freed;
   }
 
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "attempting to address the token %s...\n", in_tokenName);
+  DEBUG("attempting to address the token %s...\n", in_tokenName);
   ICSFP11_HANDLE_T *tokenHandle = NULL;
   const int findTokenRc = rs_icsfp11_findToken(in_tokenName, &tokenHandle,
       out_p11rc, out_p11rsn);
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "findTokenRc %d, out_p11rc %d, out_p11rsn %d\n", findTokenRc, *out_p11rc,
+  DEBUG("findTokenRc %d, out_p11rc %d, out_p11rsn %d\n", findTokenRc, *out_p11rc,
       *out_p11rsn);
   if (!((0 == findTokenRc) && (0 == *out_p11rc) && (0 == *out_p11rsn))) {
     *out_rc = RC_JWT_CRYPTO_TOKEN_NOT_FOUND;
     goto token_freed;
   }
-  if (jwtTrace) {  
-    dumpbuffer((void*)tokenHandle, sizeof (*tokenHandle));
-  }
+  DUMPBUF((void*)tokenHandle, sizeof (*tokenHandle));
   result->tokenHandle = tokenHandle;
 
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "attempting to address the key record %s(%d)...\n", in_keyLabel, class);
+  DEBUG("attempting to address the key record %s(%d)...\n", in_keyLabel, class);
   ICSFP11_HANDLE_T *const keyHandle = (void *) safeMalloc(sizeof (*keyHandle),
       "keyhandle");
   if (keyHandle == NULL) {
@@ -915,20 +876,18 @@ JwtContext *makeJwtContextForKeyInToken(const char *in_tokenName,
       class,
       NULL, &foundHandles, &numfound,
       out_p11rc, out_p11rsn);
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "findKeyRc %d, out_p11rc %d, out_p11rsn %d, numfound %d\n",
+  DEBUG("findKeyRc %d, out_p11rc %d, out_p11rsn %d, numfound %d\n",
       findKeyRc, *out_p11rc, *out_p11rsn, numfound);
   if (!((0 == findKeyRc) && (0 == *out_p11rc) && (0 == *out_p11rsn) && (numfound > 0))) {
     *out_rc = RC_JWT_KEY_NOT_FOUND;
     goto key_not_found;
   }
 
-  zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "key record found\n");
-  if (jwtTrace) {  
-    dumpbuffer((void *)foundHandles, numfound * sizeof (foundHandles[0]));
-  }
+  DEBUG("key record found\n");
+  DUMPBUF((void *)foundHandles, numfound * sizeof (foundHandles[0]));
 
   if (1 < numfound) {
-    zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "Warning: More than one key record found for label: %s\n", in_keyLabel);
+    DEBUG("Warning: More than one key record found for label: %s\n", in_keyLabel);
   }
   memcpy(keyHandle, &(foundHandles[0]), sizeof (foundHandles[0]));
   safeFree((void *)foundHandles, numfound * sizeof (foundHandles[0]));
