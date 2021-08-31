@@ -146,7 +146,7 @@ typedef int HttpServiceServe(struct HttpService_tag *service, HttpResponse *resp
 typedef int AuthExtract(struct HttpService_tag *service, HttpRequest *request);
 typedef int AuthValidate(struct HttpService_tag *service, HttpRequest *request);
 typedef int HttpServiceInsertCustomHeaders(struct HttpService_tag *service, HttpResponse *response);
-typedef int AuthorizationHandler(struct HttpService_tag *service, HttpRequest *request, HttpResponse *response, void *userData);
+typedef int HttpAuthorize(struct HttpService_tag *service, HttpRequest *request, HttpResponse *response, void *userData);
 
 /*
   returns HTTP_SERVICE_SUCCESS or other fail codes in same group 
@@ -216,7 +216,7 @@ typedef struct HttpService_tag{
 
 typedef struct HttpAuthorizationHandler_tag {
   int authorizationType;
-  AuthorizationHandler *authorizationHandler;
+  HttpAuthorize *authorizeFunction;
   void *userData;
   struct HttpAuthorizationHandler_tag *next;
 } HttpAuthorizationHandler;
@@ -437,12 +437,12 @@ int registerHttpService(HttpServer *server, HttpService *service);
  * @brief Register an Authorization handler.
  * @param server HTTP Server
  * @param authorizationType
- * @param authorizationHandler Function that performs authorization. 
- *        The function has to return TRUE if the user succesfully authorized, otherwise - FALSe.
- * @param userData Additional data for authorizationHandler
+ * @param authorizeFunction Function that performs authorization. 
+ *        The function has to return TRUE if the user successfully authorized, otherwise - FALSE.
+ * @param userData Additional data for authorizeFunction
  * @return 0 on success, -1 on failure.
  */
-int registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, AuthorizationHandler *authorizationHandler, void *userData);
+int registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, HttpAuthorize *authorizeFunction, void *userData);
 
 HttpRequest *dequeueHttpRequest(HttpRequestParser *parser);
 HttpRequestParser *makeHttpRequestParser(ShortLivedHeap *slh);
