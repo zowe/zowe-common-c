@@ -6025,9 +6025,9 @@ int mainHttpLoop(HttpServer *server){
   return stcBaseMainLoop(base, MAIN_WAIT_MILLIS);
 }
 
-void registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, AuthorizationHandler *authorizationHandler, void *userData) {
+int registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, AuthorizationHandler *authorizationHandler, void *userData) {
   if (authorizationType == SERVICE_AUTHORIZATION_TYPE_NONE) {
-    return;
+    return 0;
   }
   HttpAuthorizationHandler *handler = (HttpAuthorizationHandler*) safeMalloc(sizeof(*handler), "HttpAuthorizationHandler");
   if (handler) {
@@ -6044,7 +6044,9 @@ void registerHttpAuthorizationHandler(HttpServer *server, int authorizationType,
       }
       head->next = handler;
     }
+    return 0;
   }
+  return -1;
 }
 
 

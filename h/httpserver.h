@@ -440,8 +440,9 @@ int registerHttpService(HttpServer *server, HttpService *service);
  * @param authorizationHandler Function that performs authorization. 
  *        The function has to return TRUE if the user succesfully authorized, otherwise - FALSe.
  * @param userData Additional data for authorizationHandler
+ * @return 0 on success, -1 on failure.
  */
-void registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, AuthorizationHandler *authorizationHandler, void *userData);
+int registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, AuthorizationHandler *authorizationHandler, void *userData);
 
 HttpRequest *dequeueHttpRequest(HttpRequestParser *parser);
 HttpRequestParser *makeHttpRequestParser(ShortLivedHeap *slh);
