@@ -137,8 +137,7 @@ int tlsWrite(TlsSocket *socket, const char *buf, int size, int *outLength) {
 
 int tlsSocketClose(TlsSocket *socket) {
   int rc = 0;
-  rc = rc || gsk_secure_socket_shutdown(socket->socketHandle);
-  rc = rc || gsk_secure_socket_close(&socket->socketHandle);
+  rc = gsk_secure_socket_close(&socket->socketHandle);
   safeFree((char*)socket, sizeof(*socket));
   return rc;
 }
