@@ -158,7 +158,7 @@ int rs_icsfp11_findObjectsByLabel(
 int rs_icsfp11_findObjectsByLabelAndClass(
                     const ICSFP11_HANDLE_T *in_token_handle,
                     const char *in_label,
-                    CK_ULONG in_objectClass,
+                    unsigned int in_objectClass,
                     const char *in_appname,
                     ICSFP11_HANDLE_T **out_handles,
                     int *out_numfound,
