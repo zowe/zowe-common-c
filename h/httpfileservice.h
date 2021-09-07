@@ -15,6 +15,17 @@
 
 #include "httpserver.h"
 
+#define HTTP_FILE_SERVICE_SUCCESS                0 
+#define HTTP_FILE_SERVICE_NOT_FOUND              10 
+#define HTTP_FILE_SERVICE_ALREADY_EXISTS         11 
+#define HTTP_FILE_SERVICE_PERMISION_DENIED       12 
+#define HTTP_FILE_SERVICE_INVALID_PATH           13 
+#define HTTP_FILE_SERVICE_UNDEFINED_ERROR        14
+#define HTTP_FILE_SERVICE_INVALID_INPUT          15 
+
+#define BPX_EACCES     111
+#define BPX_ENOENT     129
+
 void response200WithMessage(HttpResponse *response, char *msg);
 
 bool isDir(char *absolutePath);
