@@ -25,6 +25,7 @@
 #include <limits.h>
 #endif
 
+#include <errno.h>
 #include <limits.h>
 #include "zowetypes.h"
 #include "utils.h"
@@ -376,7 +377,7 @@ static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int f
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
             "Invalid input, same directory path (source=%s, destination=%s)\n",
             oldAbsolutePath, newAbsolutePath);
-    return HTTP_FILE_SERVICE_INVALID_INPUT;    
+    return RC_HTTP_FILE_SERVICE_INVALID_INPUT;    
   }
 
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
@@ -384,36 +385,34 @@ static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int f
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
             "Failed to stat directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             oldAbsolutePath, returnCode, reasonCode);
-    return HTTP_FILE_SERVICE_NOT_FOUND;
+    return RC_HTTP_FILE_SERVICE_NOT_FOUND;
   }
   
   status = fileInfo(newAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == 0 && !forceCopy) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
             "Directory already exists %s\n", newAbsolutePath);    
-    return HTTP_FILE_SERVICE_ALREADY_EXISTS;  }
+    return RC_HTTP_FILE_SERVICE_ALREADY_EXISTS;  }
 
   status = directoryCopy(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
     		    "Failed to copy directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             oldAbsolutePath, returnCode, reasonCode);
-    if(returnCode == BPX_EACCES){
-      return HTTP_FILE_SERVICE_PERMISION_DENIED;
-    }
-    else if(returnCode == BPX_ENOENT){
-      return HTTP_FILE_SERVICE_NOT_FOUND;
-    }
-    else{
-      return HTTP_FILE_SERVICE_UNDEFINED_ERROR;
+    if (returnCode == EACCES) {
+      return RC_HTTP_FILE_SERVICE_PERMISION_DENIED;
+    } else if (returnCode == ENOENT) {
+      return RC_HTTP_FILE_SERVICE_NOT_FOUND;
+    } else {
+      return RC_HTTP_FILE_SERVICE_UNDEFINED_ERROR;
     }
   }
 
-  return HTTP_FILE_SERVICE_SUCCESS;
+  return RC_HTTP_FILE_SERVICE_SUCCESS;
 }
 
 void copyUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceCopy) {
-  int returnCode = HTTP_FILE_SERVICE_UNDEFINED_ERROR;
+  int returnCode = RC_HTTP_FILE_SERVICE_UNDEFINED_ERROR;
 
   if (!(returnCode = copyUnixDirectory(oldAbsolutePath, newAbsolutePath, forceCopy))) {
     response200WithMessage(response, "Successfully copied a directory");
@@ -421,16 +420,16 @@ void copyUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath, 
   else {
     switch (returnCode)
     {
-    case HTTP_FILE_SERVICE_INVALID_INPUT:
+    case RC_HTTP_FILE_SERVICE_INVALID_INPUT:
       respondWithJsonError(response, "Invalid input, Same directory", 400, "Bad Request");
       break;
-    case HTTP_FILE_SERVICE_PERMISION_DENIED:
+    case RC_HTTP_FILE_SERVICE_PERMISION_DENIED:
       respondWithJsonError(response, "Permission denied", 403, "Forbidden");
       break;
-    case HTTP_FILE_SERVICE_ALREADY_EXISTS:
+    case RC_HTTP_FILE_SERVICE_ALREADY_EXISTS:
       respondWithJsonError(response, "Directory already exists", 403, "Forbidden");
       break;               
-    case HTTP_FILE_SERVICE_NOT_FOUND:
+    case RC_HTTP_FILE_SERVICE_NOT_FOUND:
       respondWithJsonError(response, "Directory not found", 404, "Not Found");
       break;    
     default:
@@ -453,7 +452,7 @@ static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceC
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
             "Invalid input, same file path (source=%s, destination=%s)\n",
             oldAbsolutePath, newAbsolutePath);
-    return HTTP_FILE_SERVICE_INVALID_INPUT;    
+    return RC_HTTP_FILE_SERVICE_INVALID_INPUT;    
   }
 
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
@@ -461,14 +460,14 @@ static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceC
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
     		    "Failed to stat file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             oldAbsolutePath, returnCode, reasonCode);
-    return HTTP_FILE_SERVICE_NOT_FOUND;
+    return RC_HTTP_FILE_SERVICE_NOT_FOUND;
   }
   
   status = fileInfo(newAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == 0 && !forceCopy) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
             "File already exists %s\n", newAbsolutePath);    
-    return HTTP_FILE_SERVICE_ALREADY_EXISTS;
+    return RC_HTTP_FILE_SERVICE_ALREADY_EXISTS;
   }
 
   status = fileCopy(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
@@ -476,14 +475,12 @@ static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceC
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
             "Failed to copy file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             oldAbsolutePath, returnCode, reasonCode);
-    if(returnCode == BPX_EACCES){
-      return HTTP_FILE_SERVICE_PERMISION_DENIED;
-    }
-    else if(returnCode == BPX_ENOENT){
-      return HTTP_FILE_SERVICE_NOT_FOUND;
-    }
-    else{
-      return HTTP_FILE_SERVICE_UNDEFINED_ERROR;
+    if (returnCode == EACCES) {
+      return RC_HTTP_FILE_SERVICE_PERMISION_DENIED;
+    } else if (returnCode == ENOENT) {
+      return RC_HTTP_FILE_SERVICE_NOT_FOUND;
+    } else {
+      return RC_HTTP_FILE_SERVICE_UNDEFINED_ERROR;
     }
   }
 
@@ -491,7 +488,7 @@ static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceC
 }
 
 void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceCopy) {
-  int returnCode = HTTP_FILE_SERVICE_UNDEFINED_ERROR;
+  int returnCode = RC_HTTP_FILE_SERVICE_UNDEFINED_ERROR;
 
   if (!(returnCode = copyUnixFile(oldAbsolutePath, newAbsolutePath, forceCopy))) {
     response200WithMessage(response, "Successfully copied a file");
@@ -499,16 +496,16 @@ void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char 
   else {
     switch (returnCode)
     {
-    case HTTP_FILE_SERVICE_INVALID_INPUT:
+    case RC_HTTP_FILE_SERVICE_INVALID_INPUT:
       respondWithJsonError(response, "Invalid input, Same file", 400, "Bad Request");
       break;
-    case HTTP_FILE_SERVICE_PERMISION_DENIED:
+    case RC_HTTP_FILE_SERVICE_PERMISION_DENIED:
       respondWithJsonError(response, "Permission denied", 403, "Forbidden");
       break;
-    case HTTP_FILE_SERVICE_ALREADY_EXISTS:
+    case RC_HTTP_FILE_SERVICE_ALREADY_EXISTS:
       respondWithJsonError(response, "File already exists", 403, "Forbidden");
       break;               
-    case HTTP_FILE_SERVICE_NOT_FOUND:
+    case RC_HTTP_FILE_SERVICE_NOT_FOUND:
       respondWithJsonError(response, "File not found", 404, "Not Found");
       break;    
     default:
