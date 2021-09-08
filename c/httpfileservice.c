@@ -23,9 +23,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <limits.h>
+#include <errno.h>
 #endif
 
-#include <errno.h>
 #include <limits.h>
 #include "zowetypes.h"
 #include "utils.h"
@@ -35,6 +35,11 @@
 #include "charsets.h"
 #include "unixfile.h"
 #include "httpfileservice.h"
+
+#ifdef METTLE
+#define EACCES 111
+#define ENOENT 129   
+#endif
 
 #ifndef PATH_MAX
 # ifdef _POSIX_PATH_MAX
