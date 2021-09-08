@@ -484,7 +484,7 @@ static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceC
     }
   }
 
-  return HTTP_FILE_SERVICE_SUCCESS;
+  return RC_HTTP_FILE_SERVICE_SUCCESS;
 }
 
 void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceCopy) {
