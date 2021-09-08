@@ -29,6 +29,7 @@
 
 #include "zowetypes.h"
 #include "alloc.h"
+#include "cellpool.h"
 #include "cmutils.h"
 #include "crossmemory.h"
 #include "lpa.h"
@@ -82,6 +83,11 @@ const char *CMS_RC_DESCRIPTION[] = {
 #define CMS_DDNAME  "STEPLIB "
 #ifndef CMS_MODULE
 #define CMS_MODULE  CMS_PROD_ID"IS01"
+#endif
+
+/* Check this for backward compatibility with the compile-time dev mode. */
+#ifndef CMS_LPA_DEV_MODE
+#define CMS_LPA_DEV_MODE 0
 #endif
 
 static void eightCharStringInit(EightCharString *string, char *cstring, char padChar) {
@@ -471,6 +477,44 @@ typedef struct CrossMemoryServerLogServiceParm_tag {
   };
   int messageLength;
 } CrossMemoryServerLogServiceParm;
+
+typedef struct CrossMemoryServerDumpServiceParm_tag {
+
+#define CMS_DUMP_SERVICE_PARM_EYECATCHER  "ZWESXDSV"
+#define CMS_DUMP_SERVICE_VERSION          1
+  // TODO we can improve the data size limit by passing the data address itself
+#define CMS_DUMP_SERVICE_MAX_DATA_SIZE    512
+#define CMS_DUMP_SERVICE_MAX_DESC_SIZE    32
+
+  char eyecatcher[8];
+  uint8_t version;
+  char reserved0[3];
+
+  LogMessagePrefix prefix;
+  char padding1[3];
+
+  char descriptionNullTerm[CMS_DUMP_SERVICE_MAX_DESC_SIZE];
+  uint64_t originalAddress;
+  uint32_t originalSize;
+  uint16_t dataLength;
+  char data[CMS_DUMP_SERVICE_MAX_DATA_SIZE];
+
+} CrossMemoryServerDumpServiceParm;
+
+typedef struct CrossMemoryServerMsgQueueElement_tag {
+
+#define CROSS_MEMORY_SERVER_MSGQEL_TYPE_MSG   1
+#define CROSS_MEMORY_SERVER_MSGQEL_TYPE_DUMP  2
+
+  QueueElement queueElement;
+  CPID cellPool;
+  uint8_t type;
+  char filler0[3];
+  union {
+    CrossMemoryServerLogServiceParm logServiceParm;
+    CrossMemoryServerDumpServiceParm dumpServiceParm;
+  };
+} CrossMemoryServerMsgQueueElement;
 
 typedef struct CrossMemoryServerConfigServiceParm_tag {
   char eyecatcher[8];
@@ -1192,103 +1236,138 @@ typedef struct PCHandlerParmList_tag {
 
 ZOWE_PRAGMA_PACK_RESET
 
+#define CMS_MAIN_PCSS_STACK_POOL_SIZE       1024
+#define CMS_MAIN_PCSS_RECOVERY_POOL_SIZE    8192
+
+#define CMS_STACK_SIZE                      65536
+#define CMS_STACK_SUBPOOL                   132
+
+#define CMS_MSG_QUEUE_MAIN_POOL_PSIZE       32768
+#define CMS_MSG_QUEUE_MAIN_POOL_SSIZE       4096
+#define CMS_MSG_QUEUE_FALLBACK_POOL_PSIZE   16384
+#define CMS_MSG_QUEUE_SUBPOOL               132
+
 #ifdef _LP64
 
 #pragma prolog(handlePCSS,\
-"        PUSH  USING                              \n\
-LSSPRLG  LARL  10,LSSPRLG                         \n\
-         USING LSSPRLG,10                         \n\
-         STORAGE OBTAIN,COND=YES,LENGTH=65536,CALLRKY=YES,SP=132,LOC=31,BNDRY=PAGE \n\
-         LTR   15,15                              \n\
-         BZ    LSSINIT                            \n\
-         LA    15,52                              \n\
-         EREGG 0,1                                \n\
-         PR                                       \n\
-LSSINIT  DS    0H                                 \n\
-         LGR   13,1                               \n\
-         USING PCHSTACK,13                        \n\
-         EREGG 1,1                                \n\
-         MVC   PCHSAEYE,=C'F1SA'                  \n\
-         MVC   PCHPLEYE,=C'RSPCHEYE'              \n\
-         STG   4,PCHPLLPL                         \n\
-         STG   1,PCHPLUPL                         \n\
-         LA    1,PCHPARM                          \n\
-         LA    13,PCHSA                           \n\
-         J     LSSRET                             \n\
-         LTORG                                    \n\
-         DROP  10                                 \n\
-LSSRET   DS    0H                                 \n\
-         DROP                                     \n\
+"        PUSH  USING                                                    \n\
+LSSPRLG  LARL  10,LSSPRLG          establish addressability using r10   \n\
+         USING LSSPRLG,10                                               \n\
+         LGR   5,4                 save latent parm as CPOOL uses r4    \n\
+         USING PCLPARM,5                                                \n\
+         LLGT  2,PCLPPRM1          load global area from latent parm    \n\
+         USING GLA,2                                                    \n\
+         SAM31                                                          \n\
+         SYSSTATE AMODE64=NO                                            \n\
+         CPOOL GET,C,CPID=GLASTCP,REGS=USE   allocate a stack cell      \n\
+         SAM64                                                          \n\
+         SYSSTATE AMODE64=YES                                           \n\
+         DROP  2                   drop, r2 is changed by CPOOL         \n\
+         LTGFR 1,1                 check if we have a cell              \n\
+         BNZ   LSSINIT             go init, if we have it               \n\
+         LA    15,52               if not, leave with a bad RC (52)     \n\
+         EREGG 0,1                 restore r0 and r1 before leaving     \n\
+         PR                        return to caller                     \n\
+LSSINIT  DS    0H                                                       \n\
+         LGR   13,1                use new storage as stack in r13      \n\
+         USING PCHSTACK,13                                              \n\
+         EREGG 1,1                 restore r1 (CMS parm) for PC routine \n\
+         MVC   PCHSAEYE,=C'F1SA'   init stack eyecatcher                \n\
+         MVC   PCHPLEYE,=C'RSPCHEYE'  init PC parm eyecatcher           \n\
+         STG   5,PCHPLLPL          save latent parm in PC parm          \n\
+         STG   1,PCHPLUPL          save CMS parm in PC parm             \n\
+         LA    1,PCHPARM           make PC parm available to PC routine \n\
+         LA    13,PCHSA            adjust stack to start after PC parm  \n\
+         DROP  13                  drop, it's no longer PCHSTACK        \n\
+         J     LSSRET              go to metal PC routine               \n\
+         LTORG                                                          \n\
+         DROP  5,10                drop, not needed any more            \n\
+LSSRET   DS    0H                                                       \n\
+         DROP                                                           \n\
          POP   USING                               ")
 
 #pragma epilog(handlePCSS,\
-"        PUSH  USING                              \n\
-         SLGFI 13,PCHPARML                        \n\
-         LGR   1,13                               \n\
-         LGR   2,15                               \n\
-         LARL  10,&CCN_BEGIN                      \n\
-         USING &CCN_BEGIN,10                      \n\
-         STORAGE RELEASE,COND=YES,LENGTH=65536,CALLRKY=YES,SP=132,ADDR=(1) \n\
-         LTR   15,15                              \n\
-         BZ    LSSTERM                            \n\
-         LTR   2,2                                \n\
-         BNZ   LSSTERM                            \n\
-         LA    2,53                               \n\
-LSSTERM  DS    0H                                 \n\
-         DROP  10                                 \n\
-         LGR   15,2                               \n\
-         EREGG 0,1                                \n\
-         PR                                       \n\
-         DROP                                     \n\
+"        PUSH  USING                                                    \n\
+         SLGFI 13,PCHPARML         restore original stack address       \n\
+         LGR   3,13                put stack to r3 for CPOOL            \n\
+         LGR   4,15                save RC as CPOOL uses r15            \n\
+         LARL  10,&CCN_BEGIN       establish addressability             \n\
+         USING &CCN_BEGIN,10                                            \n\
+         USING PCHSTACK,13                                              \n\
+         LG    5,PCHPLLPL          load latent parm from PC parm        \n\
+         USING PCLPARM,5                                                \n\
+         LLGT  2,PCLPPRM1          load global area from latent parm    \n\
+         USING GLA,2                                                    \n\
+         SAM31                                                          \n\
+         SYSSTATE AMODE64=NO                                            \n\
+         CPOOL FREE,CPID=GLASTCP,CELL=(3),REGS=USE  free stack cell     \n\
+         SAM64                                                          \n\
+         SYSSTATE AMODE64=YES                                           \n\
+         DROP  13                  drop, it's no longer valid           \n\
+LSSTERM  DS    0H                                                       \n\
+         DROP  5,10                drop, not needed any more            \n\
+         LGR   15,4                restore RC for caller                \n\
+         EREGG 0,1                 restore r0 and r1 for caller         \n\
+         PR                        return to caller                     \n\
+         DROP                                                           \n\
          POP   USING                               ")
 
 #else
 
 #pragma prolog(handlePCSS,\
-"        PUSH  USING                              \n\
-LSSPRLG  LARL  10,LSSPRLG                         \n\
-         USING LSSPRLG,10                         \n\
-         STORAGE OBTAIN,COND=YES,LENGTH=65536,CALLRKY=YES,SP=132,LOC=31,BNDRY=PAGE \n\
-         LTR   15,15                              \n\
-         BZ    LSSINIT                            \n\
-         LA    15,52                              \n\
-         EREG  0,1                                \n\
-         PR                                       \n\
-LSSINIT  DS    0H                                 \n\
-         LR    13,1                               \n\
-         USING PCHSTACK,13                        \n\
-         EREG  1,1                                \n\
-         MVC   PCHPLEYE,=C'RSPCHEYE'              \n\
-         ST    4,PCHPLLPL                         \n\
-         ST    1,PCHPLUPL                         \n\
-         LA    1,PCHPARM                          \n\
-         LA    13,PCHSA                           \n\
-         J     LSSRET                             \n\
-         LTORG                                    \n\
-         DROP  10                                 \n\
-LSSRET   DS    0H                                 \n\
-         DROP                                     \n\
+"        PUSH  USING                                                    \n\
+LSSPRLG  LARL  10,LSSPRLG          establish addressability using r10   \n\
+         USING LSSPRLG,10                                               \n\
+         LR    5,4                 save latent parm as CPOOL uses r4    \n\
+         USING PCLPARM,5                                                \n\
+         L     2,PCLPPRM1          load global area from latent parm    \n\
+         USING GLA,2                                                    \n\
+         CPOOL GET,C,CPID=GLASTCP,REGS=USE   allocate a stack cell      \n\
+         DROP  2                   drop, r2 is changed by CPOOL         \n\
+         LTR   1,1                 check if we have a cell              \n\
+         BNZ   LSSINIT             go init, if we have it               \n\
+         LA    15,52               if not, leave with a bad RC (52)     \n\
+         EREG  0,1                 restore r0 and r1 before leaving     \n\
+         PR                        return to caller                     \n\
+LSSINIT  DS    0H                                                       \n\
+         LR    13,1                use new storage as stack in r13      \n\
+         USING PCHSTACK,13                                              \n\
+         EREG  1,1                 restore r1 (CMS parm) for PC routine \n\
+         MVC   PCHPLEYE,=C'RSPCHEYE'  init PC parm eyecatcher           \n\
+         ST    5,PCHPLLPL          save latent parm in PC parm          \n\
+         ST    1,PCHPLUPL          save CMS parm in PC parm             \n\
+         LA    1,PCHPARM           make PC parm available to PC routine \n\
+         LA    13,PCHSA            adjust stack to start after PC parm  \n\
+         DROP  13                  drop, it's no longer PCHSTACK        \n\
+         J     LSSRET              go to metal PC routine               \n\
+         LTORG                                                          \n\
+         DROP  5,10                drop, not needed any more            \n\
+LSSRET   DS    0H                                                       \n\
+         DROP                                                           \n\
          POP   USING                               ")
 
 #pragma epilog(handlePCSS,\
-"        PUSH  USING                              \n\
-         SLFI  13,PCHPARML                        \n\
-         LR    1,13                               \n\
-         LR    2,15                               \n\
-         LARL  10,&CCN_BEGIN                      \n\
-         USING &CCN_BEGIN,10                      \n\
-         STORAGE RELEASE,COND=YES,LENGTH=65536,CALLRKY=YES,SP=132,ADDR=(1) \n\
-         LTR   15,15                              \n\
-         BZ    LSSTERM                            \n\
-         LTR   2,2                                \n\
-         BNZ   LSSTERM                            \n\
-         LA    2,53                               \n\
-LSSTERM  DS    0H                                 \n\
-         DROP  10                                 \n\
-         LR    15,2                               \n\
-         EREG  0,1                                \n\
-         PR                                       \n\
-         DROP                                     \n\
+"        PUSH  USING                                                    \n\
+         SLFI  13,PCHPARML         restore original stack address       \n\
+         LR    3,13                put stack to r3 for CPOOL            \n\
+         LR    4,15                save RC as CPOOL uses r15            \n\
+         LARL  10,&CCN_BEGIN       establish addressability             \n\
+         USING &CCN_BEGIN,10                                            \n\
+         USING PCHSTACK,13                                              \n\
+         L     5,PCHPLLPL          load latent parm from PC parm        \n\
+         USING PCLPARM,5                                                \n\
+         L     2,PCLPPRM1          load global area from latent parm    \n\
+         USING GLA,2                                                    \n\
+         SAM31                                                          \n\
+         CPOOL FREE,CPID=GLASTCP,CELL=(3),REGS=USE  free stack cell     \n\
+         SAM64                                                          \n\
+         DROP  13                  drop, it's no longer valid           \n\
+LSSTERM  DS    0H                                                       \n\
+         DROP  5,10                drop, not needed any more            \n\
+         LR    15,4                restore RC for caller                \n\
+         EREG  0,1                 restore r0 and r1 for caller         \n\
+         PR                        return to caller                     \n\
+         DROP                                                           \n\
          POP   USING                               ")
 
 #endif
@@ -1296,100 +1375,106 @@ LSSTERM  DS    0H                                 \n\
 #ifdef _LP64
 
 #pragma prolog(handlePCCP,\
-"        PUSH  USING                              \n\
-LCPPRLG  LARL  10,LCPPRLG                         \n\
-         USING LCPPRLG,10                         \n\
+"        PUSH  USING                                                    \n\
+LCPPRLG  LARL  10,LCPPRLG          establish addressability using r10   \n\
+         USING LCPPRLG,10                                               \n\
+* allocate stack storage                                                \n\
          STORAGE OBTAIN,COND=YES,LENGTH=65536,CALLRKY=YES,SP=132,LOC=31,BNDRY=PAGE \n\
-         LTR   15,15                              \n\
-         BZ    LCPINIT                            \n\
-         LA    15,52                              \n\
-         EREGG 0,1                                \n\
-         PR                                       \n\
-LCPINIT  DS    0H                                 \n\
-         LGR   13,1                               \n\
-         USING PCHSTACK,13                        \n\
-         EREGG 1,1                                \n\
-         MVC   PCHSAEYE,=C'F1SA'                  \n\
-         MVC   PCHPLEYE,=C'RSPCHEYE'              \n\
-         STG   4,PCHPLLPL                         \n\
-         STG   1,PCHPLUPL                         \n\
-         LA    1,PCHPARM                          \n\
-         LA    13,PCHSA                           \n\
-         J     LCPRET                             \n\
-         LTORG                                    \n\
-         DROP  10                                 \n\
-LCPRET   DS    0H                                 \n\
-         DROP                                     \n\
+         LTR   15,15               check RC                             \n\
+         BZ    LCPINIT             go init if RC=0                      \n\
+         LA    15,52               if not, leave with a bad RC (52)     \n\
+         EREGG 0,1                 restore r0 and r1 before leaving     \n\
+         PR                        return to caller                     \n\
+LCPINIT  DS    0H                                                       \n\
+         LGR   13,1                use new storage as stack in r13      \n\
+         USING PCHSTACK,13                                              \n\
+         EREGG 1,1                 restore r1 (CMS parm) for PC routine \n\
+         MVC   PCHSAEYE,=C'F1SA'   init stack eyecatcher                \n\
+         MVC   PCHPLEYE,=C'RSPCHEYE'  init PC parm eyecatcher           \n\
+         STG   4,PCHPLLPL          save latent parm in PC parm          \n\
+         STG   1,PCHPLUPL          save CMS parm in PC parm             \n\
+         LA    1,PCHPARM           make PC parm available to PC routine \n\
+         LA    13,PCHSA            adjust stack to start after PC parm  \n\
+         DROP  13                  drop, it's no longer PCHSTACK        \n\
+         J     LCPRET              go to metal PC routine               \n\
+         LTORG                                                          \n\
+         DROP  10                  drop, not needed any more            \n\
+LCPRET   DS    0H                                                       \n\
+         DROP                                                           \n\
          POP   USING                               ")
 
 #pragma epilog(handlePCCP,\
-"        PUSH  USING                              \n\
-         SLGFI 13,PCHPARML                        \n\
-         LGR   1,13                               \n\
-         LGR   2,15                               \n\
-         LARL  10,&CCN_BEGIN                      \n\
-         USING &CCN_BEGIN,10                      \n\
+"        PUSH  USING                                                    \n\
+         SLGFI 13,PCHPARML         restore original stack address       \n\
+         LGR   1,13                put stack to r3 for CPOOL            \n\
+         LGR   2,15                save RC as STORAGE RELEASE uses r15  \n\
+         LARL  10,&CCN_BEGIN       establish addressability             \n\
+         USING &CCN_BEGIN,10                                            \n\
+* free stack storage                                                    \n\
          STORAGE RELEASE,COND=YES,LENGTH=65536,CALLRKY=YES,SP=132,ADDR=(1) \n\
-         LTR   15,15                              \n\
-         BZ    LCPTERM                            \n\
-         LTR   2,2                                \n\
-         BNZ   LCPTERM                            \n\
-         LA    2,53                               \n\
-LCPTERM  DS    0H                                 \n\
-         DROP  10                                 \n\
-         LGR   15,2                               \n\
-         EREGG 0,1                                \n\
-         PR                                       \n\
-         DROP                                     \n\
+         LTR   15,15               check RC                             \n\
+         BZ    LCPTERM             continue normal termination if RC=0  \n\
+         LTR   2,2                 already have a bad RC?               \n\
+         BNZ   LCPTERM             yes, continue normal termination     \n\
+         LA    2,53                if not, indicate release failure (53)\n\
+LCPTERM  DS    0H                                                       \n\
+         DROP  10                  drop, not needed any more            \n\
+         LGR   15,2                restore RC for caller                \n\
+         EREGG 0,1                 restore r0 and r1 for caller         \n\
+         PR                        return to caller                     \n\
+         DROP                                                           \n\
          POP   USING                               ")
 
 #else
 
 #pragma prolog(handlePCCP,\
-"        PUSH  USING                              \n\
-LCPPRLG  LARL  10,LCPPRLG                         \n\
-         USING LCPPRLG,10                         \n\
+"        PUSH  USING                                                    \n\
+LCPPRLG  LARL  10,LCPPRLG          establish addressability using r10   \n\
+         USING LCPPRLG,10                                               \n\
+* allocate stack storage                                                \n\
          STORAGE OBTAIN,COND=YES,LENGTH=65536,CALLRKY=YES,SP=132,LOC=31,BNDRY=PAGE \n\
-         LTR   15,15                              \n\
-         BZ    LCPINIT                            \n\
-         LA    15,52                              \n\
-         EREG  0,1                                \n\
-         PR                                       \n\
-LCPINIT  DS    0H                                 \n\
-         LR    13,1                               \n\
-         USING PCHSTACK,13                        \n\
-         EREG  1,1                                \n\
-         MVC   PCHPLEYE,=C'RSPCHEYE'              \n\
-         ST    4,PCHPLLPL                         \n\
-         ST    1,PCHPLUPL                         \n\
-         LA    1,PCHPARM                          \n\
-         LA    13,PCHSA                           \n\
-         J     LCPRET                             \n\
-         LTORG                                    \n\
-         DROP  10                                 \n\
-LCPRET   DS    0H                                 \n\
-         DROP                                     \n\
+         LTR   15,15               check RC                             \n\
+         BZ    LCPINIT             go init if RC=0                      \n\
+         LA    15,52               if not, leave with a bad RC (52)     \n\
+         EREG  0,1                 restore r0 and r1 before leaving     \n\
+         PR                        return to caller                     \n\
+LCPINIT  DS    0H                                                       \n\
+         LR    13,1                use new storage as stack in r13      \n\
+         USING PCHSTACK,13                                              \n\
+         EREG  1,1                 restore r1 (CMS parm) for PC routine \n\
+         MVC   PCHPLEYE,=C'RSPCHEYE'  init PC parm eyecatcher           \n\
+         ST    4,PCHPLLPL          save latent parm in PC parm          \n\
+         ST    1,PCHPLUPL          save CMS parm in PC parm             \n\
+         LA    1,PCHPARM           make PC parm available to PC routine \n\
+         LA    13,PCHSA            adjust stack to start after PC parm  \n\
+         DROP  13                  drop, it's no longer PCHSTACK        \n\
+         J     LCPRET              go to metal PC routine               \n\
+         LTORG                                                          \n\
+         DROP  10                  drop, not needed any more            \n\
+LCPRET   DS    0H                                                       \n\
+         DROP                                                           \n\
          POP   USING                               ")
 
 #pragma epilog(handlePCCP,\
-"        PUSH  USING                              \n\
-         SLFI  13,PCHPARML                        \n\
-         LR    1,13                               \n\
-         LR    2,15                               \n\
-         LARL  10,&CCN_BEGIN                      \n\
-         USING &CCN_BEGIN,10                      \n\
+"        PUSH  USING                                                    \n\
+         SLFI  13,PCHPARML         restore original stack address       \n\
+         LR    1,13                put stack to r3 for CPOOL            \n\
+         LR    2,15                save RC as STORAGE RELEASE uses r15  \n\
+         LARL  10,&CCN_BEGIN       establish addressability             \n\
+         USING &CCN_BEGIN,10                                            \n\
+* free stack storage                                                    \n\
          STORAGE RELEASE,COND=YES,LENGTH=65536,CALLRKY=YES,SP=132,ADDR=(1) \n\
-         LTR   15,15                              \n\
-         BZ    LCPTERM                            \n\
-         LTR   2,2                                \n\
-         BNZ   LCPTERM                            \n\
-         LA    2,53                               \n\
-LCPTERM  DS    0H                                 \n\
-         DROP  10                                 \n\
-         LR    15,2                               \n\
-         EREG  0,1                                \n\
-         PR                                       \n\
-         DROP                                     \n\
+         LTR   15,15               check RC                             \n\
+         BZ    LCPTERM             continue normal termination if RC=0  \n\
+         LTR   2,2                 already have a bad RC?               \n\
+         BNZ   LCPTERM             yes, continue normal termination     \n\
+         LA    2,53                if not, indicate release failure (53)\n\
+LCPTERM  DS    0H                                                       \n\
+         DROP  10                  drop, not needed any more            \n\
+         LR    15,2                restore RC for caller                \n\
+         EREG  0,1                 restore r0 and r1 for caller         \n\
+         PR                        return to caller                     \n\
+         DROP                                                           \n\
          POP   USING                               ")
 
 #endif
@@ -1424,18 +1509,28 @@ typedef struct PCRoutineEnvironment_tag {
 #define PC_ROUTINE_ENV_EYECATCHER  "RSPCEEYE"
   CAA dummyCAA;
   RLETask dummyRLETask;
+  char filler0[4];
+  RecoveryContext recoveryContext;
 } PCRoutineEnvironment;
 ZOWE_PRAGMA_PACK_RESET
 
-#define INIT_PC_ENVIRONMENT(envAddr) \
+#define INIT_PC_ENVIRONMENT(cmsGlobalAreaAddr, isSpaceSwitch, envAddr) \
   ({ \
     memset((envAddr), 0, sizeof(PCRoutineEnvironment)); \
     memcpy((envAddr)->eyecatcher, PC_ROUTINE_ENV_EYECATCHER, sizeof((envAddr)->eyecatcher)); \
     (envAddr)->dummyCAA.rleTask = &(envAddr)->dummyRLETask; \
     int returnCode = RC_CMS_OK; \
     __asm(" LA    12,0(,%0) " : : "r"(&(envAddr)->dummyCAA) : ); \
-    int recoveryRC = recoveryEstablishRouter(RCVR_ROUTER_FLAG_PC_CAPABLE | \
-                                             RCVR_ROUTER_FLAG_RUN_ON_TERM); \
+    int recoveryRC = RC_RCV_OK; \
+    if (isSpaceSwitch) { \
+      recoveryRC = recoveryEstablishRouter2(&(envAddr)->recoveryContext, \
+                                            (cmsGlobalAreaAddr)->pcssRecoveryPool, \
+                                            RCVR_ROUTER_FLAG_PC_CAPABLE | \
+                                            RCVR_ROUTER_FLAG_RUN_ON_TERM); \
+    } else { \
+      recoveryRC = recoveryEstablishRouter(RCVR_ROUTER_FLAG_PC_CAPABLE | \
+                                           RCVR_ROUTER_FLAG_RUN_ON_TERM); \
+    } \
     if (recoveryRC != RC_RCV_OK) { \
       returnCode = RC_CMS_ERROR; \
     } \
@@ -1464,24 +1559,110 @@ void post(ECB * __ptr32 ecb, int code) {
   );
 }
 
+static int allocateMsgQueueElement(CrossMemoryServer *server,
+                                   CrossMemoryServerMsgQueueElement **result) {
+
+  CPID cpid = CPID_NULL;
+  CrossMemoryServerMsgQueueElement *element = NULL;
+  bool isConditional = isCallerLocked();
+
+  int recoveryRC = recoveryPush(
+      "allocateMsgQueueElement()",
+      RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY,
+      "ABEND in CPOOL GET for msg queue element",
+      NULL, NULL,
+      NULL, NULL
+  );
+
+  if (recoveryRC == RC_RCV_OK) {
+
+    cpid = server->messageQueueMainPool;
+    element = cellpoolGet(cpid, isConditional);
+
+    if (element == NULL) {
+      cpid = server->messageQueueFallbackPool;
+      element = cellpoolGet(cpid, true);
+    }
+
+  }
+
+  if (recoveryRC == RC_RCV_OK) {
+    recoveryPop();
+  }
+
+  if (element) {
+    memset(element, 0, sizeof(*element));
+    element->cellPool = cpid;
+  } else {
+    return RC_CMS_NO_STORAGE_FOR_MSG;
+  }
+
+  *result = element;
+
+  return RC_CMS_OK;
+}
+
+static void freeMsgQueueElement(CrossMemoryServerMsgQueueElement *element) {
+  cellpoolFree(element->cellPool, element);
+}
+
 static int handleLogService(CrossMemoryServer *server, CrossMemoryServerLogServiceParm *callerParm) {
 
   if (callerParm == NULL) {
     return RC_CMS_STDSVC_PARM_NULL;
   }
 
-  CrossMemoryServerLogServiceParm *localParm =
-      (CrossMemoryServerLogServiceParm *)safeMalloc31(sizeof(CrossMemoryServerLogServiceParm), "CrossMemoryServerLogServiceParm");
-  cmCopyFromSecondaryWithCallerKey(localParm, callerParm,
+  CrossMemoryServerLogServiceParm localParm;
+  cmCopyFromSecondaryWithCallerKey(&localParm, callerParm,
                                    sizeof(CrossMemoryServerLogServiceParm));
 
-  if (memcmp(localParm->eyecatcher, CMS_LOG_SERVICE_PARM_EYECATCHER,
-             sizeof(localParm->eyecatcher))) {
+  if (memcmp(localParm.eyecatcher, CMS_LOG_SERVICE_PARM_EYECATCHER,
+             sizeof(localParm.eyecatcher))) {
     return RC_CMS_STDSVC_PARM_BAD_EYECATCHER;
   }
 
+  CrossMemoryServerMsgQueueElement *newElement = NULL;
+  int allocRC = allocateMsgQueueElement(server, &newElement);
+  if (allocRC != RC_CMS_OK) {
+    return allocRC;
+  }
+
+  newElement->type = CROSS_MEMORY_SERVER_MSGQEL_TYPE_MSG;
+  newElement->logServiceParm = localParm;
+
   /* log service is always space switch */
-  qInsert(server->messageQueue, localParm);
+  qEnqueue(server->messageQueue, &newElement->queueElement);
+
+  return RC_CMS_OK;
+}
+
+static int handleDumpService(CrossMemoryServer *server,
+                             CrossMemoryServerLogServiceParm *callerParm) {
+
+  if (callerParm == NULL) {
+    return RC_CMS_STDSVC_PARM_NULL;
+  }
+
+  CrossMemoryServerDumpServiceParm localParm;
+  cmCopyFromSecondaryWithCallerKey(&localParm, callerParm,
+                                   sizeof(CrossMemoryServerDumpServiceParm));
+
+  if (memcmp(localParm.eyecatcher, CMS_DUMP_SERVICE_PARM_EYECATCHER,
+             sizeof(localParm.eyecatcher))) {
+    return RC_CMS_STDSVC_PARM_BAD_EYECATCHER;
+  }
+
+  CrossMemoryServerMsgQueueElement *newElement = NULL;
+  int allocRC = allocateMsgQueueElement(server, &newElement);
+  if (allocRC != RC_CMS_OK) {
+    return allocRC;
+  }
+
+  newElement->type = CROSS_MEMORY_SERVER_MSGQEL_TYPE_DUMP;
+  newElement->dumpServiceParm = localParm;
+
+  /* dump service is always space switch */
+  qEnqueue(server->messageQueue, &newElement->queueElement);
 
   return RC_CMS_OK;
 }
@@ -1534,7 +1715,7 @@ static int handleStandardService(CrossMemoryServer *server, CrossMemoryServerPar
     status = handleLogService(server, localParmList->callerData);
     break;
   case CROSS_MEMORY_SERVER_DUMP_SERVICE_ID:
-    status = RC_CMS_PC_NOT_IMPLEMENTED;
+    status = handleDumpService(server, localParmList->callerData);
     break;
   case CROSS_MEMORY_SERVER_CONFIG_SERVICE_ID:
     status = handleConfigService(server, localParmList->callerData);
@@ -1550,25 +1731,8 @@ static int handleStandardService(CrossMemoryServer *server, CrossMemoryServerPar
 static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
                                    bool isSpaceSwitchPC) {
 
-  if (parmList == NULL) {
-    return RC_CMS_PARM_NULL;
-  }
-  if (memcmp(parmList->eyecatcher, PC_HANDLER_PARM_EYECATCHER, sizeof(parmList->eyecatcher))) {
-    return RC_CMS_PC_HDLR_PARM_BAD_EYECATCHER;
-  }
-
   LatentParmList *latentParmList = parmList->latentParmList;
-  if (latentParmList == NULL) {
-    return RC_CMS_LATENT_PARM_NULL;
-  }
-
   CrossMemoryServerGlobalArea *globalArea = latentParmList->parm1;
-  if (globalArea == NULL) {
-    return RC_CMS_GLOBAL_AREA_NULL;
-  }
-  if (memcmp(globalArea->eyecatcher, CMS_GLOBAL_AREA_EYECATCHER, sizeof(globalArea->eyecatcher))) {
-    return RC_CMS_GLOBAL_AREA_BAD_EYECATCHER;
-  }
 
   CrossMemoryServerParmList *userParmList = parmList->userParmList;
   if (userParmList == NULL) {
@@ -1652,8 +1816,30 @@ static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
 
 static int handleProgramCall(PCHandlerParmList *parmList, bool isSpaceSwitchPC) {
 
+  if (parmList == NULL) {
+    return RC_CMS_PARM_NULL;
+  }
+  if (memcmp(parmList->eyecatcher, PC_HANDLER_PARM_EYECATCHER,
+             sizeof(parmList->eyecatcher))) {
+    return RC_CMS_PC_HDLR_PARM_BAD_EYECATCHER;
+  }
+
+  LatentParmList *latentParmList = parmList->latentParmList;
+  if (latentParmList == NULL) {
+    return RC_CMS_LATENT_PARM_NULL;
+  }
+
+  CrossMemoryServerGlobalArea *globalArea = latentParmList->parm1;
+  if (globalArea == NULL) {
+    return RC_CMS_GLOBAL_AREA_NULL;
+  }
+  if (memcmp(globalArea->eyecatcher, CMS_GLOBAL_AREA_EYECATCHER,
+             sizeof(globalArea->eyecatcher))) {
+    return RC_CMS_GLOBAL_AREA_BAD_EYECATCHER;
+  }
+
   PCRoutineEnvironment env;
-  int envRC = INIT_PC_ENVIRONMENT(&env);
+  int envRC = INIT_PC_ENVIRONMENT(globalArea, isSpaceSwitchPC, &env);
   if (envRC != RC_CMS_OK) {
     return RC_CMS_PC_ENV_NOT_ESTABLISHED;
   }
@@ -1810,6 +1996,32 @@ static int allocServerResources(CrossMemoryServer *server) {
       break;
     }
 
+    unsigned msgQueueCellSize =
+        cellpoolGetDWordAlignedSize(sizeof(CrossMemoryServerMsgQueueElement));
+    server->messageQueueMainPool =
+        cellpoolBuild(CMS_MSG_QUEUE_MAIN_POOL_PSIZE,
+                      CMS_MSG_QUEUE_MAIN_POOL_SSIZE,
+                      msgQueueCellSize,
+                      CMS_MSG_QUEUE_SUBPOOL,
+                      getCurrentKey(),
+                      &(CPHeader){"ZWESCMSMSGMCELLPOOL     "});
+    if (server->messageQueueMainPool == CPID_NULL) {
+      status = RC_CMS_MSG_QUEUE_NOT_CREATED;
+      break;
+    }
+
+    server->messageQueueFallbackPool =
+        cellpoolBuild(CMS_MSG_QUEUE_FALLBACK_POOL_PSIZE,
+                      0,
+                      msgQueueCellSize,
+                      CMS_MSG_QUEUE_SUBPOOL,
+                      getCurrentKey(),
+                      &(CPHeader){"ZWESCMSMSGFCELLPOOL     "});
+    if (server->messageQueueFallbackPool == CPID_NULL) {
+      status = RC_CMS_MSG_QUEUE_NOT_CREATED;
+      break;
+    }
+
     server->configParms = htCreate(PARM_HT_BACKBONE_SIZE,
                                    stringHash, stringCompare,
                                    NULL, NULL);
@@ -1825,6 +2037,16 @@ static int allocServerResources(CrossMemoryServer *server) {
     if (server->configParms != NULL) {
       htDestroy(server->configParms);
       server->configParms = NULL;
+    }
+
+    if (server->messageQueueFallbackPool != CPID_NULL) {
+      cellpoolDelete(server->messageQueueFallbackPool);
+      server->messageQueueFallbackPool = CPID_NULL;
+    }
+
+    if (server->messageQueueMainPool != CPID_NULL) {
+      cellpoolDelete(server->messageQueueMainPool);
+      server->messageQueueMainPool = CPID_NULL;
     }
 
     if (server->messageQueue != NULL) {
@@ -1848,6 +2070,16 @@ static void releaseServerResources(CrossMemoryServer *server) {
      htDestroy(server->configParms);
      server->configParms = NULL;
    }
+
+  if (server->messageQueueFallbackPool != CPID_NULL) {
+    cellpoolDelete(server->messageQueueFallbackPool);
+    server->messageQueueFallbackPool = CPID_NULL;
+  }
+
+  if (server->messageQueueMainPool != CPID_NULL) {
+    cellpoolDelete(server->messageQueueMainPool);
+    server->messageQueueMainPool = CPID_NULL;
+  }
 
    if (server->messageQueue != NULL) {
      qRemove(server->messageQueue);
@@ -1936,6 +2168,9 @@ CrossMemoryServer *makeCrossMemoryServer2(
   server->commandCallback = commandCallback;
   server->callbackData = callbackData;
 
+  server->pcssStackPoolSize = CMS_MAIN_PCSS_STACK_POOL_SIZE;
+  server->pcssRecoveryPoolSize = CMS_MAIN_PCSS_RECOVERY_POOL_SIZE;
+
   if (flags & CMS_SERVER_FLAG_DEBUG) {
     logSetLevel(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG);
     logSetLevel(NULL, LOG_COMP_ID_CMSPC, ZOWE_LOG_DEBUG);
@@ -1945,6 +2180,11 @@ CrossMemoryServer *makeCrossMemoryServer2(
   }
   if (flags & CMS_SERVER_FLAG_CHECKAUTH) {
     server->flags |= CROSS_MEMORY_SERVER_FLAG_CHECKAUTH;
+  }
+
+  bool devMode = flags & CMS_SERVER_FLAG_DEV_MODE;
+  if ((flags & CMS_SERVER_FLAG_DEV_MODE_LPA) || CMS_LPA_DEV_MODE || devMode) {
+    server->flags |= CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA;
   }
 
   int allocResourcesRC = allocServerResources(server);
@@ -1972,6 +2212,15 @@ void removeCrossMemoryServer(CrossMemoryServer *server) {
   server = NULL;
 
   zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" server removed @ 0x%p\n", server);
+
+}
+
+void cmsSetPoolParameters(CrossMemoryServer *server,
+                          unsigned int pcssStackPoolSize,
+                          unsigned int pcssRecoveryPoolSize) {
+
+  server->pcssStackPoolSize = pcssStackPoolSize;
+  server->pcssRecoveryPoolSize = pcssRecoveryPoolSize;
 
 }
 
@@ -2211,6 +2460,42 @@ static int discardGlobalResources(CrossMemoryServer *server) {
 
 }
 
+static int freeGlobalResources(CrossMemoryServer *server) {
+
+  CrossMemoryServerGlobalArea *globalArea = server->globalArea;
+
+  /* The only resource we may want to release is the LPA module. */
+
+  void * __ptr32 moduleAddressLPA =
+      globalArea->lpaModuleInfo.outputInfo.stuff.successInfo.loadPointAddr;
+  if (moduleAddressLPA != NULL) {
+
+    if (server->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA) {
+      /* If the "clean LPA" flag is set or in dev mode, force the server to
+       * remove the existing LPA module. This will help avoid abandoning too
+       * many module in LPA during development. */
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
+              " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
+      int lpaDeleteRSN = 0;
+      int lpaDeleteRC = lpaDelete(&globalArea->lpaModuleInfo,
+                                  &lpaDeleteRSN);
+      if (lpaDeleteRC != 0) {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+                CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
+        return RC_CMS_LPA_DELETE_FAILED;
+      }
+
+      moduleAddressLPA = NULL;
+      memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
+      memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
+
+    }
+
+  }
+
+  return RC_CMS_OK;
+}
+
 static int initSecuritySubsystem(CrossMemoryServer *server) {
 
   /* We must require the FACILITY class to be RACLISTed and not do that
@@ -2395,6 +2680,8 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
 
     if (moduleAddressLPA != NULL) {
 
+      bool lpaDiscarded = false;
+
       /* Does the module in LPA match our private storage module? */
       CMSBuildTimestamp privateModuleTimestamp = getServerBuildTimestamp();
       if (memcmp(&privateModuleTimestamp, &globalArea->lpaModuleTimestamp,
@@ -2411,10 +2698,13 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
                   globalArea->lpaModuleTimestamp.value,
                   privateModuleTimestamp.value);
 
-#ifdef CMS_LPA_DEV_MODE
-        /* Compiling with CMS_LPA_DEV_MODE will force the server to remove the
-         * existing LPA module if the private module doesn't match it.
-         * This will help avoid abandoning too many module in LPA during
+        lpaDiscarded = true;
+      }
+
+      if (server->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA) {
+        /* If the "clean LPA" flag is set or in dev mode, force the server to
+         * remove the existing LPA module if the private module doesn't match
+         * it. This will help avoid abandoning too many modules in LPA during
          * development. */
         zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
                 " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
@@ -2426,12 +2716,14 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
                   CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
           return RC_CMS_LPA_DELETE_FAILED;
         }
-#endif /* CMS_LPA_DEV_MODE */
 
+        lpaDiscarded = true;
+      }
+
+      if (lpaDiscarded) {
         moduleAddressLPA = NULL;
         memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
         memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
-
       }
 
     } else {
@@ -2492,6 +2784,27 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
   char *handlerAddressLPA = handlerAddressLocal - moduleAddressLocal + moduleAddressLPA;
   globalArea->pccpHandler = (int (*)())handlerAddressLPA;
 
+  globalArea->pcssStackPool =
+      cellpoolBuild(server->pcssStackPoolSize,
+                    0,
+                    CMS_STACK_SIZE,
+                    CMS_STACK_SUBPOOL,
+                    CROSS_MEMORY_SERVER_KEY,
+                    &(CPHeader){"ZWESPCSSMCELLPOOL       "});
+  if (globalArea->pcssStackPool == CPID_NULL) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_RES_NOT_CREATED_MSG,
+            "PC-ss state pool", 0);
+    return RC_CMS_ALLOC_FAILED;
+  }
+
+  globalArea->pcssRecoveryPool =
+      recoveryMakeStatePool(server->pcssRecoveryPoolSize);
+  if (globalArea->pcssRecoveryPool == NULL) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_RES_NOT_CREATED_MSG,
+            "PC-ss recovery pool", 0);
+    return RC_CMS_ALLOC_FAILED;
+  }
+
   zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" localModuleAddress=0x%08X, handlerAddressLocal=0x%08X, moduleAddressLPA=0x%08X, handlerAddressLPA=0x%08X\n",
       moduleAddressLocal, handlerAddressLocal, moduleAddressLPA, handlerAddressLPA);
 
@@ -2548,22 +2861,89 @@ static int establishPCRoutines(CrossMemoryServer *server) {
   return RC_CMS_OK;
 }
 
+static void printLogServiceMsg(CrossMemoryServerMsgQueueElement *msgElement) {
+
+  CrossMemoryServerLogServiceParm *msgParm = &msgElement->logServiceParm;
+
+  if (memcmp(msgParm->eyecatcher, CMS_LOG_SERVICE_PARM_EYECATCHER,
+             sizeof(msgParm->eyecatcher))) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+            CMS_LOG_INVALID_EYECATCHER_MSG, "log parm", msgParm);
+    zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, (char*) msgParm,
+             sizeof(CrossMemoryServerLogServiceParm));
+    return;
+  }
+
+  printf("%.*s", min(msgParm->messageLength, sizeof(msgParm->message)),
+         msgParm->message);
+}
+
+static void printDumpServiceMsg(CrossMemoryServerMsgQueueElement *dumpElement) {
+
+  CrossMemoryServerDumpServiceParm *dumpParm = &dumpElement->dumpServiceParm;
+
+  if (memcmp(dumpParm->eyecatcher, CMS_DUMP_SERVICE_PARM_EYECATCHER,
+             sizeof(dumpParm->eyecatcher))) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+            CMS_LOG_INVALID_EYECATCHER_MSG, "dump parm", dumpParm);
+    zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, (char*) dumpParm,
+             sizeof(CrossMemoryServerDumpServiceParm));
+    return;
+  }
+
+  printf("%.*s"CMS_LOG_DUMP_MSG_ID" Dump of \'%s\' (%u bytes at 0x%p):\n",
+         sizeof(dumpParm->prefix.text), dumpParm->prefix.text,
+         dumpParm->descriptionNullTerm,
+         dumpParm->originalSize, dumpParm->originalAddress);
+
+  char workBuffer[4096];
+  for (int i = 0; ; i++) {
+    char *line = dumpWithEmptyMessageID(workBuffer, sizeof(workBuffer),
+                                        dumpParm->data, dumpParm->dataLength, i);
+    if (line == NULL) {
+      break;
+    }
+    printf("%*s%s\n", LOG_MSG_PREFIX_SIZE, "", line);
+  }
+
+  if (dumpParm->dataLength < dumpParm->originalSize) {
+    printf("%*s"CMS_LOG_DUMP_MSG_ID" . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . \n",
+           LOG_MSG_PREFIX_SIZE, "");
+    printf("%*s"CMS_LOG_DUMP_MSG_ID" %u bytes have been truncated\n",
+           LOG_MSG_PREFIX_SIZE, "",
+           dumpParm->originalSize - dumpParm->dataLength);
+  }
+
+}
+
 static void flushDebugMessages(CrossMemoryServer *server) {
 
-  CrossMemoryServerLogServiceParm *msg = qRemove(server->messageQueue);
-  while (msg != NULL) {
+  CrossMemoryServerMsgQueueElement *element =
+      (CrossMemoryServerMsgQueueElement *)qDequeue(server->messageQueue);
 
-    if (memcmp(msg->eyecatcher, CMS_LOG_SERVICE_PARM_EYECATCHER, sizeof(msg->eyecatcher))) {
-      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_INVALID_EYECATCHER_MSG, "log parm", msg);
-      zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, (char *)msg, sizeof(CrossMemoryServerLogServiceParm));
-    }
+  while (element != NULL) {
 
     if (logShouldTraceInternal(NULL, LOG_COMP_ID_CMSPC, ZOWE_LOG_INFO)) {
-      printf("%.*s", msg->messageLength > sizeof(msg->message) ? sizeof(msg->message) : msg->messageLength, msg->message);
+
+      switch (element->type) {
+      case CROSS_MEMORY_SERVER_MSGQEL_TYPE_MSG:
+        printLogServiceMsg(element);
+        break;
+      case CROSS_MEMORY_SERVER_MSGQEL_TYPE_DUMP:
+        printDumpServiceMsg(element);
+        break;
+      default:
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+                CMS_LOG_DEBUG_MSG_ID" Bad msg element type @ 0x%p", element);
+        zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, (char*)element,
+                 sizeof(CrossMemoryServerMsgQueueElement));
+        break;
+      }
+
     }
 
-    safeFree31((char *)msg, sizeof(CrossMemoryServerLogServiceParm));
-    msg = qRemove(server->messageQueue);
+    freeMsgQueueElement(element);
+    element = (CrossMemoryServerMsgQueueElement *)qDequeue(server->messageQueue);
 
     if (server->flags & CROSS_MEMORY_SERVER_FLAG_TERM_STARTED) {
       break;
@@ -3373,6 +3753,26 @@ static void printServerInitFailedMessage(CrossMemoryServer *srv, int rc) {
 
 }
 
+static bool isDevMode(const CrossMemoryServer *srv) {
+  /* We may add more "dev mode" flags in the future and possibly use
+   * the "CMS_SERVER_FLAG_xxxx values directly. For now, checking the LPA
+   * flag is sufficient. */
+  return srv->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA;
+}
+
+static void printFlagInfo(const CrossMemoryServer *srv) {
+
+  if (isDevMode(srv)) {
+
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_DEV_MODE_ON_MSG);
+
+    wtoPrintf2(srv->startCommandInfo.consoleID, srv->startCommandInfo.cart,
+               CMS_LOG_DEV_MODE_ON_MSG);
+
+  }
+
+}
+
 static void printServerReadyMessage(CrossMemoryServer *srv) {
 
   zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_SERVER_READY_MSG);
@@ -3730,11 +4130,78 @@ static int verifySTEPLIB(CrossMemoryServer *srv) {
   return RC_CMS_OK;
 }
 
-#define MAIN_WAIT_MILLIS 10000
-#define START_COMMAND_HANDLING_DELAY_IN_SEC 5
-#define STCBASE_SHUTDOWN_DELAY_IN_SEC       5
+static bool isReusableASID(void) {
 
-int cmsStartMainLoop(CrossMemoryServer *srv) {
+  const char ascbreus = 0x40;
+
+  ASCB *ascb = getASCB();
+
+  return ascb->ascbflg3 & ascbreus;
+}
+
+__asm("CSVQRGLB CSVQUERY PLISTVER=0,MF=(L,CSVQRGLB)" : "DS"(CSVQRGLB));
+
+static bool isModulePrivate(void) {
+
+  unsigned char attr = 0;
+  int queryRC = 0;
+
+  __asm("CSVQRGLB CSVQUERY PLISTVER=0,MF=L" : "DS"(parmList));
+  parmList = CSVQRGLB;
+
+  /* Use the address of this function itself since it's in the module. */
+  unsigned moduleAddress = (unsigned)&isModulePrivate;
+
+  __asm(
+      "         CSVQUERY INADDR=(%[addr]),OUTATTR3=%[attr]"
+      ",PLISTVER=0,MF=(E,%[parm])                                              \n"
+      : [attr]"=m"(attr), "=NR:r15"(queryRC)
+      : [addr]"r"(&moduleAddress), [parm]"m"(parmList)
+      : "r0", "r1", "r14", "r15"
+  );
+
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+          "CSVQUERY of 0x%08X - attr = 0x%02X, RC = %d",
+          moduleAddress, attr, queryRC);
+
+  if (queryRC != 0) {
+    return false;
+  }
+
+  const unsigned char jobPackAreaMask = 0x40;
+  if (attr & jobPackAreaMask) {
+    return true;
+  }
+
+  return false;
+}
+
+#ifdef _LP64
+#pragma linkage(BPX4QDB,OS)
+#define BPXQDB BPX4QDB
+#else
+#pragma linkage(BPX1QDB,OS)
+#define BPXQDB BPX1QDB
+#endif
+
+static bool isDubStatusOk(int *status, int *bpxRC, int *bpxRSN) {
+
+  const int dubFailRC = 4; /* QDB_DUB_MAY_FAIL */
+
+  BPXQDB(status, bpxRC, bpxRSN);
+
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+          CMS_LOG_DEBUG_MSG_ID" BPXnQDB RV = %d, RC = %d, RSN = 0x%08X\n",
+          *status, *bpxRC, *bpxRSN);
+
+  if (*status == dubFailRC) {
+    return false;
+  }
+
+  return true;
+}
+
+static int testEnvironment(void) {
 
   int authStatus = testAuth();
   if (authStatus != 0) {
@@ -3747,6 +4214,37 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   if ((tcbKey != 2 && tcbKey != 4) || (tcbKey != CROSS_MEMORY_SERVER_KEY)) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_BAD_SERVER_KEY_MSG, tcbKey);
     return RC_CMS_BAD_SERVER_KEY;
+  }
+
+  if (!isReusableASID()) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_REUSASID_NO_MSG);
+  }
+
+  if (!isModulePrivate()) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+            CMS_LOG_NON_PRIVATE_MODULE_MSG);
+    return RC_CMS_NON_PRIVATE_MODULE;
+  }
+
+  int dubStatus = 0, bpxRC = 0, bpxRSN = 0;
+  if (!isDubStatusOk(&dubStatus, &bpxRC, &bpxRSN)) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_DUB_ERROR_MSG,
+            dubStatus, bpxRC, bpxRSN & 0xFFFF);
+    return RC_CMS_BAD_DUB_STATUS;
+  }
+
+  return RC_CMS_OK;
+}
+
+#define MAIN_WAIT_MILLIS 10000
+#define START_COMMAND_HANDLING_DELAY_IN_SEC 5
+#define STCBASE_SHUTDOWN_DELAY_IN_SEC       5
+
+int cmsStartMainLoop(CrossMemoryServer *srv) {
+
+  int envStatus = testEnvironment();
+  if (envStatus != 0) {
+    return envStatus;
   }
 
   int rcvrPushRC = recoveryPush(
@@ -3766,9 +4264,12 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_INIT_STEP_SUCCESS_MSG, "push recovery state");
   }
 
+  printFlagInfo(srv);
+
   int status = RC_CMS_OK;
+  bool globalResourcesAllocated = false;
   bool serverStarted = false;
-  bool startCallbackSuccess = true;
+  bool startCallbackSuccess = false;
   bool resourceManagerInstalled = false;
 
   if (status == RC_CMS_OK) {
@@ -3830,6 +4331,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
       status = allocRC;
     } else {
       zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_INIT_STEP_SUCCESS_MSG, "allocate global resources");
+      globalResourcesAllocated = true;
     }
   }
 
@@ -3856,6 +4358,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   }
 
   if (status == RC_CMS_OK) {
+    startCallbackSuccess = true;
     if (srv->startCallback != NULL) {
       int callbackRC = srv->startCallback(srv->globalArea, srv->callbackData);
       if (callbackRC != 0) {
@@ -3937,6 +4440,18 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
         zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
                 CMS_LOG_TERM_STEP_SUCCESS_MSG, "stop callback");
       }
+    }
+  }
+
+  if (globalResourcesAllocated) {
+    int freeRC = freeGlobalResources(srv);
+    if (freeRC != RC_RESMGR_OK) {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+              CMS_LOG_TERM_STEP_FAILURE_MSG, "free global resources", freeRC);
+      status = (status != RC_CMS_OK) ? status : freeRC;
+    } else {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+              CMS_LOG_TERM_STEP_SUCCESS_MSG, "free global resources");
     }
   }
 
@@ -4162,6 +4677,29 @@ int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString,
   return cmsCallService(serverName, CROSS_MEMORY_SERVER_LOG_SERVICE_ID, &msgParmList, NULL);
 }
 
+int cmsHexDump(const CrossMemoryServerName *serverName,
+               const void *data, unsigned size, const char *description) {
+
+  CrossMemoryServerDumpServiceParm parm = {
+      .eyecatcher = CMS_DUMP_SERVICE_PARM_EYECATCHER,
+      .version = CMS_DUMP_SERVICE_VERSION,
+      .originalAddress = (uint64_t)data,
+      .originalSize = size,
+  };
+
+  initLogMessagePrefix(&parm.prefix);
+
+  strncpy(parm.descriptionNullTerm, description,
+          sizeof(parm.descriptionNullTerm) - 1);
+
+  parm.dataLength = min(sizeof(parm.data), size);
+
+  memcpy(parm.data, data, parm.dataLength);
+
+  return cmsCallService(serverName, CROSS_MEMORY_SERVER_DUMP_SERVICE_ID,
+                        &parm, NULL);
+}
+
 int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,
                      CrossMemoryServerConfigParm *parm) {
 
@@ -4179,6 +4717,42 @@ int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,
       serverName,
       CROSS_MEMORY_SERVER_CONFIG_SERVICE_ID,
       &parmList,
+      NULL
+  );
+  if (serviceRC != RC_CMS_OK) {
+    return serviceRC;
+  }
+
+  *parm = parmList.result;
+
+  return RC_CMS_OK;
+}
+
+int cmsGetConfigParmUnchecked(const CrossMemoryServerName *serverName,
+                              const char *name,
+                              CrossMemoryServerConfigParm *parm) {
+
+  size_t nameLength = strlen(name);
+  if (nameLength > CMS_CONFIG_PARM_MAX_NAME_LENGTH) {
+    return RC_CMS_CONFIG_PARM_NAME_TOO_LONG;
+  }
+
+  CrossMemoryServerConfigServiceParm parmList = {0};
+  memcpy(parmList.eyecatcher, CMS_CONFIG_SERVICE_PARM_EYECATCHER,
+         sizeof(parmList.eyecatcher));
+  memcpy(parmList.nameNullTerm, name, nameLength);
+
+  CrossMemoryServerGlobalArea *cmsGA = NULL;
+  int getGlobalAreaRC = cmsGetGlobalArea(serverName, &cmsGA);
+  if (getGlobalAreaRC != RC_CMS_OK) {
+    return getGlobalAreaRC;
+  }
+
+  int serviceRC = cmsCallService3(
+      cmsGA,
+      CROSS_MEMORY_SERVER_CONFIG_SERVICE_ID,
+      &parmList,
+      CMS_CALL_FLAG_NO_SAF_CHECK,
       NULL
   );
   if (serviceRC != RC_CMS_OK) {
@@ -4314,10 +4888,18 @@ void crossmemoryServerDESCTs(){
       "GLAPCCPS DS    F                                                        \n"
       "GLAPCINL EQU   *-GLAPCINF                                               \n"
       "GLAPCLOG DS    F                                                        \n"
-      "GLARSV3  DS    CL504                                                    \n"
+      "GLARCVP  DS    AD                                                       \n"
+      "GLASTCP  DS    F                                                        \n"
+      "GLARSV3  DS    CL484                                                    \n"
       "GLASRVT  DS    CL2048                                                   \n"
       "GLARSV4  DS    CL1320                                                   \n"
       "GLALEN   EQU   *-GLA                                                    \n"
+      "         EJECT ,                                                        \n"
+
+      "         DS    0D                                                       \n"
+      "PCLPARM  DSECT ,                                                        \n"
+      "PCLPPRM1 DS    F                                                        \n"
+      "PCLPPRM2 DS    F                                                        \n"
       "         EJECT ,                                                        \n"
 
       "         DS    0H                                                       \n"

@@ -22,6 +22,7 @@
 #endif
 
 #include "zowetypes.h"
+#include "cellpool.h"
 #include "utils.h"
 #include "bpxnet.h"
 #include "isgenq.h"
@@ -133,7 +134,11 @@
 #define RC_CMS_ZVT_NOT_ALLOCATED            83
 #define RC_CMS_SERVER_NAME_NULL             84
 #define RC_CMS_SERVICE_ENTRY_OCCUPIED       85
-#define RC_CMS_MAX_RC                       85
+#define RC_CMS_NO_STORAGE_FOR_MSG           86
+#define RC_CMS_ALLOC_FAILED                 87
+#define RC_CMS_NON_PRIVATE_MODULE           88
+#define RC_CMS_BAD_DUB_STATUS               89
+#define RC_CMS_MAX_RC                       89
 
 extern const char *CMS_RC_DESCRIPTION[];
 
@@ -189,6 +194,7 @@ typedef struct CMSTimestamp_tag {
   char value[32];
 } CMSBuildTimestamp;
 
+
 typedef struct CrossMemoryServerGlobalArea_tag {
 
   char eyecatcher[8];
@@ -224,7 +230,11 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   } pcInfo;
 
   int pcLogLevel;
-  char reserved3[504];
+
+  PAD_LONG(0, RecoveryStatePool *pcssRecoveryPool);
+  CPID pcssStackPool;
+
+  char reserved3[492];
 
   CrossMemoryService serviceTable[CROSS_MEMEORY_SERVER_MAX_SERVICE_COUNT];
 
@@ -285,6 +295,7 @@ typedef struct CrossMemoryServer_tag {
 #define CROSS_MEMORY_SERVER_FLAG_TERM_STARTED 0x00000004
 #define CROSS_MEMORY_SERVER_FLAG_TERM_ENDED   0x00000008
 #define CROSS_MEMORY_SERVER_FLAG_CHECKAUTH    0x00000010
+#define CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA    0x00000020
   STCBase * __ptr32 base;
   CMSStarCallback * __ptr32 startCallback;
   CMSStopCallback * __ptr32 stopCallback;
@@ -303,9 +314,13 @@ typedef struct CrossMemoryServer_tag {
   ENQToken serverENQToken;
   ShortLivedHeap * __ptr32 slh;
   Queue * __ptr32 messageQueue;
+  CPID messageQueueMainPool;
+  CPID messageQueueFallbackPool;
   hashtable * __ptr32 configParms;
   LPMEA lpaCodeInfo;
   ELXLIST pcELXList;
+  unsigned int pcssStackPoolSize;
+  unsigned int pcssRecoveryPoolSize;
   CrossMemoryService serviceTable[CROSS_MEMEORY_SERVER_MAX_SERVICE_COUNT];
 } CrossMemoryServer;
 
@@ -356,6 +371,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define makeCrossMemoryServer CMMCMSRV
 #define makeCrossMemoryServer2 CMMCMSR2
 #define removeCrossMemoryServer CMMCRSRV
+#define cmsSetPoolParameters CMCMSSPP
 #define cmsRegisterService CMCMSRSR
 #define cmsStartMainLoop CMCMAINL
 #define cmsGetGlobalArea CMGETGA
@@ -365,6 +381,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define cmsCallService3 CMCALLS3
 #define cmsPrintf CMCMSPRF
 #define cmsGetConfigParm CMGETPRM
+#define cmsGetConfigParmUnchecked CMGETPRU
 #define cmsGetPCLogLevel CMGETLOG
 #define cmsGetStatus CMGETSTS
 #define cmsMakeServerName CMMKSNAM
@@ -379,6 +396,8 @@ ZOWE_PRAGMA_PACK_RESET
 #define CMS_SERVER_FLAG_COLD_START            0x00000001
 #define CMS_SERVER_FLAG_DEBUG                 0x00000002
 #define CMS_SERVER_FLAG_CHECKAUTH             0x00000004
+#define CMS_SERVER_FLAG_DEV_MODE              0x00000008
+#define CMS_SERVER_FLAG_DEV_MODE_LPA          0x00000010
 
 #define CMS_SERVICE_FLAG_NONE                 0x00000000
 #define CMS_SERVICE_FLAG_SPACE_SWITCH         0x00000001
@@ -399,6 +418,9 @@ CrossMemoryServer *makeCrossMemoryServer2(
     int *reasonCode
 );
 void removeCrossMemoryServer(CrossMemoryServer *server);
+void cmsSetPoolParameters(CrossMemoryServer *server,
+                          unsigned int pcssStackPoolSize,
+                          unsigned int pcssRecoveryPoolSize);
 int cmsRegisterService(CrossMemoryServer *server, int id, CrossMemoryServiceFunction *serviceFunction, void *serviceData, int flags);
 int cmsStartMainLoop(CrossMemoryServer *server);
 int cmsGetGlobalArea(const CrossMemoryServerName *serverName, CrossMemoryServerGlobalArea **globalAreaAddress);
@@ -425,9 +447,56 @@ int cmsCallService2(CrossMemoryServerGlobalArea *cmsGlobalArea,
                     int serviceID, void *parmList, int *serviceRC);
 int cmsCallService3(CrossMemoryServerGlobalArea *cmsGlobalArea,
                     int serviceID, void *parmList, int flags, int *serviceRC);
+
+/**
+ * @brief Print a message to a cross-memory server's log
+ * @param serverName Cross-memory server to whose log the message is to be
+ * printed
+ * @param formatString Format string of the message
+ * @return RC_CMS_OK in case of success, and one of the RC_CMS_nn values in
+ * case of failure
+ */
 int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, ...);
+
+/**
+ * @brief Print the hex dump of the specified storage to a cross-memory server's
+ * log
+ * @param serverName Cross-memory server to whose log the dump is to be printed
+ * @param data Data to be printed
+ * @param size Size of the data (the maximum size is 512 bytes, the rest will
+ * be truncated)
+ * @param description Description of the data (the maximum length is 31
+ * characters, the rest will be truncated)
+ * @return RC_CMS_OK in case of success, and one of the RC_CMS_nn values in
+ * case of failure
+ */
+int cmsHexDump(const CrossMemoryServerName *serverName,
+               const void *data, unsigned size, const char *description);
+
+/**
+ * @brief Get a parameter from the cross-memory server's PARMLIB
+ * @param serverName Cross-memory server whose parameter is to be read
+ * @param name Name of the parameter
+ * @param parm Result parameter entry
+ * @return RC_CMS_OK in case of success, and one of the RC_CMS_nn values in
+ * case of failure
+ */
 int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,
                      CrossMemoryServerConfigParm *parm);
+
+/**
+ * @brief Get a parameter from the cross-memory server's PARMLIB without the
+ * authorization check (the caller must be SUP or system key)
+ * @param serverName Cross-memory server whose parameter is to be read
+ * @param name Name of the parameter
+ * @param parm Result parameter entry
+ * @return RC_CMS_OK in case of success, and one of the RC_CMS_nn values in
+ * case of failure
+ */
+int cmsGetConfigParmUnchecked(const CrossMemoryServerName *serverName,
+                              const char *name,
+                              CrossMemoryServerConfigParm *parm);
+
 int cmsGetPCLogLevel(const CrossMemoryServerName *serverName);
 CrossMemoryServerStatus cmsGetStatus(const CrossMemoryServerName *serverName);
 CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
@@ -831,6 +900,30 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 #endif
 #define CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_TEXT    "Service entry %d is occupied"
 #define CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG         CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_ID" "CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_TEXT
+
+#ifndef CMS_LOG_DEV_MODE_ON_MSG_ID
+#define CMS_LOG_DEV_MODE_ON_MSG_ID              CMS_MSG_PRFX"0247W"
+#endif
+#define CMS_LOG_DEV_MODE_ON_MSG_TEXT            "Development mode is enabled"
+#define CMS_LOG_DEV_MODE_ON_MSG                 CMS_LOG_DEV_MODE_ON_MSG_ID" "CMS_LOG_DEV_MODE_ON_MSG_TEXT
+
+#ifndef CMS_LOG_REUSASID_NO_MSG_ID
+#define CMS_LOG_REUSASID_NO_MSG_ID              CMS_MSG_PRFX"0248W"
+#endif
+#define CMS_LOG_REUSASID_NO_MSG_TEXT            "Address space is not reusable, start with REUSASID=YES to prevent an ASID shortage"
+#define CMS_LOG_REUSASID_NO_MSG                 CMS_LOG_REUSASID_NO_MSG_ID" "CMS_LOG_REUSASID_NO_MSG_TEXT
+
+#ifndef CMS_LOG_NON_PRIVATE_MODULE_MSG_ID
+#define CMS_LOG_NON_PRIVATE_MODULE_MSG_ID       CMS_MSG_PRFX"0249E"
+#endif
+#define CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT     "Module ZWESIS01 is loaded from common storage, ensure ZWESIS01 is valid in STEPLIB"
+#define CMS_LOG_NON_PRIVATE_MODULE_MSG          CMS_LOG_NON_PRIVATE_MODULE_MSG_ID" "CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT
+
+#ifndef CMS_LOG_DUB_ERROR_MSG_ID
+#define CMS_LOG_DUB_ERROR_MSG_ID                CMS_MSG_PRFX"0250E"
+#endif
+#define CMS_LOG_DUB_ERROR_MSG_TEXT              "Bad dub status %d (%d,0x%04X), verify that the started task user has an OMVS segment"
+#define CMS_LOG_DUB_ERROR_MSG                   CMS_LOG_DUB_ERROR_MSG_ID" "CMS_LOG_DUB_ERROR_MSG_TEXT
 
 #endif /* H_CROSSMEMORY_H_ */
 
