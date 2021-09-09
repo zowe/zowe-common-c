@@ -378,7 +378,14 @@ static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int f
   int returnCode = 0, reasonCode = 0, status = 0;
   FileInfo info = {0};
 
-  if(!strcmp(oldAbsolutePath,newAbsolutePath)){
+  if (newAbsolutePath[0] != '/') {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
+            "Invalid input, not absolute path %s\n",
+            newAbsolutePath);
+    return RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH;    
+  }
+
+  if (!strcmp(oldAbsolutePath,newAbsolutePath)) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
             "Invalid input, same directory path (source=%s, destination=%s)\n",
             oldAbsolutePath, newAbsolutePath);
@@ -397,7 +404,8 @@ static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int f
   if (status == 0 && !forceCopy) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
             "Directory already exists %s\n", newAbsolutePath);    
-    return RC_HTTP_FILE_SERVICE_ALREADY_EXISTS;  }
+    return RC_HTTP_FILE_SERVICE_ALREADY_EXISTS;  
+  }
 
   status = directoryCopy(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
   if (status == -1) {
@@ -428,6 +436,9 @@ void copyUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath, 
     case RC_HTTP_FILE_SERVICE_INVALID_INPUT:
       respondWithJsonError(response, "Invalid input, Same directory", 400, "Bad Request");
       break;
+    case RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH:
+      respondWithJsonError(response, "Invalid input, Not absolute path", 400, "Bad Request");
+      break;      
     case RC_HTTP_FILE_SERVICE_PERMISION_DENIED:
       respondWithJsonError(response, "Permission denied", 403, "Forbidden");
       break;
@@ -452,8 +463,15 @@ void copyUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath, 
 static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceCopy) {
   int returnCode = 0, reasonCode = 0, status = 0;
   FileInfo info = {0};
-  
-  if(!strcmp(oldAbsolutePath,newAbsolutePath)){
+
+  if (newAbsolutePath[0] != '/') {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
+            "Invalid input, not absolute path %s\n",
+            newAbsolutePath);
+    return RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH;    
+  }
+
+  if (!strcmp(oldAbsolutePath,newAbsolutePath)) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
             "Invalid input, same file path (source=%s, destination=%s)\n",
             oldAbsolutePath, newAbsolutePath);
@@ -504,6 +522,9 @@ void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char 
     case RC_HTTP_FILE_SERVICE_INVALID_INPUT:
       respondWithJsonError(response, "Invalid input, Same file", 400, "Bad Request");
       break;
+    case RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH:
+      respondWithJsonError(response, "Invalid input, Not absolute path", 400, "Bad Request");
+      break;      
     case RC_HTTP_FILE_SERVICE_PERMISION_DENIED:
       respondWithJsonError(response, "Permission denied", 403, "Forbidden");
       break;

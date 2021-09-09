@@ -22,6 +22,7 @@
 #define RC_HTTP_FILE_SERVICE_INVALID_PATH           13 
 #define RC_HTTP_FILE_SERVICE_UNDEFINED_ERROR        14
 #define RC_HTTP_FILE_SERVICE_INVALID_INPUT          15 
+#define RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH      16 
 
 void response200WithMessage(HttpResponse *response, char *msg);
 
