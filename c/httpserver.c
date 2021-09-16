@@ -2495,7 +2495,6 @@ static bool isPassPhrase(const char *password) {
 
 #ifdef __ZOWE_OS_ZOS
 static int safAuthenticate(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
-  printf("safAuthenticate: HTTP request 0x%p\n",request);
   int safStatus = 0, racfStatus = 0, racfReason = 0;
   int options = VERIFY_CREATE;
   int authDataFound = FALSE;
