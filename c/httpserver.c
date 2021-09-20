@@ -3115,7 +3115,7 @@ static int serviceAuthWithJwt(HttpService *service,
     }
   } else if (service->authExtractionFunction != NULL) {
     if (service->authExtractionFunction(service, request) == 0) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "auth extraction function returns 0!\n");
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "auth extraction function returns 0!\n");
     }
   }
 
