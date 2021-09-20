@@ -707,6 +707,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
     return;
   }  
   int isFixed = FALSE;
+  int isUndefined = FALSE;
 
   Volser volser;
   memset(&volser.value, ' ', sizeof(volser.value));
@@ -729,6 +730,9 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       if (recordType == 'F'){
         isFixed = TRUE;
       }
+      else if (recordType == 'U'){
+        isUndefined = TRUE;
+      }
     }
   }
   else{
@@ -750,6 +754,9 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       if (fileinfo.__recfmF) {
         isFixed = TRUE;
       }
+      else if (fileinfo.__recfmU) {
+        isUndefined = TRUE;
+      }
     }
     else {
       respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"Could not read dataset information");
@@ -764,18 +771,23 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       char *jsonString = jsonAsString(item);
       int recordLength = strlen(jsonString);
       if (recordLength > maxRecordLength) {
-        for (int j = recordLength; j > maxRecordLength-1; j--){
-          if (jsonString[j] > 0x40){
-            zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Invalid record for dataset, recordLength=%d but max for dataset is %d\n", recordLength, maxRecordLength);
-            char errorMessage[1024];
-            int errorLength = sprintf(errorMessage,"Record #%d with contents \"%s\" is longer than the max record length of %d",i+1,jsonString,maxRecordLength);
-            errorMessage[errorLength] = '\0';
-            respondWithError(response, HTTP_STATUS_BAD_REQUEST,errorMessage);
-            fclose(outDataset);
-            return;
-          } 
+        if (isUndefined) {
+          maxRecordLength = recordLength;
         }
-        recordLength = maxRecordLength;
+        else {
+          for (int j = recordLength; j > maxRecordLength-1; j--){
+            if (jsonString[j] > 0x40){
+              zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Invalid record for dataset, recordLength=%d but max for dataset is %d\n", recordLength, maxRecordLength);
+              char errorMessage[1024];
+              int errorLength = sprintf(errorMessage,"Record #%d with contents \"%s\" is longer than the max record length of %d",i+1,jsonString,maxRecordLength);
+              errorMessage[errorLength] = '\0';
+              respondWithError(response, HTTP_STATUS_BAD_REQUEST,errorMessage);
+              fclose(outDataset);
+              return;
+            } 
+          }
+          recordLength = maxRecordLength;
+        }
       }
       if (isFixed && recordLength < maxRecordLength) {
         zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "UPDATE DATASET: record given for fixed datset less than maxLength=%d, len=%d, data:%s\n",maxRecordLength,recordLength,jsonString);
