@@ -325,9 +325,8 @@ static int renameUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int
     if (!forceRename) {          
       return RC_HTTP_FILE_SERVICE_ALREADY_EXISTS;  
     }
-    else if (forceRename && deleteUnixDirectory(newAbsolutePath))
-    {
-      return RC_HTTP_FILE_SERVICE_UNDEFINED_ERROR;
+    else if (forceRename && deleteUnixDirectory(newAbsolutePath)) {
+      return RC_HTTP_FILE_SERVICE_CLEANUP_TARGET_DIR_FAILED;
     }
   }
 
@@ -337,7 +336,7 @@ static int renameUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int
     		    "Failed to rename directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             oldAbsolutePath, returnCode, reasonCode);
     if (returnCode == EACCES) {
-      return RC_HTTP_FILE_SERVICE_PERMISION_DENIED;
+      return RC_HTTP_FILE_SERVICE_PERMISSION_DENIED;
     } else if (returnCode == ENOENT) {
       return RC_HTTP_FILE_SERVICE_NOT_FOUND;
     } else {
@@ -355,15 +354,14 @@ void renameUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath
     response200WithMessage(response, "Successfully renamed a directory");
   }
   else {
-    switch (returnCode)
-    {
+    switch (returnCode) {
     case RC_HTTP_FILE_SERVICE_INVALID_INPUT:
       respondWithJsonError(response, "Invalid input, Same directory", 400, "Bad Request");
       break;
     case RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH:
       respondWithJsonError(response, "Invalid input, Not absolute path", 400, "Bad Request");
       break;      
-    case RC_HTTP_FILE_SERVICE_PERMISION_DENIED:
+    case RC_HTTP_FILE_SERVICE_PERMISSION_DENIED:
       respondWithJsonError(response, "Permission denied", 403, "Forbidden");
       break;
     case RC_HTTP_FILE_SERVICE_ALREADY_EXISTS:
@@ -459,9 +457,8 @@ static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int f
     if (!forceCopy) {          
       return RC_HTTP_FILE_SERVICE_ALREADY_EXISTS;  
     }
-    else if (forceCopy && deleteUnixDirectory(newAbsolutePath))
-    {
-      return RC_HTTP_FILE_SERVICE_UNDEFINED_ERROR;
+    else if (forceCopy && deleteUnixDirectory(newAbsolutePath)) {
+      return RC_HTTP_FILE_SERVICE_CLEANUP_TARGET_DIR_FAILED;
     }
   }
 
@@ -471,7 +468,7 @@ static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int f
     		    "Failed to copy directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             oldAbsolutePath, returnCode, reasonCode);
     if (returnCode == EACCES) {
-      return RC_HTTP_FILE_SERVICE_PERMISION_DENIED;
+      return RC_HTTP_FILE_SERVICE_PERMISSION_DENIED;
     } else if (returnCode == ENOENT) {
       return RC_HTTP_FILE_SERVICE_NOT_FOUND;
     } else {
@@ -489,15 +486,14 @@ void copyUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath, 
     response200WithMessage(response, "Successfully copied a directory");
   }
   else {
-    switch (returnCode)
-    {
+    switch (returnCode) {
     case RC_HTTP_FILE_SERVICE_INVALID_INPUT:
       respondWithJsonError(response, "Invalid input, Same directory", 400, "Bad Request");
       break;
     case RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH:
       respondWithJsonError(response, "Invalid input, Not absolute path", 400, "Bad Request");
       break;      
-    case RC_HTTP_FILE_SERVICE_PERMISION_DENIED:
+    case RC_HTTP_FILE_SERVICE_PERMISSION_DENIED:
       respondWithJsonError(response, "Permission denied", 403, "Forbidden");
       break;
     case RC_HTTP_FILE_SERVICE_ALREADY_EXISTS:
@@ -557,7 +553,7 @@ static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceC
             "Failed to copy file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             oldAbsolutePath, returnCode, reasonCode);
     if (returnCode == EACCES) {
-      return RC_HTTP_FILE_SERVICE_PERMISION_DENIED;
+      return RC_HTTP_FILE_SERVICE_PERMISSION_DENIED;
     } else if (returnCode == ENOENT) {
       return RC_HTTP_FILE_SERVICE_NOT_FOUND;
     } else {
@@ -575,15 +571,14 @@ void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char 
     response200WithMessage(response, "Successfully copied a file");
   }
   else {
-    switch (returnCode)
-    {
+    switch (returnCode) {
     case RC_HTTP_FILE_SERVICE_INVALID_INPUT:
       respondWithJsonError(response, "Invalid input, Same file", 400, "Bad Request");
       break;
     case RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH:
       respondWithJsonError(response, "Invalid input, Not absolute path", 400, "Bad Request");
       break;      
-    case RC_HTTP_FILE_SERVICE_PERMISION_DENIED:
+    case RC_HTTP_FILE_SERVICE_PERMISSION_DENIED:
       respondWithJsonError(response, "Permission denied", 403, "Forbidden");
       break;
     case RC_HTTP_FILE_SERVICE_ALREADY_EXISTS:
