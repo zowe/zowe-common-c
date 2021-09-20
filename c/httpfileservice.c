@@ -366,10 +366,13 @@ void renameUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath
       break;
     case RC_HTTP_FILE_SERVICE_ALREADY_EXISTS:
       respondWithJsonError(response, "Directory already exists", 403, "Forbidden");
-      break;               
+      break;
+    case RC_HTTP_FILE_SERVICE_CLEANUP_TARGET_DIR_FAILED:
+      respondWithJsonError(response, "Failed to delete existing directory", 403, "Forbidden");
+      break;                         
     case RC_HTTP_FILE_SERVICE_NOT_FOUND:
       respondWithJsonError(response, "Directory not found", 404, "Not Found");
-      break;    
+      break;   
     default:
       respondWithJsonError(response, "Failed to rename a directory", 500, "Internal Server Error");
       break;
@@ -498,10 +501,13 @@ void copyUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath, 
       break;
     case RC_HTTP_FILE_SERVICE_ALREADY_EXISTS:
       respondWithJsonError(response, "Directory already exists", 403, "Forbidden");
-      break;               
+      break;
+    case RC_HTTP_FILE_SERVICE_CLEANUP_TARGET_DIR_FAILED:
+      respondWithJsonError(response, "Failed to delete existing directory", 403, "Forbidden");
+      break;                      
     case RC_HTTP_FILE_SERVICE_NOT_FOUND:
       respondWithJsonError(response, "Directory not found", 404, "Not Found");
-      break;    
+      break;
     default:
       respondWithJsonError(response, "Failed to copy a directory", 500, "Internal Server Error");
       break;
