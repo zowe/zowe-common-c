@@ -730,6 +730,8 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
         isFixed = TRUE;
       } else if (recordType == 'U') {
         respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Undefined-length dataset");
+        fclose(outDataset);
+        return;
       }
     }
   }
@@ -753,6 +755,8 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
         isFixed = TRUE;
       } else if (fileinfo.__recfmU) {
         respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Undefined-length dataset");
+        fclose(outDataset);
+        return;
       }
     }
     else {
