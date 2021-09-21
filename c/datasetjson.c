@@ -729,8 +729,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       char recordType = getRecordLengthType(dscb);
       if (recordType == 'F'){
         isFixed = TRUE;
-      }
-      else if (recordType == 'U'){
+      } else if (recordType == 'U') {
         isUndefined = TRUE;
       }
     }
@@ -753,8 +752,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       }
       if (fileinfo.__recfmF) {
         isFixed = TRUE;
-      }
-      else if (fileinfo.__recfmU) {
+      } else if (fileinfo.__recfmU) {
         isUndefined = TRUE;
       }
     }
@@ -773,8 +771,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       if (recordLength > maxRecordLength) {
         if (isUndefined) {
           maxRecordLength = recordLength;
-        }
-        else {
+        } else {
           for (int j = recordLength; j > maxRecordLength-1; j--){
             if (jsonString[j] > 0x40){
               zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Invalid record for dataset, recordLength=%d but max for dataset is %d\n", recordLength, maxRecordLength);
