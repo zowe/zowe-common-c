@@ -45,6 +45,7 @@
 #include "qsam.h"
 
 #define INDEXED_DSCB 96
+#define MAX_RECORD_LENGTH 32756
 
 static char defaultDatasetTypesAllowed[3] = {'A','D','X'};
 static char clusterTypesAllowed[3] = {'C','D','I'}; /* TODO: support 'I' type DSNs */
@@ -770,7 +771,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       int recordLength = strlen(jsonString);
       if (recordLength > maxRecordLength) {
         if (isUndefined) {
-          maxRecordLength = recordLength;
+          maxRecordLength = recordLength > MAX_RECORD_LENGTH ? MAX_RECORD_LENGTH : recordLength;
         } else {
           for (int j = recordLength; j > maxRecordLength-1; j--){
             if (jsonString[j] > 0x40){
