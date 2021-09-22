@@ -3454,9 +3454,6 @@ static int handleHttpService(HttpServer *server,
       respondWithAuthError(response, &authResponse);
     }
     // Response is finished on return
-#define IGNORE_IMPERSONATION 1
-  } else if (IGNORE_IMPERSONATION){
-    serveRequest(service, response, request);
   } else {
 
     int impersonating = startImpersonating(service, request);
