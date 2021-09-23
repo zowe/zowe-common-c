@@ -2690,7 +2690,6 @@ void newDataset(HttpResponse* response, char* absolutePath, int jsonMode){
   int ddNumber = 1;
   char buffer[DD_NAME_LEN + 1];
   while (reasonCode==0x4100000 && ddNumber < 100000) {
-    printf("dnumber: %d\n", ddNumber);
     sprintf(buffer, "MVD%05d", ddNumber);
     int ddconfig = 1;
     setTextUnitString(DD_NAME_LEN, buffer, &ddconfig, DALDDNAM, &textUnits[0]);
@@ -2698,31 +2697,11 @@ void newDataset(HttpResponse* response, char* absolutePath, int jsonMode){
     ddNumber++;
   }
   if (returnCode) {
-    printf("Dynalloc RC = %d, reasonCode = %x\n", returnCode, reasonCode);
     respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to allocate a DD for ACB");
     return;
   }
   else {
-    printf("Dynalloc RC = %d, reasonCode = %x\n", returnCode, reasonCode);
     response200WithMessage(response, "Successfully created dataset");
-    DynallocInputParms inputParms;
-    memcpy(inputParms.ddName, buffer, DD_NAME_LEN);
-    printf("buffer: %s\ninputParms.ddName: %s\n", buffer, inputParms.ddName);
-    unallocDataset(&inputParms, &reasonCode);
-    if(reasonCode != 0) {
-       printf("unallocDataset RC: %d\n", reasonCode);
-    }
-    // daRC = dynallocUnallocDatasetByDDName2(&daDDName, DYNALLOC_UNALLOC_FLAG_NONE,
-                                                 // &daSysReturnCode, &daSysReasonCode,
-                                                 // false /* Delete data set on deallocation */
-                                                 // ); 
-     // if (daRC != RC_DYNALLOC_OK) {
-      // zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
-              // "error: ds unalloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
-              // " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
-              // daDatasetName.name, daMemberName.name, daDDName.name, daRC, daSysReturnCode, daSysReasonCode, "read");
-        // return;
-    // } 
     return;
   }
   #endif
