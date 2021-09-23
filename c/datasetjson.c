@@ -59,6 +59,7 @@ static char vsamCSITypes[5] = {'R', 'D', 'G', 'I', 'C'};
 
 static char getRecordLengthType(char *dscb);
 static int getMaxRecordLength(char *dscb);
+static int getDSCB(char* datasetName, char* dscb, int bufferSize);
 static int updateInputParmsProperty(JsonObject *object, int *configsCount, DynallocNewTextUnit *textUnit);
 static void setTextUnitString(int size, char* data, int *configsCount, int key, DynallocNewTextUnit *textUnit);
 static void setTextUnitCharOrInt(int size, int data, int *configsCount, int key, DynallocNewTextUnit *textUnit);
@@ -2531,34 +2532,122 @@ static void setTextUnitBool(int *configsCount, int key, DynallocNewTextUnit *tex
   (*configsCount)++;
 }
 
-void newDataset(HttpResponse* response, char* datasetName, int jsonMode){
-  #ifdef __ZOWE_OS_ZOS
+static int getDSCB(char* datasetName, char* dscb, int bufferSize){
+  if (bufferSize < INDEXED_DSCB){
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, 
+            "DSCB of size %d is too small, must be at least %d", bufferSize, INDEXED_DSCB);
+    return 1;
+  }
+  Volser volser = {0};
 
   DatasetName dsn = {0};
-  memset(dsn.value, ' ', DATASET_NAME_LEN);
+  memcpy(dsn.value, datasetName, DATASET_PATH_MAX);
 
-  int lParenIndex = indexOf(datasetName, strlen(datasetName),'(',0);
-
-  //String parsing operation, gets rid of of 3 initial unnecessary characters-> //'
-  if (lParenIndex > 0){
-    memcpy(dsn.value,datasetName+3,lParenIndex-3);
+  int volserSuccess = getVolserForDataset(&dsn, &volser);
+  if(!volserSuccess){
+    int rc = obtainDSCB1(dsn.value, sizeof(dsn.value),
+                           volser.value, sizeof(volser.value),
+                           dscb);
+    if (rc == 0){
+      if (DSCB_TRACE){
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "DSCB for %.*s found\n", sizeof(dsn.value), dsn.value);
+        dumpbuffer(dscb,INDEXED_DSCB);
+      }
+    }
+    return 0;
   }
-  //String parsing operation, gets rid of of 3 initial unnecessary characters-> //'
-  else{
-    memcpy(dsn.value,datasetName+3,strlen(datasetName)-4);
+  else {
+    return 1;
+  }
+}
+
+void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
+  char dscb[INDEXED_DSCB] = {0};
+  int bufferSize = sizeof(dscb);
+  if (getDSCB(datasetPath, dscb, bufferSize) != 0) {
+    respondWithJsonError(response, "Error decoding dataset", 400, "Bad Request");
+  }
+  else {
+    if (!isPartionedDataset(dscb)) {
+      respondWithJsonError(response, "Dataset must be PDS/E", 400, "Bad Request");
+    }
+    else {
+      char *overwriteParam = getQueryParam(response->request,"overwrite");
+      int overwrite = !strcmp(overwriteParam, "true") ? TRUE : FALSE;
+      char fullPath[DATASET_MEMBER_MAXLEN + 1] = {0};
+      //concatenates dataset name with member name
+      char *dsName = strtok(datasetPath, " ");
+      char *memName = strtok(memberName, " ");
+      snprintf(fullPath, DATASET_MEMBER_MAXLEN + 1, "//'%s(%s)'", dsName, memName);
+      FILE* memberExists = fopen(fullPath,"r");
+      if (memberExists && overwrite != TRUE) {//Member already exists and overwrite wasn't specified
+        if (fclose(memberExists) != 0) {
+            zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "ERROR CLOSING FILE");
+            respondWithJsonError(response, "Could not close dataset", 500, "Internal Server Error");
+        }
+        else {
+          respondWithJsonError(response, "Member already exists and overwrite not specified", 400, "Bad Request");
+        }
+      }
+      else { // Member doesn't exist
+        if (memberExists) {
+          if (fclose(memberExists) != 0) {
+            zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "ERROR CLOSING FILE");
+            respondWithJsonError(response, "Could not close dataset", 500, "Internal Server Error");
+            return;
+          }
+        }
+        FILE* newMember = fopen(fullPath, "w");
+        if (!newMember){
+          respondWithJsonError(response, "Bad dataset name", 400, "Bad Request");
+          return;
+        }
+        if (fclose(newMember) == 0){
+          response200WithMessage(response, "Successfully created member");
+        }
+        else {
+          zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "ERROR CLOSING FILE");
+          respondWithJsonError(response, "Could not close dataset", 500, "Internal Server Error");
+        }
+      }
+    }
+  }
+}
+
+void newDataset(HttpResponse* response, char* absolutePath, int jsonMode){
+  #ifdef __ZOWE_OS_ZOS
+  HttpRequest *request = response->request;
+  if (!isDatasetPathValid(absolutePath)) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
+    return;
+  }
+  
+  DatasetName datasetName;
+  DatasetMemberName memberName;
+  extractDatasetAndMemberName(absolutePath, &datasetName, &memberName);
+  DynallocDatasetName daDatasetName;
+  DynallocMemberName daMemberName;
+  memcpy(daDatasetName.name, datasetName.value, sizeof(daDatasetName.name));
+  memcpy(daMemberName.name, memberName.value, sizeof(daMemberName.name));
+  DynallocDDName daDDName = {.name = "????????"};
+  
+  int daRC = RC_DYNALLOC_OK, daSysReturnCode = 0, daSysReasonCode = 0;
+  
+  bool isMemberEmpty = IS_DAMEMBER_EMPTY(daMemberName);
+  
+  if(!isMemberEmpty){
+    return newDatasetMember(response, daDatasetName.name, daMemberName.name);
   }
 
   int configsCount = 0;
   DynallocNewTextUnit textUnits[TOTAL_TEXT_UNITS];
-  setTextUnitString(DATASET_NAME_LEN, &dsn.value[0], &configsCount, DALDSNAM, &textUnits[0]);
+  setTextUnitString(DATASET_NAME_LEN, &datasetName.value[0], &configsCount, DALDSNAM, &textUnits[0]);
   setTextUnitString(DD_NAME_LEN, "MVD00000", &configsCount, DALDDNAM, &textUnits[0]);
 
   if (jsonMode != TRUE) { /*TODO add support for updating files with raw bytes instead of JSON*/
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Cannot update file without JSON formatted record request");
     return;
   }
-
-  HttpRequest *request = response->request;
 
   FileInfo info;
 
@@ -2601,6 +2690,7 @@ void newDataset(HttpResponse* response, char* datasetName, int jsonMode){
   int ddNumber = 1;
   char buffer[DD_NAME_LEN + 1];
   while (reasonCode==0x4100000 && ddNumber < 100000) {
+    printf("dnumber: %d\n", ddNumber);
     sprintf(buffer, "MVD%05d", ddNumber);
     int ddconfig = 1;
     setTextUnitString(DD_NAME_LEN, buffer, &ddconfig, DALDDNAM, &textUnits[0]);
@@ -2615,10 +2705,28 @@ void newDataset(HttpResponse* response, char* datasetName, int jsonMode){
   else {
     printf("Dynalloc RC = %d, reasonCode = %x\n", returnCode, reasonCode);
     response200WithMessage(response, "Successfully created dataset");
+    DynallocInputParms inputParms;
+    memcpy(inputParms.ddName, buffer, DD_NAME_LEN);
+    printf("buffer: %s\ninputParms.ddName: %s\n", buffer, inputParms.ddName);
+    unallocDataset(&inputParms, &reasonCode);
+    if(reasonCode != 0) {
+       printf("unallocDataset RC: %d\n", reasonCode);
+    }
+    // daRC = dynallocUnallocDatasetByDDName2(&daDDName, DYNALLOC_UNALLOC_FLAG_NONE,
+                                                 // &daSysReturnCode, &daSysReasonCode,
+                                                 // false /* Delete data set on deallocation */
+                                                 // ); 
+     // if (daRC != RC_DYNALLOC_OK) {
+      // zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
+              // "error: ds unalloc dsn=\'%44.44s\', member=\'%8.8s\', dd=\'%8.8s\',"
+              // " rc=%d sysRC=%d, sysRSN=0x%08X (read)\n",
+              // daDatasetName.name, daMemberName.name, daDDName.name, daRC, daSysReturnCode, daSysReasonCode, "read");
+        // return;
+    // } 
+    return;
   }
   #endif
 }
-
 
 #endif /* not METTLE - the whole module */
 
