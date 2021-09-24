@@ -2272,7 +2272,63 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
 
 
 static int updateInputParmsProperty(JsonObject *object, int *configsCount, DynallocNewTextUnit *textUnit) {
-  Json* value = jsonObjectGetPropertyValue(object, "dsorg");
+  JsonProperty *currentProp = jsonObjectGetFirstProperty(object);
+  Json *value;
+  while(currentProp != NULL){
+    /* Json  **/value = jsonPropertyGetValue(currentProp);
+    char *valueString = jsonAsString(value);
+    errno = 0;
+    if(valueString != NULL){
+      int valueStrLen = valueStrLen;
+      char *propString = jsonPropertyGetKey(currentProp);
+      if (!strcmp(propString, "dsorg")) {
+        setTextUnitCharOrInt(sizeof(short), !strcmp(valueString, "PS") ? DALDSORG_PS : DALDSORG_PO, configsCount, DALDSORG, textUnit);
+      } else if(!strcmp(propString, "blksz") || !strcmp(propString, "lrecl")){
+        long toi = strtol(valueString, NULL, 0);
+        if(errno != ERANGE){
+          int keyArg = !strcmp(propString, "blksz") ? DALBLKSZ : DALLRECL
+          if (toi <= 0x7FF8 && toi >= 0) { //<-- If DASD, if tape, it can be 80000000
+            setTextUnitCharOrInt(sizeof(short), toi, configsCount, keyArg, textUnit);
+          } else if (toi <= 0x8000){
+            setTextUnitCharOrInt(sizeof(long long), toi, configsCount, keyArg, textUnit);
+          }
+        }
+      } else if(!strcmp(propString, "volser")) {
+        if (valueStrLen <= VOLSER_SIZE){
+          setTextUnitString(VOLSER_SIZE, &(valueString)[0], configsCount, DALVLSER, textUnit);
+        }
+      } else if(!strcmp(propString, "recfm")) {
+        int setRECFM = 0;
+        if (indexOf(valueString, valueStrLen, 'A', 0) != -1){
+          setRECFM = setRECFM | DALRECFM_A;
+        }
+        if (indexOf(valueString, valueStrLen, 'B', 0) != -1){
+          setRECFM = setRECFM | DALRECFM_B;
+        }
+        if (indexOf(valueString, valueStrLen, 'V', 0) != -1){
+          setRECFM = setRECFM | DALRECFM_V;
+        }
+        if (indexOf(valueString, valueStrLen, 'F', 0) != -1){
+          setRECFM = setRECFM | DALRECFM_F;
+        }
+        if (indexOf(valueString, valueStrLen, 'U', 0) != -1){
+          setRECFM = setRECFM | DALRECFM_U;
+        }
+        setTextUnitCharOrInt(sizeof(char), setRECFM, configsCount, DALRECFM, textUnit);
+      } else if(!strcmp(propString, "prime") || !strcmp(propString, "second")) {
+        long toi = strtol(value->data.string, NULL, 0);
+        if (toi <= 0xFFFFFF || toi >= 0) {
+          int keyArg = !strcmp(propString, "prime") ? DALPRIME : DALSECND;
+          if (errno != ERANGE){
+            setTextUnitCharOrInt(INT24_SIZE, toi, configsCount, keyArg, textUnit);
+          }
+        }
+      } else {
+        continue;
+      }
+    }
+  }
+/*   Json* value = jsonObjectGetPropertyValue(object, "dsorg");
   if (jsonIsString(value)){
     if (!strcmp(value->data.string, "PS")) {
       setTextUnitCharOrInt(sizeof(short), DALDSORG_PS, configsCount, DALDSORG, textUnit);
@@ -2280,9 +2336,9 @@ static int updateInputParmsProperty(JsonObject *object, int *configsCount, Dynal
     else if (!strcmp(value->data.string, "PO")) {
       setTextUnitCharOrInt(sizeof(short), DALDSORG_PO, configsCount, DALDSORG, textUnit);
     }
-  }
+  } */
 
-  errno = 0;
+/*   errno = 0;
   value = jsonObjectGetPropertyValue(object, "blksz");
   if (jsonIsString(value)){
     long toi = strtol(value->data.string, NULL, 0);
@@ -2294,29 +2350,29 @@ static int updateInputParmsProperty(JsonObject *object, int *configsCount, Dynal
         setTextUnitCharOrInt(sizeof(long long), toi, configsCount, DALBLKSZ, textUnit);
       }
     }
-  }
+  } */
 
-  errno = 0;
-  value = jsonObjectGetPropertyValue(object, "lrecl");
-  if (jsonIsString(value)){
-    long toi = strtol(value->data.string, NULL, 0);
-    if (errno != ERANGE){
-      if (toi == 0x8000) {
-        setTextUnitCharOrInt(sizeof(short), toi, configsCount, DALLRECL, textUnit);
-      }
-      else if (toi <= 0x7FF8 && toi >= 0) {
-        setTextUnitCharOrInt(sizeof(short), toi, configsCount, DALLRECL, textUnit);
-      }
-    }
-  }
-  value = jsonObjectGetPropertyValue(object, "volser");
+  // errno = 0;
+  // value = jsonObjectGetPropertyValue(object, "lrecl");
+  // if (jsonIsString(value)){
+    // long toi = strtol(value->data.string, NULL, 0);
+    // if (errno != ERANGE){
+      // if (toi == 0x8000) {
+        // setTextUnitCharOrInt(sizeof(short), toi, configsCount, DALLRECL, textUnit);
+      // }
+      // else if (toi <= 0x7FF8 && toi >= 0) {
+        // setTextUnitCharOrInt(sizeof(short), toi, configsCount, DALLRECL, textUnit);
+      // }
+    // }
+  // }
+/*   value = jsonObjectGetPropertyValue(object, "volser");
   if (jsonIsString(value)){
     if (strlen(value->data.string) <= VOLSER_SIZE){
       setTextUnitString(VOLSER_SIZE, &(value->data.string)[0], configsCount, DALVLSER, textUnit);
     }
-  }
+  } */
 
-  value = jsonObjectGetPropertyValue(object, "recfm");
+/*   value = jsonObjectGetPropertyValue(object, "recfm");
   if (jsonIsString(value)){
     int setRECFM = 0;
     if (indexOf(value->data.string, strlen(value->data.string), 'A', 0) != -1){
@@ -2335,9 +2391,9 @@ static int updateInputParmsProperty(JsonObject *object, int *configsCount, Dynal
       setRECFM = setRECFM | DALRECFM_U;
     }
     setTextUnitCharOrInt(sizeof(char), setRECFM, configsCount, DALRECFM, textUnit);
-  }
+  } */
 
-  errno = 0;
+/*   errno = 0;
   value = jsonObjectGetPropertyValue(object, "prime");
   if (jsonIsString(value)){
     long toi = strtol(value->data.string, NULL, 0);
@@ -2357,7 +2413,7 @@ static int updateInputParmsProperty(JsonObject *object, int *configsCount, Dynal
         setTextUnitCharOrInt(INT24_SIZE, toi, configsCount, DALSECND, textUnit);
       }
     }
-  }
+  } */
 
   value = jsonObjectGetPropertyValue(object, "space");
   if (jsonIsString(value)){
@@ -2683,6 +2739,8 @@ void newDataset(HttpResponse* response, char* absolutePath, int jsonMode){
         JsonObject * jsonObject = jsonAsObject(json);
         updateInputParmsProperty(jsonObject, &configsCount, &textUnits[0]);
       }     
+    } else {
+      respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid JSON request body");
     }
   }
 
