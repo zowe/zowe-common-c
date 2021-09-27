@@ -2280,9 +2280,9 @@ static int updateInputParmsProperty(JsonObject *object, int *configsCount, Dynal
     printf("currentProperty: %s\n", jsonPropertyGetKey(currentProp));
     value = jsonPropertyGetValue(currentProp);
     char *valueString = jsonAsString(value);
-    errno = 0;
+    
     if(valueString != NULL){
-      printf("value for prop is not null\n");
+      errno = 0;
       int valueStrLen = valueStrLen;
       char *propString = jsonPropertyGetKey(currentProp);
       
@@ -2382,10 +2382,11 @@ static int updateInputParmsProperty(JsonObject *object, int *configsCount, Dynal
         }
       } else if(!strcmp(propString, "close")) {
         if (!strcmp(valueString, "true")){
+          printf("SETTING CLOSE TRUE\n");
           setTextUnitBool(configsCount, DALCLOSE, textUnit);
         }
       } else if(!strcmp(propString, "dummy")) {
-        if (!strcmp(value->data.string, "true")){
+        if (!strcmp(valueString, "true")){
           setTextUnitBool(configsCount, DALDUMMY, textUnit);
         }
       } else if(!strcmp(propString, "dcbdd")) {
@@ -2393,267 +2394,31 @@ static int updateInputParmsProperty(JsonObject *object, int *configsCount, Dynal
           setTextUnitString(DD_NAME_LEN, &(valueString)[0], configsCount, DALDCBDD, textUnit);
         }
       } else if(!strcmp(propString, "retdd")) {
-        if (strlen(value->data.string) <= DD_NAME_LEN){
-          setTextUnitString(DD_NAME_LEN, &(value->data.string)[0], configsCount, DALRTDDN, textUnit);
+        if (strlen(valueString) <= DD_NAME_LEN){
+          setTextUnitString(DD_NAME_LEN, &(valueString)[0], configsCount, DALRTDDN, textUnit);
         }
       } else if(!strcmp(propString, "spin")) {
-        if (!strcmp(value->data.string, "UNALLOC")){
+        if (!strcmp(valueString, "UNALLOC")){
           setTextUnitCharOrInt(1, SPIN_UNALLOC, configsCount, DALSPIN, textUnit);
-        } else if (!strcmp(value->data.string, "ENDJOB")){
+        } else if (!strcmp(valueString, "ENDJOB")){
           setTextUnitCharOrInt(1, SPIN_ENDJOB, configsCount, DALSPIN, textUnit);
         }
       } else if(!strcmp(propString, "strcls")) {
-        if (strlen(value->data.string) <= CLASS_WRITER_SIZE){
-          setTextUnitString(8, &(value->data.string)[0], configsCount, DALSTCL, textUnit);
+        if (strlen(valueString) <= CLASS_WRITER_SIZE){
+          setTextUnitString(8, &(valueString)[0], configsCount, DALSTCL, textUnit);
         }
       } else if(!strcmp(propString, "mngcls")) {
-        if (strlen(value->data.string) <= CLASS_WRITER_SIZE){
-         setTextUnitString(CLASS_WRITER_SIZE, &(value->data.string)[0], configsCount, DALMGCL, textUnit);
+        if (strlen(valueString) <= CLASS_WRITER_SIZE){
+         setTextUnitString(CLASS_WRITER_SIZE, &(valueString)[0], configsCount, DALMGCL, textUnit);
         }
       } else if(!strcmp(propString, "datacls")) {
-        if (strlen(value->data.string) <= CLASS_WRITER_SIZE){
-          setTextUnitString(CLASS_WRITER_SIZE, &(value->data.string)[0], configsCount, DALDACL, textUnit);
+        if (strlen(valueString) <= CLASS_WRITER_SIZE){
+          setTextUnitString(CLASS_WRITER_SIZE, &(valueString)[0], configsCount, DALDACL, textUnit);
         }
       }
     }
     currentProp = jsonObjectGetNextProperty(currentProp);
   }
-/*   Json* value = jsonObjectGetPropertyValue(object, "dsorg");
-  if (jsonIsString(value)){
-    if (!strcmp(value->data.string, "PS")) {
-      setTextUnitCharOrInt(sizeof(short), DALDSORG_PS, configsCount, DALDSORG, textUnit);
-    }
-    else if (!strcmp(value->data.string, "PO")) {
-      setTextUnitCharOrInt(sizeof(short), DALDSORG_PO, configsCount, DALDSORG, textUnit);
-    }
-  } */
-
-/*   errno = 0;
-  value = jsonObjectGetPropertyValue(object, "blksz");
-  if (jsonIsString(value)){
-    long toi = strtol(value->data.string, NULL, 0);
-    if(errno != ERANGE){
-      if (toi <= 0x7FF8 && toi >= 0) { //<-- If DASD, if tape, it can be 80000000
-        setTextUnitCharOrInt(sizeof(short), toi, configsCount, DALBLKSZ, textUnit);
-      }
-      else if (toi <= 0x80000000){
-        setTextUnitCharOrInt(sizeof(long long), toi, configsCount, DALBLKSZ, textUnit);
-      }
-    }
-  } */
-
-  // errno = 0;
-  // value = jsonObjectGetPropertyValue(object, "lrecl");
-  // if (jsonIsString(value)){
-    // long toi = strtol(value->data.string, NULL, 0);
-    // if (errno != ERANGE){
-      // if (toi == 0x8000) {
-        // setTextUnitCharOrInt(sizeof(short), toi, configsCount, DALLRECL, textUnit);
-      // }
-      // else if (toi <= 0x7FF8 && toi >= 0) {
-        // setTextUnitCharOrInt(sizeof(short), toi, configsCount, DALLRECL, textUnit);
-      // }
-    // }
-  // }
-/*   value = jsonObjectGetPropertyValue(object, "volser");
-  if (jsonIsString(value)){
-    if (strlen(value->data.string) <= VOLSER_SIZE){
-      setTextUnitString(VOLSER_SIZE, &(value->data.string)[0], configsCount, DALVLSER, textUnit);
-    }
-  } */
-
-/*   value = jsonObjectGetPropertyValue(object, "recfm");
-  if (jsonIsString(value)){
-    int setRECFM = 0;
-    if (indexOf(value->data.string, strlen(value->data.string), 'A', 0) != -1){
-      setRECFM = setRECFM | DALRECFM_A;
-    }
-    if (indexOf(value->data.string, strlen(value->data.string), 'B', 0) != -1){
-      setRECFM = setRECFM | DALRECFM_B;
-    }
-    if (indexOf(value->data.string, strlen(value->data.string), 'V', 0) != -1){
-      setRECFM = setRECFM | DALRECFM_V;
-    }
-    if (indexOf(value->data.string, strlen(value->data.string), 'F', 0) != -1){
-      setRECFM = setRECFM | DALRECFM_F;
-    }
-    if (indexOf(value->data.string, strlen(value->data.string), 'U', 0) != -1){
-      setRECFM = setRECFM | DALRECFM_U;
-    }
-    setTextUnitCharOrInt(sizeof(char), setRECFM, configsCount, DALRECFM, textUnit);
-  } */
-
-/*   errno = 0;
-  value = jsonObjectGetPropertyValue(object, "prime");
-  if (jsonIsString(value)){
-    long toi = strtol(value->data.string, NULL, 0);
-    if (toi <= 0xFFFFFF || toi >= 0) {
-      if (errno != ERANGE){
-        setTextUnitCharOrInt(INT24_SIZE, toi, configsCount, DALPRIME, textUnit);
-      }
-    }
-  }
-
-  errno = 0;
-  value = jsonObjectGetPropertyValue(object, "second");
-  if (jsonIsString(value)){
-    long toi = strtol(value->data.string, NULL, 0);
-    if (toi <= 0xFFFFFF || toi >= 0) {
-      if (errno != ERANGE){
-        setTextUnitCharOrInt(INT24_SIZE, toi, configsCount, DALSECND, textUnit);
-      }
-    }
-  } */
-
-/*   value = jsonObjectGetPropertyValue(object, "space");
-  if (jsonIsString(value)){
-    if (!strcmp(value->data.string, "cyl")){
-      setTextUnitBool(configsCount, DALCYL, textUnit);
-    }
-    if (!strcmp(value->data.string, "trk")){
-      setTextUnitBool(configsCount, DALCYL, textUnit);
-    }
-  } */
-
-/*   errno = 0;
-  value = jsonObjectGetPropertyValue(object, "blkln");
-  if (jsonIsString(value)){
-    long toi = strtol(value->data.string, NULL, 0);
-    if (toi <= 0xFFFF || toi >= 0) {
-      if (errno != ERANGE){
-        setTextUnitCharOrInt(INT24_SIZE, toi, configsCount, DALBLKLN, textUnit);
-      }
-    }
-  } */
-
-/*   value = jsonObjectGetPropertyValue(object, "status");
-  if (jsonIsString(value)){
-    if (!strcmp(value->data.string, "OLD")){
-      setTextUnitCharOrInt(sizeof(char), DISP_OLD, configsCount, DALSTATS, textUnit);
-    }
-    else if (!strcmp(value->data.string, "MOD")){
-      setTextUnitCharOrInt(sizeof(char), DISP_MOD, configsCount, DALSTATS, textUnit);
-    }
-    else if (!strcmp(value->data.string, "SHARE")){
-      setTextUnitCharOrInt(sizeof(char), DISP_SHARE, configsCount, DALSTATS, textUnit);
-    }
-    else {
-      setTextUnitCharOrInt(sizeof(char), DISP_NEW, configsCount, DALSTATS, textUnit);
-    }
-  }
-  else {
-    setTextUnitCharOrInt(sizeof(char), DISP_NEW, configsCount, DALSTATS, textUnit);
-  } */
-
-  /* value = jsonObjectGetPropertyValue(object, "ndisp");
-  if (jsonIsString(value)){
-    if (!strcmp(value->data.string, "UNCATLG")){
-      setTextUnitCharOrInt(sizeof(char), DISP_UNCATLG, configsCount, DALNDISP, textUnit);
-    }
-    else if (!strcmp(value->data.string, "DELETE")){
-      setTextUnitCharOrInt(sizeof(char), DISP_DELETE, configsCount, DALNDISP, textUnit);
-    }
-    else if (!strcmp(value->data.string, "KEEP")){
-      setTextUnitCharOrInt(sizeof(char), DISP_KEEP, configsCount, DALNDISP, textUnit);
-    }
-    else {
-      setTextUnitCharOrInt(sizeof(char), DISP_CATLG, configsCount, DALNDISP, textUnit);
-    }
-  }
-  else {
-    setTextUnitCharOrInt(sizeof(char), DISP_CATLG, configsCount, DALNDISP, textUnit);
-  } */
-
-/*   value = jsonObjectGetPropertyValue(object, "unit");
-  if (jsonIsString(value)){
-    setTextUnitString(strlen(value->data.string), &(value->data.string)[0], configsCount, DALUNIT, textUnit);
-  } */
-
- /*  value = jsonObjectGetPropertyValue(object, "sysout");
-  if (jsonIsString(value)){
-    if (!strcmp(value->data.string, "default")){
-      for(int i = 0; i < *configsCount; i++) {
-        if (textUnit[i].key == DALSTATS || textUnit[i].key == DALNDISP) {
-          textUnit[i].type = TEXT_UNIT_NULL;
-        }
-      }
-      setTextUnitBool(configsCount, DALSYSOU, textUnit);
-    }
-    else if (isalnum(value->data.string[0])) {
-      for(int i = 0; i < *configsCount; i++) {
-        if (textUnit[i].key == DALSTATS || textUnit[i].key == DALNDISP) {
-          textUnit[i].type == TEXT_UNIT_NULL;
-        }
-      }
-      setTextUnitCharOrInt(1, value->data.string[0], configsCount, DALSYSOU, textUnit);
-    } 
-  } */
-
-/*   value = jsonObjectGetPropertyValue(object, "spgnm");
-  if (jsonIsString(value)){
-    if (strlen(value->data.string) <= CLASS_WRITER_SIZE){
-      setTextUnitString(strlen(value->data.string), &(value->data.string)[0], configsCount, DALSPGNM, textUnit);
-    }
-  } */
-
-  // value = jsonObjectGetPropertyValue(object, "close");
-  // if (jsonIsString(value)){
-    // if (!strcmp(value->data.string, "true")){
-      // setTextUnitBool(configsCount, DALCLOSE, textUnit);
-    // }
-  // }
-
-/*   value = jsonObjectGetPropertyValue(object, "dummy");
-  if (jsonIsString(value)){
-    if (!strcmp(value->data.string, "true")){
-      setTextUnitBool(configsCount, DALDUMMY, textUnit);
-    }
-  }
- */
- /*  value = jsonObjectGetPropertyValue(object, "dcbdd");
-  if (jsonIsString(value)){
-    if (strlen(value->data.string) <= DD_NAME_LEN){
-      setTextUnitString(DD_NAME_LEN, &(value->data.string)[0], configsCount, DALDCBDD, textUnit);
-    }
-  } */
-
-/*   value = jsonObjectGetPropertyValue(object, "retdd");
-  if (jsonIsString(value)){
-    if (strlen(value->data.string) <= DD_NAME_LEN){
-      setTextUnitString(DD_NAME_LEN, &(value->data.string)[0], configsCount, DALRTDDN, textUnit);
-    }
-  } */
-
-/*   value = jsonObjectGetPropertyValue(object, "spin");
-  if (jsonIsString(value)){
-    if (!strcmp(value->data.string, "UNALLOC")){
-      setTextUnitCharOrInt(1, SPIN_UNALLOC, configsCount, DALSPIN, textUnit);
-    }
-    else if (!strcmp(value->data.string, "ENDJOB")){
-      setTextUnitCharOrInt(1, SPIN_ENDJOB, configsCount, DALSPIN, textUnit);
-    }
-  } */
-
-/*   value = jsonObjectGetPropertyValue(object, "strcls");
-  if (jsonIsString(value)){
-    if (strlen(value->data.string) <= CLASS_WRITER_SIZE){
-      setTextUnitString(8, &(value->data.string)[0], configsCount, DALSTCL, textUnit);
-    }
-  } */
-
-/*   value = jsonObjectGetPropertyValue(object, "mngcls");
-  if (jsonIsString(value)){
-    if (strlen(value->data.string) <= CLASS_WRITER_SIZE){
-     setTextUnitString(CLASS_WRITER_SIZE, &(value->data.string)[0], configsCount, DALMGCL, textUnit);
-    }
-  } */
-
-/*   value = jsonObjectGetPropertyValue(object, "datacls");
-  if (jsonIsString(value)){
-    if (strlen(value->data.string) <= CLASS_WRITER_SIZE){
-      setTextUnitString(CLASS_WRITER_SIZE, &(value->data.string)[0], configsCount, DALDACL, textUnit);
-    }
-  } */
 }
 
 static void setTextUnitString(int size, char* data, int *configsCount, int key, DynallocNewTextUnit *textUnit) {
