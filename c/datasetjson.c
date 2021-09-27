@@ -2275,9 +2275,7 @@ static int updateInputParmsProperty(JsonObject *object, int *configsCount, Dynal
   JsonProperty *currentProp = jsonObjectGetFirstProperty(object);
   //printf("Updating input parms");
   Json *value;
-  printf("updateInptuParmsProperty called\n");
   while(currentProp != NULL){
-    printf("currentProperty: %s\n", jsonPropertyGetKey(currentProp));
     value = jsonPropertyGetValue(currentProp);
     char *valueString = jsonAsString(value);
     
@@ -2382,7 +2380,6 @@ static int updateInputParmsProperty(JsonObject *object, int *configsCount, Dynal
         }
       } else if(!strcmp(propString, "close")) {
         if (!strcmp(valueString, "true")){
-          printf("SETTING CLOSE TRUE\n");
           setTextUnitBool(configsCount, DALCLOSE, textUnit);
         }
       } else if(!strcmp(propString, "dummy")) {
