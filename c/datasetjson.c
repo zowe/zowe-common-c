@@ -2330,7 +2330,7 @@ static int updateInputParmsProperty(JsonObject *object, int *configsCount, Dynal
         }
         setTextUnitCharOrInt(sizeof(char), setRECFM, configsCount, DALRECFM, textUnit);
       } else if(!strcmp(propString, "space")) {
-        setTextUnitBool(configsCount, !strcmp(valueString, "cyl) ? DALCYL : DALTRK, textUnit);
+        setTextUnitBool(configsCount, !strcmp(valueString, "cyl") ? DALCYL : DALTRK, textUnit);
       } else if(!strcmp(propString, "blkln")) {
         long toi = strtol(valueString, NULL, 0);
         if (toi <= 0xFFFF || toi >= 0) {
