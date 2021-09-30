@@ -83,6 +83,9 @@ int callCsi(CsiFn *csiFn, void *__ptr32 paramList) {
 }
 
 char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSizeInOut) {
+  fprintf (stdout, "csi_parms 0x%p\n", csi_parms);
+  dumpbuffer((char*)csi_parms, sizeof(csi_parmblock));
+  fflush(stdout);
   int returnCode = 0;
   int reasonCode = 0;
   int status = 0;
@@ -130,7 +133,9 @@ char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSizeInOut) {
     paramList->reasonCodePtr = reasonCodePtr;
     paramList->paramBlock = csi_parms;
 
+    fprintf (stderr, "about to call csi\n");
     returnCode = callCsi(csiFn, paramList);
+    fprintf (stderr, "csi called\n");
     reasonCode = *reasonCodePtr;
 
     if (returnCode != 0) {

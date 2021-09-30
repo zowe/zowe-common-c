@@ -1001,6 +1001,7 @@ static int getVolserForDataset(const DatasetName *dataset, Volser *volser) {
   if (lParenIndex > -1 || asterixIndex > -1 || dollarIndex > -1){
     return -1;
   }
+  fprintf (stderr, "%s dsnNullTerm '%s'\n", __FUNCTION__, dsnNullTerm);
   csi_parmblock * __ptr32 returnParms = (csi_parmblock* __ptr32)safeMalloc31(sizeof(csi_parmblock),"CSI ParmBlock");
   EntryDataSet *entrySet = returnEntries(dsnNullTerm, defaultDatasetTypesAllowed,3, 0, defaultCSIFields, defaultCSIFieldCount, NULL, NULL, returnParms);
   
@@ -1027,7 +1028,7 @@ static int getVolserForDataset(const DatasetName *dataset, Volser *volser) {
     safeFree((char*)(currentEntry),entrySize);
   }
   if (entrySet->entries != NULL) {
-    safeFree((char*)(entrySet->entries),sizeof(EntryData*)*entrySet->length);
+    safeFree((char*)(entrySet->entries),sizeof(EntryData*)*entrySet->size);
     entrySet->entries = NULL;
   }
   safeFree((char*)entrySet,sizeof(EntryDataSet));    
@@ -1580,6 +1581,11 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
   DatasetMemberName memberName;
   extractDatasetAndMemberName(absolutePath, &dsn, &memberName);
 
+  Volser volser = {' '};
+  fprintf (stderr, "about to get volser for %s\n", absolutePath);
+  getVolserForDataset(&dsn, &volser);
+  fprintf (stderr, "end to get volser for %s, volser %.8s\n", absolutePath, volser.value);
+
   DynallocDatasetName daDsn;
   DynallocMemberName daMember;
   memcpy(daDsn.name, dsn.value, sizeof(daDsn.name));
@@ -1699,7 +1705,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
         safeFree((char*)(currentEntry),entrySize);
       }
       memset((char*)(entrySet->entries),0,sizeof(EntryData*)*entrySet->length);
-      safeFree((char*)(entrySet->entries),sizeof(EntryData*)*entrySet->length);
+      safeFree((char*)(entrySet->entries),sizeof(EntryData*)*entrySet->size);
       memset((char*)entrySet,0,sizeof(EntryDataSet));
       safeFree((char*)entrySet,sizeof(EntryDataSet));
 
@@ -1768,7 +1774,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
     int entrySize = sizeof(EntryData)+fieldDataLength-4;
     safeFree((char*)(currentEntry),entrySize);
   }
-  safeFree((char*)(entrySet->entries),sizeof(EntryData*)*entrySet->length);
+  safeFree((char*)(entrySet->entries),sizeof(EntryData*)*entrySet->size);
   safeFree((char*)entrySet,sizeof(EntryDataSet));
 
   char *dsnUidPair = safeMalloc(44+8+1, "DSN,UID Pair Entry");  /* TODO: plug this leak for each time it is htPut below. */
