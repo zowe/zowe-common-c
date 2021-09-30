@@ -1001,7 +1001,7 @@ static int getVolserForDataset(const DatasetName *dataset, Volser *volser) {
   if (lParenIndex > -1 || asterixIndex > -1 || dollarIndex > -1){
     return -1;
   }
-  csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
+  csi_parmblock * __ptr32 returnParms = (csi_parmblock* __ptr32)safeMalloc31(sizeof(csi_parmblock),"CSI ParmBlock");
   EntryDataSet *entrySet = returnEntries(dsnNullTerm, defaultDatasetTypesAllowed,3, 0, defaultCSIFields, defaultCSIFieldCount, NULL, NULL, returnParms);
   
   EntryData *entry = entrySet->entries ? entrySet->entries[0] : NULL;
@@ -1031,7 +1031,7 @@ static int getVolserForDataset(const DatasetName *dataset, Volser *volser) {
     entrySet->entries = NULL;
   }
   safeFree((char*)entrySet,sizeof(EntryDataSet));    
-  safeFree((char*)returnParms,sizeof(csi_parmblock));
+  safeFree31((char*)returnParms,sizeof(csi_parmblock));
   return rc;
 }
 
@@ -1322,7 +1322,7 @@ char getCSIType(char* absolutePath) {
   int fieldCount = defaultCSIFieldCount;
   char **csiFields = defaultCSIFields;
 
-  csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
+  csi_parmblock * __ptr32 returnParms = (csi_parmblock* __ptr32)safeMalloc31(sizeof(csi_parmblock),"CSI ParmBlock");
 
   DatasetName datasetName;
   DatasetMemberName memberName;
@@ -1500,7 +1500,9 @@ static void respondWithDatasetInternal(HttpResponse* response,
   Volser volser;
   memset(&volser.value, ' ', sizeof(volser.value));
 
+  fprintf (stderr, "begin getVolserForDataset\n");
   int volserSuccess = getVolserForDataset(dsn, &volser);
+  fprintf (stderr, "end getVolserForDataset\n");
   int handledThroughDSCB = FALSE;
   int lrecl;
   if (!volserSuccess){
@@ -1669,7 +1671,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
 
   /* TODO: We should not need to do this on every call - only if the ACB needs to be opened */
   /* TODO: How to access the CSI in cases where the entry is archived? Is this possible? */
-  csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
+  csi_parmblock * __ptr32 returnParms = (csi_parmblock* __ptr32)safeMalloc31(sizeof(csi_parmblock),"CSI ParmBlock");
   EntryDataSet *entrySet = returnEntries(dsn, clusterTypesAllowed, clusterTypesCount, 0, defaultVSAMCSIFields, defaultVSAMCSIFieldCount, NULL, NULL, returnParms);
   EntryData *entry = entrySet->entries[0];
   if (entry){
@@ -1704,7 +1706,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
       EntryDataSet *entrySet = returnEntries(dsnData, clusterTypesAllowed, clusterTypesCount, 0, defaultVSAMCSIFields, defaultVSAMCSIFieldCount, NULL, NULL, returnParms);
       entry = entrySet->entries[0];
     } else if (entry->type != 'D') {
-      safeFree((char*)returnParms,sizeof(csi_parmblock));
+      safeFree31((char*)returnParms,sizeof(csi_parmblock));
       for (int i = 0; i < entrySet->length; i++){
         EntryData *currentEntry = entrySet->entries[i];
         if (!(entrySet->entries)) break;
@@ -1754,7 +1756,7 @@ void respondWithVSAMDataset(HttpResponse* response, char* absolutePath, hashtabl
   } /* end Catalog Search */
   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "vsamType = 0x%0x, ciSize = %d, maxlrecl = %d, keyLoc = %d, keyLen = %d\n", vsamType, ciSize, maxlrecl, keyLoc, keyLen);
 
-  safeFree((char*)returnParms,sizeof(csi_parmblock));
+  safeFree31((char*)returnParms,sizeof(csi_parmblock));
   for (int i = 0; i < entrySet->length; i++){
     EntryData *currentEntry = entrySet->entries[i];
     if (!(entrySet->entries)) break;
@@ -2044,9 +2046,13 @@ void respondWithDatasetMetadata(HttpResponse *response) {
 
   int fieldCount = defaultCSIFieldCount;
   char **csiFields = defaultCSIFields;
-
-  csi_parmblock *returnParms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
-  EntryDataSet *entrySet = returnEntries(dsnName.value, typesArg,datasetTypeCount, workAreaSizeArg, csiFields, fieldCount, resumeNameArg, resumeCatalogNameArg, returnParms); 
+  char dsnNameNullTerm[45] = {0};
+  memcpy(dsnNameNullTerm, dsnName.value, sizeof(dsnName.value));
+  nullTerminate(dsnNameNullTerm, sizeof(dsnNameNullTerm) - 1);
+  csi_parmblock * __ptr32 returnParms = (csi_parmblock* __ptr32)safeMalloc31(sizeof(csi_parmblock),"CSI ParmBlock");
+  EntryDataSet *entrySet = returnEntries(dsnNameNullTerm, typesArg,datasetTypeCount, workAreaSizeArg, csiFields, fieldCount, resumeNameArg, resumeCatalogNameArg, returnParms); 
+  fprintf (stderr, "entrySet 0x%p\n", entrySet);
+  fprintf (stderr, "entrySet len %d\n", entrySet->length);
   char *resumeName = returnParms->resume_name;
   char *catalogName = returnParms->catalog_name;
   int isResume = (returnParms->is_resume == 'Y');
@@ -2081,12 +2087,15 @@ void respondWithDatasetMetadata(HttpResponse *response) {
         jsonStartObject(jPrinter, NULL);
         int datasetNameLength = sizeof(entry->name);
         char *datasetName = entry->name;
+        fprintf (stderr, "entry number %d '%.44s'\n", i, datasetName);
+        fprintf (stderr, "sizeof short %d\n", sizeof(short));
         jsonAddUnterminatedString(jPrinter, "name", datasetName, datasetNameLength);
         jsonAddUnterminatedString(jPrinter, "csiEntryType", &entry->type, 1);
         int volserLength = 0;
         memset(volser, 0, sizeof(volser));
         char type = entry->type;
         if (type == 'A' || type == 'B' || type == 'D' || type == 'H'){
+          fprintf (stderr, "type %c\n", type);
           char *fieldData = (char*)entry+sizeof(EntryData);
           unsigned short *fieldLengthArray = ((unsigned short *)((char*)entry+sizeof(EntryData)));
           char *fieldValueStart = (char*)entry+sizeof(EntryData)+fieldCount*sizeof(short);
@@ -2103,6 +2112,7 @@ void respondWithDatasetMetadata(HttpResponse *response) {
             fieldValueStart += fieldLengthArray[j];
           }
         }
+        fprintf (stderr, "after volser\n");
 
         int shouldListMembers = !strcmp(listMembersArg,"true") || (lParenIndex > 0);
         int detail = !strcmp(detailArg, "true");
@@ -2122,17 +2132,23 @@ void respondWithDatasetMetadata(HttpResponse *response) {
                                        jPrinter, includeUnprintable);
           }
         }
+        fprintf (stderr, "about to end object\n");
         jsonEndObject(jPrinter);
+        fprintf (stderr, "about to free entry 0x%p of size %d bytes\n", entry, entrySize);
         safeFree((char*)(entry),entrySize);
+        fprintf (stderr, "entry freed\n");
       }
     }
+    fprintf (stderr, "end array\n");
     jsonEndArray(jPrinter);
   }
   jsonEnd(jPrinter);
+  fprintf (stderr, "about to finish response\n");
   finishResponse(response);
-  safeFree((char*)returnParms,sizeof(csi_parmblock));
-  safeFree((char*)(entrySet->entries),sizeof(EntryData*)*entrySet->length);
+  safeFree31((char*)returnParms,sizeof(csi_parmblock));
+  safeFree((char*)(entrySet->entries),sizeof(EntryData*)*entrySet->size);
   safeFree((char*)entrySet,sizeof(EntryDataSet));    
+  fprintf (stderr, "end of %s\n", __FUNCTION__);
 #endif /* __ZOWE_OS_ZOS */
 }
 
@@ -2147,7 +2163,7 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
   jsonPrinter *jPrinter = respondWithJsonPrinter(response);
   writeHeader(response);
   EntryDataSet *hlqSet;
-  csi_parmblock **returnParmsArray;
+  csi_parmblock * __ptr32 * __ptr32 returnParmsArray;
   char **csiFields = defaultCSIFields;
   int fieldCount = defaultCSIFieldCount;
 
@@ -2180,7 +2196,7 @@ void respondWithHLQNames(HttpResponse *response, MetadataQueryCache *metadataQue
     HttpRequestParam *workAreaSizeParam = getCheckedParam(request,"workAreaSize");
     int workAreaSizeArg = (workAreaSizeParam ? workAreaSizeParam->intValue : 0);
 
-    returnParmsArray = (csi_parmblock**)safeMalloc(29*sizeof(csi_parmblock*),"CSI Parm Results");
+    returnParmsArray = (csi_parmblock* __ptr32 * __ptr32)safeMalloc31(29*sizeof(csi_parmblock* __ptr32),"CSI Parm Results");
     hlqSet = getHLQs(typesArg, datasetTypeCount, workAreaSizeArg, csiFields, fieldCount, returnParmsArray);
   }
   jsonStart(jPrinter);
