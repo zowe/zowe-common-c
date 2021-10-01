@@ -102,11 +102,14 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
   int contentLength = 0;
   int bytesRead = 0;
   if (in) {
-	rcEtag = icsfDigestInit(&digest, ICSF_DIGEST_SHA1);
+    rcEtag = icsfDigestInit(&digest, ICSF_DIGEST_SHA1);
+    if (rcEtag) { //if etag generation has an error, just don't send it.
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARN,  "ICSF error for SHA etag init, %d\n",rcEtag);
+    }
     while (!feof(in)){
       bytesRead = fread(buffer,1,recordLength,in);
       if (bytesRead > 0 && !ferror(in)) {
-    	rcEtag = icsfDigestUpdate(&digest, buffer, bytesRead);
+        if (!rcEtag) { rcEtag = icsfDigestUpdate(&digest, buffer, bytesRead); }
         jsonAddUnterminatedString(jPrinter, NULL, buffer, bytesRead);
         contentLength = contentLength + bytesRead;
       } else if (bytesRead == 0 && !feof(in) && !ferror(in)) {
@@ -118,22 +121,28 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
       }
     }
     fclose(in);
-    rcEtag = icsfDigestFinish(&digest, hash);
-
-    // Convert hash text to hex.
-    char eTag[70] = "";
-    memset(eTag, '\0', strlen(eTag));
-    sprintf(eTag, "%6s", "eTag->");
-    int len = digest.hashLength;
-    for (int i = 0, j = 6; i < len; ++i, j += 2)
-      sprintf(eTag + j, "%02x", hash[i]);
-    jsonAddString(jPrinter, NULL, eTag);
+    if (!rcEtag) { rcEtag = icsfDigestFinish(&digest, hash); }
   }
   else {
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "FAILED TO OPEN FILE\n");
   }
 
   jsonEndArray(jPrinter);
+
+  if (!rcEtag) {
+    // Convert hash text to hex.
+    eTagLength = sizeof(digest.hashLength*2);
+    char eTag[etagLength+1] = {};
+    int len = digest.hashLength;
+    simpleHexPrint(&eTag, hash, digest.hashLength);
+    /*
+    for (int i = 0, j = 0; i < len; ++i, j += 2) {
+      sprintf(eTag + j, "%02x", hash[i]);
+    }
+    */
+    jsonAddString(jPrinter, "etag", eTag);
+  }
+
   safeFree(buffer,recordLength);
 
 #else /* not __ZOWE_OS_ZOS */
