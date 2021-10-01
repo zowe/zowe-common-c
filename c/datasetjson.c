@@ -1001,7 +1001,6 @@ static int getVolserForDataset(const DatasetName *dataset, Volser *volser) {
   if (lParenIndex > -1 || asterixIndex > -1 || dollarIndex > -1){
     return -1;
   }
-  fprintf (stderr, "%s dsnNullTerm '%s'\n", __FUNCTION__, dsnNullTerm);
   csi_parmblock * __ptr32 returnParms = (csi_parmblock* __ptr32)safeMalloc31(sizeof(csi_parmblock),"CSI ParmBlock");
   EntryDataSet *entrySet = returnEntries(dsnNullTerm, defaultDatasetTypesAllowed,3, 0, defaultCSIFields, defaultCSIFieldCount, NULL, NULL, returnParms);
   
@@ -1501,9 +1500,7 @@ static void respondWithDatasetInternal(HttpResponse* response,
   Volser volser;
   memset(&volser.value, ' ', sizeof(volser.value));
 
-  fprintf (stderr, "begin getVolserForDataset\n");
   int volserSuccess = getVolserForDataset(dsn, &volser);
-  fprintf (stderr, "end getVolserForDataset\n");
   int handledThroughDSCB = FALSE;
   int lrecl;
   if (!volserSuccess){
@@ -1580,11 +1577,6 @@ void respondWithDataset(HttpResponse* response, char* absolutePath, int jsonMode
   DatasetName dsn;
   DatasetMemberName memberName;
   extractDatasetAndMemberName(absolutePath, &dsn, &memberName);
-
-  Volser volser = {' '};
-  fprintf (stderr, "about to get volser for %s\n", absolutePath);
-  getVolserForDataset(&dsn, &volser);
-  fprintf (stderr, "end to get volser for %s, volser %.8s\n", absolutePath, volser.value);
 
   DynallocDatasetName daDsn;
   DynallocMemberName daMember;
@@ -2057,8 +2049,6 @@ void respondWithDatasetMetadata(HttpResponse *response) {
   nullTerminate(dsnNameNullTerm, sizeof(dsnNameNullTerm) - 1);
   csi_parmblock * __ptr32 returnParms = (csi_parmblock* __ptr32)safeMalloc31(sizeof(csi_parmblock),"CSI ParmBlock");
   EntryDataSet *entrySet = returnEntries(dsnNameNullTerm, typesArg,datasetTypeCount, workAreaSizeArg, csiFields, fieldCount, resumeNameArg, resumeCatalogNameArg, returnParms); 
-  fprintf (stderr, "entrySet 0x%p\n", entrySet);
-  fprintf (stderr, "entrySet len %d\n", entrySet->length);
   char *resumeName = returnParms->resume_name;
   char *catalogName = returnParms->catalog_name;
   int isResume = (returnParms->is_resume == 'Y');
@@ -2093,15 +2083,12 @@ void respondWithDatasetMetadata(HttpResponse *response) {
         jsonStartObject(jPrinter, NULL);
         int datasetNameLength = sizeof(entry->name);
         char *datasetName = entry->name;
-        fprintf (stderr, "entry number %d '%.44s'\n", i, datasetName);
-        fprintf (stderr, "sizeof short %d\n", sizeof(short));
         jsonAddUnterminatedString(jPrinter, "name", datasetName, datasetNameLength);
         jsonAddUnterminatedString(jPrinter, "csiEntryType", &entry->type, 1);
         int volserLength = 0;
         memset(volser, 0, sizeof(volser));
         char type = entry->type;
         if (type == 'A' || type == 'B' || type == 'D' || type == 'H'){
-          fprintf (stderr, "type %c\n", type);
           char *fieldData = (char*)entry+sizeof(EntryData);
           unsigned short *fieldLengthArray = ((unsigned short *)((char*)entry+sizeof(EntryData)));
           char *fieldValueStart = (char*)entry+sizeof(EntryData)+fieldCount*sizeof(short);
@@ -2118,7 +2105,6 @@ void respondWithDatasetMetadata(HttpResponse *response) {
             fieldValueStart += fieldLengthArray[j];
           }
         }
-        fprintf (stderr, "after volser\n");
 
         int shouldListMembers = !strcmp(listMembersArg,"true") || (lParenIndex > 0);
         int detail = !strcmp(detailArg, "true");
@@ -2138,23 +2124,17 @@ void respondWithDatasetMetadata(HttpResponse *response) {
                                        jPrinter, includeUnprintable);
           }
         }
-        fprintf (stderr, "about to end object\n");
         jsonEndObject(jPrinter);
-        fprintf (stderr, "about to free entry 0x%p of size %d bytes\n", entry, entrySize);
         safeFree((char*)(entry),entrySize);
-        fprintf (stderr, "entry freed\n");
       }
     }
-    fprintf (stderr, "end array\n");
     jsonEndArray(jPrinter);
   }
   jsonEnd(jPrinter);
-  fprintf (stderr, "about to finish response\n");
   finishResponse(response);
   safeFree31((char*)returnParms,sizeof(csi_parmblock));
   safeFree((char*)(entrySet->entries),sizeof(EntryData*)*entrySet->size);
   safeFree((char*)entrySet,sizeof(EntryDataSet));    
-  fprintf (stderr, "end of %s\n", __FUNCTION__);
 #endif /* __ZOWE_OS_ZOS */
 }
 

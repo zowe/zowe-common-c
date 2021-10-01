@@ -67,7 +67,7 @@ int callCsi(CsiFn *csiFn, void *__ptr32 paramList) {
       " SAM31 \n"
       " SYSSTATE AMODE64=NO \n"
 #endif
-      " LR 1,(%[paramList]) \n"
+      " LR 1,%[paramList] \n"
       " CALL (%[csiFn]) \n"
 #ifdef _LP64
       " SAM64 \n"
@@ -83,9 +83,6 @@ int callCsi(CsiFn *csiFn, void *__ptr32 paramList) {
 }
 
 char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSizeInOut) {
-  fprintf (stdout, "csi_parms 0x%p\n", csi_parms);
-  dumpbuffer((char*)csi_parms, sizeof(csi_parmblock));
-  fflush(stdout);
   int returnCode = 0;
   int reasonCode = 0;
   int status = 0;
@@ -133,9 +130,7 @@ char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSizeInOut) {
     paramList->reasonCodePtr = reasonCodePtr;
     paramList->paramBlock = csi_parms;
 
-    fprintf (stderr, "about to call csi\n");
     returnCode = callCsi(csiFn, paramList);
-    fprintf (stderr, "csi called\n");
     reasonCode = *reasonCodePtr;
 
     if (returnCode != 0) {
@@ -285,15 +280,16 @@ EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int w
   int dsnLen = strlen(dsn);
   char *workArea = NULL;
 
+  if (dsnLen == 0){
+    return NULL;
+  }
+
   workAreaSize = (workAreaSize > 0 ? workAreaSize : WORK_AREA_SIZE);
   
   EntryDataSet *entrySet;
   entrySet = (EntryDataSet*)safeMalloc(sizeof(EntryDataSet),"Entry Data Set");
   entrySet->length = 0;
-
-  if (dsnLen == 0){
-    return NULL;
-  }
+  entrySet->size = 0;
 
   /* prep parms */
   memset(csi_parms,' ',sizeof(csi_parmblock));
@@ -427,7 +423,14 @@ EntryDataSet *getHLQs(char *typesAllowed, int typesCount, int workAreaSize, char
 
 void freeEntryDataSet(EntryDataSet *entrySet) {
   if (entrySet) {
-    if (entrySet->entries && entrySet->size > 0) {
+    if (entrySet->entries) {
+      for (int i = 0; i < entrySet->length; i++) {
+        EntryData *currentEntry = entrySet->entries[i];
+        int fieldDataLength = currentEntry->data.fieldInfoHeader.totalLength;
+        int entrySize = sizeof(EntryData) + fieldDataLength - 4;
+        memset((char*)(currentEntry),0, entrySize);
+        safeFree((char*)(currentEntry), entrySize);
+      }
       safeFree((char*)entrySet->entries, entrySet->size * sizeof(EntryData*));
       entrySet->entries = NULL;
     }
