@@ -104,7 +104,7 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
   if (in) {
     rcEtag = icsfDigestInit(&digest, ICSF_DIGEST_SHA1);
     if (rcEtag) { //if etag generation has an error, just don't send it.
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARN,  "ICSF error for SHA etag init, %d\n",rcEtag);
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING,  "ICSF error for SHA etag init, %d\n",rcEtag);
     }
     while (!feof(in)){
       bytesRead = fread(buffer,1,recordLength,in);
@@ -131,15 +131,11 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
 
   if (!rcEtag) {
     // Convert hash text to hex.
-    eTagLength = sizeof(digest.hashLength*2);
-    char eTag[etagLength+1] = {};
+    int eTagLength = digest.hashLength*2;
+    char eTag[eTagLength+1];
+    memset(eTag, '\0', eTagLength);
     int len = digest.hashLength;
-    simpleHexPrint(&eTag, hash, digest.hashLength);
-    /*
-    for (int i = 0, j = 0; i < len; ++i, j += 2) {
-      sprintf(eTag + j, "%02x", hash[i]);
-    }
-    */
+    simpleHexPrint(eTag, hash, digest.hashLength);
     jsonAddString(jPrinter, "etag", eTag);
   }
 
