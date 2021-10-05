@@ -3,6 +3,10 @@
 ## `1.25.0`
 
 - Bugfix: `fileCopy` incorrectly processed files tagged as binary and mixed
+- Bugfix: Unixfile Copy and Rename API doesn't support distinct error status response
+- Bugfix: Dataset contents API returns invalid error status for undefined length dataset update request
+- Bugfix: Unixfile Copy and Rename directory API doesn't support forceOverwrite query
+- Bugfix: `safAuth` doesn't validate NULL entity
 
 ## `1.23.0`
 
