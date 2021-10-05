@@ -79,7 +79,159 @@ typedef struct Volser_tag {
 static int getVolserForDataset(const DatasetName *dataset, Volser *volser);
 static bool memberExists(char* dsName, DynallocMemberName daMemberName);
 
-int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter *jPrinter){
+
+static int getLreclOrRespondError(HttpResponse *response, const DatasetName *dsn, const DDName *ddName) {
+  int lrecl = 0;
+
+  char ddPath[16];
+  snprintf(ddPath, sizeof(ddPath), "DD:%8.8s", ddName->value);
+
+  FileInfo info;
+  int returnCode;
+  int reasonCode;
+  FILE *in = fopen(ddPath, "r");
+  if (in == NULL) {
+    respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
+    return;
+  }
+
+  Volser volser;
+  memset(&volser.value, ' ', sizeof(volser.value));
+
+  int volserSuccess = getVolserForDataset(dsn, &volser);
+  int handledThroughDSCB = FALSE;
+
+  if (!volserSuccess){
+    
+    char dscb[INDEXED_DSCB] = {0};
+    int rc = obtainDSCB1(dsn->value, sizeof(dsn->value),
+                         volser.value, sizeof(volser.value),
+                         dscb);
+    if (rc == 0){
+      if (DSCB_TRACE){
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "DSCB for %.*s found\n", sizeof(dsn->value), dsn->value);
+        dumpbuffer(dscb,INDEXED_DSCB);
+      }
+
+      lrecl = getMaxRecordLength(dscb);
+      char recordType = getRecordLengthType(dscb);
+      if (recordType == 'U'){
+        fclose(in);
+        respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Undefined-length dataset");
+        return;
+      }
+      handledThroughDSCB = TRUE;
+    }
+  }
+  if (!handledThroughDSCB){
+    FileInfo info;
+    fldata_t fileinfo = {0};
+    char filenameOutput[100];
+    int returnCode = fldata(in,filenameOutput,&fileinfo);
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "FLData request rc=0x%x\n",returnCode);
+    if (!returnCode) {
+      if (fileinfo.__recfmU) {
+        fclose(in);
+        respondWithError(response,  HTTP_STATUS_BAD_REQUEST,
+                         "Undefined-length dataset");
+        return;
+      }
+      lrecl = fileinfo.__maxreclen;
+    } else {
+      fclose(in);
+      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                       "Could not read dataset information");
+      return;
+    }
+  }
+  fclose(in);
+
+  return lrecl;
+}
+
+/*
+ TODO this duplicates a lot of stremDataset. Thinking of putting conditionals on streamDataset writing to json stream, but then function becomes misleading.
+ */
+static char *getDatasetETag(char *filename, int recordLength, int *rc, int *eTagReturnLength) {
+  char *eTag;
+  
+#ifdef __ZOWE_OS_ZOS
+  int rcEtag = 0;
+  int eTagLength = 0;
+    
+  // Note: to allow processing of zero-length records set _EDC_ZERO_RECLEN=Y
+  int defaultSize = DATA_STREAM_BUFFER_SIZE;
+  FILE *in;
+  if (recordLength < 1){
+    recordLength = defaultSize;
+    in = fopen(filename,"rb");
+  }
+  else {
+    in = fopen(filename,"rb, type=record");
+  }
+
+  ICSFDigest digest;
+  char hash[32];
+
+  int bufferSize = recordLength+1;
+  char buffer[bufferSize];
+  int contentLength = 0;
+  int bytesRead = 0;
+  if (in) {
+    rcEtag = icsfDigestInit(&digest, ICSF_DIGEST_SHA1);
+    if (rcEtag) { //if etag generation has an error, just don't send it.
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING,  "ICSF error for SHA etag init, %d\n",rcEtag);
+    } else {
+      while (!feof(in)){
+        bytesRead = fread(buffer,1,recordLength,in);
+        if (bytesRead > 0 && !ferror(in)) {
+          if (rcEtag = icsfDigestUpdate(&digest, buffer, bytesRead)) {
+            break;
+          }
+          contentLength = contentLength + bytesRead;
+        } else if (bytesRead == 0 && !feof(in) && !ferror(in)) {
+          // empty record
+        } else if (ferror(in)) {
+          zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG,  "Error reading DSN=%s, rc=%d\n", filename, bytesRead);
+          break;
+        }
+      }
+    }
+    fclose(in);
+    if (!rcEtag) { rcEtag = icsfDigestFinish(&digest, hash); }
+    if (rcEtag) {
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING,  "ICSF error for SHA etag, %d\n",rcEtag);
+    }
+  }
+  else {
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "FAILED TO OPEN FILE\n");
+  }
+
+  if (!rcEtag) {
+    // Convert hash text to hex.
+    eTagLength = digest.hashLength*2;
+    eTag = safeMalloc(eTagLength+1, "datasetetag");
+    memset(eTag, '\0', eTagLength);
+    int len = digest.hashLength;
+    simpleHexPrint(eTag, hash, digest.hashLength);
+  }
+
+  *rc = rcEtag;
+  *eTagReturnLength = eTagLength;
+  safeFree(buffer,recordLength);
+
+#else /* not __ZOWE_OS_ZOS */
+
+  /* Currently nothing else has "datasets" */
+  /* TBD: Is it really necessary to provide this empty array?
+     It seems like the safest approach, not knowing anyting about the client..
+   */
+
+#endif /* not __ZOWE_OS_ZOS */
+  return eTag;
+}
+
+int streamDataset(char *filename, int recordLength, jsonPrinter *jPrinter){
 #ifdef __ZOWE_OS_ZOS
   // Note: to allow processing of zero-length records set _EDC_ZERO_RECLEN=Y
   int defaultSize = DATA_STREAM_BUFFER_SIZE;
@@ -857,7 +1009,8 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
   fclose(outDataset);
 }
 
-static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char *datasetPath) {
+static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char *datasetPath,
+                                  const char *lastEtag, bool force) {
 
   HttpRequest *request = response->request;
 
@@ -869,7 +1022,7 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
   DatasetName dsn;
   DatasetMemberName memberName;
   extractDatasetAndMemberName(datasetPath, &dsn, &memberName);
-
+  
   DynallocDatasetName daDsn;
   DynallocMemberName daMember;
   memcpy(daDsn.name, dsn.value, sizeof(daDsn.name));
@@ -881,7 +1034,7 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
       &daDsn,
       IS_DAMEMBER_EMPTY(daMember) ? NULL : &daMember,
       &daDDname,
-      DYNALLOC_DISP_SHR,
+      DYNALLOC_DISP_OLD,
       DYNALLOC_ALLOC_FLAG_NO_CONVERSION | DYNALLOC_ALLOC_FLAG_NO_MOUNT,
       &daSysRC, &daSysRSN
   );
@@ -902,7 +1055,26 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
 
   DDName ddName;
   memcpy(&ddName.value, &daDDname.name, sizeof(ddName.value));
-  updateDatasetWithJSONInternal(response, datasetPath, &dsn, &ddName, json);
+
+  int eTagRC = 0;
+  if (!force) { //do not write dataset if current contents do not match contents client expected, unless forced
+    int eTagReturnLength = 0;
+    int lrecl = getLreclOrRespondError(response, &dsn, &ddName);
+    if (lrecl) {
+      char *eTag = getDatasetETag(filename, lrecl, &eTagRC, &eTagReturnLength);
+      if (!eTag) {
+        respondWithError(response, HTTP_STATUS_INTERNAL_ERROR, "Could not generate etag");
+      } else if (strmp(eTag, lastEtag)) {
+        respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Provided etag did not match system etag. To write, read the dataset again and resolve the difference, then retry.");
+        safeFree(eTag,eTagReturnLength);
+      } else {
+        safeFree(eTag,eTagReturnLength);
+        updateDatasetWithJSONInternal(response, datasetPath, &dsn, &ddName, json, lastEtag, force);
+      }
+    }
+  } else {
+    updateDatasetWithJSONInternal(response, datasetPath, &dsn, &ddName, json, lastEtag, force);
+  }
 
   daRC = dynallocUnallocDatasetByDDName(&daDDname, DYNALLOC_UNALLOC_FLAG_NONE,
                                         &daSysRC, &daSysRSN);
@@ -912,7 +1084,6 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
             " rc=%d sysRC=%d, sysRSN=0x%08X (update)\n",
             daDsn.name, daMember.name, daDDname.name, daRC, daSysRC, daSysRSN, "update");
   }
-
 }
 
 #endif /* __ZOWE_OS_ZOS */
@@ -1094,7 +1265,10 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
   }
 
   HttpRequest *request = response->request;
-
+  HttpRequestParam *forceParam = getCheckedParam(request,"force");
+  char *forceArg = (forceParam ? forceParam->stringValue : NULL);
+  bool force = (forceArg != NULL && !strcmp(forceArg,"true"));
+  
   FileInfo info;
   int returnCode;
   int reasonCode;
@@ -1132,7 +1306,11 @@ void updateDataset(HttpResponse* response, char* absolutePath, int jsonMode) {
                                              errorBuffer, sizeof(errorBuffer));
     if (json) {
       if (jsonIsObject(json)){
-        updateDatasetWithJSON(response, jsonAsObject(json), absolutePath);
+        char *etag = jsonObjectGetString(json,"etag");
+        if (!etag) {
+          etag = getHeader(request, "etag");
+        }
+        updateDatasetWithJSON(response, jsonAsObject(json), absolutePath, etag, force);
       } else{
         zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "*** INTERNAL ERROR *** message is JSON, but not an object\n");
       }
@@ -1516,68 +1694,10 @@ static void respondWithDatasetInternal(HttpResponse* response,
 #ifdef __ZOWE_OS_ZOS
   HttpRequest *request = response->request;
 
-  char ddPath[16];
-  snprintf(ddPath, sizeof(ddPath), "DD:%8.8s", ddName->value);
-
-  FileInfo info;
-  int returnCode;
-  int reasonCode;
-  FILE *in = fopen(ddPath, "r");
-  if (in == NULL) {
-    respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
+  int lrecl = getLreclOrRespondError(response, dsn, ddName);
+  if (!lrecl) {
     return;
   }
-
-  Volser volser;
-  memset(&volser.value, ' ', sizeof(volser.value));
-
-  int volserSuccess = getVolserForDataset(dsn, &volser);
-  int handledThroughDSCB = FALSE;
-  int lrecl;
-  if (!volserSuccess){
-    
-    char dscb[INDEXED_DSCB] = {0};
-    int rc = obtainDSCB1(dsn->value, sizeof(dsn->value),
-                         volser.value, sizeof(volser.value),
-                         dscb);
-    if (rc == 0){
-      if (DSCB_TRACE){
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "DSCB for %.*s found\n", sizeof(dsn->value), dsn->value);
-        dumpbuffer(dscb,INDEXED_DSCB);
-      }
-
-      lrecl = getMaxRecordLength(dscb);
-      char recordType = getRecordLengthType(dscb);
-      if (recordType == 'U'){
-        fclose(in);
-        respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Undefined-length dataset");
-        return;
-      }
-      handledThroughDSCB = TRUE;
-    }
-  }
-  if (!handledThroughDSCB){
-    FileInfo info;
-    fldata_t fileinfo = {0};
-    char filenameOutput[100];
-    int returnCode = fldata(in,filenameOutput,&fileinfo);
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "FLData request rc=0x%x\n",returnCode);
-    if (!returnCode) {
-      if (fileinfo.__recfmU) {
-        fclose(in);
-        respondWithError(response,  HTTP_STATUS_BAD_REQUEST,
-                         "Undefined-length dataset");
-        return;
-      }
-      lrecl = fileinfo.__maxreclen;
-    } else {
-      fclose(in);
-      respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                       "Could not read dataset information");
-      return;
-    }
-  }
-  fclose(in);
 
   jsonPrinter *jPrinter = respondWithJsonPrinter(response);
   setResponseStatus(response, 200, "OK");
@@ -1589,7 +1709,7 @@ static void respondWithDatasetInternal(HttpResponse* response,
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "Streaming data for %s\n", datasetPath);
     
     jsonStart(jPrinter);
-    int status = streamDataset(response->socket, ddPath, lrecl, jPrinter);
+    int status = streamDataset(ddPath, lrecl, jPrinter);
     jsonEnd(jPrinter);
   }
   finishResponse(response);
