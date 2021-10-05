@@ -749,9 +749,9 @@ static char *makeCountedString(char *name,
 {
   int allocSize = 0;
   int len = string ? strlen(string) : 0;
-  if (len > maxLength){
+  if (len > maxLength || (len == 0 && isEntity)){
     if (safTrace){
-      printf("%s too long\n", name);
+      len == 0 ? printf("%s too short\n", name) : printf("%s too long\n", name);
     }
     return 0;
   }
