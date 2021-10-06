@@ -26,7 +26,7 @@
 
 typedef struct MetadataQueryCache_tag{
   EntryDataSet *cachedHLQSet;
-  csi_parmblock **cachedCSIParmblocks;
+  csi_parmblock * __ptr32 * __ptr32 cachedCSIParmblocks;
 } MetadataQueryCache;
 
 typedef struct serveVSAMCache_tag{
