@@ -152,7 +152,6 @@ static int getLreclOrRespondError(HttpResponse *response, const DatasetName *dsn
  TODO this duplicates a lot of stremDataset. Thinking of putting conditionals on streamDataset writing to json stream, but then function becomes misleading.
  */
 static char *getDatasetETag(char *filename, int recordLength, int *rc, int *eTagReturnLength) {
-  char *eTag;
   
 #ifdef __ZOWE_OS_ZOS
   int rcEtag = 0;
@@ -204,18 +203,17 @@ static char *getDatasetETag(char *filename, int recordLength, int *rc, int *eTag
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "FAILED TO OPEN FILE\n");
   }
 
+  *rc = rcEtag;
+
   if (!rcEtag) {
     // Convert hash text to hex.
     eTagLength = digest.hashLength*2;
-    eTag = safeMalloc(eTagLength+1, "datasetetag");
-    memset(eTag, '\0', eTagLength);
-    int len = digest.hashLength;
+    *eTagReturnLength = eTagLength;
+    char *eTag = safeMalloc(eTagLength+1, "datasetetag");
+    memset(eTag, '\0', eTagLength+1);
     simpleHexPrint(eTag, hash, digest.hashLength);
+    return eTag;
   }
-
-  *rc = rcEtag;
-  *eTagReturnLength = eTagLength;
-  safeFree(buffer,recordLength);
 
 #else /* not __ZOWE_OS_ZOS */
 
@@ -225,7 +223,7 @@ static char *getDatasetETag(char *filename, int recordLength, int *rc, int *eTag
    */
 
 #endif /* not __ZOWE_OS_ZOS */
-  return eTag;
+  return NULL;
 }
 
 int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter *jPrinter){
@@ -282,13 +280,10 @@ int streamDataset(Socket *socket, char *filename, int recordLength, jsonPrinter 
     // Convert hash text to hex.
     int eTagLength = digest.hashLength*2;
     char eTag[eTagLength+1];
-    memset(eTag, '\0', eTagLength);
-    int len = digest.hashLength;
+    memset(eTag, '\0', eTagLength+1);
     simpleHexPrint(eTag, hash, digest.hashLength);
     jsonAddString(jPrinter, "etag", eTag);
   }
-
-  safeFree(buffer,recordLength);
 
 #else /* not __ZOWE_OS_ZOS */
 
@@ -1005,7 +1000,9 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"Error writing to dataset");
       fclose(outDataset);
       break;
-    } else { rcEtag = icsfDigestUpdate(&digest, recordBuffer, bytesWritten); }
+    } else if (!rcEtag) {
+      rcEtag = icsfDigestUpdate(&digest, recordBuffer, bytesWritten);
+    }
   }
   
   if (!rcEtag) { rcEtag = icsfDigestFinish(&digest, hash); }
@@ -1022,7 +1019,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
   jsonStart(p);
 
   char msgBuffer[128];
-  sprintf(msgBuffer,"Updated dataset %s with %d records", datasetPath, recordsWritten);
+  snprintf(msgBuffer, sizeof(msgBuffer), "Updated dataset %s with %d records", datasetPath, recordsWritten);
   jsonAddString(p, "msg", msgBuffer);
 
   if (!rcEtag) {
@@ -1048,6 +1045,11 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
 
   if (!isDatasetPathValid(datasetPath)) {
     respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Invalid dataset name");
+    return;
+  }
+
+  if (!lastEtag && !force) {
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "No etag given");
     return;
   }
 
@@ -1102,9 +1104,9 @@ static void updateDatasetWithJSON(HttpResponse *response, JsonObject *json, char
         respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Could not generate etag");
       } else if (strcmp(eTag, lastEtag)) {
         respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Provided etag did not match system etag. To write, read the dataset again and resolve the difference, then retry.");
-        safeFree(eTag,eTagReturnLength);
+        safeFree(eTag,eTagReturnLength+1);
       } else {
-        safeFree(eTag,eTagReturnLength);
+        safeFree(eTag,eTagReturnLength+1);
         updateDatasetWithJSONInternal(response, datasetPath, &dsn, &ddName, json);
       }
     }
