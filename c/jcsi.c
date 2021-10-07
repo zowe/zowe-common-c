@@ -84,7 +84,11 @@ static int callCsi(CsiFn *csiFn, void *__ptr32 paramList, char* __ptr32 saveArea
       : [csiFn] "r"(csiFn),
         [paramList] "r"(paramList),
         [saveArea] "m"(saveArea)
-      : "r0", "r1", "r13", "r15");
+      : "r0", "r1",
+#ifdef _LP64 
+        "r13",
+#endif
+        "r15");
 
   return returnCode;
 }
