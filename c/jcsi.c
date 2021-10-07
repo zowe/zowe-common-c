@@ -58,12 +58,13 @@ static CsiFn loadCsi() {
   return csiFn;
 }
 
-int callCsi(CsiFn *csiFn, void *__ptr32 paramList) {
+static int callCsi(CsiFn *csiFn, void *__ptr32 paramList, char* __ptr32 saveArea) {
   int returnCode = 0;
 
   __asm(
       ASM_PREFIX
 #ifdef _LP64
+      " L 13,%[saveArea] \n"
       " SAM31 \n"
       " SYSSTATE AMODE64=NO \n"
 #endif
@@ -76,8 +77,9 @@ int callCsi(CsiFn *csiFn, void *__ptr32 paramList) {
       " ST 15,%[returnCode] \n"
       : [returnCode] "=m"(returnCode)
       : [csiFn] "r"(csiFn),
-        [paramList] "r"(paramList)
-      : "r0", "r1", "r15");
+        [paramList] "r"(paramList),
+        [saveArea] "m"(saveArea)
+      : "r0", "r1", "r13", "r15");
 
   return returnCode;
 }
@@ -98,6 +100,7 @@ char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSizeInOut) {
       int * __ptr32 reasonCodePtr;
       csi_parmblock * __ptr32 paramBlock;
       char * __ptr32 workArea;
+      char saveArea[72];
     )
   );
 
@@ -130,7 +133,7 @@ char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSizeInOut) {
     paramList->reasonCodePtr = reasonCodePtr;
     paramList->paramBlock = csi_parms;
 
-    returnCode = callCsi(csiFn, paramList);
+    returnCode = callCsi(csiFn, paramList, paramList->saveArea);
     reasonCode = *reasonCodePtr;
 
     if (returnCode != 0) {
