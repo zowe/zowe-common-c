@@ -867,13 +867,9 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
   JsonArray *recordArray = jsonObjectGetArray(json,"records");
   int recordCount = jsonArrayGetCount(recordArray);
   int maxRecordLength = 80;
-  FILE *outDataset = fopen(datasetPath, "wb, recfm=*, type=record");
-  if (outDataset == NULL) {
-    respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
-    return;
-  }  
   int isFixed = FALSE;
 
+  /*Check if valid type of dataset to be written to*/
   Volser volser;
   memset(&volser.value, ' ', sizeof(volser.value));
 
@@ -905,7 +901,13 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "fallback for record length discovery\n");
     fldata_t fileinfo = {0};
     char filenameOutput[100];
-    int returnCode = fldata(outDataset,filenameOutput,&fileinfo);
+    FILE *datasetRead = fopen(datasetPath, "rb, recfm=*, type=record");
+    if (datasetRead == NULL) {
+      respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
+      return;
+    }
+
+    int returnCode = fldata(datasetRead,filenameOutput,&fileinfo);
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "FLData request rc=0x%x\n",returnCode);
     fflush(stdout);
     if (!returnCode) {
@@ -914,24 +916,28 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       }
       else {
         respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"Could not discover record length");
-        fclose(outDataset);
+        fclose(datasetRead);
         return;
       }
       if (fileinfo.__recfmF) {
         isFixed = TRUE;
       } else if (fileinfo.__recfmU) {
         respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Undefined-length dataset");
-        fclose(outDataset);
+        fclose(datasetRead);
         return;
       }
     }
     else {
       respondWithError(response,HTTP_STATUS_INTERNAL_SERVER_ERROR,"Could not read dataset information");
-      fclose(outDataset);
+      fclose(datasetRead);
       return;    
     }
+    fclose(datasetRead);
   }
+  /*end dataset type check*/
 
+
+  /*record length validation*/
   for ( int i = 0; i < recordCount; i++) {
     Json *item = jsonArrayGetItem(recordArray,i);
     if (jsonIsString(item) == TRUE) {
@@ -945,7 +951,6 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
             int errorLength = sprintf(errorMessage,"Record #%d with contents \"%s\" is longer than the max record length of %d",i+1,jsonString,maxRecordLength);
             errorMessage[errorLength] = '\0';
             respondWithError(response, HTTP_STATUS_BAD_REQUEST,errorMessage);
-            fclose(outDataset);
             return;
           } 
         }
@@ -961,11 +966,17 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
       int errorLength = sprintf(errorMessage,"Array position %d is not a string, but must be for record updating",i);
       errorMessage[errorLength] = '\0';
       respondWithError(response, HTTP_STATUS_BAD_REQUEST,errorMessage);
-      fclose(outDataset);      
       return;
     }
   }
   /*passed record length check and type check*/
+
+  FILE *outDataset = fopen(datasetPath, "wb, recfm=*, type=record");
+  if (datasetRead == NULL) {
+    respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
+    return;
+  }
+
   int bytesWritten = 0;
   int recordsWritten = 0;
   char recordBuffer[maxRecordLength+1];
