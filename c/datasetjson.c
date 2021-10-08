@@ -892,7 +892,6 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
         isFixed = TRUE;
       } else if (recordType == 'U') {
         respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Undefined-length dataset");
-        fclose(outDataset);
         return;
       }
     }
@@ -972,7 +971,7 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
   /*passed record length check and type check*/
 
   FILE *outDataset = fopen(datasetPath, "wb, recfm=*, type=record");
-  if (datasetRead == NULL) {
+  if (outDataset == NULL) {
     respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
     return;
   }
