@@ -38,11 +38,16 @@
 */
 
 typedef void* __ptr32 CsiFn;
+static CsiFn csiFn = NULL;
 
-static CsiFn loadCsi() {
+int loadCsi() {
   int entryPoint = 0;
   int status = 0;
-  CsiFn csiFn = NULL;
+
+  if (csiFn != NULL) {
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG2, "IGGCSI00 already loaded at 0x%p\n", csiFn);
+    return 0;
+  }
 
   __asm(ASM_PREFIX
         " LOAD EP=IGGCSI00 \n"
@@ -55,15 +60,16 @@ static CsiFn loadCsi() {
     csiFn = (CsiFn)entryPoint;
   }
   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG2, "IGGCSI00 0x%p LOAD status = 0x%x\n", csiFn, status);
-  return csiFn;
+  return status;
 }
 
-int callCsi(CsiFn *csiFn, void *__ptr32 paramList) {
+static int callCsi(CsiFn *csiFn, void *__ptr32 paramList, char* __ptr32 saveArea) {
   int returnCode = 0;
 
   __asm(
       ASM_PREFIX
 #ifdef _LP64
+      " L 13,%[saveArea] \n"
       " SAM31 \n"
       " SYSSTATE AMODE64=NO \n"
 #endif
@@ -76,8 +82,13 @@ int callCsi(CsiFn *csiFn, void *__ptr32 paramList) {
       " ST 15,%[returnCode] \n"
       : [returnCode] "=m"(returnCode)
       : [csiFn] "r"(csiFn),
-        [paramList] "r"(paramList)
-      : "r0", "r1", "r15");
+        [paramList] "r"(paramList),
+        [saveArea] "m"(saveArea)
+      : "r0", "r1",
+#ifdef _LP64 
+        "r13",
+#endif
+        "r15");
 
   return returnCode;
 }
@@ -87,7 +98,6 @@ char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSizeInOut) {
   int reasonCode = 0;
   int status = 0;
   int entryPoint = 0;
-  CsiFn csiFn = NULL;
   char * __ptr32 workArea = NULL;
   int * __ptr32 reasonCodePtr = NULL;
   int workAreaSize = *workAreaSizeInOut > 2048 ? *workAreaSizeInOut : WORK_AREA_SIZE;
@@ -98,6 +108,7 @@ char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSizeInOut) {
       int * __ptr32 reasonCodePtr;
       csi_parmblock * __ptr32 paramBlock;
       char * __ptr32 workArea;
+      char saveArea[72];
     )
   );
 
@@ -107,9 +118,8 @@ char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSizeInOut) {
       break;
     }
 
-    csiFn = loadCsi();
     if (!csiFn) {
-      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "could not load IGGCSI00\n");
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "IGGCSI00 not loaded\n");
       break;
     }
 
@@ -130,7 +140,7 @@ char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSizeInOut) {
     paramList->reasonCodePtr = reasonCodePtr;
     paramList->paramBlock = csi_parms;
 
-    returnCode = callCsi(csiFn, paramList);
+    returnCode = callCsi(csiFn, paramList, paramList->saveArea);
     reasonCode = *reasonCodePtr;
 
     if (returnCode != 0) {
@@ -444,6 +454,11 @@ void freeEntryDataSet(EntryDataSet *entrySet) {
 #ifdef TEST_JCSI
 int main(int argc, char **argv)
 {
+  int status = 0;
+  if ((status = loadCsi()) != 0) {
+    fprintf (stderr, "failed to load IGGCSI00, status = 0x%x\n", status);
+    return EXIT_FAILURE;
+  }
   int status = pseudoLS(argv[1],3,entriesFields);
   printf("status 0x%x\n",status);
 }
