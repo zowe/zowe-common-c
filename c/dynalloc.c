@@ -863,7 +863,7 @@ int dynallocNewDataset(int *reasonCode, DynallocNewTextUnit *setTextUnits, int T
     )
   );
 
-  below2G->textUnits = (TextUnit **)safeMalloc(sizeof(TextUnit*) * TextUnitsSize, "Text units array");
+  below2G->textUnits = (TextUnit **)safeMalloc31(sizeof(TextUnit*) * TextUnitsSize, "Text units array");
 
   DynallocParms *parms = &below2G->parms;
   dynallocParmsInit(parms);
@@ -904,7 +904,7 @@ int dynallocNewDataset(int *reasonCode, DynallocNewTextUnit *setTextUnits, int T
         (dynallocParmsGetErrorCode(parms) << 16);
   } while (0);
   freeTextUnitArray(below2G->textUnits, TextUnitsSize);
-  safeFree((char*)below2G->textUnits, sizeof(TextUnit*) * TextUnitsSize);
+  safeFree31((char*)below2G->textUnits, sizeof(TextUnit*) * TextUnitsSize);
   dynallocParmsTerm(parms);
   parms = NULL;
   FREE_STRUCT31(

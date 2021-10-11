@@ -47,24 +47,6 @@
 
 #define INDEXED_DSCB 96
 
-static char defaultDatasetTypesAllowed[3] = {'A','D','X'};
-static char clusterTypesAllowed[3] = {'C','D','I'}; /* TODO: support 'I' type DSNs */
-static int clusterTypesCount = 3;
-static char *datasetStart = "//'";
-static char *defaultCSIFields[] ={ "NAME    ", "TYPE    ", "VOLSER  "};
-static int defaultCSIFieldCount = 3;
-static char *defaultVSAMCSIFields[] ={"AMDCIREC", "AMDKEY  ", "ASSOC   ", "VSAMTYPE"};
-static int defaultVSAMCSIFieldCount = 4;
-static char vsamCSITypes[5] = {'R', 'D', 'G', 'I', 'C'};
-
-static char getRecordLengthType(char *dscb);
-static int getMaxRecordLength(char *dscb);
-static int getDSCB(char* datasetName, char* dscb, int bufferSize);
-static int updateInputParmsProperty(JsonObject *object, int *configsCount, DynallocNewTextUnit *textUnit);
-static void setTextUnitString(int size, char* data, int *configsCount, int key, DynallocNewTextUnit *textUnit);
-static void setTextUnitCharOrInt(int size, int data, int *configsCount, int key, DynallocNewTextUnit *textUnit);
-static void setTextUnitBool(int *configsCount, int key, DynallocNewTextUnit *textUnit);
-
 typedef struct DatasetName_tag {
   char value[44]; /* space-padded */
 } DatasetName;
@@ -80,6 +62,24 @@ typedef struct DDName_tag {
 typedef struct Volser_tag {
   char value[6]; /* space-padded */
 } Volser;
+
+static char defaultDatasetTypesAllowed[3] = {'A','D','X'};
+static char clusterTypesAllowed[3] = {'C','D','I'}; /* TODO: support 'I' type DSNs */
+static int clusterTypesCount = 3;
+static char *datasetStart = "//'";
+static char *defaultCSIFields[] ={ "NAME    ", "TYPE    ", "VOLSER  "};
+static int defaultCSIFieldCount = 3;
+static char *defaultVSAMCSIFields[] ={"AMDCIREC", "AMDKEY  ", "ASSOC   ", "VSAMTYPE"};
+static int defaultVSAMCSIFieldCount = 4;
+static char vsamCSITypes[5] = {'R', 'D', 'G', 'I', 'C'};
+
+static char getRecordLengthType(char *dscb);
+static int getMaxRecordLength(char *dscb);
+static int getDSCB(DatasetName *dsName, char* dscb, int bufferSize);
+static int updateInputParmsProperty(JsonObject *object, int *configsCount, DynallocNewTextUnit *textUnit);
+static void setTextUnitString(int size, char* data, int *configsCount, int key, DynallocNewTextUnit *textUnit);
+static void setTextUnitCharOrInt(int size, int data, int *configsCount, int key, DynallocNewTextUnit *textUnit);
+static void setTextUnitBool(int *configsCount, int key, DynallocNewTextUnit *textUnit);
 
 static int getVolserForDataset(const DatasetName *dataset, Volser *volser);
 static bool memberExists(char* dsName, DynallocMemberName daMemberName);
@@ -2415,7 +2415,7 @@ static void setTextUnitBool(int *configsCount, int key, DynallocNewTextUnit *tex
   (*configsCount)++;
 }
 
-static int getDSCB(char* datasetName, char* dscb, int bufferSize){
+static int getDSCB(const DatasetName* datasetName, char* dscb, int bufferSize){
   if (bufferSize < INDEXED_DSCB){
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, 
             "DSCB of size %d is too small, must be at least %d", bufferSize, INDEXED_DSCB);
@@ -2423,17 +2423,14 @@ static int getDSCB(char* datasetName, char* dscb, int bufferSize){
   }
   Volser volser = {0};
 
-  DatasetName dsn = {0};
-  memcpy(dsn.value, datasetName, DATASET_PATH_MAX);
-
-  int volserSuccess = getVolserForDataset(&dsn, &volser);
+  int volserSuccess = getVolserForDataset(datasetName, &volser);
   if(!volserSuccess){
-    int rc = obtainDSCB1(dsn.value, sizeof(dsn.value),
+    int rc = obtainDSCB1(datasetName->value, sizeof(datasetName->value),
                            volser.value, sizeof(volser.value),
                            dscb);
     if (rc == 0){
       if (DSCB_TRACE){
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "DSCB for %.*s found\n", sizeof(dsn.value), dsn.value);
+        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "DSCB for %.*s found\n", sizeof(&datasetName->value), datasetName->value);
         dumpbuffer(dscb,INDEXED_DSCB);
       }
     }
@@ -2444,10 +2441,10 @@ static int getDSCB(char* datasetName, char* dscb, int bufferSize){
   }
 }
 
-void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberName) {
+void newDatasetMember(HttpResponse* response, DatasetName* datasetName, char* absolutePath) {
   char dscb[INDEXED_DSCB] = {0};
   int bufferSize = sizeof(dscb);
-  if (getDSCB(datasetPath, dscb, bufferSize) != 0) {
+  if (getDSCB(datasetName, dscb, bufferSize) != 0) {
     respondWithJsonError(response, "Error decoding dataset", 400, "Bad Request");
   }
   else {
@@ -2457,12 +2454,7 @@ void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberNam
     else {
       char *overwriteParam = getQueryParam(response->request,"overwrite");
       int overwrite = !strcmp(overwriteParam, "true") ? TRUE : FALSE;
-      char fullPath[DATASET_MEMBER_MAXLEN + 1] = {0};
-      //concatenates dataset name with member name
-      char *dsName = strtok(datasetPath, " ");
-      char *memName = strtok(memberName, " ");
-      snprintf(fullPath, DATASET_MEMBER_MAXLEN + 1, "//'%s(%s)'", dsName, memName);
-      FILE* memberExists = fopen(fullPath,"r");
+      FILE* memberExists = fopen(absolutePath,"r");
       if (memberExists && overwrite != TRUE) {//Member already exists and overwrite wasn't specified
         if (fclose(memberExists) != 0) {
             zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, "ERROR CLOSING FILE");
@@ -2480,8 +2472,9 @@ void newDatasetMember(HttpResponse* response, char* datasetPath, char* memberNam
             return;
           }
         }
-        FILE* newMember = fopen(fullPath, "w");
+        FILE* newMember = fopen(absolutePath, "w");
         if (!newMember){
+          printf("full path: %s\n", absolutePath);
           respondWithJsonError(response, "Bad dataset name", 400, "Bad Request");
           return;
         }
@@ -2519,7 +2512,7 @@ void newDataset(HttpResponse* response, char* absolutePath, int jsonMode){
   bool isMemberEmpty = IS_DAMEMBER_EMPTY(daMemberName);
   
   if(!isMemberEmpty){
-    return newDatasetMember(response, daDatasetName.name, daMemberName.name);
+    return newDatasetMember(response, &datasetName, absolutePath);
   }
 
   int configsCount = 0;
@@ -2531,8 +2524,6 @@ void newDataset(HttpResponse* response, char* absolutePath, int jsonMode){
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Cannot update file without JSON formatted record request");
     return;
   }
-
-  FileInfo info;
 
   char *contentBody = request->contentBody;
   int bodyLength = strlen(contentBody);
