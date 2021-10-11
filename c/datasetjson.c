@@ -513,6 +513,42 @@ static int isPartionedDataset(char *dscb) {
 }
 #endif
 
+static boolean isSupportedWriteDsorg(char *dscb, boolean *isPds) {
+  int dsorgHigh = dscb[82-posOffset];
+
+  if (dsorgHigh & 0x40){/*Physical Sequential / PS*/
+    return true;
+  }
+  else if (dsorgHigh & 0x20){/*Direct Organization / DA*/
+    return false;
+  }
+  else if (dsorgHigh & 0x10){/*BTAM or QTAM / CX*/
+    return false;
+  }
+  else if (dsorgHigh & 0x02){ /*Partitioned / PO*/
+    int pdsCheck = dscb[78-posOffset] & 0x0a;
+    if (pdsCheck == 0x0a){/*pdse & pdsex = hfs*/
+      return false
+        }
+    else{
+      *isPDS = true;
+      return true;
+    }
+  }
+  if (dsorgHigh & 0x01){//"unmovable"
+    return false;
+  }
+      
+  int dsorgLow = dscb[83-posOffset];
+    
+  if (dsorgLow & 0x80){/*Graphics / GS*/
+    return false;
+  }
+  else if (dsorgLow & 0x08){/*VSAM*/
+    return false;
+  }
+}
+
 static int obtainDSCB1(const char *dsname, unsigned int dsnameLength,
                        const char *volser, unsigned int volserLength,
                        char *dscb1) {
@@ -885,6 +921,13 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
         zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "DSCB for %.*s found\n", sizeof(dsn->value), dsn->value);
         dumpbuffer(dscb,INDEXED_DSCB);
       }
+      boolean isPds = false;
+      if (!isSupportedWriteDsorg(dscb, &isPds)) {
+        respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Unsupported dataset type");
+        return;
+      } else if (isPds) {
+        printf("pds write attempt for %.54s\n",dsn->value);
+      }
       
       maxRecordLength = getMaxRecordLength(dscb);
       char recordType = getRecordLengthType(dscb);
@@ -910,6 +953,15 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "FLData request rc=0x%x\n",returnCode);
     fflush(stdout);
     if (!returnCode) {
+      printf("fldata concat=%d, mem=%d, hiper=%d, temp=%d, vsam=%d, hfs=%d, device=%s\n",
+             fileinfo.__dsorgConcat, fileinfo.__dsorgMem, fileinfo.__dsorgHiper,
+             fileinfo.__dsorgTemp, fileinfo.__dsorgVSAM, fileinfo.__dsorgHFS, fileinfo.__device);
+
+      if (fileinfo.__dsorgVSAM || fileinfo.__dsorgHFS || fileinfo.__dsorgHiper) {
+        respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Dataset type not supported");
+        fclose(datasetRead);
+        return;
+      }
       if (fileinfo.__maxreclen){
         maxRecordLength = fileinfo.__maxreclen;
       }
