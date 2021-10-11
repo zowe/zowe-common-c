@@ -1036,9 +1036,6 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
   }
   /*passed record length check and type check*/
 
-  respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Ending so that i dont wrote");
-  return;
-
   FILE *outDataset = fopen(datasetPath, "wb, recfm=*, type=record");
   if (outDataset == NULL) {
     respondWithError(response,HTTP_STATUS_NOT_FOUND,"File could not be opened or does not exist");
