@@ -513,7 +513,8 @@ static int isPartionedDataset(char *dscb) {
 }
 #endif
 
-static boolean isSupportedWriteDsorg(char *dscb, boolean *isPds) {
+static bool isSupportedWriteDsorg(char *dscb, bool *isPds) {
+  int posOffset = 44;
   int dsorgHigh = dscb[82-posOffset];
 
   if (dsorgHigh & 0x40){/*Physical Sequential / PS*/
@@ -528,10 +529,10 @@ static boolean isSupportedWriteDsorg(char *dscb, boolean *isPds) {
   else if (dsorgHigh & 0x02){ /*Partitioned / PO*/
     int pdsCheck = dscb[78-posOffset] & 0x0a;
     if (pdsCheck == 0x0a){/*pdse & pdsex = hfs*/
-      return false
-        }
+      return false;
+    }
     else{
-      *isPDS = true;
+      *isPds = true;
       return true;
     }
   }
@@ -921,12 +922,24 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
         zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "DSCB for %.*s found\n", sizeof(dsn->value), dsn->value);
         dumpbuffer(dscb,INDEXED_DSCB);
       }
-      boolean isPds = false;
+      bool isPds = false;
       if (!isSupportedWriteDsorg(dscb, &isPds)) {
         respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Unsupported dataset type");
         return;
       } else if (isPds) {
-        printf("pds write attempt for %.54s\n",dsn->value);
+        bool isMember = false;
+        int memberStart=44;
+        int memberEnd=memberStart+8;
+        for (int i = memberStart; i < memberEnd; i++){
+          if (*(dsn->value+i) != 0x40){
+            isMember = true;
+            break;
+          }
+        }
+        if (!isMember){
+          respondWithError(response, HTTP_STATUS_BAD_REQUEST, "Overwrite of PDS not supported");
+          return;
+        }
       }
       
       maxRecordLength = getMaxRecordLength(dscb);
@@ -953,7 +966,8 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
     zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "FLData request rc=0x%x\n",returnCode);
     fflush(stdout);
     if (!returnCode) {
-      printf("fldata concat=%d, mem=%d, hiper=%d, temp=%d, vsam=%d, hfs=%d, device=%s\n",
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_WARNING, 
+             "fldata concat=%d, mem=%d, hiper=%d, temp=%d, vsam=%d, hfs=%d, device=%s\n",
              fileinfo.__dsorgConcat, fileinfo.__dsorgMem, fileinfo.__dsorgHiper,
              fileinfo.__dsorgTemp, fileinfo.__dsorgVSAM, fileinfo.__dsorgHFS, fileinfo.__device);
 
@@ -1021,6 +1035,9 @@ static void updateDatasetWithJSONInternal(HttpResponse* response,
     }
   }
   /*passed record length check and type check*/
+
+  respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Ending so that i dont wrote");
+  return;
 
   FILE *outDataset = fopen(datasetPath, "wb, recfm=*, type=record");
   if (outDataset == NULL) {
