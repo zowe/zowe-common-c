@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <limits.h>
+#include <errno.h>
 #endif
 
 #include <limits.h>
@@ -34,6 +35,11 @@
 #include "charsets.h"
 #include "unixfile.h"
 #include "httpfileservice.h"
+
+#ifdef METTLE
+#define EACCES 111
+#define ENOENT 129   
+#endif
 
 #ifndef PATH_MAX
 # ifdef _POSIX_PATH_MAX
@@ -289,17 +295,39 @@ static int renameUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int
   int returnCode = 0, reasonCode = 0, status = 0;
   FileInfo info = {0};
 
+  if (newAbsolutePath[0] != '/') {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
+            "Invalid input, not absolute path %s\n",
+            newAbsolutePath);
+    return RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH;    
+  }
+
+  if (!strcmp(oldAbsolutePath,newAbsolutePath)) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
+            "Invalid input, same directory path (source=%s, destination=%s)\n",
+            oldAbsolutePath, newAbsolutePath);
+    return RC_HTTP_FILE_SERVICE_INVALID_INPUT;    
+  }
+
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
     		    "Failed to stat directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             oldAbsolutePath, returnCode, reasonCode);
-    return -1;
+    return RC_HTTP_FILE_SERVICE_NOT_FOUND;
   }
 
   status = fileInfo(newAbsolutePath, &info, &returnCode, &reasonCode);
-  if (status == 0 && !forceRename) {
-    return -1;
+  if (status == 0) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
+            "Directory already exists %s\n", newAbsolutePath); 
+
+    if (!forceRename) {          
+      return RC_HTTP_FILE_SERVICE_ALREADY_EXISTS;  
+    }
+    else if (forceRename && deleteUnixDirectory(newAbsolutePath)) {
+      return RC_HTTP_FILE_SERVICE_CLEANUP_TARGET_DIR_FAILED;
+    }
   }
 
   status = directoryRename(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
@@ -307,18 +335,48 @@ static int renameUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
     		    "Failed to rename directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             oldAbsolutePath, returnCode, reasonCode);
-    return -1;
+    if (returnCode == EACCES) {
+      return RC_HTTP_FILE_SERVICE_PERMISSION_DENIED;
+    } else if (returnCode == ENOENT) {
+      return RC_HTTP_FILE_SERVICE_NOT_FOUND;
+    } else {
+      return RC_HTTP_FILE_SERVICE_UNDEFINED_ERROR;
+    }
   }
 
-  return 0;
+  return RC_HTTP_FILE_SERVICE_SUCCESS;
 }
 
 void renameUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceRename) {
-  if (!renameUnixDirectory(oldAbsolutePath, newAbsolutePath, forceRename)) {
+  int returnCode = RC_HTTP_FILE_SERVICE_UNDEFINED_ERROR;
+
+  if (!(returnCode = renameUnixDirectory(oldAbsolutePath, newAbsolutePath, forceRename))) {
     response200WithMessage(response, "Successfully renamed a directory");
   }
   else {
-    respondWithJsonError(response, "Failed to rename a directory", 500, "Internal Server Error");
+    switch (returnCode) {
+    case RC_HTTP_FILE_SERVICE_INVALID_INPUT:
+      respondWithJsonError(response, "Invalid input, Same directory", 400, "Bad Request");
+      break;
+    case RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH:
+      respondWithJsonError(response, "Invalid input, Not absolute path", 400, "Bad Request");
+      break;      
+    case RC_HTTP_FILE_SERVICE_PERMISSION_DENIED:
+      respondWithJsonError(response, "Permission denied", 403, "Forbidden");
+      break;
+    case RC_HTTP_FILE_SERVICE_ALREADY_EXISTS:
+      respondWithJsonError(response, "Directory already exists", 403, "Forbidden");
+      break;
+    case RC_HTTP_FILE_SERVICE_CLEANUP_TARGET_DIR_FAILED:
+      respondWithJsonError(response, "Failed to delete existing directory", 403, "Forbidden");
+      break;                         
+    case RC_HTTP_FILE_SERVICE_NOT_FOUND:
+      respondWithJsonError(response, "Directory not found", 404, "Not Found");
+      break;   
+    default:
+      respondWithJsonError(response, "Failed to rename a directory", 500, "Internal Server Error");
+      break;
+    }
   }
 }
 
@@ -372,17 +430,39 @@ static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int f
   int returnCode = 0, reasonCode = 0, status = 0;
   FileInfo info = {0};
 
+  if (newAbsolutePath[0] != '/') {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
+            "Invalid input, not absolute path %s\n",
+            newAbsolutePath);
+    return RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH;    
+  }
+
+  if (!strcmp(oldAbsolutePath,newAbsolutePath)) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
+            "Invalid input, same directory path (source=%s, destination=%s)\n",
+            oldAbsolutePath, newAbsolutePath);
+    return RC_HTTP_FILE_SERVICE_INVALID_INPUT;    
+  }
+
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
             "Failed to stat directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             oldAbsolutePath, returnCode, reasonCode);
-    return -1;
+    return RC_HTTP_FILE_SERVICE_NOT_FOUND;
   }
   
   status = fileInfo(newAbsolutePath, &info, &returnCode, &reasonCode);
-  if (status == 0 && !forceCopy) {
-    return -1;
+  if (status == 0) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
+            "Directory already exists %s\n", newAbsolutePath); 
+
+    if (!forceCopy) {          
+      return RC_HTTP_FILE_SERVICE_ALREADY_EXISTS;  
+    }
+    else if (forceCopy && deleteUnixDirectory(newAbsolutePath)) {
+      return RC_HTTP_FILE_SERVICE_CLEANUP_TARGET_DIR_FAILED;
+    }
   }
 
   status = directoryCopy(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
@@ -390,18 +470,48 @@ static int copyUnixDirectory(char *oldAbsolutePath, char *newAbsolutePath, int f
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
     		    "Failed to copy directory %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             oldAbsolutePath, returnCode, reasonCode);
-    return -1;
+    if (returnCode == EACCES) {
+      return RC_HTTP_FILE_SERVICE_PERMISSION_DENIED;
+    } else if (returnCode == ENOENT) {
+      return RC_HTTP_FILE_SERVICE_NOT_FOUND;
+    } else {
+      return RC_HTTP_FILE_SERVICE_UNDEFINED_ERROR;
+    }
   }
 
-  return 0;
+  return RC_HTTP_FILE_SERVICE_SUCCESS;
 }
 
 void copyUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceCopy) {
-  if (!copyUnixDirectory(oldAbsolutePath, newAbsolutePath, forceCopy)) {
+  int returnCode = RC_HTTP_FILE_SERVICE_UNDEFINED_ERROR;
+
+  if (!(returnCode = copyUnixDirectory(oldAbsolutePath, newAbsolutePath, forceCopy))) {
     response200WithMessage(response, "Successfully copied a directory");
   }
   else {
-    respondWithJsonError(response, "Failed to copy a directory", 500, "Internal Server Error");
+    switch (returnCode) {
+    case RC_HTTP_FILE_SERVICE_INVALID_INPUT:
+      respondWithJsonError(response, "Invalid input, Same directory", 400, "Bad Request");
+      break;
+    case RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH:
+      respondWithJsonError(response, "Invalid input, Not absolute path", 400, "Bad Request");
+      break;      
+    case RC_HTTP_FILE_SERVICE_PERMISSION_DENIED:
+      respondWithJsonError(response, "Permission denied", 403, "Forbidden");
+      break;
+    case RC_HTTP_FILE_SERVICE_ALREADY_EXISTS:
+      respondWithJsonError(response, "Directory already exists", 403, "Forbidden");
+      break;
+    case RC_HTTP_FILE_SERVICE_CLEANUP_TARGET_DIR_FAILED:
+      respondWithJsonError(response, "Failed to delete existing directory", 403, "Forbidden");
+      break;                      
+    case RC_HTTP_FILE_SERVICE_NOT_FOUND:
+      respondWithJsonError(response, "Directory not found", 404, "Not Found");
+      break;
+    default:
+      respondWithJsonError(response, "Failed to copy a directory", 500, "Internal Server Error");
+      break;
+    }
   }
 }
 
@@ -414,17 +524,33 @@ static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceC
   int returnCode = 0, reasonCode = 0, status = 0;
   FileInfo info = {0};
 
+  if (newAbsolutePath[0] != '/') {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
+            "Invalid input, not absolute path %s\n",
+            newAbsolutePath);
+    return RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH;    
+  }
+
+  if (!strcmp(oldAbsolutePath,newAbsolutePath)) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
+            "Invalid input, same file path (source=%s, destination=%s)\n",
+            oldAbsolutePath, newAbsolutePath);
+    return RC_HTTP_FILE_SERVICE_INVALID_INPUT;    
+  }
+
   status = fileInfo(oldAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == -1) {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
     		    "Failed to stat file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             oldAbsolutePath, returnCode, reasonCode);
-    return -1;
+    return RC_HTTP_FILE_SERVICE_NOT_FOUND;
   }
   
   status = fileInfo(newAbsolutePath, &info, &returnCode, &reasonCode);
   if (status == 0 && !forceCopy) {
-    return -1;
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
+            "File already exists %s\n", newAbsolutePath);    
+    return RC_HTTP_FILE_SERVICE_ALREADY_EXISTS;
   }
 
   status = fileCopy(oldAbsolutePath, newAbsolutePath, &returnCode, &reasonCode);
@@ -432,18 +558,45 @@ static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceC
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
             "Failed to copy file %s, (returnCode = 0x%x, reasonCode = 0x%x)\n",
             oldAbsolutePath, returnCode, reasonCode);
-    return -1;
+    if (returnCode == EACCES) {
+      return RC_HTTP_FILE_SERVICE_PERMISSION_DENIED;
+    } else if (returnCode == ENOENT) {
+      return RC_HTTP_FILE_SERVICE_NOT_FOUND;
+    } else {
+      return RC_HTTP_FILE_SERVICE_UNDEFINED_ERROR;
+    }
   }
 
-  return 0;
+  return RC_HTTP_FILE_SERVICE_SUCCESS;
 }
 
 void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceCopy) {
-  if (!copyUnixFile(oldAbsolutePath, newAbsolutePath, forceCopy)) {
+  int returnCode = RC_HTTP_FILE_SERVICE_UNDEFINED_ERROR;
+
+  if (!(returnCode = copyUnixFile(oldAbsolutePath, newAbsolutePath, forceCopy))) {
     response200WithMessage(response, "Successfully copied a file");
   }
   else {
-    respondWithJsonError(response, "Failed to copy a file", 500, "Internal Server Error");
+    switch (returnCode) {
+    case RC_HTTP_FILE_SERVICE_INVALID_INPUT:
+      respondWithJsonError(response, "Invalid input, Same file", 400, "Bad Request");
+      break;
+    case RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH:
+      respondWithJsonError(response, "Invalid input, Not absolute path", 400, "Bad Request");
+      break;      
+    case RC_HTTP_FILE_SERVICE_PERMISSION_DENIED:
+      respondWithJsonError(response, "Permission denied", 403, "Forbidden");
+      break;
+    case RC_HTTP_FILE_SERVICE_ALREADY_EXISTS:
+      respondWithJsonError(response, "File already exists", 403, "Forbidden");
+      break;               
+    case RC_HTTP_FILE_SERVICE_NOT_FOUND:
+      respondWithJsonError(response, "File not found", 404, "Not Found");
+      break;    
+    default:
+      respondWithJsonError(response, "Failed to copy a file", 500, "Internal Server Error");
+      break;
+    }
   }
 }
 
