@@ -264,8 +264,7 @@ typedef struct RecoveryStateEntry_tag {
     char length;
     char title[100];
   } dumpTitle;
-  char padding[3]; /* becaue of the weird 101 byte thing above to get to 8 byte alignment */
-  long long analysisStackPtr;
+
 } RecoveryStateEntry;
 
 typedef struct RecoveryContext_tag {
@@ -352,7 +351,6 @@ typedef struct RecoveryContext_tag {
 #define recoveryUpdateStateServiceInfo RCVRUSSI
 #define recoveryGetABENDCode RCVRGACD
 #define runFunctioninESTAE RCVRNFNE
-#define showRecoveryState SHRCVRST
 #endif
 
 #ifdef __ZOWE_OS_ZOS
@@ -491,15 +489,6 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
                  AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
                  CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData);
 
-/* recoveryPush2 is a variant that allows the analysisFunction to run on a clean stack and not
-   overwrite the stack upon which the error/abend occurred.
-   */
-int recoveryPush2(char *name, int flags, char *dumpTitle, 
-		  AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
-		  char *analysisFunctionStack, int analysisFunctionStackSize,
-		  CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData);
-
-
 
 /*****************************************************************************
 * Pop the latest recovery state.
@@ -513,8 +502,6 @@ int recoveryPush2(char *name, int flags, char *dumpTitle,
 *   N/A
 *****************************************************************************/
 void recoveryPop();
-
-void showRecoveryState();
 
 /*****************************************************************************
 * Set the new dump title

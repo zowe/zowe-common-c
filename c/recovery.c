@@ -23,7 +23,6 @@
 #include "stdlib.h"
 #include "stdio.h"
 #include "string.h"
-#define srbPrintf printf
 #endif
 
 #include "zowetypes.h"
@@ -866,8 +865,6 @@ void recoveryDESCTs(){
       "RSTUFPB  DS    CL32                                                     \n"
       "RSTRINF  DS    CL(RCVSINFL)                                             \n"
       "RSTDMTLT DS    CL101                                                    \n"
-      "         DS    0D                                                       \n"
-      "RAFSTPTR DS    D                                                        \n"
       "RSTLEN   EQU   *-RCVSTATE                                               \n"
       "         EJECT ,                                                        \n"
 
@@ -911,8 +908,7 @@ RecoveryContext *getRecoveryContext() {
   if (rleTask == NULL) {
     return NULL;
   }
-  RecoveryContext *ctx = rleTask->recoveryContext;
-  return ctx;
+  return rleTask->recoveryContext;
 #elif defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_LINUX)
   return theRecoveryContext;
 #endif /* __ZOWE_OS_ZOS */
@@ -1613,16 +1609,6 @@ static void removeRecoveryStateEntry(RecoveryContext *context) {
   entryToRemove = NULL;
 }
 
-void showRecoveryState(){
-  RecoveryContext *context = getRecoveryContext();
-  printf("showRecoveryState context = 0x%p\n",context);
-  if (context){
-    printf("entry = 0x%p\n",context->recoveryStateChain);
-  } else{
-    printf("no chain\n");
-  }
-}
-
 #elif defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_LINUX)
 
 RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char *name, int flags, char *dumpTitle,
@@ -1697,12 +1683,10 @@ static int16_t getLinkageStackToken(void) {
   return token;
 }
 
-int recoveryPush(char *name, int flags, char *dumpTitle, 
-		 AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
-		 CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
-  char *analysisFunctionStack = NULL;
-  int analysisFunctionStackSize = 0;
-  
+int recoveryPush(char *name, int flags, char *dumpTitle,
+                 AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
+                 CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
+
   RecoveryContext *context = getRecoveryContext();
   if (context == NULL) {
     return RC_RCV_CONTEXT_NOT_FOUND;
@@ -1802,25 +1786,6 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
       : "r2", "r10", "r11", "r14", "r15"
   );
 
-  /* this need to be set up right as the "correct" value for R13 or R4 on 
-     retry.  
-
-     
-     how to get back on the real stack - analysis function is void so
-     use logic that sets R4/R13 now to be the real stack to resume on
-     
-     */
-#if defined(_LP64) && !defined(METTLE)
-  char *analysisFunctionStackEnd = ((char*)analysisFunctionStack)+analysisFunctionStackSize;
-  /* verify these pointers - tuesday morning */
-
-  long long stackPtr = (long long)analysisFunctionStackEnd-0x1000;  /* give it the 2048 bias + "wiggle room" */
-  newEntry->analysisStackPtr = (analysisFunctionStack ? 
-                                stackPtr :
-				newEntry->retryGPRs[4]);
-#else
-  newEntry->analysisStackPtr = (analysisFunctionStack ? (long long)analysisFunctionStack : newEntry->retryGPRs[13]);
-#endif
   if (newEntry->state & RECOVERY_STATE_ABENDED) {
     if (newEntry->flags & RCVR_FLAG_DELETE_ON_RETRY) {
       removeRecoveryStateEntry(context);
@@ -1831,23 +1796,6 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
 
   return RC_RCV_OK;
 }
-
-/* This function is temporarily stubbed until fix available.  It is an 
-   experimental feature with no current callers */
-
-int recoveryPush2(char *name, int flags, char *dumpTitle,
-		  AnalysisFunction *userAnalysisFunction, void * __ptr32 analysisFunctionUserData,
-		  char *analysisFunctionStack, int analysisFunctionStackSize,
-		  CleanupFunction *userCleanupFunction, void * __ptr32 cleanupFunctionUserData) {
-  /*
-    return recoveryPushInternal(name,flags,dumpTitle,
-    userAnalysisFunction,analysisFunctionUserData,
-    analysisFunctionStack,analysisFunctionStackSize,
-    userCleanupFunction,cleanupFunctionUserData);
-    */
-  return 0;
-}
-
 
 #elif defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_LINUX)
 
