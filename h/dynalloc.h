@@ -315,7 +315,7 @@ int DeallocDDName(char *ddname);
 
 #define DOBURST 0x0001
 /* BURST FieldCount: 1 FieldLength 1
-   X02 for YES X04 for NO
+   XDc12dc2for YES Xdc104dc2 for NO
    Directs output to a stacker on a 3800 Printing Subsystem. */
 
 #define DOCHARS 0x0002
@@ -360,7 +360,7 @@ int DeallocDDName(char *ddname);
 
 #define DOCONTRO 0x0008
 /* CONTROL FieldCount: 1 FieldLength 1
-   X80 for SINGLE X40 for DOUBLE X20 for TRIPLE X10 for PROGRAM
+   XDC180' for SINGLE X'40' for DOUBLE X'20' for TRIPLE X'10' for PROGRAM
    Specifies that all the data records begin with carriage control characters or specifies line spacing. */
 
 #define DOCOPIE9 0x0009
@@ -375,12 +375,12 @@ int DeallocDDName(char *ddname);
 
 #define DODATACK 0x2022
 /* DATACK FieldCount: 1 FieldLength 1
-   X00 for BLOCK X80 for UNBLOCK X81 for BLKCHAR X82 for BLKPOS
+   X'00' for BLOCK X'80' for UNBLOCK X'81' for BLKCHAR X'82' for BLKPOS
    Specifies how errors in printers accessed through the functional subsystem Print Services Facility (PSF) are to be reported.  */
 
 #define DODEFAUL 0x000B
 /* DEFAULT FieldCount: 1 FieldLength 1
-   X40 for YES X80 for NO
+   X'40' for YES X'80' for NO
    Specifies that this is a default output descriptor. */
 
 #define DODEPT 0x0029
@@ -395,12 +395,12 @@ int DeallocDDName(char *ddname);
 
 #define DODPAGEL 0x0023
 /* DPAGELBL FieldCount: 1 FieldLength 1
-   X40 for YES X80 for NO
+   X'40' for YES X'80' for NO
    Indicates whether the system should place a security label on each output page. YES means the system should place a label on each page. NO means the system should not place a label on each page. */
 
 #define DODUPLEX 0x003D
 /* DUPLEX FieldCount: 1 FieldLength 1
-   X80 for NO X40 for NORMAL X20 for TUMBLE
+   X'80' for NO X'40' for NORMAL X'20' for TUMBLE
    Specifies whether the job is to be printed on one or both sides of the paper. Overrides comparable FORMDEF specification. */
 
 #define DOFCB 0x000D
@@ -565,7 +565,7 @@ int DeallocDDName(char *ddname);
 
 #define DOPIMSG 0x0021
 /* PIMSG FieldCount: 2 FieldLength 1
-   X80 for NO X40 for YES The second value field is a two-byte number from 0 through 999 decimal, having a length field of 2.
+   X'80' for NO X'40' for YES The second value field is a two-byte number from 0 through 999 decimal, having a length field of 2.
    Indicates that messages from a functional subsystem should or should not be printed in the listing following the SYSOUT data set. Printing terminates if the number of printing errors exceeds the second value field.  */
 
 #define DOPORTNO 0x0045
@@ -581,7 +581,7 @@ int DeallocDDName(char *ddname);
 #define DOPRTATT 0x0050
 /* PRTATTRS FieldCount: 1 FieldLength 1-127
    EBCDIC text characters
-   Specifies an Infoprint Server job attribute. The z/OS Infoprint Server Users Guide documents job attribute names and syntax for acceptable values. */
+   Specifies an Infoprint Server job attribute. The z/OS Infoprint Server User's Guide documents job attribute names and syntax for acceptable values. */
 
 #define DOPROPTN 0x0039
 /* PRTOPTNS FieldCount: 1 FieldLength 1-16
@@ -640,7 +640,7 @@ int DeallocDDName(char *ddname);
 
 #define DOSYSARE 0x0024
 /* SYSAREA FieldCount: 1 FieldLength 1
-   X40 for YES X80 for NO
+   X'40' for YES X'80' for NO
    Indicates whether you want to use the system printable area of each output page. YES means you want to use the area. NO means you do not want to use the area. */
 
 #define DOTHRESH 0x0022
@@ -655,8 +655,8 @@ int DeallocDDName(char *ddname);
 
 #define DOTRC 0x001A
 /* TRC FieldCount: 1 FieldLength 1
-   X80 for NO X40 for YES
-   Specifies whether or not the SYSOUT data sets records contain table reference codes (TRC) as the second character. */
+   X'80' for NO X'40' for YES
+   Specifies whether or not the SYSOUT data set's records contain table reference codes (TRC) as the second character. */
 
 #define DOUCS 0x001B
 /* UCS FieldCount: 1 FieldLength 1-4
@@ -674,7 +674,7 @@ int DeallocDDName(char *ddname);
    Specifies the names of libraries containing AFP resources. */
 
 #define DOUSERPAT 0x004F
-/* USERPATH FieldCount: 8 FieldLength 1255
+/* USERPATH FieldCount: 8 FieldLength 1-255
    SPECIAL text. See z/OS MVS JCL Reference.
    Specifies up to eight HFS or ZFS system paths containing resources to be used by PSF when processing SYSOUT data sets. */
 
