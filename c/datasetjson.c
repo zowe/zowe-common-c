@@ -79,16 +79,6 @@ typedef struct Volser_tag {
   char value[6]; /* space-padded */
 } Volser;
 
-static char defaultDatasetTypesAllowed[3] = {'A','D','X'};
-static char clusterTypesAllowed[3] = {'C','D','I'}; /* TODO: support 'I' type DSNs */
-static int clusterTypesCount = 3;
-static char *datasetStart = "//'";
-static char *defaultCSIFields[] ={ "NAME    ", "TYPE    ", "VOLSER  "};
-static int defaultCSIFieldCount = 3;
-static char *defaultVSAMCSIFields[] ={"AMDCIREC", "AMDKEY  ", "ASSOC   ", "VSAMTYPE"};
-static int defaultVSAMCSIFieldCount = 4;
-static char vsamCSITypes[5] = {'R', 'D', 'G', 'I', 'C'};
-
 static char getRecordLengthType(char *dscb);
 static int getMaxRecordLength(char *dscb);
 static int getDSCB(DatasetName *dsName, char* dscb, int bufferSize);
@@ -2793,9 +2783,10 @@ void newDataset(HttpResponse* response, char* absolutePath, int jsonMode){
   }
 
   int configsCount = 0;
+  char ddNameBuffer[DD_NAME_LEN+1] = "MVD00000";
   DynallocNewTextUnit textUnits[TOTAL_TEXT_UNITS];
   setTextUnitString(DATASET_NAME_LEN, &datasetName.value[0], &configsCount, DALDSNAM, &textUnits[0]);
-  setTextUnitString(DD_NAME_LEN, "MVD00000", &configsCount, DALDDNAM, &textUnits[0]);
+  setTextUnitString(DD_NAME_LEN, ddNameBuffer, &configsCount, DALDDNAM, &textUnits[0]);
 
   if (jsonMode != TRUE) { /*TODO add support for updating files with raw bytes instead of JSON*/
     respondWithError(response, HTTP_STATUS_BAD_REQUEST,"Cannot update file without JSON formatted record request");
@@ -2841,22 +2832,30 @@ void newDataset(HttpResponse* response, char* absolutePath, int jsonMode){
 
   returnCode = dynallocNewDataset(&reasonCode, &textUnits[0], configsCount);
   int ddNumber = 1;
-  char buffer[DD_NAME_LEN + 1];
   while (reasonCode==0x4100000 && ddNumber < 100000) {
-    sprintf(buffer, "MVD%05d", ddNumber);
+    sprintf(ddNameBuffer, "MVD%05d", ddNumber);
     int ddconfig = 1;
-    setTextUnitString(DD_NAME_LEN, buffer, &ddconfig, DALDDNAM, &textUnits[0]);
+    setTextUnitString(DD_NAME_LEN, ddNameBuffer, &ddconfig, DALDDNAM, &textUnits[0]);
     returnCode = dynallocNewDataset(&reasonCode, &textUnits[0], configsCount);
     ddNumber++;
   }
   if (returnCode) {
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
+            "error: ds alloc dsn=\'%44.44s\' dd=\'%8.8s\', sysRC=%d, sysRSN=0x%08X\n",
+            daDatasetName.name, ddNameBuffer, returnCode, reasonCode);
     respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to allocate a DD for ACB");
     return;
   }
-  else {
-    response200WithMessage(response, "Successfully created dataset");
+  memcpy(daDDName.name, ddNameBuffer, DD_NAME_LEN);
+  daRC = dynallocUnallocDatasetByDDName(&daDDName, DYNALLOC_UNALLOC_FLAG_NONE, &returnCode, &reasonCode);
+  if (daRC != RC_DYNALLOC_OK) {
+    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG,
+            "error: ds unalloc dsn=\'%44.44s\' dd=\'%8.8s\', rc=%d sysRC=%d, sysRSN=0x%08X\n",
+            daDatasetName.name, daDDName.name, daRC, returnCode, reasonCode);
+    respondWithError(response, HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to deallocate DDNAME");
     return;
   }
+  response200WithMessage(response, "Successfully created dataset");
   #endif
 }
 
