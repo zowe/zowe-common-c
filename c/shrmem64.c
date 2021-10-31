@@ -41,6 +41,12 @@ static int makeRSN(int shrmem64RC, int iarv64RC, int iarv64RSN) {
   return rc;
 }
 
+static int getCurrentKey(void) {
+  int psw = extractPSW();
+  int key = (psw >> 20) & 0x0000000F;
+  return key;
+}
+
 static MemObj getSharedMemObject(uint64_t segmentCount,
                                  MemObjToken token,
                                  int key,
@@ -54,45 +60,29 @@ static MemObj getSharedMemObject(uint64_t segmentCount,
   char parmList[IARV64_V4PLIST_SIZE] = {0};
 
   if (key == SHRMEM64_USE_CALLER_KEY) {
-    __asm(
-        ASM_PREFIX
-        "         IARV64 REQUEST=GETSHARED"
-        ",USERTKN=(%[token])"
-        ",COND=YES"
-        ",SEGMENTS=(%[size])"
-        ",ORIGIN=(%[result])"
-        ",ALETVALUE=%[alet]"
-        ",RETCODE=%[rc]"
-        ",RSNCODE=%[rsn]"
-        ",PLISTVER=4"
-        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-        : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
-          [parm]"r"(&parmList), [alet]"m"(alet)
-        : "r0", "r1", "r14", "r15"
-    );
-  } else {
-    char keyByte = key & 0xF;
-    keyByte = (keyByte << 4);  /* because there's always one more thing in MVS */
-    __asm(
-        ASM_PREFIX
-        "         IARV64 REQUEST=GETSHARED"
-        ",USERTKN=(%[token])"
-        ",COND=YES"
-        ",KEY=%[key]"
-        ",SEGMENTS=(%[size])"
-        ",ORIGIN=(%[result])"
-        ",ALETVALUE=%[alet]"
-        ",RETCODE=%[rc]"
-        ",RSNCODE=%[rsn]"
-        ",PLISTVER=4"
-        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-        : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
-          [parm]"r"(&parmList),[key]"m"(keyByte), [alet]"m"(alet)
-        : "r0", "r1", "r14", "r15"
-    );
+    key = getCurrentKey();
   }
+  char keyByte = key & 0xF;
+  keyByte = (keyByte << 4);  /* because there's always one more thing in MVS */
+
+  __asm(
+      ASM_PREFIX
+      "         IARV64 REQUEST=GETSHARED"
+      ",USERTKN=(%[token])"
+      ",COND=YES"
+      ",KEY=%[key]"
+      ",SEGMENTS=(%[size])"
+      ",ORIGIN=(%[result])"
+      ",ALETVALUE=%[alet]"
+      ",RETCODE=%[rc]"
+      ",RSNCODE=%[rsn]"
+      ",PLISTVER=4"
+      ",MF=(E,(%[parm]),COMPLETE)                                              \n"
+      : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
+      : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
+        [parm]"r"(&parmList), [key]"m"(keyByte), [alet]"m"(alet)
+      : "r0", "r1", "r14", "r15"
+  );
 
   if (iarv64RC) {
     *iarv64RC = localRC;
@@ -117,47 +107,30 @@ static MemObj getSharedMemObjectNoFPROT(uint64_t segmentCount,
   char parmList[IARV64_V4PLIST_SIZE] = {0};
 
   if (key == SHRMEM64_USE_CALLER_KEY) {
-    __asm(
-        ASM_PREFIX
-        "         IARV64 REQUEST=GETSHARED"
-        ",USERTKN=(%[token])"
-        ",COND=YES"
-        ",SEGMENTS=(%[size])"
-        ",ORIGIN=(%[result])"
-        ",FPROT=NO"
-        ",ALETVALUE=%[alet]"
-        ",RETCODE=%[rc]"
-        ",RSNCODE=%[rsn]"
-        ",PLISTVER=4"
-        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-        : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
-          [parm]"r"(&parmList), [alet]"m"(alet)
-        : "r0", "r1", "r14", "r15"
-    );
-  } else {
-    char keyByte = key & 0xF;
-    keyByte = (keyByte << 4);  /* because there's always one more thing in MVS */
-    __asm(
-        ASM_PREFIX
-        "         IARV64 REQUEST=GETSHARED"
-        ",USERTKN=(%[token])"
-        ",COND=YES"
-        ",KEY=%[key]"
-        ",SEGMENTS=(%[size])"
-        ",ORIGIN=(%[result])"
-        ",FPROT=NO"
-        ",ALETVALUE=%[alet]"
-        ",RETCODE=%[rc]"
-        ",RSNCODE=%[rsn]"
-        ",PLISTVER=4"
-        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-        : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
-          [parm]"r"(&parmList),[key]"m"(keyByte), [alet]"m"(alet)
-        : "r0", "r1", "r14", "r15"
-    );
+    key = getCurrentKey();
   }
+  char keyByte = key & 0xF;
+  keyByte = (keyByte << 4);  /* because there's always one more thing in MVS */
+
+  __asm(
+      ASM_PREFIX
+      "         IARV64 REQUEST=GETSHARED"
+      ",USERTKN=(%[token])"
+      ",COND=YES"
+      ",KEY=%[key]"
+      ",SEGMENTS=(%[size])"
+      ",ORIGIN=(%[result])"
+      ",FPROT=NO"
+      ",ALETVALUE=%[alet]"
+      ",RETCODE=%[rc]"
+      ",RSNCODE=%[rsn]"
+      ",PLISTVER=4"
+      ",MF=(E,(%[parm]),COMPLETE)                                              \n"
+      : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
+      : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
+        [parm]"r"(&parmList), [key]"m"(keyByte), [alet]"m"(alet)
+      : "r0", "r1", "r14", "r15"
+  );
 
   if (iarv64RC) {
     *iarv64RC = localRC;
@@ -198,7 +171,7 @@ static MemObj getCommonMemObject(uint64_t segmentCount,
       ",MF=(E,(%[parm]),COMPLETE)                                              \n"
       : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
       : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
-        [parm]"r"(&parmList),[key]"m"(keyByte)
+        [parm]"r"(&parmList), [key]"m"(keyByte)
       : "r0", "r1", "r14", "r15"
   );
 
