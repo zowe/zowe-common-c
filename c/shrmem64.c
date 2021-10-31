@@ -664,20 +664,25 @@ MemObjToken shrmem64GetAddressSpaceToken(void) {
   return result.token;
 }
 
-int shrmem64Alloc2(MemObjToken userToken, size_t size, int key, int aletValue,
-                   bool fetchProtect, void **result, int *rsn) {
-
-  uint32_t iarv64RC = 0, iarv64RSN = 0;
-
-  /*
-   * Convert size in bytes into segments (megabytes), round up if necessary.
-   */
+/*
+ * Convert size in bytes into segments (megabytes), round up if necessary.
+ */
+static uint64_t bytesToSegments(uint64_t size) {
   uint64_t segmentCount = 0;
   if ((size & 0xFFFFF) == 0) {
     segmentCount = size >> 20;
   } else {
     segmentCount = (size >> 20) + 1;
   }
+  return segmentCount;
+}
+
+int shrmem64Alloc2(MemObjToken userToken, size_t size, int key, int aletValue,
+                   bool fetchProtect, void **result, int *rsn) {
+
+  uint32_t iarv64RC = 0, iarv64RSN = 0;
+
+  uint64_t segmentCount = bytesToSegments(size);
 
   MemObj mobj = (fetchProtect ?
                  getSharedMemObject(segmentCount, userToken, key, aletValue,
@@ -710,15 +715,7 @@ int shrmem64CommonAlloc2(MemObjToken userToken, size_t size, int key,
 
   uint32_t iarv64RC = 0, iarv64RSN = 0;
 
-  /*
-   * Convert size in bytes into segments (megabytes), round up if necessary.
-   */
-  uint64_t segmentCount = 0;
-  if ((size & 0xFFFFF) == 0) {
-    segmentCount = size >> 20;
-  } else {
-    segmentCount = (size >> 20) + 1;
-  }
+  uint64_t segmentCount = bytesToSegments(size);
 
   MemObj mobj = getCommonMemObject(segmentCount, userToken, key,
                                    &iarv64RC, &iarv64RSN);
@@ -764,12 +761,8 @@ int shrmem64GetAccess2(MemObjToken userToken, void *target, bool makeWritable,
                        int aletValue, uint64_t size, int *rsn) {
 
   uint32_t iarv64RC = 0, iarv64RSN = 0;
-  uint64_t segmentCount = 0;
-  if ((size & 0xFFFFF) == 0) {
-    segmentCount = size >> 20;
-  } else {
-    segmentCount = (size >> 20) + 1;
-  }
+
+  uint64_t segmentCount = bytesToSegments(size);
 
   MemObj mobj = (MemObj)target;
 
