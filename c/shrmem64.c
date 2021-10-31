@@ -54,86 +54,44 @@ static MemObj getSharedMemObject(uint64_t segmentCount,
   char parmList[IARV64_V4PLIST_SIZE] = {0};
 
   if (key == SHRMEM64_USE_CALLER_KEY) {
-    if (alet == 0) {
-      __asm(
-          ASM_PREFIX
-          "         IARV64 REQUEST=GETSHARED"
-          ",USERTKN=(%[token])"
-          ",COND=YES"
-          ",SEGMENTS=(%[size])"
-          ",ORIGIN=(%[result])"
-          ",ALETVALUE=0"
-          ",RETCODE=%[rc]"
-          ",RSNCODE=%[rsn]"
-          ",PLISTVER=4"
-          ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-          : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-          : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
-          [parm]"r"(&parmList)
-          : "r0", "r1", "r14", "r15"
-      );
-    } else {
-      __asm(
-          ASM_PREFIX
-          "         IARV64 REQUEST=GETSHARED"
-          ",USERTKN=(%[token])"
-          ",COND=YES"
-          ",SEGMENTS=(%[size])"
-          ",ORIGIN=(%[result])"
-          ",ALETVALUE=2"
-          ",RETCODE=%[rc]"
-          ",RSNCODE=%[rsn]"
-          ",PLISTVER=4"
-          ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-          : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-          : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
-          [parm]"r"(&parmList)
-          : "r0", "r1", "r14", "r15"
-      );
-    }
+    __asm(
+        ASM_PREFIX
+        "         IARV64 REQUEST=GETSHARED"
+        ",USERTKN=(%[token])"
+        ",COND=YES"
+        ",SEGMENTS=(%[size])"
+        ",ORIGIN=(%[result])"
+        ",ALETVALUE=%[alet]"
+        ",RETCODE=%[rc]"
+        ",RSNCODE=%[rsn]"
+        ",PLISTVER=4"
+        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
+        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
+        : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
+          [parm]"r"(&parmList), [alet]"m"(alet)
+        : "r0", "r1", "r14", "r15"
+    );
   } else {
     char keyByte = key & 0xF;
     keyByte = (keyByte << 4);  /* because there's always one more thing in MVS */
-    if (alet == 0) {
-      __asm(
-          ASM_PREFIX
-          "         IARV64 REQUEST=GETSHARED"
-          ",USERTKN=(%[token])"
-          ",COND=YES"
-          ",KEY=%[key]"
-          ",SEGMENTS=(%[size])"
-          ",ORIGIN=(%[result])"
-          ",ALETVALUE=0"
-          ",RETCODE=%[rc]"
-          ",RSNCODE=%[rsn]"
-          ",PLISTVER=4"
-          ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-          : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-          : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
-          [parm]"r"(&parmList),[key]"m"(keyByte)
-          : "r0", "r1", "r14", "r15"
-      );
-    } else {
-      __asm(
-          ASM_PREFIX
-          "         IARV64 REQUEST=GETSHARED"
-          ",USERTKN=(%[token])"
-          ",COND=YES"
-          ",KEY=%[key]"
-          ",SEGMENTS=(%[size])"
-          ",ORIGIN=(%[result])"
-          ",ALETVALUE=2"
-          ",RETCODE=%[rc]"
-          ",RSNCODE=%[rsn]"
-          ",PLISTVER=4"
-          ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-          : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-          : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
-          [parm]"r"(&parmList),[key]"m"(keyByte)
-          : "r0", "r1", "r14", "r15"
-      );
-    }
-
+    __asm(
+        ASM_PREFIX
+        "         IARV64 REQUEST=GETSHARED"
+        ",USERTKN=(%[token])"
+        ",COND=YES"
+        ",KEY=%[key]"
+        ",SEGMENTS=(%[size])"
+        ",ORIGIN=(%[result])"
+        ",ALETVALUE=%[alet]"
+        ",RETCODE=%[rc]"
+        ",RSNCODE=%[rsn]"
+        ",PLISTVER=4"
+        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
+        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
+        : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
+          [parm]"r"(&parmList),[key]"m"(keyByte), [alet]"m"(alet)
+        : "r0", "r1", "r14", "r15"
+    );
   }
 
   if (iarv64RC) {
@@ -159,90 +117,46 @@ static MemObj getSharedMemObjectNoFPROT(uint64_t segmentCount,
   char parmList[IARV64_V4PLIST_SIZE] = {0};
 
   if (key == SHRMEM64_USE_CALLER_KEY) {
-    if (alet == 0) {
-      __asm(
-          ASM_PREFIX
-          "         IARV64 REQUEST=GETSHARED"
-          ",USERTKN=(%[token])"
-          ",COND=YES"
-          ",SEGMENTS=(%[size])"
-          ",ORIGIN=(%[result])"
-          ",FPROT=NO"
-          ",ALETVALUE=0"
-          ",RETCODE=%[rc]"
-          ",RSNCODE=%[rsn]"
-          ",PLISTVER=4"
-          ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-          : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-          : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
-          [parm]"r"(&parmList)
-          : "r0", "r1", "r14", "r15"
-      );
-    } else {
-      __asm(
-          ASM_PREFIX
-          "         IARV64 REQUEST=GETSHARED"
-          ",USERTKN=(%[token])"
-          ",COND=YES"
-          ",SEGMENTS=(%[size])"
-          ",ORIGIN=(%[result])"
-          ",FPROT=NO"
-          ",ALETVALUE=2"
-          ",RETCODE=%[rc]"
-          ",RSNCODE=%[rsn]"
-          ",PLISTVER=4"
-          ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-          : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-          : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
-          [parm]"r"(&parmList)
-          : "r0", "r1", "r14", "r15"
-      );
-    }
+    __asm(
+        ASM_PREFIX
+        "         IARV64 REQUEST=GETSHARED"
+        ",USERTKN=(%[token])"
+        ",COND=YES"
+        ",SEGMENTS=(%[size])"
+        ",ORIGIN=(%[result])"
+        ",FPROT=NO"
+        ",ALETVALUE=%[alet]"
+        ",RETCODE=%[rc]"
+        ",RSNCODE=%[rsn]"
+        ",PLISTVER=4"
+        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
+        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
+        : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
+          [parm]"r"(&parmList), [alet]"m"(alet)
+        : "r0", "r1", "r14", "r15"
+    );
   } else {
     char keyByte = key & 0xF;
     keyByte = (keyByte << 4);  /* because there's always one more thing in MVS */
-    if (alet == 0) {
-      __asm(
-          ASM_PREFIX
-          "         IARV64 REQUEST=GETSHARED"
-          ",USERTKN=(%[token])"
-          ",COND=YES"
-          ",KEY=%[key]"
-          ",SEGMENTS=(%[size])"
-          ",ORIGIN=(%[result])"
-          ",FPROT=NO"
-          ",ALETVALUE=0"
-          ",RETCODE=%[rc]"
-          ",RSNCODE=%[rsn]"
-          ",PLISTVER=4"
-          ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-          : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-          : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
-          [parm]"r"(&parmList),[key]"m"(keyByte)
-          : "r0", "r1", "r14", "r15"
-      );
-    } else {
-      __asm(
-          ASM_PREFIX
-          "         IARV64 REQUEST=GETSHARED"
-          ",USERTKN=(%[token])"
-          ",COND=YES"
-          ",KEY=%[key]"
-          ",SEGMENTS=(%[size])"
-          ",ORIGIN=(%[result])"
-          ",FPROT=NO"
-          ",ALETVALUE=2"
-          ",RETCODE=%[rc]"
-          ",RSNCODE=%[rsn]"
-          ",PLISTVER=4"
-          ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-          : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-          : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
-          [parm]"r"(&parmList),[key]"m"(keyByte)
-          : "r0", "r1", "r14", "r15"
-      );
-    }
-
+    __asm(
+        ASM_PREFIX
+        "         IARV64 REQUEST=GETSHARED"
+        ",USERTKN=(%[token])"
+        ",COND=YES"
+        ",KEY=%[key]"
+        ",SEGMENTS=(%[size])"
+        ",ORIGIN=(%[result])"
+        ",FPROT=NO"
+        ",ALETVALUE=%[alet]"
+        ",RETCODE=%[rc]"
+        ",RSNCODE=%[rsn]"
+        ",PLISTVER=4"
+        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
+        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
+        : [token]"r"(&token), [size]"r"(&segmentCount), [result]"r"(&result),
+          [parm]"r"(&parmList),[key]"m"(keyByte), [alet]"m"(alet)
+        : "r0", "r1", "r14", "r15"
+    );
   }
 
   if (iarv64RC) {
@@ -315,41 +229,23 @@ static void shareMemObject(MemObj object,
 
   uint64_t rangeListAddress = (uint64_t)&rangeList;
 
-  if (aletValue == 0) {
-    __asm(
-        ASM_PREFIX
-        "         IARV64 REQUEST=SHAREMEMOBJ"
-        ",USERTKN=(%[token])"
-        ",RANGLIST=(%[range])"
-        ",NUMRANGE=1"
-        ",COND=YES"
-        ",ALETVALUE=0"
-        ",RETCODE=%[rc]"
-        ",RSNCODE=%[rsn]"
-        ",PLISTVER=4"
-        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-        : [token]"r"(&token), [range]"r"(&rangeListAddress), [parm]"r"(&parmList)
-        : "r0", "r1", "r14", "r15"
-    );
-  } else {
-    __asm(
-        ASM_PREFIX
-        "         IARV64 REQUEST=SHAREMEMOBJ"
-        ",USERTKN=(%[token])"
-        ",RANGLIST=(%[range])"
-        ",NUMRANGE=1"
-        ",COND=YES"
-        ",ALETVALUE=2"
-        ",RETCODE=%[rc]"
-        ",RSNCODE=%[rsn]"
-        ",PLISTVER=4"
-        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-        : [token]"r"(&token), [range]"r"(&rangeListAddress), [parm]"r"(&parmList)
-        : "r0", "r1", "r14", "r15"
-    );
-  }
+  __asm(
+      ASM_PREFIX
+      "         IARV64 REQUEST=SHAREMEMOBJ"
+      ",USERTKN=(%[token])"
+      ",RANGLIST=(%[range])"
+      ",NUMRANGE=1"
+      ",COND=YES"
+      ",ALETVALUE=%[alet]"
+      ",RETCODE=%[rc]"
+      ",RSNCODE=%[rsn]"
+      ",PLISTVER=4"
+      ",MF=(E,(%[parm]),COMPLETE)                                              \n"
+      : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
+      : [token]"r"(&token), [range]"r"(&rangeListAddress), [parm]"r"(&parmList),
+        [alet]"m"(aletValue)
+      : "r0", "r1", "r14", "r15"
+  );
 
   if (iarv64RC) {
     *iarv64RC = localRC;
@@ -376,40 +272,22 @@ static void makeSharedWritable(MemObj object,
 
   uint64_t rangeListAddress = (uint64_t)&rangeList;
 
-  if (aletValue == 0) {
-    __asm(
-        ASM_PREFIX
-        "         IARV64 REQUEST=CHANGEACCESS"
-        ",VIEW=SHAREDWRITE"
-        /* ",USERTKN=(%[token])" */
-        ",RANGLIST=(%[range])"
-        ",NUMRANGE=1"
-        ",ALETVALUE=0"
-        ",RETCODE=%[rc]"
-        ",RSNCODE=%[rsn]"
-        ",PLISTVER=4"
-        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-        : [range]"r"(&rangeListAddress), [parm]"r"(&parmList)
-        : "r0", "r1", "r14", "r15"
-    );
-  } else {
-    __asm(
-        ASM_PREFIX
-        "         IARV64 REQUEST=CHANGEACCESS"
-        ",VIEW=SHAREDWRITE"
-        ",RANGLIST=(%[range])"
-        ",NUMRANGE=1"
-        ",ALETVALUE=2"
-        ",RETCODE=%[rc]"
-        ",RSNCODE=%[rsn]"
-        ",PLISTVER=4"
-        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-        : [range]"r"(&rangeListAddress), [parm]"r"(&parmList)
-        : "r0", "r1", "r14", "r15"
-    );
-  }
+  __asm(
+      ASM_PREFIX
+      "         IARV64 REQUEST=CHANGEACCESS"
+      ",VIEW=SHAREDWRITE"
+      ",RANGLIST=(%[range])"
+      ",NUMRANGE=1"
+      ",ALETVALUE=%[alet]"
+      ",RETCODE=%[rc]"
+      ",RSNCODE=%[rsn]"
+      ",PLISTVER=4"
+      ",MF=(E,(%[parm]),COMPLETE)                                              \n"
+      : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
+      : [range]"r"(&rangeListAddress), [parm]"r"(&parmList),
+        [alet]"m"(aletValue)
+      : "r0", "r1", "r14", "r15"
+  );
 
   if (iarv64RC) {
     *iarv64RC = localRC;
@@ -430,46 +308,26 @@ static void detachSingleSharedMemObject(MemObj object,
   int localRSN = 0;
   char parmList[IARV64_V4PLIST_SIZE] = {0};
 
-  if (aletValue == 0) {
-    __asm(
-        ASM_PREFIX
-        "         IARV64 REQUEST=DETACH"
-        ",MATCH=SINGLE"
-        ",MEMOBJSTART=(%[mobj])"
-        ",MOTKN=(%[token])"
-        ",MOTKNCREATOR=USER"
-        ",AFFINITY=LOCAL"
-        ",OWNER=YES"
-        ",COND=YES"
-        ",RETCODE=%[rc]"
-        ",RSNCODE=%[rsn]"
-        ",PLISTVER=4"
-        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-        : [mobj]"r"(&object), [parm]"r"(&parmList), [token]"r"(&token)
-        : "r0", "r1", "r14", "r15"
-    );
-  } else {
-    __asm(
-        ASM_PREFIX
-        "         IARV64 REQUEST=DETACH"
-        ",MATCH=SINGLE"
-        ",MEMOBJSTART=(%[mobj])"
-        ",MOTKN=(%[token])"
-        ",MOTKNCREATOR=USER"
-        ",AFFINITY=LOCAL"
-        ",OWNER=YES"
-        ",COND=YES"
-        ",ALETVALUE=2"
-        ",RETCODE=%[rc]"
-        ",RSNCODE=%[rsn]"
-        ",PLISTVER=4"
-        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-        : [mobj]"r"(&object), [parm]"r"(&parmList), [token]"r"(&token)
-        : "r0", "r1", "r14", "r15"
-    );
-  }
+  __asm(
+      ASM_PREFIX
+      "         IARV64 REQUEST=DETACH"
+      ",MATCH=SINGLE"
+      ",MEMOBJSTART=(%[mobj])"
+      ",MOTKN=(%[token])"
+      ",MOTKNCREATOR=USER"
+      ",AFFINITY=LOCAL"
+      ",OWNER=YES"
+      ",COND=YES"
+      ",ALETVALUE=%[alet]"
+      ",RETCODE=%[rc]"
+      ",RSNCODE=%[rsn]"
+      ",PLISTVER=4"
+      ",MF=(E,(%[parm]),COMPLETE)                                              \n"
+      : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
+      : [mobj]"r"(&object), [parm]"r"(&parmList), [token]"r"(&token),
+        [alet]"m"(aletValue)
+      : "r0", "r1", "r14", "r15"
+  );
 
   if (iarv64RC) {
     *iarv64RC = localRC;
@@ -489,47 +347,26 @@ static void detachSingleSharedMemObjectNotOwner(MemObj object,
   int localRSN = 0;
   char parmList[IARV64_V4PLIST_SIZE] = {0};
 
-  if (aletValue == 0) {
-    __asm(
-        ASM_PREFIX
-        "         IARV64 REQUEST=DETACH"
-        ",MATCH=SINGLE"
-        ",MEMOBJSTART=(%[mobj])"
-        ",MOTKN=(%[token])"
-        ",MOTKNCREATOR=USER"
-        ",AFFINITY=LOCAL"
-        ",OWNER=NO"
-        ",COND=YES"
-        ",RETCODE=%[rc]"
-        ",RSNCODE=%[rsn]"
-        ",PLISTVER=4"
-        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-        : [mobj]"r"(&object), [parm]"r"(&parmList), [token]"r"(&token)
-        : "r0", "r1", "r14", "r15"
-      );
-  } else {
-    __asm(
-        ASM_PREFIX
-        "         IARV64 REQUEST=DETACH"
-        ",MATCH=SINGLE"
-        ",MEMOBJSTART=(%[mobj])"
-        ",MOTKN=(%[token])"
-        ",MOTKNCREATOR=USER"
-        ",AFFINITY=LOCAL"
-        ",OWNER=NO"
-        ",ALETVALUE=2"
-        ",COND=YES"
-        ",RETCODE=%[rc]"
-        ",RSNCODE=%[rsn]"
-        ",PLISTVER=4"
-        ",MF=(E,(%[parm]),COMPLETE)                                              \n"
-        : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
-        : [mobj]"r"(&object), [parm]"r"(&parmList), [token]"r"(&token)
-        : "r0", "r1", "r14", "r15"
-    );
-
-  }
+  __asm(
+      ASM_PREFIX
+      "         IARV64 REQUEST=DETACH"
+      ",MATCH=SINGLE"
+      ",MEMOBJSTART=(%[mobj])"
+      ",MOTKN=(%[token])"
+      ",MOTKNCREATOR=USER"
+      ",AFFINITY=LOCAL"
+      ",OWNER=NO"
+      ",ALETVALUE=%[alet]"
+      ",COND=YES"
+      ",RETCODE=%[rc]"
+      ",RSNCODE=%[rsn]"
+      ",PLISTVER=4"
+      ",MF=(E,(%[parm]),COMPLETE)                                              \n"
+      : [rc]"=m"(localRC), [rsn]"=m"(localRSN)
+      : [mobj]"r"(&object), [parm]"r"(&parmList), [token]"r"(&token),
+        [alet]"m"(aletValue)
+      : "r0", "r1", "r14", "r15"
+  );
 
   if (iarv64RC) {
     *iarv64RC = localRC;
