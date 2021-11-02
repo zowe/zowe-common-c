@@ -248,7 +248,6 @@ typedef struct RadminAPIStatus_tag {
   int safRC;
   int racfRC;
   int racfRSN;
-  int alet; /* always zero */
 } RadminAPIStatus;
 
 typedef struct RadminStatus_tag {

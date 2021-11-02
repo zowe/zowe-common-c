@@ -3,7 +3,7 @@
 /*
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
-  this distribution, and is available at www.eclipse.org/legal/epl-v20.html
+  this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
   
   SPDX-License-Identifier: EPL-2.0
   
@@ -39,13 +39,6 @@
 #include "radmin.h"
 #include "utils.h"
 
-#ifndef METTLE
-#ifdef _LP64
-#pragma linkage(IRRSEQ00, OS)
-#else
-#pragma linkage(IRRSEQ00, OS)
-#endif
-#endif
 
 #pragma enum(1)
 typedef enum RadminFunctionCode_tag {
@@ -86,7 +79,7 @@ typedef enum RadminFunctionCode_tag {
 } RadminFunctionCode;
 #pragma enum(reset)
 
-#define RADMIN_WORK_AREA_SIZE 1024
+typedef char RadminWorkArea[1024];
 typedef void RadminParmList;
 
 #ifdef RADMIN_XMEM_MODE
@@ -141,33 +134,13 @@ static void freeXTROutput(RadminXTROutput *data) {
   CVT+0x220 (544) is the CSR table (CVTCSRT)
 
   0x18   CSR slot (BPX services)
-  0x28   RACF (IRR) slot 
-  0x48   GXL  XML services 
-  
+  0x28   RACF (IRR) slot
+  0x48   GXL  XML services
+
  */
 
-
-int IRRSEQ00(
-    char * __ptr32 workArea,
-    int32_t * __ptr32 safReturnCodeALET, int32_t * __ptr32 safReturnCode,
-    int32_t * __ptr32 racfReturnCodeALET, int32_t * __ptr32 racfReturnCode,
-    int32_t * __ptr32 racfReasonCodeALET, int32_t * __ptr32 racfReasonCode,
-    RadminFunctionCode * __ptr32 functionCode,
-    RadminParmList * __ptr32 parmList,
-    RadminUserID * __ptr32 userID,
-    ACEE * __ptr32 * __ptr32 acee,
-    uint8_t * __ptr32 outMessageSubpool,
-    void * __ptr32 * __ptr32 outMessage)
-#ifdef METTLE
-__attribute__((amode31));
-#else
-;
-#endif
-
-#define DATA31_LENGTH 16
-
-typedef struct IRRSEQ00Arguments_tag{
-  char * __ptr32 workArea;
+typedef struct IRRSEQ00Arguments_tag {
+  RadminWorkArea * __ptr32 workArea;
   int32_t * __ptr32 safReturnCodeALET;
   int32_t * __ptr32 safReturnCode;
   int32_t * __ptr32 racfReturnCodeALET;
@@ -179,76 +152,50 @@ typedef struct IRRSEQ00Arguments_tag{
   RadminUserID * __ptr32 userID;
   ACEE * __ptr32 * __ptr32 acee;
   uint8_t * __ptr32 outMessageSubpool;
-  int  outMessage;   /* it's really a handle, but the VL bit and other issues just make this too annoying */
-
+  uint32_t outMessage;   /* it's really a handle, but the VL bit and other issues just make this too annoying */
 } IRRSEQ00Arguments;
 
-  /*
-  IRRSEQ00(
-      workArea,
-      &(status->alet), &(status->safRC),
-      &(status->alet), &(status->racfRC),
-      &(status->alet), &(status->racfRSN),
-      functionCodeBox,
-      parmList,
-      &(callerAuthInfo->userID),
-      &(callerAuthInfo->acee),
-      subpoolBox,
-      resultPtr
-  );
-...i...0.........0..... 
-400280005F015F025F021F5F000F 
-1007900280008F208F08E08F007F 
-LA  0,X'27'
-SLL 0,2
-L   15,10(,0)
-L   15,X'220'(,15)
-L   15,X'28'(15) 
-AHI 15,X'9C'
-L   15,0(,15)
-BASR 14,15
-  */
-
-
-/* The result doesn't need to be a 32-bit pointer, it just needs to be a
-   31 bit chunk of memory that is being pointed at.
-   */
-
-static void *invokeRadmin(char * __ptr32 workArea,
-  RadminAPIStatus *__ptr32 status,
+static void *invokeRadmin(
+  RadminAPIStatus *status,
   RadminFunctionCode functionCode,
   RadminParmList * __ptr32 parmList,
-  RadminCallerAuthInfo *__ptr32 callerAuthInfo,
+  RadminCallerAuthInfo *callerAuthInfo,
   uint8_t resultSubpool
 ) {
 
+  ALLOC_STRUCT31(
+      STRUCT31_NAME(below2G),
+      STRUCT31_FIELDS(
+          IRRSEQ00Arguments arguments;
+          RadminWorkArea workArea;
+          RadminCallerAuthInfo callerAuthInfo;
+          RadminAPIStatus status;
+          void * __ptr32 result;
+          int32_t alet;
+          RadminFunctionCode functionCode;
+          uint8_t resultSubpool;
+      )
+  );
 
-  /* get the immediate data that needs to have 31 bit pointers into 31 bit area and
-      make some pointers that point in. */
-  char *__ptr32 data31 = (char *__ptr32)safeMalloc31(DATA31_LENGTH,"IRRSEQ00Data:31");
-  memset(data31,0,DATA31_LENGTH);
-  RadminFunctionCode *__ptr32 functionCodeBox = (RadminFunctionCode *__ptr32)data31;
-  *functionCodeBox = functionCode;
-  uint8_t *__ptr32 subpoolBox = (uint8_t*)(data31+4);
-  /* make the handle and the pointer be in 3 and fourth slots of DAT31 */
-  *subpoolBox = resultSubpool;
- 
-  IRRSEQ00Arguments *__ptr32 arguments = (IRRSEQ00Arguments *__ptr32)safeMalloc31(sizeof(IRRSEQ00Arguments),"IRRSEQ00Arguments:31");
-  arguments->workArea = workArea;
-  arguments->safReturnCodeALET = &(status->alet);
-  arguments->safReturnCode = &(status->safRC);
-  arguments->racfReturnCodeALET = &(status->alet);
-  arguments->racfReturnCode = &(status->racfRC);
-  arguments->racfReasonCodeALET = &(status->alet);
-  arguments->racfReasonCode = &(status->racfRSN);
-  arguments->functionCode = functionCodeBox;
+  below2G->callerAuthInfo = *callerAuthInfo;
+  below2G->alet = 0; /* primary */
+  below2G->functionCode = functionCode;
+  below2G->resultSubpool = resultSubpool;
+
+  IRRSEQ00Arguments * __ptr32 arguments = &below2G->arguments;
+  arguments->workArea = &below2G->workArea;
+  arguments->safReturnCodeALET = &below2G->alet;
+  arguments->safReturnCode = &below2G->status.safRC;
+  arguments->racfReturnCodeALET = &below2G->alet;
+  arguments->racfReturnCode = &below2G->status.racfRC;
+  arguments->racfReasonCodeALET = &below2G->alet;
+  arguments->racfReasonCode = &below2G->status.racfRSN;
+  arguments->functionCode = &below2G->functionCode;
   arguments->parmList = parmList;
-  arguments->userID = &(callerAuthInfo->userID);
-  arguments->acee = &(callerAuthInfo->acee);
-  arguments->outMessageSubpool = subpoolBox;
-  arguments->outMessage = ((int)(data31+8))|0x80000000;
-  uint32_t argumentsAddress = (uint32_t)arguments;
-
+  arguments->userID = &below2G->callerAuthInfo.userID;
+  arguments->acee = &below2G->callerAuthInfo.acee;
+  arguments->outMessageSubpool = &below2G->resultSubpool;
+  arguments->outMessage = ((uint32_t)&below2G->result | 0x80000000);
 
 #ifdef RADMIN_XMEM_MODE
   /* When in PC-cp PSW key != TCB key, depending on the subpool R_admin will
@@ -260,95 +207,53 @@ static void *invokeRadmin(char * __ptr32 workArea,
 #endif
 
   __asm(ASM_PREFIX
-        /* still need compiled C-code addressing mode to get this address */
-        " XGR  1,1   \n"
-        " L    1,%0  \n"
 #ifdef _LP64
-	" SAM31 \n"
-#endif  
-        " L    15,X'10'(,0)   \n"
-        " L    15,X'220'(,15) \n"    /* CSR Table */
-        " L    15,X'28'(,15)  \n"    /* IRR Slot  */
-        " AHI  15,X'9C'       \n"    /* Make pointer int IRR Slot */
-        " L    15,0(,15)      \n"    /* Load routine pointer for IRRSEQ00 */
-        " BASR 14,15          \n"    
+      "         SAM31                                                          \n"
+#endif
+      " L    15,X'10'(,0)   \n"
+      " L    15,X'220'(,15) \n"    /* CSR Table */
+      " L    15,X'28'(,15)  \n"    /* IRR Slot  */
+      " AHI  15,X'9C'       \n"    /* Make pointer int IRR Slot */
+      " L    15,0(,15)      \n"    /* Load routine pointer for IRRSEQ00 */
+      " BASR 14,15          \n"
 #ifdef _LP64
-	" SAM64 \n"
-#endif  
-        : :
-        "m"(argumentsAddress)
-        : "r1", "r14", "r15");
+      "         SAM64                                                          \n"
+#endif
+      :
+      : "NR:r1"(arguments)
+      : "r1", "r14", "r15"
+  );
 
 #ifdef RADMIN_XMEM_MODE
   setKey(oldKey);
 #endif
 
-  void *result = (void*)((int*)data31)[2];
+  *status = below2G->status;
+  void *result = below2G->result;
 
-  safeFree31(data31,DATA31_LENGTH);
-  safeFree31((char*)arguments,sizeof(IRRSEQ00Arguments));
+  FREE_STRUCT31(
+      STRUCT31_NAME(below2G)
+  );
+
   return result;
 }
 
-static char *__ptr32 allocateWorkArea(){
-  char *__ptr32 workArea = safeMalloc31(RADMIN_WORK_AREA_SIZE,"Radmin WorkArea");
-  memset(workArea,0,RADMIN_WORK_AREA_SIZE);
-  return workArea;
-}
-
-static void freeWorkArea(char *__ptr32 workArea){
-  safeFree31(workArea,RADMIN_WORK_AREA_SIZE);
-}
-
-static RadminAPIStatus *__ptr32 allocateAPIStatus(){
-  RadminAPIStatus *__ptr32 apiStatus = (RadminAPIStatus *__ptr32)safeMalloc31(sizeof(RadminAPIStatus),"RadminAPIStatus:31");
-  memset(apiStatus,0,sizeof(RadminAPIStatus));
-  return apiStatus;
-}
-
-static void freeAPIStatus(RadminAPIStatus *__ptr32 apiStatus){
-  safeFree31((char *__ptr32)apiStatus,sizeof(RadminAPIStatus));
-}
-
-static RadminCallerAuthInfo *__ptr32  makeCallerAuthInfo31(RadminCallerAuthInfo callerAuthInfo){
-  RadminCallerAuthInfo *__ptr32 authInfo31 =
-    (RadminCallerAuthInfo *__ptr32)safeMalloc31(sizeof(RadminCallerAuthInfo),"RadminCallerAuthInfo31");
-  memcpy(authInfo31,&callerAuthInfo,sizeof(RadminCallerAuthInfo));
-  return authInfo31;
-}
-
-static void freeCallerAuthInfo31(RadminCallerAuthInfo *__ptr32 authInfo31){
-  safeFree31((char*)authInfo31,sizeof(RadminCallerAuthInfo));
-}
-
-static RadminAPIStatus *__ptr32 runRACFCommand(
+static RadminAPIStatus runRACFCommand(
     RadminCallerAuthInfo callerAuthInfo,
     RadminRACFCommand *__ptr32 command,
-    RadminCommandOutput * __ptr32 * __ptr32 result,
+    RadminCommandOutput **result
 ) {
 
-  char *__ptr32 workArea = allocateWorkArea();
-
-  RadminAPIStatus *__ptr32 status = allocateAPIStatus();
-  RadminCallerAuthInfo *__ptr32 authInfo31 = makeCallerAuthInfo31(callerAuthInfo);
-
-  RadminUserID callerUserID = callerAuthInfo.userID;
-  ACEE * __ptr32 callerACEE = callerAuthInfo.acee;
-
-  uint8_t resultSubpool = RADMIN_RESULT_BUFFER_SUBPOOL;
+  RadminAPIStatus status = {0};
 
   void *output = invokeRadmin(
-      workArea,
-      status,
+      &status,
       RADMIN_FC_RUN_COMD,
-      (RadminParmList *__ptr32)command,
-      authInfo31,
-      resultSubpool
+      command,
+      &callerAuthInfo,
+      RADMIN_RESULT_BUFFER_SUBPOOL
   );
-  *result = (RadminCommandOutput *__ptr32)output;
-
-  freeWorkArea(workArea);
-  freeCallerAuthInfo31(authInfo31);
+  *result = output;
 
   return status;
 }
@@ -381,25 +286,29 @@ int radminRunRACFCommand(
     return RC_RADMIN_BAD_INPUT;
   }
 
-  RadminRACFCommand *__ptr32 internalCommand = 
-    (RadminRACFCommand *__ptr32)safeMalloc31(sizeof(RadminRACFCommand),"RadminRACFCommand");
-  internalCommand->length = (uint16_t)commandLength;
-  memcpy(internalCommand->text, command, commandLength);
-
   int rc = RC_RADMIN_OK;
-  RadminCommandOutput * __ptr32 result = NULL;
-  RadminCommandOutput * __ptr32 * __ptr32 resultHandle = (RadminCommandOutput * __ptr32 * __ptr32)safeMalloc31(4,"RACF Result Handle");
-  *resultHandle = result;
-  /* i think the ampersand operator will introduce a 64-bit pointer 3 lines down */
-  RadminAPIStatus statusOnStack;
-  RadminAPIStatus *__ptr32 apiStatus31 = runRACFCommand(callAuthInfo,
-                                                        internalCommand,
-                                                        resultHandle);
-  statusOnStack = *apiStatus31;
-  result = *resultHandle;
+  RadminCommandOutput *result = NULL;
+
+  ALLOC_STRUCT31(
+      STRUCT31_NAME(below2G),
+      STRUCT31_FIELDS(
+          RadminRACFCommand internalCommand;
+      )
+  );
+  below2G->internalCommand.length = commandLength;
+  memcpy(below2G->internalCommand.text, command, commandLength);
+
+  RadminAPIStatus apiStatus = runRACFCommand(callAuthInfo,
+                                             &below2G->internalCommand,
+                                             &result);
+
+  FREE_STRUCT31(
+      STRUCT31_NAME(below2G)
+  );
+
   if (result != NULL) {
 
-    int visitRC = userHandler(statusOnStack, result, userHandlerData);
+    int visitRC = userHandler(apiStatus, result, userHandlerData);
     if (visitRC != 0) {
       status->reasonCode = visitRC;
       rc = RC_RADMIN_NONZERO_USER_RC;
@@ -407,11 +316,9 @@ int radminRunRACFCommand(
 
   }
 
-  safeFree31((char*)internalCommand,sizeof(RadminRACFCommand));
+  if (apiStatus.safRC > 0) {
 
-  if (apiStatus31->safRC > 0) {
-
-    status->apiStatus = *apiStatus31;
+    status->apiStatus = apiStatus;
     rc = RC_RADMIN_SYSTEM_ERROR;
 
   }
@@ -420,9 +327,7 @@ int radminRunRACFCommand(
     freeCommandOutput(result);
     result = NULL;
   }
-  safeFree31((char*)resultHandle,4);
 
-  freeAPIStatus(apiStatus31);
   return rc;
 }
 
@@ -462,46 +367,43 @@ static RadminAPIStatus extractProfileInternal(
     size_t classNameLength,
     bool isNext,
     bool *isProfileGeneric,
-    RadminXTROutput **result,
+    RadminXTROutput **result
 ) {
 
-  char *__ptr32 workArea = allocateWorkArea();
-
-  RadminAPIStatus *__ptr32 status = allocateAPIStatus();
-  RadminCallerAuthInfo *__ptr32 authInfo31 = makeCallerAuthInfo31(callerAuthInfo);
+  RadminAPIStatus status = {0};
 
   RadminFunctionCode functionCode = getProfileXTRFunctionCode(type, isNext);
 
-  RadminXTRParmList *__ptr32 parmList = (RadminXTRParmList *__ptr32)safeMalloc31(sizeof(RadminXTRParmList),"RadminXTRParmList:31");
-  parmList->header.profileNameLength = profileNameLength;
-  parmList->header.flag = RADMIN_XTR_HDR_FLAG_BASE_SEG_ONLY;
-  if (*isProfileGeneric == true) {
-    parmList->header.flag |= RADMIN_XTR_HDR_FLAG_GENERIC;
-  }
-  memset(parmList->header.className, ' ', sizeof(parmList->header.className));
-  memcpy(parmList->header.className, className, classNameLength);
-  memcpy(parmList->profileName, profileName, profileNameLength);
-
-  RadminUserID callerUserID = callerAuthInfo.userID;
-  ACEE * __ptr32 callerACEE = callerAuthInfo.acee;
-
-  uint8_t resultSubpool = RADMIN_RESULT_BUFFER_SUBPOOL;
-
-  void *output = invokeRadmin(
-      workArea,
-      status,
-      functionCode,
-      (RadminParmList *__ptr32)parmList,
-      authInfo31,
-      resultSubpool
+  ALLOC_STRUCT31(
+      STRUCT31_NAME(below2G),
+      STRUCT31_FIELDS(
+          RadminXTRParmList parmList;
+      )
   );
 
-  printf("output=0x%p\n",output);fflush(stdout);
-  *result = output;
+  below2G->parmList.header.profileNameLength = profileNameLength;
+  below2G->parmList.header.flag = RADMIN_XTR_HDR_FLAG_BASE_SEG_ONLY;
+  if (*isProfileGeneric == true) {
+    below2G->parmList.header.flag |= RADMIN_XTR_HDR_FLAG_GENERIC;
+  }
+  memset(below2G->parmList.header.className, ' ',
+         sizeof(below2G->parmList.header.className));
+  memcpy(below2G->parmList.header.className, className, classNameLength);
+  memcpy(below2G->parmList.profileName, profileName, profileNameLength);
 
-  freeWorkArea(workArea);
-  freeCallerAuthInfo31(authInfo31);
-  safeFree31((char*)parmList,sizeof(RadminXTRParmList));
+  void *output = invokeRadmin(
+      &status,
+      functionCode,
+      &below2G->parmList,
+      &callerAuthInfo,
+      RADMIN_RESULT_BUFFER_SUBPOOL
+  );
+
+  FREE_STRUCT31(
+      STRUCT31_NAME(below2G)
+  );
+
+  *result = output;
 
   if (*result != NULL) {
     RadminXTRHeader *resultHeader = &(*result)->header;
@@ -510,8 +412,7 @@ static RadminAPIStatus extractProfileInternal(
     }
   }
 
-  RadminAPIStatus statusOnStack = *status;
-  return statusOnStack;
+  return status;
 }
 
 #define IS_XTR_EODAT(apiStatus) \
@@ -1408,28 +1309,16 @@ int radminPerformResAction(
     return RC_RADMIN_BAD_INPUT;
   }
 
-  char *__ptr32 workArea = allocateWorkArea();
-  RadminCallerAuthInfo *__ptr32 authInfo31 = makeCallerAuthInfo31(callerAuthInfo);
-  int32_t statusALET = 0; /* primary */
-  RadminAPIStatus *apiStatus = &status->apiStatus;
-  RadminUserID callerUserID = callerAuthInfo.userID;
-  ACEE * __ptr32 callerACEE = callerAuthInfo.acee;
-
-  uint8_t resultSubpool = RADMIN_RESULT_BUFFER_SUBPOOL;
   RadminCommandOutput * __ptr32 result = invokeRadmin(
-      workArea,
-      apiStatus,
+      &status->apiStatus,
       functionCode,
       actionParmList,
-      authInfo31,
-      resultSubpool
+      &callerAuthInfo,
+      RADMIN_RESULT_BUFFER_SUBPOOL
   );
 
-  freeWorkArea(workArea);
-  freeCallerAuthInfo31(authInfo31);
-
   int rc = RC_RADMIN_OK;
-  if (apiStatus->safRC != 0) {
+  if (status->apiStatus.racfRC != 0) {
     rc = RC_RADMIN_SYSTEM_ERROR;
   }
 
@@ -1495,28 +1384,16 @@ int radminPerformGroupAction(
     return RC_RADMIN_BAD_INPUT;
   }
 
-  char *__ptr32 workArea = allocateWorkArea();
-  RadminCallerAuthInfo *__ptr32 authInfo31 = makeCallerAuthInfo31(callerAuthInfo);
-  int32_t statusALET = 0; /* primary */
-  RadminAPIStatus *apiStatus = &status->apiStatus;
-  RadminUserID callerUserID = callerAuthInfo.userID;
-  ACEE * __ptr32 callerACEE = callerAuthInfo.acee;
-
-  uint8_t resultSubpool = RADMIN_RESULT_BUFFER_SUBPOOL;
   RadminCommandOutput * __ptr32 result = invokeRadmin(
-      workArea,
-      apiStatus,
+      &status->apiStatus,
       functionCode,
       actionParmList,
-      authInfo31,
-      resultSubpool
+      &callerAuthInfo,
+      RADMIN_RESULT_BUFFER_SUBPOOL
   );
 
-  freeWorkArea(workArea);
-  freeCallerAuthInfo31(authInfo31);
-
   int rc = RC_RADMIN_OK;
-  if (apiStatus->safRC != 0) {
+  if (status->apiStatus.safRC != 0) {
     rc = RC_RADMIN_SYSTEM_ERROR;
   }
 
@@ -1578,28 +1455,16 @@ int radminPerformConnectionAction(
     return RC_RADMIN_BAD_INPUT;
   }
 
-  char *__ptr32 workArea = allocateWorkArea();
-  RadminCallerAuthInfo *__ptr32 authInfo31 = makeCallerAuthInfo31(callerAuthInfo);
-  int32_t statusALET = 0; /* primary */
-  RadminAPIStatus *apiStatus = &status->apiStatus;
-  RadminUserID callerUserID = callerAuthInfo.userID;
-  ACEE * __ptr32 callerACEE = callerAuthInfo.acee;
-
-  uint8_t resultSubpool = RADMIN_RESULT_BUFFER_SUBPOOL;
   RadminCommandOutput * __ptr32 result = invokeRadmin(
-      workArea,
-      apiStatus,
+      &status->apiStatus,
       functionCode,
       actionParmList,
-      authInfo31,
-      resultSubpool
+      &callerAuthInfo,
+      RADMIN_RESULT_BUFFER_SUBPOOL
   );
 
-  freeWorkArea(workArea);
-  freeCallerAuthInfo31(authInfo31);
-
   int rc = RC_RADMIN_OK;
-  if (apiStatus->safRC != 0) {
+  if (status->apiStatus.safRC != 0) {
     rc = RC_RADMIN_SYSTEM_ERROR;
   }
 
