@@ -63,14 +63,15 @@ int startSafImpersonation(char *username, ACEE **newACEE) {
                           NULL,
                           newACEE,
                           &racfStatus,
-                          &racfReason);
+                          &racfReason,
+                          NULL);
   printf("VERIFY call on %s safStatus %x racfStatus %x reason %x\n",username,safStatus,racfStatus,racfReason);
   if (!safStatus){
     impersonationBegan = TRUE;
   }
   else {
     printf("Failed to do saf Verify\n");
-    int safStatus = safVerify(VERIFY_DELETE,NULL,NULL,newACEE,&racfStatus,&racfReason);    
+    int safStatus = safVerify(VERIFY_DELETE,NULL,NULL,newACEE,&racfStatus,&racfReason, NULL);
   }  
   return impersonationBegan;
 }
@@ -78,7 +79,7 @@ int endSafImpersonation(ACEE **acee) {
   int racfStatus = 0;
   int racfReason = 0;    
   int endedImpersonation;
-  int safStatus = safVerify(VERIFY_DELETE,NULL,NULL,acee,&racfStatus,&racfReason);    
+  int safStatus = safVerify(VERIFY_DELETE,NULL,NULL,acee,&racfStatus,&racfReason, NULL);
   endedImpersonation = !safStatus;
   if (!endedImpersonation) {
     printf("**PANIC: Could not end impersonation!\n");
@@ -180,7 +181,7 @@ int tlsImpersonate(char *userid, char *passwordOrNull, int start, int trace) {
     if (passwordOrNull == NULL) {
       options |= VERIFY_WITHOUT_PASSWORD;
     }
-    safStatus = safVerify(options, userid, passwordOrNull, &acee, &racfStatus, &racfReason);
+    safStatus = safVerify(options, userid, passwordOrNull, &acee, &racfStatus, &racfReason, NULL);
     if (!safStatus) {
       if (trace) {
         printf("SAF VERIFY CREATE OK\n");
@@ -228,7 +229,7 @@ int tlsImpersonate(char *userid, char *passwordOrNull, int start, int trace) {
         printf("BPXTLS DELETE_SECURITY_ENV OK\n");
       }
     }
-    int safStatus = safVerify(VERIFY_DELETE, userid, NULL, &acee, &racfStatus, &racfReason);
+    int safStatus = safVerify(VERIFY_DELETE, userid, NULL, &acee, &racfStatus, &racfReason, NULL);
     if (!safStatus) {
       if (trace) {
         printf("SAF VERIFY DELETE OK\n");

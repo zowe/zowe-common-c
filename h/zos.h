@@ -1123,6 +1123,44 @@ typedef struct TIOTEntry_tag{
   int       tioejfcb;      /* this evil thing is 24 high bits of SWA index, and last byte of status bits */
 } TIOTEntry;
 
+/* IDTA Version */
+#define IDTA_VERSION_0001       0x0001  /* Version 1 of IDTA */
+#define IDTA_CURRENT_VERSION    0x0001
+
+#define IDTA_IDT_BUFFER_LEN_MIN 1024    /* Token Buffer Length Minimum Size (1024) */
+
+/* IDTA idt_type */
+#define IDTA_JWT_IDT_Type       0x0001  /* Indicates the token is a JWT */
+
+/* IDTA idt_prop_out flag */
+#define IDTA_SAF_IDT_RETURN     0x8000  /* Token was returned by SAF */
+#define IDTA_IDT_AUTH_DONE      0x4000  /* Token Authentication Complete */
+#define IDTA_IDT_SIGNED         0x2000  /* Token has a signature */
+
+/* IDTA idt_prop_in flag */
+#define IDTA_End_User_IDT       0x8000  /* Token is input from an end user */
+
+/* Idenitity Token Generation Return Code */
+#define IDTA_IDT_GEN_RC_SUCC          0
+#define IDTA_IDT_GEN_RC_UNSIGN        3
+#define IDTA_IDT_GEN_RC_ICSF_UNAVAIL  4
+#define IDTA_IDT_GEN_RC_ICSF_ERR      5
+
+
+typedef struct Idta_tag{
+  char            id[4];      /* eyecatcher IDTA */
+  unsigned short  version;
+  unsigned short  length;
+  void * __ptr32  idt_buffer_ptr;
+  int             idt_buffer_len;
+  int             idt_len;
+  unsigned short  idt_type;
+  unsigned short  idt_gen_rc;
+  unsigned short  idt_prop_out;
+  unsigned short  idt_prop_in;
+  char            reserved[8];
+} Idta;
+
 ZOWE_PRAGMA_PACK_RESET
 
 DSAB *getDSAB(char *ddname);
@@ -1132,6 +1170,7 @@ int dsabIsOMVS(DSAB *dsab);
 
 int locate(char *dsn, int *volserCount, char *firstVolser);
 
+#define VERIFY_GENERATE_IDT        0x800
 #define VERIFY_WITHOUT_LOG         0x400
 #define VERIFY_WITHOUT_STAT_UPDATE 0x200
 #define VERIFY_WITHOUT_MFA 0x100
@@ -1157,7 +1196,7 @@ int setTaskAcee(ACEE *acee);
 
 int safVerify(int options, char *userid, char *password,
               ACEE **aceeHandle,
-              int *racfStatus, int *racfReason);
+              int *racfStatus, int *racfReason, Idta *idta);
 
 int safVerify2(int options, char *userid, char *password,
                ACEE **aceeHandle,

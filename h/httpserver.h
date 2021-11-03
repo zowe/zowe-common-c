@@ -567,6 +567,9 @@ int setHttpHeadersTrace(int toWhat);
 int setHttpSocketTrace(int toWhat);
 int setHttpCloseConversationTrace(int toWhat);
 int setHttpAuthTrace(int toWhat);
+int isLowerCasePasswordAllowed();
+bool isPassPhrase(const char *password);
+
 #endif
 
 int httpServerInitJwtContext(HttpServer *self,
