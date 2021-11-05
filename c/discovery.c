@@ -97,7 +97,9 @@ DiscoveryContext *makeDiscoveryContext(ShortLivedHeap *outerSLH, ZOSModel *model
   context->slh = slh;
   
   context->model = model;
-  printf("mDCntxt() model=0x%x pSN=0x%x\n",model,model->privilegedServerName);
+  zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG,
+          "mDCntxt() model=%p pSN=\'%.16s\'\n", model,
+          model ? model->privilegedServerName.nameSpacePadded : "");
   if (model != NULL) {
     context->privilegedServerName = model->privilegedServerName;
   } else {
@@ -920,7 +922,8 @@ ZOSModel *makeZOSModel2(CrossMemoryServerName *privilegedServerName,
 
   model->slowScanExpiry = DEFAULT_SSCT_INTERVAL;
   if (privilegedServerName != NULL) {
-    printf("makeZOSModel case 1 0x%x\n",privilegedServerName);
+    zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG,
+            "makeZOSModel case 1 %p\n", privilegedServerName);
     model->privilegedServerName = *privilegedServerName;
     dumpbuffer((char*)&(model->privilegedServerName),16);
   } else  {
