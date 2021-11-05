@@ -797,20 +797,6 @@ typedef struct stcb_tag{
 
    */
 
-/* Seems to reside in 31 bit private, likely subpool 230 */
-
-typedef struct oapb_tag{
-  char           eyecatcher[4];  /* "OAPB" */
-  char           subpool;
-  char           unknown05;
-  unsigned short length;         /* length of this block */
-  char           remainderOfOAPB1[252];
-  char           oapb2[20];
-  char           oapb3[132];
-} OAPB;
-
-/* Seems to reside in 31 bit private, likely subpool 241 */
-
 typedef struct otcb_tag{
   char           otcbid[4];  /* eyecatcher */
   char           otcbsp;  /* subpool */
