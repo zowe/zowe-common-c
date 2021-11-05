@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `1.25.0`
+
+- Bugfix: `fileCopy` incorrectly processed files tagged as binary and mixed
+
 ## `1.23.0`
 
 - Bugfix: HTTP server did not send empty files correctly.

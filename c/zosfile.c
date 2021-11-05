@@ -581,6 +581,7 @@ int fileCopy(const char *existingFileName, const char *newFileName, int *retCode
   }
 
   short ccsid = info.ccsid;
+  bool isPureText = (info.fileTaggingTags & FILE_PURE_TEXT) == FILE_PURE_TEXT;
   
   UnixFile *existingFile = fileOpen(existingFileName, FILE_OPTION_READ_ONLY, 0, 0, &returnCode, &reasonCode);
   if (existingFile == NULL) {
@@ -602,7 +603,7 @@ int fileCopy(const char *existingFileName, const char *newFileName, int *retCode
   }
 
   if (ccsid != CCSID_UNTAGGED) {
-    status = fileChangeTag(newFileName, &returnCode, &reasonCode, ccsid);
+    status = fileChangeTagPure(newFileName, &returnCode, &reasonCode, ccsid, isPureText);
     if (status == -1) {
       *retCode = returnCode;
       *resCode = reasonCode;
