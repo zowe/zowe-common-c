@@ -197,13 +197,13 @@ int peRetrieveInfo(const PET *token,
 }
 
 int peRetrieveInfo2(const PET *token,
-		    PEInfo *info,
-		    bool isBranchLinkage,
-		    bool untrusted){
-		    
+                    PEInfo *info,
+                    bool isBranchLinkage,
+                    bool untrusted) {
+
   int32_t rc = 0;
   int32_t linkage = isBranchLinkage ? PE_LINKAGE_BRANCH : PE_LINKAGE_SVC;
-  if (untrusted){
+  if (untrusted) {
     linkage |= PE_LINKAGE_UNTRUSTED_PET;
   }
 
@@ -221,7 +221,7 @@ int peRetrieveInfo2(const PET *token,
   if (isBranchLinkage) {
     setKey(key);
     if (wasProblemState) {
-     supervisorMode(FALSE);
+      supervisorMode(FALSE);
     }
   }
 
@@ -239,10 +239,10 @@ int peTest(const PET *token,
 }
 
 int peTransfer(const PET *token, PET *newToken,
-	       PEReleaseCode *releaseCode,
-	       const PET *targetToken,
-	       PEReleaseCode targetReleaseCode,
-	       bool isBranchLinkage) {
+               PEReleaseCode *releaseCode,
+               const PET *targetToken,
+               PEReleaseCode targetReleaseCode,
+               bool isBranchLinkage) {
 
   int32_t rc = 0;
   int32_t linkage = isBranchLinkage ? PE_LINKAGE_BRANCH : PE_LINKAGE_SVC;

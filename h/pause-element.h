@@ -170,10 +170,23 @@ int peRetrieveInfo(const PET *token,
                    PEInfo *info,
                    bool isBranchLinkage);
 
+/**
+ * @brief Gets information about a pause element (see the IEAVRPI2 doc for
+ * details).
+ *
+ * @param token The pause element token associated with the pause element.
+ * @param info The pause element information.
+ * @param isBranchLinkage The services routine will be invoked via a branch
+ * instruction. The caller must be in both key 0 and supervisor state.
+ * @param untrusted If true, validate if the pause element is allowed to be
+ * used by an unauthorized caller.
+ *
+ * @return The IEAVRPI2 return code value.
+ */
 int peRetrieveInfo2(const PET *token,
-		    PEInfo *info,
-		    bool isBranchLinkage,
-		    bool untrusted);
+                    PEInfo *info,
+                    bool isBranchLinkage,
+                    bool untrusted);
 
 /**
  * @brief Test a pause element and determines its state. The caller is
