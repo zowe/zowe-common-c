@@ -30,6 +30,7 @@
 #include "zowetypes.h"
 #include "alloc.h"
 #include "utils.h"
+#include "logging.h"
 #include "zos.h"
 #include "le.h"
 #include "recovery.h"

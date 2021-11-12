@@ -2440,9 +2440,16 @@ static int proxyServe(HttpService *service,
 static char *getCookieValue(HttpRequest *request, char *cookieName){
   HttpHeader *cookieHeader = getHeader(request,"Cookie");
   ShortLivedHeap *slh = request->slh;
-  char *cookieText = cookieHeader->nativeValue;
-  int cookieTextLength = strlen(cookieText);
-  int cookieNameLength = strlen(cookieName);
+  int cookieTextLength = 0;
+  int cookieNameLength = 0;
+  char *cookieText = NULL;
+  if (cookieHeader != NULL){
+    cookieText = cookieHeader->nativeValue;
+    cookieTextLength = strlen(cookieText);
+    cookieNameLength = strlen(cookieName);
+  } else{
+    return NULL;
+  }
   int pos = 0;
   while (pos<cookieTextLength){
     if (isspace(cookieText[pos])) {
@@ -2499,7 +2506,7 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
      }
   }
   if (traceAuth){
-    printf("safAuthenticate\n");
+    printf("safAutheniticate: authDataFound=%d\n",authDataFound);
   }
   if (authDataFound) {
     ACEE *acee = NULL;
@@ -2532,7 +2539,6 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
     int pwdCheckRC = 0, pwdCheckRSN = 0;
     pwdCheckRC = zisCheckUsernameAndPassword(privilegedServerName,
         request->username, request->password, &status);
-
     authResponse->type = AUTH_TYPE_RACF;
     authResponse->responseDetails.safStatus = status.safStatus;
 
@@ -2566,7 +2572,8 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
 
 static int nativeAuth(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
 #ifdef __ZOWE_OS_ZOS
-  return safAuthenticate(service, request, authResponse);
+  int retValue = safAuthenticate(service, request, authResponse);
+  return retValue;
 #else
 #ifdef DEBUG_AUTH
   printf("*** ERROR *** native auth not implemented for this platform\n");
@@ -2796,11 +2803,11 @@ static int64 getFineGrainedTime(){
 #define SESSION_VALIDITY_IN_SECONDS 3600
 
 //validitySec 0=not found, -1=no expiration, positive int=session in seconds
-static int getGroupSessionValidity(int *groupId, const HttpServerConfig *config,
+static int getGroupSessionValidity(int groupId, const HttpServerConfig *config,
                                   int *validitySec, int *returnCode, int *reasonCode) {
   int retVal = 0;
   if (config->groupTimeouts) {
-    *validitySec = (int)htGet(config->groupTimeouts, (void*)groupId);
+    *validitySec = INT_FROM_POINTER(htGet(config->groupTimeouts, POINTER_FROM_INT(groupId)));
     AUTH_TRACE("exp=%d for gid=%d\n",*validitySec, groupId);
     if (*validitySec){
       return 0;
@@ -2817,7 +2824,7 @@ static int getUserSessionValidity(char *username, const HttpServerConfig *config
                                   int *validitySec, int *returnCode, int *reasonCode) {
   strupcase(username);   /* upfold username */
   if (config->userTimeouts) {
-    *validitySec = (int)htGet(config->userTimeouts, (void*)username);
+    *validitySec = INT_FROM_POINTER(htGet(config->userTimeouts, (void*)username));
     AUTH_TRACE("user validitySec found=%d\n",*validitySec);
     if (*validitySec){
        return 0;
@@ -2834,7 +2841,7 @@ static int getUserSessionValidity(char *username, const HttpServerConfig *config
     if (!retVal) {
       int currentValiditySec = 0;
       for (int i = 0; i < groupCount; i++) {
-        retVal = getGroupSessionValidity(POINTER_FROM_INT(groups[i]), config, &currentValiditySec, returnCode, reasonCode);
+        retVal = getGroupSessionValidity(groups[i], config, &currentValiditySec, returnCode, reasonCode);
         if (!retVal) {
           if (currentValiditySec && *validitySec != -1 && ((currentValiditySec == -1) || (currentValiditySec > *validitySec))) {
             *validitySec = currentValiditySec;
@@ -3290,6 +3297,10 @@ static void serveRequest(HttpService* service, HttpResponse* response,
         serveSimpleTemplate(service, response);
         // Response is finished on return
       } else {
+	/* 
+	   bills
+	   try normal login and trace with Sean
+	 */
         service->serviceFunction(service, response);
       }
     }
@@ -3353,7 +3364,6 @@ static int handleHttpService(HttpServer *server,
                              HttpService *service,
                              HttpRequest *request,
                              HttpResponse *response){
-
 #ifdef __ZOWE_OS_ZOS
   HttpConversation *conversation = response->conversation;
 
@@ -3394,11 +3404,9 @@ static int handleHttpService(HttpServer *server,
   service->server = server;
 
   int clearSessionToken = FALSE;
-
   AuthResponse authResponse;
 
   switch (service->authType){
-   
   case SERVICE_AUTH_NONE:
     request->authenticated = TRUE;
     break;
@@ -3882,6 +3890,8 @@ static MimeType MIME_TYPES[] = {
   {"md", "text/markdown", FALSE},
   {"sh", "application/x-sh", FALSE},
   {"bin", "application/octet-stream", TRUE},
+  {"o", "application/octet-stream", TRUE},
+  {"dbg", "application/octet-stream", TRUE},
   {"gz", "application/gzip", TRUE},
   {"jar", "application/java-archive", TRUE},
   {"tar", "application/x-tar", TRUE},

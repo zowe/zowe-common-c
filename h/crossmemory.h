@@ -194,7 +194,6 @@ typedef struct CMSTimestamp_tag {
   char value[32];
 } CMSBuildTimestamp;
 
-
 typedef struct CrossMemoryServerGlobalArea_tag {
 
   char eyecatcher[8];
@@ -428,6 +427,21 @@ int cmsAddConfigParm(CrossMemoryServer *server,
                      const char *name, const void *value,
                      CrossMemoryServerParmType type);
 
+/**
+ * Checks if the cross-memory caller has read access to the provided class
+ * and entity.
+ *
+ * @param globalArea The global area of the server.
+ * @param className The class to be checked.
+ * @param entityName The entity to be checked.
+ * @return True if the caller has read access to the class/entity, otherwise
+ * false.
+ */
+bool cmsTestAuth(CrossMemoryServerGlobalArea *globalArea,
+                 const char *className,
+                 const char *entityName);
+
+
 /* Use these inside your service functions if they need ECSA.
  * The number of allocated blocks is tracked in the CMS global area. */
 void *cmsAllocateECSAStorage(CrossMemoryServerGlobalArea *globalArea, unsigned int size);
@@ -457,6 +471,11 @@ int cmsCallService3(CrossMemoryServerGlobalArea *cmsGlobalArea,
  * case of failure
  */
 int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, ...);
+
+/* 
+   @brief the var-args version of cmsPrintf, see above
+ */
+int vcmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, va_list argPointer);
 
 /**
  * @brief Print the hex dump of the specified storage to a cross-memory server's
