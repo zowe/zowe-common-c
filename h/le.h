@@ -169,11 +169,18 @@ typedef struct LibraryFunction_tag{
 #define RLE_RTL_64      0x0001
 #define RLE_RTL_XPLINK  0x0002
 
+#define RLE_ANCHOR_EYECATCHER "RLEANCHR"
+
 typedef struct RLEAnchor_tag{
   char   eyecatcher[8]; /* RLEANCHR */
   int64  flags;
   CAA   *mainTaskCAA;
-  void **masterRTLVector; /* copied from CAA */
+  /* void **masterRTLVector; */ /* copied from CAA */
+
+  /* METAL libraries are in some system vector,
+     however, if applications want dynamic linking of their
+     services, there must be an anchor point for them, too */
+  PAD_LONG(0, void  *metalDynamicLinkageVector);
 } RLEAnchor;
 
 /* An RLE Task can run in SRB mode or TCB Mode or switchably depending on run
@@ -193,9 +200,11 @@ typedef struct RLEAnchor_tag{
    are better off in 31-bit land
    */
 
+#define RLE_TASK_EYECATCHER "RTSK"
+
 /* Warning: must be kept in sync with RLETASK in scheduling.c */
 typedef struct RLETask_tag{
-  char         eyecatcher[4]; /* "RTSK"; */
+  char         eyecatcher[4]; /* "RTSK" */
 
   int          statusIndicator;
   int          flags;
@@ -253,7 +262,6 @@ void showRTL();
 #define RLE_TASK_TCB_CAPABLE 0x0001
 #define RLE_TASK_RECOVERABLE 0x0010
 #define RLE_TASK_DISPOSABLE  0x0020
-
 
 typedef struct RLEAnchor_tag{
   char   eyecatcher[8]; /* RLEANCHR */

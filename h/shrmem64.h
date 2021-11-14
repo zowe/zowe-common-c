@@ -29,11 +29,16 @@
 #define shrmem64GetAddressSpaceToken SHR64TKN
 
 #define shrmem64Alloc SHR64ALC
+#define shrmem64Alloc2 SHR64AL2
+#define shrmem64CommonAlloc SHR64CAL
+#define shrmem64CommonAlloc2 SHR64CA2
 #define shrmem64Release SHR64REL
 #define shrmem64ReleaseAll SHR64REA
 
 #define shrmem64GetAccess SHR64GAC
+#define shrmem64GetAccess SHR64GA2
 #define shrmem64RemoveAccess SHR64RAC
+#define shrmem64RemoveAccess2 SHR64RA2
 
 #endif
 

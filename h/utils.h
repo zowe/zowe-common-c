@@ -184,8 +184,8 @@ typedef struct ShortLivedHeap_tag{
 #define makeShortLivedHeap MAKESLH
 #define makeShortLivedHeap64 MAKSLH64
 #define noisyMalloc NYMALLOC
-#define decodeBase32 DECODB32
-#define encodeBase32 ENCODB32
+#define base32Encode DECODB32
+#define base32Decode ENCODB32
 #define decodeBase64 DECODB64
 #define encodeBase64 ENCODB64
 #define cleanURLParamValue CLNURLPV

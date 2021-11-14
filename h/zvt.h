@@ -24,7 +24,7 @@ ZOWE_PRAGMA_PACK
 
 #define ZVT_OFFSET        0x023C
 #define ZVT_EYECATCHER    "ZOWEVT  "
-#define ZVT_VERSION       1
+#define ZVT_VERSION       2   /* 2 introduces dynamic linking support */
 #define ZVT_KEY           0
 #define ZVT_SUBPOOL       228
 
@@ -65,9 +65,12 @@ typedef struct ZVTEntry_tag {
   uint16_t productMaint;
   char reserved4[2];
   char productDescription[32];
-  char reserved5[128];
+  PAD_LONG(3, void *zisStubVector);
+  char reserved5[120];
 
 } ZVTEntry;
+
+#define MAX_CMS_GETTER_ROUTINE_SIZE 0x100
 
 typedef struct ZVT_tag {
 
@@ -78,11 +81,14 @@ typedef struct ZVT_tag {
   char reserved1[1];
   uint16_t size;
   char reserved2[2];
+  /* Offset 0x10 */
   uint64_t creationTime;
   char jobName[8];
+  /* Offset 0x20 */
   uint16_t asid;
-
-  char reserved3[118];
+  char reserved22[6];
+  PAD_LONG(9, void *cmsGetterRoutine);
+  char reserved3[104];
 
   struct {
     PAD_LONG(10, ZVTEntry *zis);
@@ -97,8 +103,8 @@ typedef struct ZVT_tag {
     PAD_LONG(19, ZVTEntry *reservedSlot9);
   } zvteSlots;
 
-  char reserved4[3864];
-
+  char reserved4[3864-MAX_CMS_GETTER_ROUTINE_SIZE];
+  char cmsGetterRoutineCode[MAX_CMS_GETTER_ROUTINE_SIZE];
 } ZVT;
 
 ZOWE_PRAGMA_PACK_RESET

@@ -163,6 +163,7 @@ typedef struct SYSOUT_struct{
 #ifndef __LONGNAME__
 #define getSYSOUTStruct GTSYSOUT
 #define wtoPrintf WTOPRNF
+#define authWTOPrintf AWTOPRNF
 #define sendWTO SENDWTO
 #define qsamPrintf QSAMPRNF
 #endif

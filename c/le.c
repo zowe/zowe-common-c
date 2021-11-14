@@ -187,7 +187,7 @@ void showRTL(){
 RLEAnchor *makeRLEAnchor(){
   RLEAnchor *anchor = (RLEAnchor*)safeMalloc31(sizeof(RLEAnchor),"RLEAnchor");
   memset(anchor,0,sizeof(RLEAnchor));
-  memcpy(anchor->eyecatcher,"RLEANCHR",8);
+  memcpy(anchor->eyecatcher,RLE_ANCHOR_EYECATCHER,8);
 
 #ifdef __ZOWE_OS_ZOS
 
@@ -202,11 +202,9 @@ RLEAnchor *makeRLEAnchor(){
 #ifdef METTLE
   CAA *caa = (CAA*)safeMalloc31(sizeof(CAA),"METTLE CAA");
   anchor->mainTaskCAA = caa;
-  anchor->masterRTLVector = NULL; /* we don't have one of these, yet */
 #else
   CAA *caa = (CAA*)getCAA();
   anchor->mainTaskCAA = caa;
-  anchor->masterRTLVector = caa->runtimeLibraryVectorTable;
 #endif
 
 #endif /* __ZOWE_OS_ZOS */
@@ -240,9 +238,9 @@ void returnGlobalEnvironment(void){
 RLETask *makeRLETask(RLEAnchor *anchor,
                      int taskFlags,
                      int functionPointer(RLETask *task)){
-  RLETask *task = (RLETask*)safeMalloc31(sizeof(RLETask),"RTSK");
+  RLETask *task = (RLETask*)safeMalloc31(sizeof(RLETask),RLE_TASK_EYECATCHER);
   memset(task,0,sizeof(RLETask));
-  memcpy(task->eyecatcher,"RTSK",4);
+  memcpy(task->eyecatcher,RLE_TASK_EYECATCHER,4);
   task->flags = taskFlags;
   task->anchor = anchor;
   return task;

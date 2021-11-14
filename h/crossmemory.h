@@ -138,7 +138,8 @@
 #define RC_CMS_ALLOC_FAILED                 87
 #define RC_CMS_NON_PRIVATE_MODULE           88
 #define RC_CMS_BAD_DUB_STATUS               89
-#define RC_CMS_MAX_RC                       89
+#define RC_CMS_NO_ROOM_FOR_CMS_GETTER       90
+#define RC_CMS_MAX_RC                       90
 
 extern const char *CMS_RC_DESCRIPTION[];
 
@@ -233,7 +234,19 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   PAD_LONG(0, RecoveryStatePool *pcssRecoveryPool);
   CPID pcssStackPool;
 
-  char reserved3[492];
+  PAD_LONG(0, void *dynamicLinkageVector);  /* This is an opt-in feature for CMS 
+					       Servers that want to offer Dynamic Linkage
+					       to some of their routines is an MVS/Metal/ASM 
+					       way.   That is to provide a well-known
+					       linkage vector with well-known offsets.
+					       
+					       The CMS server does stipulate anything about
+					       what these services are.
+
+					       The ZIS (a CMS) server uses this for its plugins.
+					       
+					       */
+  char reserved3[484];
 
   CrossMemoryService serviceTable[CROSS_MEMEORY_SERVER_MAX_SERVICE_COUNT];
 
@@ -379,6 +392,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define cmsCallService2 CMCALLS2
 #define cmsCallService3 CMCALLS3
 #define cmsPrintf CMCMSPRF
+#define vcmsPrintf CMCMSVPF 
 #define cmsGetConfigParm CMGETPRM
 #define cmsGetConfigParmUnchecked CMGETPRU
 #define cmsGetPCLogLevel CMGETLOG

@@ -4,46 +4,39 @@
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
   this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
-  
+
   SPDX-License-Identifier: EPL-2.0
-  
+
   Copyright Contributors to the Zowe Project.
 */
 
-#ifndef __SCHEDULING__
-#define __SCHEDULING__ 1
+#ifndef SRC_CPOOL64_H_
+#define SRC_CPOOL64_H_
 
 #ifndef __LONGNAME__
 
-#define zosWait SCHZOSWT
-#define zosWaitList SCHZOSWL
-#define zosPost SCHZOSPT
-#define makeRLETask LEMKRLET
-#define deleteRLETask LEDLRLET
-#define startRLETask SCHSRLET
+#define iarcp64Create CPL64CRE
+#define iarcp64Get CPL64GET
+#define iarcp64Free CPL64FRE
+#define iarcp64Delete CPL64DEL
 
 #endif
 
-int zosWait(void *ecb, int clearFirst);
-int zosWaitList(void *ecbList, int numberToWait);
-int zosPost(void *ecb, int completionCode);
+uint64_t iarcp64Create(bool isCommon, int cellSize, int *returnCodePtr, int *reasonCodePtr);
+void *iarcp64Get(uint64_t cpid, int *returnCodePtr, int *reasonCodePtr);
+void iarcp64Free(uint64_t cpid, void *cellAddr);
+int iarcp64Delete(uint64_t cpid, int *reasonCodePtr);
 
-RLETask *makeRLETask(RLEAnchor *anchor, 
-                     int taskFlags, 
-                     int functionPointer(RLETask *task));
-void deleteRLETask(RLETask *task);
-int startRLETask(RLETask *task, int *completionECB);
 
-#endif
+#endif /* SRC_CPOOL64_H_ */
 
 
 /*
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
   this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
-  
+
   SPDX-License-Identifier: EPL-2.0
-  
+
   Copyright Contributors to the Zowe Project.
 */
-
