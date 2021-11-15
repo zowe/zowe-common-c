@@ -782,7 +782,7 @@ static char *makeCountedString(char *name,
 
 int safVerify(int options, char *userid, char *password,
               ACEE **aceeHandle,
-              int *racfStatus, int *racfReason, Idta *idta){
+              int *racfStatus, int *racfReason){
 #ifdef DEBUG
   printf("in safVerify before safVerifyInternal\n");
 #endif
@@ -797,7 +797,7 @@ int safVerify(int options, char *userid, char *password,
                             0,
                             racfStatus,
                             racfReason,
-                            idta));
+                            NULL));
 #ifdef DEBUG
   printf("in safVerify after safVerifyInternal\n");
 #endif
@@ -886,6 +886,23 @@ int safVerify5(int options,
                             NULL));
 }
 
+int safVerify6(int options, char *userid, char *password,
+              ACEE **aceeHandle,
+              int *racfStatus, int *racfReason, IDTA *idta) {
+  return (safVerifyInternal(options,
+                            userid,
+                            password,
+                            NULL,
+                            aceeHandle,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            racfStatus,
+                            racfReason,
+                            idta));
+}
+
 static int safVerifyInternal(int options,
                              char *userid,
                              char *password,
@@ -897,7 +914,7 @@ static int safVerifyInternal(int options,
                              int  sessionType,
                              int *racfStatus,
                              int *racfReason,
-                             Idta *idta)
+                             IDTA *idta)
 {
   int useSupervisorMode = 1; /* verify create/delete demands this 0 options & VERIFY_SUPERVISOR; */
   int safWrapperSize = 0;

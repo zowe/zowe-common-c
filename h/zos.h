@@ -1123,6 +1123,8 @@ typedef struct TIOTEntry_tag{
   int       tioejfcb;      /* this evil thing is 24 high bits of SWA index, and last byte of status bits */
 } TIOTEntry;
 
+/* Mapped by IRRPIDTA macro */
+
 /* IDTA Version */
 #define IDTA_VERSION_0001       0x0001  /* Version 1 of IDTA */
 #define IDTA_CURRENT_VERSION    0x0001
@@ -1147,19 +1149,19 @@ typedef struct TIOTEntry_tag{
 #define IDTA_IDT_GEN_RC_ICSF_ERR      5
 
 
-typedef struct Idta_tag{
+typedef struct IDTA_tag {
   char            id[4];      /* eyecatcher IDTA */
   unsigned short  version;
   unsigned short  length;
-  void * __ptr32  idt_buffer_ptr;
-  int             idt_buffer_len;
-  int             idt_len;
-  unsigned short  idt_type;
-  unsigned short  idt_gen_rc;
-  unsigned short  idt_prop_out;
-  unsigned short  idt_prop_in;
+  void * __ptr32  idtBufferPtr;
+  int             idtBufferLen;
+  int             idtLen;
+  unsigned short  idtType;
+  unsigned short  idtGenRc;
+  unsigned short  idtPropOut;
+  unsigned short  idtPropIn;
   char            reserved[8];
-} Idta;
+} IDTA;
 
 ZOWE_PRAGMA_PACK_RESET
 
@@ -1189,6 +1191,8 @@ int locate(char *dsn, int *volserCount, char *firstVolser);
 #define safVerify3 SAFVRFY3
 #define safVerify4 SAFVRFY4
 #define safVerify5 SAFVRFY5
+#define safVerify6 SAFVRFY6
+
 
 ACEE *getAddressSpaceAcee(void);
 ACEE *getTaskAcee(void);
@@ -1196,7 +1200,7 @@ int setTaskAcee(ACEE *acee);
 
 int safVerify(int options, char *userid, char *password,
               ACEE **aceeHandle,
-              int *racfStatus, int *racfReason, Idta *idta);
+              int *racfStatus, int *racfReason);
 
 int safVerify2(int options, char *userid, char *password,
                ACEE **aceeHandle,
@@ -1227,6 +1231,10 @@ int safVerify5(int options,
                char *applicationName,
                int  sessionType,
                int  *racfStatus, int *racfReason);
+
+int safVerify6(int options, char *userid, char *password,
+              ACEE **aceeHandle,
+              int *racfStatus, int *racfReason, IDTA *idta);
 
 /* second flag set */
 #define SAF_AUTH_ATTR_ALTER       0x80 
