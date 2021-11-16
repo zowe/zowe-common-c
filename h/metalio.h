@@ -170,6 +170,7 @@ typedef struct SYSOUT_struct{
 SYSOUT *getSYSOUTStruct(char *ddname, SYSOUT *existingSysout, char *buffer);
 
 void sendWTO(int descriptorCode, int routingCode, char *message, int length);
+void authWTOPrintf(char *formatString, ...);
 void wtoPrintf(char *formatString, ...);
 void qsamPrintf(char *formatString, ...);
 
