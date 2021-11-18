@@ -71,8 +71,10 @@ typedef struct LPMED_tag {
 
 ZOWE_PRAGMA_PACK_RESET
 
+#ifndef __LONGNAME__
 #pragma map(lpaAdd, "LPAADD")
-#pragma map(lpaDetele, "LPADEL")
+#pragma map(lpaDelete, "LPADEL")
+#endif
 
 int lpaAdd(LPMEA * __ptr32 lpmea,
            EightCharString  * __ptr32 ddname,
