@@ -146,6 +146,7 @@ typedef int HttpServiceServe(struct HttpService_tag *service, HttpResponse *resp
 typedef int AuthExtract(struct HttpService_tag *service, HttpRequest *request);
 typedef int AuthValidate(struct HttpService_tag *service, HttpRequest *request);
 typedef int HttpServiceInsertCustomHeaders(struct HttpService_tag *service, HttpResponse *response);
+typedef int HttpAuthorize(struct HttpService_tag *service, HttpRequest *request, HttpResponse *response, void *userData);
 
 /*
   returns HTTP_SERVICE_SUCCESS or other fail codes in same group 
@@ -205,7 +206,20 @@ typedef struct HttpService_tag{
   AuthValidate                   *authValidateFunction;
 #define SERVICE_AUTH_FLAG_OPTIONAL 1
   int    authFlags;
+#define SERVICE_AUTHORIZATION_TYPE_DEFAULT  0
+#define SERVICE_AUTHORIZATION_TYPE_NONE     1
+// Range 2..99 is reserved for future use
+#define SERVICE_AUTHORIZATION_TYPE_FIRST_CUSTOM 100
+// SERVICE_AUTHORIZATION_TYPE_FIRST_CUSTOM and higher can be defined and used by an application.
+  int authorizationType;
 } HttpService;
+
+typedef struct HttpAuthorizationHandler_tag {
+  int authorizationType;
+  HttpAuthorize *authorizeFunction;
+  void *userData;
+  struct HttpAuthorizationHandler_tag *next;
+} HttpAuthorizationHandler;
 
 typedef struct HTTPServerConfig_tag {
   int port;
@@ -229,6 +243,7 @@ typedef struct HttpServer_tag{
   uint64           serverInstanceUID;   /* may be something smart at some point. Now just startup STCK */
   void             *sharedServiceMem; /* address shared by all HttpServices */
   hashtable        *loggingIdsByName; /* contains a map of pluginID -> loggingID */
+  HttpAuthorizationHandler *authorizationHandlerList;
 } HttpServer;
 
 typedef struct WSReadMachine_tag{
@@ -416,6 +431,18 @@ int httpServerSetSessionTokenKey(HttpServer *server, unsigned int size,
  */
 
 int registerHttpService(HttpServer *server, HttpService *service);
+
+
+/*
+ * @brief Register an Authorization handler.
+ * @param server HTTP Server
+ * @param authorizationType
+ * @param authorizeFunction Function that performs authorization. 
+ *        The function has to return TRUE if the user successfully authorized, otherwise - FALSE.
+ * @param userData Additional data for authorizeFunction
+ * @return 0 on success, -1 on failure.
+ */
+int registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, HttpAuthorize *authorizeFunction, void *userData);
 
 HttpRequest *dequeueHttpRequest(HttpRequestParser *parser);
 HttpRequestParser *makeHttpRequestParser(ShortLivedHeap *slh);

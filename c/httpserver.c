@@ -3360,6 +3360,27 @@ static int handleServiceFailed(HttpConversation *conversation,
   return HTTP_SERVICE_FAILED;
 }
 
+static int checkAuthorization(HttpServer *server, HttpService *service, HttpRequest *request, HttpResponse *response) {
+  if (!request->authenticated) {
+    return FALSE;
+  }
+  if (service->authorizationType == SERVICE_AUTHORIZATION_TYPE_NONE) {
+    return TRUE;
+  }
+  int authorized = TRUE;
+  HttpAuthorizationHandler *handler = server->authorizationHandlerList;
+  while (handler) {
+    if (handler->authorizationType == service->authorizationType) {
+      authorized = handler->authorizeFunction(service, request, response, handler->userData);
+      if (!authorized) {
+        break;
+      }
+    }
+    handler = handler->next;
+  }
+  return authorized;
+}
+
 static int handleHttpService(HttpServer *server,
                              HttpService *service,
                              HttpRequest *request,
@@ -3443,8 +3464,9 @@ static int handleHttpService(HttpServer *server,
     }
     break;
   }
+  int authorized = checkAuthorization(server, service, request, response);
 #ifdef DEBUG
-  printf("service=%s authenticated=%d\n",service->name,request->authenticated);
+  printf("service=%s authenticated=%d authorized=%d\n",service->name,request->authenticated,authorized);
 #endif
   if (request->authenticated == FALSE){
     if (service->authFlags & SERVICE_AUTH_FLAG_OPTIONAL) {
@@ -3453,6 +3475,8 @@ static int handleHttpService(HttpServer *server,
     } else {
       respondWithAuthError(response, &authResponse);
     }
+  } else if (!authorized) {
+    respondWithError(response, HTTP_STATUS_FORBIDDEN, "Forbidden");
     // Response is finished on return
   } else {
 
@@ -6011,7 +6035,29 @@ int mainHttpLoop(HttpServer *server){
   return stcBaseMainLoop(base, MAIN_WAIT_MILLIS);
 }
 
-
+int registerHttpAuthorizationHandler(HttpServer *server, int authorizationType, HttpAuthorize *authorizeFunction, void *userData) {
+  if (authorizationType == SERVICE_AUTHORIZATION_TYPE_NONE) {
+    return 0;
+  }
+  HttpAuthorizationHandler *handler = (HttpAuthorizationHandler*) safeMalloc(sizeof(*handler), "HttpAuthorizationHandler");
+  if (handler) {
+    handler->authorizationType = authorizationType;
+    handler->authorizeFunction = authorizeFunction;
+    handler->userData = userData;
+    handler->next = NULL;
+    HttpAuthorizationHandler *head = server->authorizationHandlerList;
+    if (!head) {
+      server->authorizationHandlerList = handler;
+    } else {
+      while (head->next != NULL) {
+        head = head->next;
+      }
+      head->next = handler;
+    }
+    return 0;
+  }
+  return -1;
+}
 
 
 /*
