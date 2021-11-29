@@ -321,7 +321,7 @@ int rs_icsfp11_hmacTokenKeyCreateFromRaw(
 int rs_icsfp11_findObjectsByLabelAndClass(
                     ICSFP11_HANDLE_T *in_token_handle,
                     char* in_label,
-                    CK_ULONG in_objectClass,
+                    unsigned int in_objectClass,
                     char* in_appname,
                     ICSFP11_HANDLE_T **out_handles,
                     int *out_numfound,
@@ -330,7 +330,7 @@ int rs_icsfp11_findObjectsByLabelAndClass(
   int status = RS_SUCCESS;
 
   CK_ATTRIBUTE object_attrs[3] = {
-      { CKA_CLASS, &in_objectClass, sizeof(CK_OBJECT_CLASS) },
+      { CKA_CLASS, &in_objectClass, sizeof(unsigned int) },
       { CKA_LABEL, NULL, 0 },
       { CKA_APPLICATION, NULL, 0 }
   };

@@ -45,7 +45,7 @@ typedef struct CAA_tag{
   char   ceecaalangp;  /* PL/I flags */
   char   reserved003[5];
   Addr31 ceecaabos;           /* start of current storage segment */
-  Addr31 ceecaaeoc;           /* end of current storage segment */
+  Addr31 ceecaaeos;           /* end of current storage segment */
   char   reserved010[0x034];
   short  reserved044;
   short  ceecaatorc;          /* thread return code */
