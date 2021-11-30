@@ -1463,6 +1463,7 @@ int directoryCopy(const char *existingPathName, const char *newPathName, int *re
   return 0;
 }
 
+#ifndef METTLE
 /*
  * Recursively, change the file tags of the requested file/tree 
 */
@@ -1709,7 +1710,6 @@ ExitCode:
 }
 
 
-
 int directoryRename(const char *oldDirname, const char *newDirName, int *returnCode, int *reasonCode){
   int returnValue = fileRename(oldDirname, newDirName, returnCode, reasonCode);
 
@@ -1736,6 +1736,8 @@ int getUmask() {
 
   return previous;
 }
+
+#endif 
 
 int fileDisableConversion(UnixFile *file, int *returnCode, int *reasonCode) {
   int *reasonCodePtr;
@@ -1878,6 +1880,8 @@ int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode) {
 
   return returnValue;
 }
+
+#ifndef METTLE
 
 static int patternChangeModeFile (const char *fileName,
                                  int mode, const char *compare,
@@ -2148,6 +2152,7 @@ ExitCode:
   }
   return returnValue;
 }
+#endif
 
 
 /*
