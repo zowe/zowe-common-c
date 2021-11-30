@@ -234,7 +234,7 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   PAD_LONG(0, RecoveryStatePool *pcssRecoveryPool);
   CPID pcssStackPool;
 
-  PAD_LONG(0, void *dynamicLinkageVector);  /* This is an opt-in feature for CMS 
+  PAD_LONG(1, void *dynamicLinkageVector);  /* This is an opt-in feature for CMS 
 					       Servers that want to offer Dynamic Linkage
 					       to some of their routines is an MVS/Metal/ASM 
 					       way.   That is to provide a well-known
