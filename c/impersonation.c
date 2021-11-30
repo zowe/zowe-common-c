@@ -70,7 +70,7 @@ int startSafImpersonation(char *username, ACEE **newACEE) {
   }
   else {
     printf("Failed to do saf Verify\n");
-    int safStatus = safVerify(VERIFY_DELETE,NULL,NULL,newACEE,&racfStatus,&racfReason);
+    int safStatus = safVerify(VERIFY_DELETE,NULL,NULL,newACEE,&racfStatus,&racfReason);    
   }  
   return impersonationBegan;
 }
@@ -78,7 +78,7 @@ int endSafImpersonation(ACEE **acee) {
   int racfStatus = 0;
   int racfReason = 0;    
   int endedImpersonation;
-  int safStatus = safVerify(VERIFY_DELETE,NULL,NULL,acee,&racfStatus,&racfReason);
+  int safStatus = safVerify(VERIFY_DELETE,NULL,NULL,acee,&racfStatus,&racfReason);    
   endedImpersonation = !safStatus;
   if (!endedImpersonation) {
     printf("**PANIC: Could not end impersonation!\n");
