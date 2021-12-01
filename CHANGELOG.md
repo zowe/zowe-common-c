@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `1.26.0`
+
+- Enhancement: Allow to specify 31-bit and 64-bit version of dataService library using `libraryName64` and `libraryName31` keys in DataService definition.
+
 ## `1.25.0`
 
 - Bugfix: `fileCopy` incorrectly processed files tagged as binary and mixed
