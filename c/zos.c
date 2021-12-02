@@ -1628,21 +1628,6 @@ void gen_dsects_only_os_c(void) { // Required for __asm invoked macros to be abl
 }
 #endif
 
-#ifdef __ZOWE_OS_ZOS
-int isLowerCasePasswordAllowed(){
-  RCVT* rcvt = getCVT()->cvtrac;
-  return (RCVTFLG3_BIT_RCVTPLC & (rcvt->rcvtflg3)); /* if lower-case pw allowed */
-}
-#else
-int isLowerCasePasswordAllowed(){
-  return TRUE;
-}
-#endif
-
-bool isPassPhrase(const char *password) {
-  return strlen(password) > 8;
-}
-
 
 
 /*

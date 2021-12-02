@@ -1479,9 +1479,6 @@ bool isCallerSRB(void);
  */
 bool isCallerCrossMemory(void);
 
-int isLowerCasePasswordAllowed();
-bool isPassPhrase(const char *password);
-
 #endif
 
 
