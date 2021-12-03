@@ -1,6 +1,6 @@
 # Zowe Common C Changelog
 
-## `1.26.0`
+## `1.27.0`
 
 - Enhancement: Allow to specify 31-bit and 64-bit version of dataService library using `libraryName64` and `libraryName31` keys in DataService definition.
 

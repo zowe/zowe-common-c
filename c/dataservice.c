@@ -162,7 +162,7 @@ static InitializerAPI *loadDll(DataService *service, JsonObject *serviceJsonObje
   /* "external will load a DLL in LE on the path, and a load module in the STEPLIB in METAL */
 #ifdef METTLE
   /* do a load of 8 char name.  Pray that the STEPLIB yields something good. */
-  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "*** PANIC ***  service loading in METTLE not implemented\n");
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE, "*** PANIC ***  service loading in METTLE not implemented\n");
 #else
   if (pluginLocationLen > 0 && pluginLocation[pluginLocationLen - 1] == '/') {
     pluginLocationLen--; /* exclude trailing slash */
