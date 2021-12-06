@@ -86,7 +86,7 @@
 #define RC_CMS_PC_ENV_NOT_TERMINATED        35
 #define RC_CMS_PC_SERVICE_ABEND_DETECTED    36
 #define RC_CMS_PC_RECOVERY_ENV_FAILED       37
-#define RC_CMS_PC_NOT_IMPLEMENTED           38
+#define RC_CMS_MODULE_QUERY_FAILED          38
 #define RC_CMS_SERVER_ABENDED               39
 #define RC_CMS_VSNPRINTF_FAILED             40
 #define RC_CMS_MESSAGE_TOO_LONG             41
@@ -935,7 +935,7 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 #ifndef CMS_LOG_NON_PRIVATE_MODULE_MSG_ID
 #define CMS_LOG_NON_PRIVATE_MODULE_MSG_ID       CMS_MSG_PRFX"0249E"
 #endif
-#define CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT     "Module ZWESIS01 is loaded from common storage, ensure ZWESIS01 is valid in STEPLIB"
+#define CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT     "Module %8.8s is loaded from common storage, ensure %8.8s is valid in STEPLIB"
 #define CMS_LOG_NON_PRIVATE_MODULE_MSG          CMS_LOG_NON_PRIVATE_MODULE_MSG_ID" "CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT
 
 #ifndef CMS_LOG_DUB_ERROR_MSG_ID
