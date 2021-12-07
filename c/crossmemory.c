@@ -2142,6 +2142,11 @@ static void *getMyModuleAddressAndSize(unsigned int *size) {
 
   IHACDE *cde = (IHACDE *)(*(int *)((char *)rb + 0x0C) & 0x00FFFFFF);
 
+  if (cde->cdattr & IHACDE_ATTR_MINOR_CDE) {
+    // CDXLMJP is the major CDE and not the extent list if this CDE is minor
+    cde = (IHACDE *)cde->cdxlmjp;
+  }
+
   void *xtlst = cde->cdxlmjp;
 
   void *moduleAddress = *(void * __ptr32 *)((char *)xtlst + 0x0C);
