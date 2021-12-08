@@ -82,7 +82,7 @@ static int getVolserForDataset(const DatasetName *dataset, Volser *volser);
 static bool memberExists(char* dsName, DynallocMemberName daMemberName);
 
 
-static int getLreclOrRespondError(HttpResponse *response, const DatasetName *dsn, const char *ddPath) {
+int getLreclOrRespondError(HttpResponse *response, const DatasetName *dsn, const char *ddPath) {
   int lrecl = 0;
 
   FileInfo info;
@@ -731,7 +731,7 @@ void addMemberedDatasetMetadata(char *datasetName, int nameLength,
 #define DSPATH_PREFIX   "//\'"
 #define DSPATH_SUFFIX   "\'"
 
-static bool isDatasetPathValid(const char *path) {
+bool isDatasetPathValid(const char *path) {
 
   /* Basic check. The fopen() dataset path format is //'dsn(member)' */
 
@@ -817,7 +817,7 @@ static bool isDatasetPathValid(const char *path) {
 
 }
 
-static void extractDatasetAndMemberName(const char *datasetPath,
+void extractDatasetAndMemberName(const char *datasetPath,
                                         DatasetName *dsn,
                                         DatasetMemberName *memberName) {
 
@@ -851,11 +851,11 @@ static void extractDatasetAndMemberName(const char *datasetPath,
 #undef DSPATH_PREFIX
 #undef DSPATH_SUFFIX
 
-static void respondWithDYNALLOCError(HttpResponse *response,
-                                     int rc, int sysRC, int sysRSN,
-                                     const DynallocDatasetName *dsn,
-                                     const DynallocMemberName *member,
-                                     const char *site) {
+void respondWithDYNALLOCError(HttpResponse *response,
+                              int rc, int sysRC, int sysRSN,
+                              const DynallocDatasetName *dsn,
+                              const DynallocMemberName *member,
+                              const char *site) {
 
   if (rc ==  RC_DYNALLOC_SVC99_FAILED && sysRC == 4) {
 
