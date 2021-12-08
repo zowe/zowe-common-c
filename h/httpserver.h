@@ -220,6 +220,8 @@ typedef struct HTTPServerConfig_tag {
   int defaultTimeout;
 } HttpServerConfig;
 
+#define SESSION_TOKEN_COOKIE_NAME "jedHTTPSession"
+
 typedef struct HttpServer_tag{
   STCBase          *base;
   ShortLivedHeap   *slh;               /* not used too much */
@@ -229,6 +231,7 @@ typedef struct HttpServer_tag{
   uint64           serverInstanceUID;   /* may be something smart at some point. Now just startup STCK */
   void             *sharedServiceMem; /* address shared by all HttpServices */
   hashtable        *loggingIdsByName; /* contains a map of pluginID -> loggingID */
+  char             *cookieName; /* name of the cookie, or SESSION_TOKEN_COOKIE_NAME otherwise */ 
 } HttpServer;
 
 typedef struct WSReadMachine_tag{
@@ -421,15 +424,33 @@ HttpRequest *dequeueHttpRequest(HttpRequestParser *parser);
 HttpRequestParser *makeHttpRequestParser(ShortLivedHeap *slh);
 HttpResponse *makeHttpResponse(HttpRequest *request, ShortLivedHeap *slh, Socket *socket);
 
-HttpServer *makeHttpServer2(STCBase *base, InetAddr *ip, int tlsFlags, int port, int *returnCode, int *reasonCode);
+HttpServer *makeHttpServer3(STCBase *base, InetAddr *ip, int tlsFlags, int port,
+                            char *cookieName, int *returnCode, int *reasonCode);
+HttpServer *makeHttpServer2(STCBase *base, InetAddr *ip, int tlsFlags, int port,
+                            int *returnCode, int *reasonCode);
 HttpServer *makeHttpServer(STCBase *base, int port, int *returnCode, int *reasonCode);
 
 #ifdef USE_RS_SSL
+HttpServer *makeSecureHttpServer2(STCBase *base, int port,
+                                  RS_SSL_ENVIRONMENT rsssl_env,
+                                  char *cookieName,
+                                  int *returnCode, int *reasonCode);
+
 HttpServer *makeSecureHttpServer(STCBase *base, int port,
                                  RS_SSL_ENVIRONMENT rsssl_env,
                                  int *returnCode, int *reasonCode);
 #endif
 #ifdef USE_ZOWE_TLS
+HttpServer *makeSecureHttpServer2(STCBase *base,
+                                  InetAddr *addr,
+                                  int port,
+                                  TlsEnvironment *tlsEnv,
+                                  int tlsFlags,
+                                  char *cookieName,
+                                  int *returnCode,
+                                  int *reasonCode
+                                 );
+
 HttpServer *makeSecureHttpServer(STCBase *base,
                                  InetAddr *addr,
                                  int port,

@@ -233,6 +233,8 @@ static unsigned int tlsWarnCounter = 0;
 
 static int64 getFineGrainedTime();
 
+static char *getSessionTokenCookieName(HttpService *service);
+
 
 /* worry about compareIgnoringCase 
    worry about where ebcdic value is being used meaningfully */
@@ -1503,12 +1505,13 @@ static int decodeSessionToken(ShortLivedHeap *slh,
 }
 
 static
-HttpServer *makeHttpServer3(STCBase *base,
-                           InetAddr *addr,
-                           int port,
-                           void *tlsEnv,
-                           int tlsFlags,
-                           int *returnCode, int *reasonCode){
+HttpServer *makeHttpServerInner(STCBase *base,
+                                InetAddr *addr,
+                                int port,
+                                void *tlsEnv,
+                                int tlsFlags,
+                                char *cookieName,
+                                int *returnCode, int *reasonCode){
   logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
 
   SessionTokenKey sessionTokenKey = {0};
@@ -1527,6 +1530,7 @@ HttpServer *makeHttpServer3(STCBase *base,
   memset(server,0,sizeof(HttpServer));
   server->base = base;
   server->slh = makeShortLivedHeap(65536,100);
+  server->cookieName = cookieName;
   SocketExtension *listenerSocketExtension = makeSocketExtension(listenerSocket,server->slh,FALSE,server,65536);
   listenerSocket->userData = listenerSocketExtension;
   /*
@@ -1562,13 +1566,36 @@ HttpServer *makeHttpServer2(STCBase *base,
                            int tlsFlags,
                            int *returnCode,
                            int *reasonCode){
-  return makeHttpServer3(base, addr, port, NULL, tlsFlags, returnCode, reasonCode);
+  return makeHttpServerInner(base, addr, port, NULL, tlsFlags, SESSION_TOKEN_COOKIE_NAME, returnCode, reasonCode);
+}
+
+HttpServer *makeHttpServer3(STCBase *base,
+                           InetAddr *addr,
+                           int port,
+                           int tlsFlags,
+                           char *cookieName, 
+                           int *returnCode,
+                           int *reasonCode){
+  return makeHttpServerInner(base, addr, port, NULL, tlsFlags, cookieName, returnCode, reasonCode);
 }
 
 #ifdef USE_RS_SSL
+HttpServer *makeSecureHttpServer2(STCBase *base, int port,
+                                  RS_SSL_ENVIRONMENT sslEnvironment,
+                                  char *cookieName, 
+                                  int *returnCode, int *reasonCode) {
+  return makeSecureHttpServerInner(base, port, sslEnvironment, cookieName, returnCode, reasonCode);
+}
+
 HttpServer *makeSecureHttpServer(STCBase *base, int port,
                                  RS_SSL_ENVIRONMENT sslEnvironment,
                                  int *returnCode, int *reasonCode) {
+  return makeSecureHttpServerInner(base, port, sslEnvironment, SESSION_TOKEN_COOKIE_NAME, returnCode, reasonCode);
+}
+static HttpServer *makeSecureHttpServerInner(STCBase *base, int port,
+                                             RS_SSL_ENVIRONMENT sslEnvironment,
+                                             char *cookieName,
+                                             int *returnCode, int *reasonCode) {
   Socket *listenerSocket = tcpServer(NULL,port,returnCode,reasonCode);
   if (listenerSocket == NULL){
     return NULL;
@@ -1579,6 +1606,7 @@ HttpServer *makeSecureHttpServer(STCBase *base, int port,
   memset(server,0,sizeof(HttpServer));
   server->base = base;
   server->slh = makeShortLivedHeap(65536,100);
+  server->cookieName = cookieName;
   SocketExtension *listenerSocketExtension = makeSocketExtension(listenerSocket,server->slh,FALSE,server,65536);
   listenerSocket->userData = listenerSocketExtension;
   /*
@@ -1615,8 +1643,20 @@ HttpServer *makeSecureHttpServer(STCBase *base,
                                  int *returnCode,
                                  int *reasonCode
                                 ) {
-  return makeHttpServer3(base, addr, port, tlsEnv, tlsFlags, returnCode, reasonCode);
+  return makeHttpServerInner(base, addr, port, tlsEnv, tlsFlags, SESSION_TOKEN_COOKIE_NAME, returnCode, reasonCode);
 }
+HttpServer *makeSecureHttpServer2(STCBase *base,
+                                  InetAddr *addr,
+                                  int port,
+                                  TlsEnvironment *tlsEnv,
+                                  int tlsFlags,
+                                  char *cookieName,
+                                  int *returnCode,
+                                  int *reasonCode
+                                  ) {
+  return makeHttpServerInner(base, addr, port, tlsEnv, tlsFlags, cookieName, returnCode, reasonCode);
+}
+
 #endif // USE_ZOWE_TLS
 
 void *getConfiguredProperty(HttpServer *server, char *key){
@@ -2435,7 +2475,7 @@ static int proxyServe(HttpService *service,
    a Session Cookie is used 
 */
 
-#define SESSION_TOKEN_COOKIE_NAME "jedHTTPSession"
+
 
 static char *getCookieValue(HttpRequest *request, char *cookieName){
   HttpHeader *cookieHeader = getHeader(request,"Cookie");
@@ -2942,6 +2982,10 @@ static int sessionTokenStillValid(HttpService *service, HttpRequest *request, ch
   return TRUE;
 }
 
+static char *getSessionTokenCookieName(HttpService *service) {
+  return service->server->cookieName;
+}
+
 static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *request, char *username){
   HttpServer *server = service->server;
   ShortLivedHeap *slh = request->slh;
@@ -2961,14 +3005,16 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
   int encodedLength = 0;
   char *base64Output = encodeBase64(slh,tokenCiphertext,tokenPlaintextLength,&encodedLength,TRUE);
 
+  char *cookieName = getSessionTokenCookieName(service);
+
 #ifdef INSECURE_COOKIE
-  int keyValueBufferSize = encodedLength + strlen(SESSION_TOKEN_COOKIE_NAME) + 16; //16 for trailing ; Path=/ inclusion
+  int keyValueBufferSize = encodedLength + strlen(cookieName) + 16; //16 for trailing ; Path=/ inclusion
   char *keyValueBuffer = SLHAlloc(slh, keyValueBufferSize);
-  snprintf(keyValueBuffer, keyValueBufferSize, "%s=%s; Path=/", SESSION_TOKEN_COOKIE_NAME, base64Output);
+  snprintf(keyValueBuffer, keyValueBufferSize, "%s=%s; Path=/", cookieName, base64Output);
 #else
-  int keyValueBufferSize = encodedLength + strlen(SESSION_TOKEN_COOKIE_NAME) + 40; //40 for cookie properties
+  int keyValueBufferSize = encodedLength + strlen(cookieName) + 40; //40 for cookie properties
   char *keyValueBuffer = SLHAlloc(slh, keyValueBufferSize);
-  snprintf(keyValueBuffer, keyValueBufferSize, "%s=%s; Path=/; HttpOnly; SameSite=Strict", SESSION_TOKEN_COOKIE_NAME, base64Output);
+  snprintf(keyValueBuffer, keyValueBufferSize, "%s=%s; Path=/; HttpOnly; SameSite=Strict", cookieName, base64Output);
 #endif
   return keyValueBuffer;
 }
@@ -2983,7 +3029,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
                                              int *clearSessionToken, AuthResponse *authResponse){
   int authDataFound = FALSE; 
   HttpHeader *authenticationHeader = getHeader(request,"Authorization");
-  char *tokenCookieText = getCookieValue(request,SESSION_TOKEN_COOKIE_NAME);
+  char *tokenCookieText = getCookieValue(request,getSessionTokenCookieName(service));
   
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
        "serviceAuthNativeWithSessionToken: authenticationHeader 0x%p, authenticationHeader(hex) = 0x%x\n",
