@@ -3209,6 +3209,24 @@ int httpServerInitJwtContext(HttpServer *self,
   return 0;
 }
 
+int httpServerInitJwtContextCustom(HttpServer *self,
+                                   bool legacyFallback,
+                                   JwtCheckSignature checkSignatureFn,
+                                   void *userData,
+                                   int *makeContextRc) {
+  JwtContext *const context = makeJwtContextCustom(checkSignatureFn, userData, makeContextRc);
+  AUTH_TRACE("jwt context custom for checkSignatureFn 0x%p userData 0x%p: rc %d, context at %p\n",
+             checkSignatureFn, userData, *makeContextRc, context);
+  if (*makeContextRc != RC_JWT_OK) {
+    return 1;
+  }
+  self->config->jwtContext = context;
+  self->config->authTokenType = legacyFallback?
+      SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK
+      : SERVICE_AUTH_TOKEN_TYPE_JWT;
+  return 0;
+}
+
 
 #ifdef __ZOWE_OS_ZOS
 
