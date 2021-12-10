@@ -2343,6 +2343,12 @@ CrossMemoryServer *makeCrossMemoryServer2(
     *reasonCode = envCheckRC;
     return NULL;
   }
+
+  if (flags & CMS_SERVER_FLAG_DEBUG) {
+    logSetLevel(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG);
+    logSetLevel(NULL, LOG_COMP_ID_CMSPC, ZOWE_LOG_DEBUG);
+  }
+
   EightCharString cmsModule = {0};
   if (getCurrentModuleName(&cmsModule)) {
     *reasonCode = RC_CMS_MODULE_QUERY_FAILED;
@@ -2366,10 +2372,6 @@ CrossMemoryServer *makeCrossMemoryServer2(
   server->pcssStackPoolSize = CMS_MAIN_PCSS_STACK_POOL_SIZE;
   server->pcssRecoveryPoolSize = CMS_MAIN_PCSS_RECOVERY_POOL_SIZE;
 
-  if (flags & CMS_SERVER_FLAG_DEBUG) {
-    logSetLevel(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG);
-    logSetLevel(NULL, LOG_COMP_ID_CMSPC, ZOWE_LOG_DEBUG);
-  }
   if (flags & CMS_SERVER_FLAG_COLD_START) {
     server->flags |= CROSS_MEMORY_SERVER_FLAG_COLD_START;
   }
@@ -4337,7 +4339,6 @@ __asm("CSVQRGLB CSVQUERY PLISTVER=0,MF=(L,CSVQRGLB)" : "DS"(CSVQRGLB));
 
 static int getCurrentModuleName(EightCharString * __ptr32 result) {
 
-  unsigned char attr = 0;
   int queryRC = 0;
 
   __asm("CSVQRGLB CSVQUERY PLISTVER=0,MF=L" : "DS"(parmList));
@@ -4355,8 +4356,8 @@ static int getCurrentModuleName(EightCharString * __ptr32 result) {
   );
 
   zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
-          "CSVQUERY of 0x%08X - module name = \'%8.8s\', RC = %d",
-          moduleAddress, attr, queryRC);
+          CMS_LOG_DEBUG_MSG_ID" CSVQUERY of 0x%08X - module = \'%8.8s\', RC = %d",
+          moduleAddress, result->text, queryRC);
 
   if (queryRC != 0) {
     return -1;
@@ -4385,7 +4386,7 @@ static bool isModulePrivate(void) {
   );
 
   zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
-          "CSVQUERY of 0x%08X - attr = 0x%02X, RC = %d",
+          CMS_LOG_DEBUG_MSG_ID" CSVQUERY of 0x%08X - attr = 0x%02X, RC = %d",
           moduleAddress, attr, queryRC);
 
   if (queryRC != 0) {
