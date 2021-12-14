@@ -86,7 +86,7 @@
 #define RC_CMS_PC_ENV_NOT_TERMINATED        35
 #define RC_CMS_PC_SERVICE_ABEND_DETECTED    36
 #define RC_CMS_PC_RECOVERY_ENV_FAILED       37
-#define RC_CMS_MODULE_QUERY_FAILED          38
+#define RC_CMS_PC_NOT_IMPLEMENTED           38
 #define RC_CMS_SERVER_ABENDED               39
 #define RC_CMS_VSNPRINTF_FAILED             40
 #define RC_CMS_MESSAGE_TOO_LONG             41
@@ -138,7 +138,8 @@
 #define RC_CMS_ALLOC_FAILED                 87
 #define RC_CMS_NON_PRIVATE_MODULE           88
 #define RC_CMS_BAD_DUB_STATUS               89
-#define RC_CMS_MAX_RC                       89
+#define RC_CMS_MODULE_QUERY_FAILED          90
+#define RC_CMS_MAX_RC                       90
 
 extern const char *CMS_RC_DESCRIPTION[];
 
