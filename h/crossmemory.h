@@ -935,7 +935,7 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 #ifndef CMS_LOG_NON_PRIVATE_MODULE_MSG_ID
 #define CMS_LOG_NON_PRIVATE_MODULE_MSG_ID       CMS_MSG_PRFX"0249E"
 #endif
-#define CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT     "Module %8.8s is loaded from common storage, ensure %8.8s is valid in STEPLIB"
+#define CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT     "Module %8.8s is loaded from common storage, ensure %8.8s is valid in the STEPLIB"
 #define CMS_LOG_NON_PRIVATE_MODULE_MSG          CMS_LOG_NON_PRIVATE_MODULE_MSG_ID" "CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT
 
 #ifndef CMS_LOG_DUB_ERROR_MSG_ID
