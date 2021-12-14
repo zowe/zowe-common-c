@@ -2479,21 +2479,6 @@ static char *getCookieValue(HttpRequest *request, char *cookieName){
 }
 
 #ifdef __ZOWE_OS_ZOS
-static int isLowerCasePasswordAllowed(){
-  RCVT* rcvt = getCVT()->cvtrac;
-  return (RCVTFLG3_BIT_RCVTPLC & (rcvt->rcvtflg3)); /* if lower-case pw allowed */
-}
-#else
-static int isLowerCasePasswordAllowed(){
-  return TRUE;
-}
-#endif
-
-static bool isPassPhrase(const char *password) {
-  return strlen(password) > 8;
-}
-
-#ifdef __ZOWE_OS_ZOS
 static int safAuthenticate(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
   int safStatus = 0, racfStatus = 0, racfReason = 0;
   int options = VERIFY_CREATE;
@@ -3199,6 +3184,24 @@ int httpServerInitJwtContext(HttpServer *self,
       pkcs11TokenName, keyName,
       *makeContextRc, context);
 
+  if (*makeContextRc != RC_JWT_OK) {
+    return 1;
+  }
+  self->config->jwtContext = context;
+  self->config->authTokenType = legacyFallback?
+      SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK
+      : SERVICE_AUTH_TOKEN_TYPE_JWT;
+  return 0;
+}
+
+int httpServerInitJwtContextCustom(HttpServer *self,
+                                   bool legacyFallback,
+                                   JwtCheckSignature checkSignatureFn,
+                                   void *userData,
+                                   int *makeContextRc) {
+  JwtContext *const context = makeJwtContextCustom(checkSignatureFn, userData, makeContextRc);
+  AUTH_TRACE("jwt context custom for checkSignatureFn 0x%p userData 0x%p: rc %d, context at %p\n",
+             checkSignatureFn, userData, *makeContextRc, context);
   if (*makeContextRc != RC_JWT_OK) {
     return 1;
   }
