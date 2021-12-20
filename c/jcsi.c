@@ -26,8 +26,6 @@
 #include "csi.h"
 #include "jcsi.h"
 
-#define _EDC_ADD_ERRNO2 1
-
 /* 
    c89 -o csi -Wl,ac=1 csitest.c                       
 
@@ -39,75 +37,129 @@
 
 */
 
+typedef void* __ptr32 CsiFn;
+static CsiFn csiFn = NULL;
 
+int loadCsi() {
+  int entryPoint = 0;
+  int status = 0;
 
-typedef void (*void_fn_ptr)();
-void_fn_ptr fetch(const char *name);
-
-typedef int csi_fn(int* reason_code, void *param_block, void* work_area);
-csi_fn *IGGCSI00;
-
-#define TRUE 1
-#define FALSE 0
-
-
-
-void print_buffer(char *buffer_arg, int length_arg);
-
-
-
-
-csi_parmblock *process_arguments(int argc, char **argv)
-{
-  int argindex;
-  int arglen;
-
-  csi_parmblock* csi_parms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI Parmblock");
-  memset(csi_parms,' ',sizeof(csi_parmblock));
-  for (argindex=0; argindex<argc; argindex++) {
-    if (0) {
-    } else if (0 == strcmp(argv[argindex], "-filter")) {
-      if (++argindex >= argc) {
-        zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "missing argument after -filter\n");
-	return 0;
-      } else {
-	arglen = strlen(argv[argindex]);
-	strncpy(csi_parms->filter_spec,argv[argindex],arglen); /* do not copy null terminator */
-        /* sscanf(argv[argindex],"%d",&ssgargl->buffer_length); */
-      }
-    }
+  if (csiFn != NULL) {
+    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG2, "IGGCSI00 already loaded at 0x%p\n", csiFn);
+    return 0;
   }
-  csi_parms->num_fields = 4;
-  strncpy(csi_parms->fields+  0,"NAME    ",8);
-  strncpy(csi_parms->fields+  8,"TYPE    ",8);
-  strncpy(csi_parms->fields+ 16,"VOLSER  ",8);
-  strncpy(csi_parms->fields+ 24,"VOLFLG  ",8);
 
-  return csi_parms;
+  __asm(ASM_PREFIX
+        " LOAD EP=IGGCSI00 \n"
+        " ST 15,%0 \n"
+        " ST 0,%1 \n"
+        :"=m"(status),"=m"(entryPoint)
+        : :"r0","r1","r15");
+
+  if (status == 0) {
+    csiFn = (CsiFn)entryPoint;
+  }
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG2, "IGGCSI00 0x%p LOAD status = 0x%x\n", csiFn, status);
+  return status;
 }
 
-char *csi(csi_parmblock* csi_parms, int *workAreaSize)
-{
-  int return_code;
-  int reason_code;
-  *workAreaSize = (*workAreaSize > 2048 ? *workAreaSize : WORK_AREA_SIZE);
-  void* work_area = (void*)safeMalloc(*workAreaSize,"CSI Work Area Size");
-  *((int*)work_area) = *workAreaSize;
-  IGGCSI00 = (csi_fn *)fetch("IGGCSI00");
-  if (0 == IGGCSI00) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "could not fetch IGGCSI00\n");
-    return 0;
+static int callCsi(CsiFn *csiFn, void *__ptr32 paramList, char* __ptr32 saveArea) {
+  int returnCode = 0;
+
+  __asm(
+      ASM_PREFIX
+#ifdef _LP64
+      " L 13,%[saveArea] \n"
+      " SAM31 \n"
+      " SYSSTATE AMODE64=NO \n"
+#endif
+      " LR 1,%[paramList] \n"
+      " CALL (%[csiFn]) \n"
+#ifdef _LP64
+      " SAM64 \n"
+      " SYSSTATE AMODE64=YES \n"
+#endif
+      " ST 15,%[returnCode] \n"
+      : [returnCode] "=m"(returnCode)
+      : [csiFn] "r"(csiFn),
+        [paramList] "r"(paramList),
+        [saveArea] "m"(saveArea)
+      : "r0", "r1",
+#ifdef _LP64 
+        "r13",
+#endif
+        "r15");
+
+  return returnCode;
+}
+
+char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSizeInOut) {
+  int returnCode = 0;
+  int reasonCode = 0;
+  int status = 0;
+  int entryPoint = 0;
+  char * __ptr32 workArea = NULL;
+  int * __ptr32 reasonCodePtr = NULL;
+  int workAreaSize = *workAreaSizeInOut > 2048 ? *workAreaSizeInOut : WORK_AREA_SIZE;
+
+  ALLOC_STRUCT31(
+    STRUCT31_NAME(paramList),
+    STRUCT31_FIELDS(
+      int * __ptr32 reasonCodePtr;
+      csi_parmblock * __ptr32 paramBlock;
+      char * __ptr32 workArea;
+      char saveArea[72];
+    )
+  );
+
+  do {
+    if (!paramList) {
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "could not allocate memory for CSI paramList\n");
+      break;
+    }
+
+    if (!csiFn) {
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "IGGCSI00 not loaded\n");
+      break;
+    }
+
+    workArea = (char* __ptr32)safeMalloc31(workAreaSize, "CSI Work Area Size");
+    if (!workArea) {
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "could not allocate memory for CSI workArea\n");
+      break;
+    }
+    *((int*)workArea) = workAreaSize;
+
+    reasonCodePtr = (int *__ptr32)safeMalloc31(sizeof(int), "CSI Reason Code");
+    if (!reasonCodePtr) {
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "could not allocate memory for CSI reason code\n");
+      break;
+    }
+
+    paramList->workArea = workArea;
+    paramList->reasonCodePtr = reasonCodePtr;
+    paramList->paramBlock = csi_parms;
+
+    returnCode = callCsi(csiFn, paramList, paramList->saveArea);
+    reasonCode = *reasonCodePtr;
+
+    if (returnCode != 0) {
+      zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "CSI failed ret=%d, reason=0x%x\n", returnCode, reasonCode);
+      safeFree31((char*)workArea, workAreaSize);
+      workArea = NULL;
+      break;
+    }
+    *workAreaSizeInOut = workAreaSize;
+  } while(0);
+
+  if (reasonCodePtr) {
+    safeFree31((char*)reasonCodePtr, sizeof(*reasonCodePtr));
   }
-  /* print_buffer((char*)work_area,256); */
-  return_code = (*IGGCSI00)(&reason_code,csi_parms,work_area);
-  if (return_code != 0) {
-    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "CSI failed ret=%d, rc=%d rchex=%x\n", return_code, reason_code, reason_code);
-    free(work_area);
-    return 0;
-  } else {
-    /* print_buffer((char*)work_area,256); */
-    return work_area;
+  if (paramList) {
+    FREE_STRUCT31(STRUCT31_NAME(paramList));
   }
+ 
+  return workArea;
 }
 
 /*
@@ -129,7 +181,7 @@ int pseudoLS(char *dsn, int fieldCount, char **fieldNames){
     return DSN_ZERO_LENGTH_DSN;
   }
 
-  csi_parms = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
+  csi_parms = (csi_parmblock*)safeMalloc31(sizeof(csi_parmblock),"CSI ParmBlock");
 
   /* prep parms */
   memset(csi_parms,' ',sizeof(csi_parmblock));
@@ -201,7 +253,7 @@ int pseudoLS(char *dsn, int fieldCount, char **fieldNames){
     } else{
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "no entries, no look up failure either\n");
     }
-    safeFree((char*)workArea,WORK_AREA_SIZE);
+    safeFree31((char*)workArea,workAreaSize);
     return result;
   } else{
     return DSN_CSI_FAILURE;
@@ -232,21 +284,22 @@ int pseudoLS(char *dsn, int fieldCount, char **fieldNames){
 static char *entriesFields[] ={ "NAME    ", "TYPE    "};
 static char *myFields[] ={ "NAME    ", "LRECL   ", "TYPE    ","VOLSER  ","VOLFLG  "};
 
-EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int workAreaSize, char **fields, int fieldCount, char *resumeName, char *resumeCatalogName, csi_parmblock *returnParms){
-  csi_parmblock* csi_parms = returnParms;
-  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "csi query for %s\n", dsn);
+EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int workAreaSize, char **fields, int fieldCount, char *resumeName, char *resumeCatalogName, csi_parmblock * __ptr32 returnParms){
+  csi_parmblock* __ptr32 csi_parms = returnParms;
+  zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "csi query for '%s'\n", dsn);
   int dsnLen = strlen(dsn);
   char *workArea = NULL;
-
-  workAreaSize = (workAreaSize > 0 ? workAreaSize : WORK_AREA_SIZE);
-  
-  EntryDataSet *entrySet;
-  entrySet = (EntryDataSet*)safeMalloc(sizeof(EntryDataSet*),"Entry Data Set");
-  entrySet->length = 0;
 
   if (dsnLen == 0){
     return NULL;
   }
+
+  workAreaSize = (workAreaSize > 0 ? workAreaSize : WORK_AREA_SIZE);
+  
+  EntryDataSet *entrySet;
+  entrySet = (EntryDataSet*)safeMalloc(sizeof(EntryDataSet),"Entry Data Set");
+  entrySet->length = 0;
+  entrySet->size = 0;
 
   /* prep parms */
   memset(csi_parms,' ',sizeof(csi_parmblock));
@@ -282,6 +335,7 @@ EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int w
       EntryData **entries = (EntryData**)safeMalloc(entriesLength*sizeof(EntryData*),"Entry Datas");
 
       entrySet->entries = entries;
+      entrySet->size = entriesLength;
       while (entryPointer < endPointer){
         EntryData *entry = (EntryData*)entryPointer;
         char type = entry->type;
@@ -316,6 +370,7 @@ EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int w
                     entries = tempPtr;                   
                     entriesLength = entriesLength*2;
                     entrySet->entries = entries;
+                    entrySet->size = entriesLength*2;
                   }
                   EntryData *entryCopy = (EntryData*)safeMalloc(advance,"Entry");
                   memcpy(entryCopy,entry,advance);
@@ -331,12 +386,12 @@ EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int w
           }
         }
       }
-      safeFree((char*)workArea,workAreaSize);
+      safeFree31((char*)workArea,workAreaSize);
       return entrySet;
     } else{
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "no entries, no look up failure either\n");
     }
-    safeFree((char*)workArea,workAreaSize);
+    safeFree31((char*)workArea,workAreaSize);
     return entrySet;
   } else{
     return entrySet;
@@ -346,17 +401,17 @@ EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int w
 static const char hlqFirstChar[] = {'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','$','@','#'};
 
 
-EntryDataSet *getHLQs(char *typesAllowed, int typesCount, int workAreaSize, char **fields, int fieldCount, csi_parmblock **returnParmsArray){
+EntryDataSet *getHLQs(char *typesAllowed, int typesCount, int workAreaSize, char **fields, int fieldCount, csi_parmblock * __ptr32 * __ptr32 returnParmsArray){
   int status = 0;
   char *searchTerm = safeMalloc(3,"HLQ Search Term");
   searchTerm[1] = '*';
   searchTerm[2] = '\0';
-  EntryDataSet **entrySets = (EntryDataSet**)safeMalloc(29*sizeof(EntryDataSet*),"HLQ entries");
+  EntryDataSet **entrySets = (EntryDataSet**)safeMalloc31(29*sizeof(EntryDataSet*),"HLQ entries");
   int combinedLength = 0;
 
   for (int i = 0; i < 29; i++){
     searchTerm[0] = hlqFirstChar[i];
-    returnParmsArray[i] = (csi_parmblock*)safeMalloc(sizeof(csi_parmblock),"CSI ParmBlock");
+    returnParmsArray[i] = (csi_parmblock* __ptr32)safeMalloc31(sizeof(csi_parmblock),"CSI ParmBlock");
     EntryDataSet *entrySet = returnEntries(searchTerm, typesAllowed, typesCount, workAreaSize, fields, fieldCount, NULL, NULL, returnParmsArray[i]);
     entrySets[i] = entrySet;
     combinedLength = combinedLength + entrySet->length;
@@ -376,28 +431,38 @@ EntryDataSet *getHLQs(char *typesAllowed, int typesCount, int workAreaSize, char
   return combinedEntrySet;
 }
 
+void freeEntryDataSet(EntryDataSet *entrySet) {
+  if (entrySet) {
+    if (entrySet->entries) {
+      for (int i = 0; i < entrySet->length; i++) {
+        EntryData *currentEntry = entrySet->entries[i];
+        int fieldDataLength = currentEntry->data.fieldInfoHeader.totalLength;
+        int entrySize = sizeof(EntryData) + fieldDataLength - 4;
+        memset((char*)(currentEntry),0, entrySize);
+        safeFree((char*)(currentEntry), entrySize);
+      }
+      safeFree((char*)entrySet->entries, entrySet->size * sizeof(EntryData*));
+      entrySet->entries = NULL;
+    }
+    entrySet->size = 0;
+    entrySet->length = 0;
+    safeFree((char*)entrySet, sizeof(entrySet));
+  }
+}
 
-/*
+
+#ifdef TEST_JCSI
 int main(int argc, char **argv)
 {
-  
-  EntryDataSet *hlqSet = getHLQs();
-  for (int i = 0; i < hlqSet->length;i++){
-    //printf("Checking entries pos=%d\n",i);
-    if (hlqSet->entries[i] && hlqSet->entries[i]->name) {
-    //dumpbuffer(hlqSet->entries[i]->name,44);
-    printf("Found entry: %44.44s\n",hlqSet->entries[i]->name);
-    fflush(stdout);
-    }
+  int status = 0;
+  if ((status = loadCsi()) != 0) {
+    fprintf (stderr, "failed to load IGGCSI00, status = 0x%x\n", status);
+    return EXIT_FAILURE;
   }
-  return 0;
-  
   int status = pseudoLS(argv[1],3,entriesFields);
   printf("status 0x%x\n",status);
-  return status;
 }
-*/
-
+#endif
 
 
 

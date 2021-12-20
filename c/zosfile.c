@@ -581,6 +581,7 @@ int fileCopy(const char *existingFileName, const char *newFileName, int *retCode
   }
 
   short ccsid = info.ccsid;
+  bool isPureText = (info.fileTaggingTags & FILE_PURE_TEXT) == FILE_PURE_TEXT;
   
   UnixFile *existingFile = fileOpen(existingFileName, FILE_OPTION_READ_ONLY, 0, 0, &returnCode, &reasonCode);
   if (existingFile == NULL) {
@@ -602,7 +603,7 @@ int fileCopy(const char *existingFileName, const char *newFileName, int *retCode
   }
 
   if (ccsid != CCSID_UNTAGGED) {
-    status = fileChangeTag(newFileName, &returnCode, &reasonCode, ccsid);
+    status = fileChangeTagPure(newFileName, &returnCode, &reasonCode, ccsid, isPureText);
     if (status == -1) {
       *retCode = returnCode;
       *resCode = reasonCode;
@@ -1462,6 +1463,7 @@ int directoryCopy(const char *existingPathName, const char *newPathName, int *re
   return 0;
 }
 
+#ifndef METTLE
 /*
  * Recursively, change the file tags of the requested file/tree 
 */
@@ -1708,7 +1710,6 @@ ExitCode:
 }
 
 
-
 int directoryRename(const char *oldDirname, const char *newDirName, int *returnCode, int *reasonCode){
   int returnValue = fileRename(oldDirname, newDirName, returnCode, reasonCode);
 
@@ -1735,6 +1736,8 @@ int getUmask() {
 
   return previous;
 }
+
+#endif 
 
 int fileDisableConversion(UnixFile *file, int *returnCode, int *reasonCode) {
   int *reasonCodePtr;
@@ -1877,6 +1880,8 @@ int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode) {
 
   return returnValue;
 }
+
+#ifndef METTLE
 
 static int patternChangeModeFile (const char *fileName,
                                  int mode, const char *compare,
@@ -2147,6 +2152,7 @@ ExitCode:
   }
   return returnValue;
 }
+#endif
 
 
 /*

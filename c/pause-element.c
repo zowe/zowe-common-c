@@ -196,6 +196,38 @@ int peRetrieveInfo(const PET *token,
   return rc;
 }
 
+int peRetrieveInfo2(const PET *token,
+                    PEInfo *info,
+                    bool isBranchLinkage,
+                    bool untrusted) {
+
+  int32_t rc = 0;
+  int32_t linkage = isBranchLinkage ? PE_LINKAGE_BRANCH : PE_LINKAGE_SVC;
+  if (untrusted) {
+    linkage |= PE_LINKAGE_UNTRUSTED_PET;
+  }
+
+  int wasProblemState;
+  int key;
+  if (isBranchLinkage) {
+    wasProblemState = supervisorMode(TRUE);
+    key = setKey(0);
+  }
+
+  IEAVRPI2(&rc, &info->authLevel, token, &linkage,
+           &info->ownerStoken, &info->currentStoken,
+           &info->state, &info->releaseCode);
+
+  if (isBranchLinkage) {
+    setKey(key);
+    if (wasProblemState) {
+      supervisorMode(FALSE);
+    }
+  }
+
+  return rc;
+}
+
 int peTest(const PET *token,
            PEState *state,
            PEReleaseCode *releaseCode) {
@@ -206,11 +238,11 @@ int peTest(const PET *token,
   return rc;
 }
 
-int peTranfer(const PET *token, PET *newToken,
-              PEReleaseCode *releaseCode,
-              const PET *targetToken,
-              PEReleaseCode targetReleaseCode,
-              bool isBranchLinkage) {
+int peTransfer(const PET *token, PET *newToken,
+               PEReleaseCode *releaseCode,
+               const PET *targetToken,
+               PEReleaseCode targetReleaseCode,
+               bool isBranchLinkage) {
 
   int32_t rc = 0;
   int32_t linkage = isBranchLinkage ? PE_LINKAGE_BRANCH : PE_LINKAGE_SVC;

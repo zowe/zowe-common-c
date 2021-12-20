@@ -24,10 +24,6 @@
 
 #include "zowetypes.h"
 
-#ifndef _LP64
-#error ILP32 is not supported
-#endif
-
 #ifndef __LONGNAME__
 
 #define shrmem64GetAddressSpaceToken SHR64TKN
@@ -63,6 +59,18 @@ MemObjToken shrmem64GetAddressSpaceToken(void);
  * @return One of the RC_SHRMEM64_xx return codes.
  */
 int shrmem64Alloc(MemObjToken userToken, size_t size, void **result, int *rsn);
+
+/** This is the key, alet and fprot varying version of the above */
+#define SHRMEM64_USE_CALLER_KEY -1
+int shrmem64Alloc2(MemObjToken userToken, size_t size, int key, int aletValue,
+                   bool fetchProtect, void **result, int *rsn);
+
+/** Variant for common (shared with everybody!) 
+ */
+int shrmem64CommonAlloc(MemObjToken userToken, size_t size, void **result,
+                        int *rsn);
+int shrmem64CommonAlloc2(MemObjToken userToken, size_t size, int key,
+                         void **result, int *rsn);
 
 /**
  * @brief Releases 64-bit shared storage. The storage will still be accessible
@@ -108,6 +116,13 @@ int shrmem64ReleaseAll(MemObjToken userToken, int *rsn);
  */
 int shrmem64GetAccess(MemObjToken userToken, void *target, int *rsn);
 
+/** 
+  This is the beefed-up version of shrmem64GetAccess that lets the caller control
+  whether primary or home space is used and whether the object will be made writable.
+ */
+int shrmem64GetAccess2(MemObjToken userToken, void *target, bool makeWritable,
+                       int aletValue, uint64_t size, int *rsn);
+
 /**
  * @brief Removes the addressability of the specified storage in the current
  * address space. See more details in the IARV64 doc
@@ -121,6 +136,8 @@ int shrmem64GetAccess(MemObjToken userToken, void *target, int *rsn);
  * @return One of the RC_SHRMEM64_xx return codes.
  */
 int shrmem64RemoveAccess(MemObjToken userToken, void *target, int *rsn);
+int shrmem64RemoveAccess2(MemObjToken userToken, void *target, int aletValue,
+                          bool isOwner, int *rsn);
 
 #define RC_SHRMEM64_OK                          0
 #define RC_SHRMEM64_GETSHARED_FAILED            8
@@ -128,6 +145,9 @@ int shrmem64RemoveAccess(MemObjToken userToken, void *target, int *rsn);
 #define RC_SHRMEM64_ALL_SYS_DETACH_FAILED       10
 #define RC_SHRMEM64_SINGLE_SYS_DETACH_FAILED    11
 #define RC_SHRMEM64_DETACH_FAILED               12
+#define RC_SHRMEM64_GETCOMMON_FAILED            13
+#define RC_SHRMEM64_CHANGEACCESS_FAILED         14
+
 
 #endif /* SRC_SHRMEM64_H_ */
 
