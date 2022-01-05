@@ -887,7 +887,15 @@ typedef struct IHACDE_tag{
   char                       cdattrb;   /* flags */
   char                       cdsp;      /* Module subpoolID */
   char                       cdattr;    /* flag byte */
-  char                       cdattr2; 
+#define IHACDE_ATTR_NIP               0x80
+#define IHACDE_ATTR_NIC               0x40
+#define IHACDE_ATTR_REENTERABLE       0x20
+#define IHACDE_ATTR_SERIALLY_REUSABLE 0x10
+#define IHACDE_ATTR_NOT_REUSABLE      0x08
+#define IHACDE_ATTR_MINOR_CDE         0x04
+#define IHACDE_ATTR_MODULE_IN_JPA     0x02
+#define IHACDE_ATTR_NOT_LOADABLE_ONLY 0x01
+  char                       cdattr2;
   char                       cdattr3; 
   char                       cdattr4;   /* reserved for future flags */
 } IHACDE;
