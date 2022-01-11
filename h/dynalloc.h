@@ -209,7 +209,17 @@ X'40' Data set available for printing at the end of the job.
 #define DALVSER  0x0010
 #define DALVSEQ  0x0012
 #define DALDSORG 0x003C
+#define DALDSORG_VSAM 0x0008
+#define DALDSORG_GRAPHICS 0x0080
+#define DALDSORG_PO 0x0200
+#define DALDSORG_POU 0x0300
+#define DALDSORG_MQ 0x0400
+#define DALDSORG_CQ 0x0800
+#define DALDSORG_CX 0x1000
+#define DALDSORG_DA 0x2000
+#define DALDSORG_DAU 0x2100
 #define DALDSORG_PS 0x4000
+#define DALDSORG_PSU 0x4100
 #define DALBLKSZ 0x0030
 #define DALLRECL 0x0042 
 #define DALBUFNO 0x0034
@@ -252,8 +262,11 @@ TextUnit *createSimpleTextUnit2(int key, char *value, int firstParameterLength);
 TextUnit *createCharTextUnit(int key, char value);
 TextUnit *createCompoundTextUnit(int key, char **values, int valueCount);
 TextUnit *createIntTextUnit(int key, int value);
+TextUnit *createCharTextUnit2(int key, short value);
 TextUnit *createInt8TextUnit(int key, int8_t value);
+TextUnit *createIntTextUnitLength(int key, int value, int length);
 TextUnit *createInt16TextUnit(int key, int16_t value);
+TextUnit *createInt24TextUnit(int key, int value);
 void freeTextUnit(TextUnit * text_unit);
 
 /* open a stream to the internal reader */
@@ -302,7 +315,7 @@ int DeallocDDName(char *ddname);
 
 #define DOBURST 0x0001
 /* BURST FieldCount: 1 FieldLength 1
-   X02 for YES X04 for NO
+   XDc12dc2for YES Xdc104dc2 for NO
    Directs output to a stacker on a 3800 Printing Subsystem. */
 
 #define DOCHARS 0x0002
@@ -347,7 +360,7 @@ int DeallocDDName(char *ddname);
 
 #define DOCONTRO 0x0008
 /* CONTROL FieldCount: 1 FieldLength 1
-   X80 for SINGLE X40 for DOUBLE X20 for TRIPLE X10 for PROGRAM
+   XDC180' for SINGLE X'40' for DOUBLE X'20' for TRIPLE X'10' for PROGRAM
    Specifies that all the data records begin with carriage control characters or specifies line spacing. */
 
 #define DOCOPIE9 0x0009
@@ -362,12 +375,12 @@ int DeallocDDName(char *ddname);
 
 #define DODATACK 0x2022
 /* DATACK FieldCount: 1 FieldLength 1
-   X00 for BLOCK X80 for UNBLOCK X81 for BLKCHAR X82 for BLKPOS
+   X'00' for BLOCK X'80' for UNBLOCK X'81' for BLKCHAR X'82' for BLKPOS
    Specifies how errors in printers accessed through the functional subsystem Print Services Facility (PSF) are to be reported.  */
 
 #define DODEFAUL 0x000B
 /* DEFAULT FieldCount: 1 FieldLength 1
-   X40 for YES X80 for NO
+   X'40' for YES X'80' for NO
    Specifies that this is a default output descriptor. */
 
 #define DODEPT 0x0029
@@ -382,12 +395,12 @@ int DeallocDDName(char *ddname);
 
 #define DODPAGEL 0x0023
 /* DPAGELBL FieldCount: 1 FieldLength 1
-   X40 for YES X80 for NO
+   X'40' for YES X'80' for NO
    Indicates whether the system should place a security label on each output page. YES means the system should place a label on each page. NO means the system should not place a label on each page. */
 
 #define DODUPLEX 0x003D
 /* DUPLEX FieldCount: 1 FieldLength 1
-   X80 for NO X40 for NORMAL X20 for TUMBLE
+   X'80' for NO X'40' for NORMAL X'20' for TUMBLE
    Specifies whether the job is to be printed on one or both sides of the paper. Overrides comparable FORMDEF specification. */
 
 #define DOFCB 0x000D
@@ -552,7 +565,7 @@ int DeallocDDName(char *ddname);
 
 #define DOPIMSG 0x0021
 /* PIMSG FieldCount: 2 FieldLength 1
-   X80 for NO X40 for YES The second value field is a two-byte number from 0 through 999 decimal, having a length field of 2.
+   X'80' for NO X'40' for YES The second value field is a two-byte number from 0 through 999 decimal, having a length field of 2.
    Indicates that messages from a functional subsystem should or should not be printed in the listing following the SYSOUT data set. Printing terminates if the number of printing errors exceeds the second value field.  */
 
 #define DOPORTNO 0x0045
@@ -568,7 +581,7 @@ int DeallocDDName(char *ddname);
 #define DOPRTATT 0x0050
 /* PRTATTRS FieldCount: 1 FieldLength 1-127
    EBCDIC text characters
-   Specifies an Infoprint Server job attribute. The z/OS Infoprint Server Users Guide documents job attribute names and syntax for acceptable values. */
+   Specifies an Infoprint Server job attribute. The z/OS Infoprint Server User's Guide documents job attribute names and syntax for acceptable values. */
 
 #define DOPROPTN 0x0039
 /* PRTOPTNS FieldCount: 1 FieldLength 1-16
@@ -627,7 +640,7 @@ int DeallocDDName(char *ddname);
 
 #define DOSYSARE 0x0024
 /* SYSAREA FieldCount: 1 FieldLength 1
-   X40 for YES X80 for NO
+   X'40' for YES X'80' for NO
    Indicates whether you want to use the system printable area of each output page. YES means you want to use the area. NO means you do not want to use the area. */
 
 #define DOTHRESH 0x0022
@@ -642,8 +655,8 @@ int DeallocDDName(char *ddname);
 
 #define DOTRC 0x001A
 /* TRC FieldCount: 1 FieldLength 1
-   X80 for NO X40 for YES
-   Specifies whether or not the SYSOUT data sets records contain table reference codes (TRC) as the second character. */
+   X'80' for NO X'40' for YES
+   Specifies whether or not the SYSOUT data set's records contain table reference codes (TRC) as the second character. */
 
 #define DOUCS 0x001B
 /* UCS FieldCount: 1 FieldLength 1-4
@@ -661,7 +674,7 @@ int DeallocDDName(char *ddname);
    Specifies the names of libraries containing AFP resources. */
 
 #define DOUSERPAT 0x004F
-/* USERPATH FieldCount: 8 FieldLength 1255
+/* USERPATH FieldCount: 8 FieldLength 1-255
    SPECIAL text. See z/OS MVS JCL Reference.
    Specifies up to eight HFS or ZFS system paths containing resources to be used by PSF when processing SYSOUT data sets. */
 
@@ -681,8 +694,28 @@ int DeallocDDName(char *ddname);
 // Values for disposition field
 #define DISP_OLD 0x01
 #define DISP_MOD 0x02
+#define DISP_NEW 0x04
 #define DISP_SHARE 0x08
 #define DISP_DELETE 0x04
+
+// Values for normal disposition field
+#define DISP_UNCATLG 0x01
+#define DISP_CATLG 0x02
+#define DISP_DELETE 0x04
+#define DISP_KEEP 0x08
+
+#define DALSYSOU_DEFAULT 0x08
+
+#define SPIN_UNALLOC 0x80
+#define SPIN_ENDJOB 0x40
+
+#define BYTE_LENGTH 8
+#define BYTE_FULL_MASK 0xff
+
+#define INT24_SIZE 3
+#define VOLSER_SIZE 6
+#define CLASS_WRITER_SIZE 8
+#define TOTAL_TEXT_UNITS 23
 
 /* Use this structure to pass parameters to DYNALLOC functions.
  * Dsname should be padded by spaces. */
@@ -696,11 +729,28 @@ typedef struct DynallocInputParms_tag {
   char reserved[3];
 } DynallocInputParms;
 
+typedef struct DynallocNewTextUnit_tag {
+#define TEXT_UNIT_STRING 1
+#define TEXT_UNIT_BOOLEAN 2
+#define TEXT_UNIT_CHARINT 3
+#define TEXT_UNIT_NULL 4
+#define JSON_TYPE_ERROR 666
+  int type;
+  int size;
+  int key;
+  union {
+    int number;
+    char *string;
+    int boolean;
+  } data;
+} DynallocNewTextUnit;
+
 #pragma map(dynallocDataset, "DYNAUALC")
 #pragma map(dynallocDatasetMember, "DYNAUALM")
 #pragma map(unallocDataset, "DYNADALC")
 
 int dynallocDataset(DynallocInputParms *inputParms, int *reasonCode);
+int dynallocNewDataset(int *reasonCode, DynallocNewTextUnit *setTextUnits, int TextUnitsSize);
 int dynallocDatasetMember(DynallocInputParms *inputParms, int *reasonCode,
                           char *member);
 int unallocDataset(DynallocInputParms *inputParms, int *reasonCode);
