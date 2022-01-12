@@ -379,6 +379,7 @@ Owning Component: Resource Access Control Facility (SC1BN)
 #define SAFPRL26 7 /* Indicates RACF 2.6.0 */
 #define SAFPRL28 8 /* Indicates RACF 2.6.8 */
 #define SAFPRL7709 14 /* Indicates RACF 7709 */
+#define SAFPRLPLV0001 25 /* Indicates RACF PLV0001 */
 
 #define SAFPVER_SIZE 108
 #define SAFPAU_SIZE 92
@@ -500,6 +501,7 @@ typedef struct safVerifyRequest_tag{
   void * __ptr32 ictx;
   void * __ptr32 idid;
   void * __ptr32 icrx;
+  void * __ptr32 idta;
 } safVerifyRequest;
 
 /* first flag set */
@@ -634,7 +636,8 @@ typedef struct safStatRequest_tag{
 
 static safp *makeSAFCallData(int requestNumber,
                              int useSupervisorMode,
-                             int *allocatedSize)
+                             int *allocatedSize,
+                             int options)
 {
   safp *safWrapper;
   void *specificBlock;
@@ -650,6 +653,9 @@ static safp *makeSAFCallData(int requestNumber,
     flags = SAFP_FLAG_R18;
     if (useSupervisorMode){
       flags |= SAFP_FLAG_SYST;
+    }
+    if (options & VERIFY_GENERATE_IDT) {
+      version = SAFPRLPLV0001;
     }
     break;
   case SAFPAU:
@@ -790,7 +796,8 @@ int safVerify(int options, char *userid, char *password,
                             NULL,
                             0,
                             racfStatus,
-                            racfReason));
+                            racfReason,
+                            NULL));
 #ifdef DEBUG
   printf("in safVerify after safVerifyInternal\n");
 #endif
@@ -810,7 +817,8 @@ int safVerify2(int options, char *userid, char *password,
                             NULL,
                             0,
                             racfStatus,
-                            racfReason));
+                            racfReason,
+                            NULL));
 }
 
 int safVerify3(int options,
@@ -829,7 +837,8 @@ int safVerify3(int options,
                             applicationName,
                             0,
                             racfStatus,
-                            racfReason));
+                            racfReason,
+                            NULL));
 }
 
 int safVerify4(int options,
@@ -850,7 +859,8 @@ int safVerify4(int options,
                             applicationName,
                             0,
                             racfStatus,
-                            racfReason));
+                            racfReason,
+                            NULL));
 }
 
 int safVerify5(int options,
@@ -872,7 +882,25 @@ int safVerify5(int options,
                             applicationName,
                             sessionType,
                             racfStatus,
-                            racfReason));
+                            racfReason,
+                            NULL));
+}
+
+int safVerify6(int options, char *userid, char *password,
+              ACEE **aceeHandle,
+              int *racfStatus, int *racfReason, IDTA *idta) {
+  return (safVerifyInternal(options,
+                            userid,
+                            password,
+                            NULL,
+                            aceeHandle,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            racfStatus,
+                            racfReason,
+                            idta));
 }
 
 static int safVerifyInternal(int options,
@@ -884,7 +912,9 @@ static int safVerifyInternal(int options,
                              int  subpool,
                              char *applicationName,
                              int  sessionType,
-                             int *racfStatus, int *racfReason)
+                             int *racfStatus,
+                             int *racfReason,
+                             IDTA *idta)
 {
   int useSupervisorMode = 1; /* verify create/delete demands this 0 options & VERIFY_SUPERVISOR; */
   int safWrapperSize = 0;
@@ -898,7 +928,7 @@ static int safVerifyInternal(int options,
   char *countedNewPassword = NULL;
   char *countedNewPassphrase = NULL;
   char *application = NULL;
-  safp *safWrapper = makeSAFCallData(SAFPVER,useSupervisorMode,&safWrapperSize);
+  safp *safWrapper = makeSAFCallData(SAFPVER,useSupervisorMode,&safWrapperSize, options);
   char *workArea = safeMalloc31(512, "safVerifyInternal workArea");
   ACEE * __ptr32  * __ptr32 ACEEPtr =  (ACEE * __ptr32 * __ptr32) safeMalloc31(4, "ACEE ptr");
   safVerifyRequest *verifyRequest = (safVerifyRequest*)(((char*)safWrapper)+ sizeof(safp));
@@ -917,6 +947,8 @@ static int safVerifyInternal(int options,
       countedNewPassphrase = makeCountedString("newPassphrase", newPassword, 100, FALSE, &countedNewPassphraseSize);
     }
   }
+
+  verifyRequest->idta = idta;
   if (applicationName) {
     if (strlen (applicationName) <= 8) {
       application = safeMalloc31 (8, "Application Name workArea");
@@ -1067,7 +1099,7 @@ static int safAuth_internal(int options, char *safClass, char *entity, int acces
   }
   int useSupervisorMode = options & AUTH_SUPERVISOR;
   int safWrapperSize, countedClassSize, countedEntitySize;
-  safp *safWrapper = makeSAFCallData(SAFPAU,useSupervisorMode,&safWrapperSize);
+  safp *safWrapper = makeSAFCallData(SAFPAU,useSupervisorMode,&safWrapperSize, 0);
   char *workArea = safeMalloc31(512, "safAuth_internal workArea");
   safAuthRequest *authRequest = (safAuthRequest*)(((char*)safWrapper) + sizeof(safp));
   char *countedClass = makeCountedString("class", safClass, 8, FALSE, &countedClassSize);
@@ -1161,7 +1193,7 @@ int safAuthStatus(int options, char *safClass, char *entity, int *accessLevel, A
 int safStat(int options, char *safClass, char *copy, int copyLength, int *racfStatus, int *racfReason){
   int useSupervisorMode = options & STAT_SUPERVISOR;
   int safWrapperSize;
-  safp *safWrapper = makeSAFCallData(SAFPSTAT,useSupervisorMode,&safWrapperSize);
+  safp *safWrapper = makeSAFCallData(SAFPSTAT,useSupervisorMode,&safWrapperSize, 0);
   char *workArea = safeMalloc31(512, "safStat workArea");
   safStatRequest *statRequest = (safStatRequest*)(((char*)safWrapper)+ sizeof(safp));
   char *classBuffer = safeMalloc31(12, "safStat classBuffer");

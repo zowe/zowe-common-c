@@ -138,7 +138,8 @@
 #define RC_CMS_ALLOC_FAILED                 87
 #define RC_CMS_NON_PRIVATE_MODULE           88
 #define RC_CMS_BAD_DUB_STATUS               89
-#define RC_CMS_MAX_RC                       89
+#define RC_CMS_MODULE_QUERY_FAILED          90
+#define RC_CMS_MAX_RC                       90
 
 extern const char *CMS_RC_DESCRIPTION[];
 
@@ -935,7 +936,7 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 #ifndef CMS_LOG_NON_PRIVATE_MODULE_MSG_ID
 #define CMS_LOG_NON_PRIVATE_MODULE_MSG_ID       CMS_MSG_PRFX"0249E"
 #endif
-#define CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT     "Module ZWESIS01 is loaded from common storage, ensure ZWESIS01 is valid in STEPLIB"
+#define CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT     "Module %8.8s is loaded from common storage, ensure %8.8s is valid in the STEPLIB"
 #define CMS_LOG_NON_PRIVATE_MODULE_MSG          CMS_LOG_NON_PRIVATE_MODULE_MSG_ID" "CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT
 
 #ifndef CMS_LOG_DUB_ERROR_MSG_ID

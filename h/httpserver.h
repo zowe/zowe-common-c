@@ -597,6 +597,12 @@ int httpServerInitJwtContext(HttpServer *self,
                              int keyType,
                              int *makeContextRc, int *p11Rc, int *p11Rsn);
 
+int httpServerInitJwtContextCustom(HttpServer *self,
+                                   bool legacyFallback,
+                                   JwtCheckSignature checkSignatureFn,
+                                   void *userData,
+                                   int *makeContextRc);
+
 
 /*
   This program and the accompanying materials are
