@@ -26,7 +26,13 @@
 #include <string.h>
 #include <stdarg.h>
 #include <time.h>
+
+#ifndef _MSC_VER  /* WINDOWS */
 #include <sys/time.h>
+#else
+#include <winsock.h>
+#endif  /* WINDOWS */
+
 #endif
 
 #include "zowetypes.h"
@@ -292,7 +298,7 @@ int timeZoneDifferenceFor(int64 theTime)
   return -1;
 }
 
-#elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
+#elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_WINDOWS)
 
 
 #include <errno.h>
@@ -353,13 +359,78 @@ uint64 sleazyToSeconds(const struct tm* time)
   return result;
 }
 
+/* a platform sensitive wrapper */
+static void platformGMTime(time_t *time,
+                           struct tm *tm){
+#ifdef __ZOWE_OS_WINDOWS
+  memcpy(tm,gmtime(time),sizeof(struct tm));
+#else
+  gmtime_r(time,tm);
+#endif
+}
+
+/* A missing function in Windows -
+ * This implementation came from A MS VisStudio Support pag 
+ */
+
+#ifdef __ZOWE_OS_WINDOWS
+
+#define DELTA_EPOCH_IN_MICROSECS  11644473600000000Ui64
+ 
+struct timezone 
+{
+  int  tz_minuteswest; /* minutes W of Greenwich */
+  int  tz_dsttime;     /* type of dst correction */
+};
+
+static int gettimeofday(struct timeval *tv, struct timezone *tz)
+{
+  FILETIME ft;
+  unsigned __int64 tmpres = 0;
+  static int tzflag;
+ 
+  if (NULL != tv)
+  {
+    GetSystemTimeAsFileTime(&ft);
+ 
+    tmpres |= ft.dwHighDateTime;
+    tmpres <<= 32;
+    tmpres |= ft.dwLowDateTime;
+ 
+    /*converting file time to unix epoch*/
+    tmpres -= DELTA_EPOCH_IN_MICROSECS; 
+    tmpres /= 10;  /*convert into microseconds*/
+    tv->tv_sec = (long)(tmpres / 1000000UL);
+    tv->tv_usec = (long)(tmpres % 1000000UL);
+  }
+ 
+  if (NULL != tz)
+  {
+    if (!tzflag)
+    {
+      _tzset();
+      tzflag++;
+    }
+    tz->tz_minuteswest = _timezone / 60;
+    tz->tz_dsttime = _daylight;
+  }
+ 
+  return 0;
+}
+
+#endif /* WINDOWS gettimeofday implementation */
+
 static int tzsetHasBeenCalled = 0;
 
 static inline
 void tzsetWrapper()
 {
   if (!tzsetHasBeenCalled) {
+#ifdef __ZOWE_OS_WINDOWS
+    _tzset();
+#else
     tzset();
+#endif
     tzsetHasBeenCalled = 1;
   }
 }
@@ -371,7 +442,7 @@ int timeZoneDifferenceInternal(time_t base, struct tm* local)
   int result = 0;
   tzsetWrapper();
   struct tm utc;
-  gmtime_r(&base, &utc);
+  platformGMTime(&base, &utc);
   uint64 utcBase = sleazyToSeconds(&utc);
   uint64 localBase = sleazyToSeconds(local);
   if (utcBase > localBase) {
@@ -384,6 +455,7 @@ int timeZoneDifferenceInternal(time_t base, struct tm* local)
   return result;
 }
 
+
 /*
   Compute the difference between UTC and local time for the
   specified Unix time (seconds since the Unix Epoch).
@@ -393,7 +465,12 @@ int timeZoneDifferenceFor(int64 theTime)
   /* There has to be a better way... */
   time_t base = (time_t) theTime;
   struct tm local;
+#ifdef __ZOWE_OS_WINDOWS
+  struct tm *tempTM = localtime(&base);
+  memcpy(&local,tempTM,sizeof(struct tm));
+#else
   localtime_r(&base, &local);
+#endif
   return timeZoneDifferenceInternal(base, &local);
 }
 
@@ -463,7 +540,7 @@ int stckToTimestamp(int64 stck, char *output)
   stckToTimeval(&timeval, stck);
   time_t time = (time_t)timeval.tv_sec;
   struct tm split;
-  gmtime_r(&time, &split);
+  platformGMTime(&time, &split);
   memset(output, 0, TIMESTAMP_LENGTH);
 
   writePackedDecimal(output,0,10,split.tm_hour);
@@ -473,6 +550,7 @@ int stckToTimestamp(int64 stck, char *output)
   writePackedDecimal(output,8,1000,split.tm_year+1900);
   writePackedDecimal(output,10,10,split.tm_mon+1);
   writePackedDecimal(output,11,10,split.tm_mday);
+  return 0;
 }
 
 int timestampToSTCK(char *todText, int64 *stck, int64 offset)
@@ -516,7 +594,6 @@ int timestampToSTCK(char *todText, int64 *stck, int64 offset)
   *stck = (int64)rawStck;
   return 0;
 }
-
 #else
 #error OS unknown
 #endif
@@ -764,9 +841,9 @@ void unixToTimestamp(uint64 unixTime, char *output) {
   convertIntToString(output + 10, 2, minutes);
   convertIntToString(output + 12, 2, seconds);
 
-#elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
+#elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_WINDOWS)
   struct tm split;
-  gmtime_r((time_t*)&unixTime, &split);
+  platformGMTime((time_t*)&unixTime, &split);
 
   memset(output, 0x0, 16);
   // Copy date
@@ -801,18 +878,24 @@ int snprintLocalTime(char *buffer, int length, int tzSource) {
     gmtime_r(&tt, result);
 #elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
     localtime_r(&tt, result);
+#elif defined(__ZOWE_OS_WINDOWS)
+    memcpy(result,localtime(&tt),sizeof(struct tm));
 #else
 #error Unknown OS
 #endif
   } else if (tzSource == TZ_FROM_TZ) {
+#ifndef __ZOWE_OS_WINDOWS
     localtime_r(&tt, result);
+#else
+    memcpy(result,localtime(&tt),sizeof(struct tm));
+#endif
   } else {
     return 0;
   }
   return snprintf(buffer, length, "%04d-%02d-%02d-%02d-%02d-%02d.%06d",
                   1900 + result->tm_year, result->tm_mon + 1, result->tm_mday,
                   result->tm_hour, result->tm_min, result->tm_sec,
-                  tv->tv_usec);
+                  (int)tv->tv_usec);
 #endif
 }
 

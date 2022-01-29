@@ -17,6 +17,7 @@
 #else
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 #endif
 
 #include "xlate.h"

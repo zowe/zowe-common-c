@@ -516,13 +516,13 @@ void htDump(hashtable *ht){
   for (i=0; i<ht->backboneSize; i++){
     hashentry *entry = ht->backbone[i];
     if (entry != NULL){
-      printf("in slot %d: entry=%x\n",i,entry);
+      printf("in slot %d: entry=0x%p\n",i,entry);
       fflush(stdout);
       while (entry != NULL){
       if (isString){
-       printf("  key=%x '%s' value: %x\n",entry->key,entry->key,entry->value);
+        printf("  key=0x%p '%s' value: 0x%p\n",entry->key,(char*)entry->key,entry->value);
       } else{
-       printf("  key=%x value: %x\n",entry->key,entry->value);
+        printf("  key=0x%p value: 0x%p\n",entry->key,entry->value);
       }
       fflush(stdout);
         entry = entry->next;
@@ -793,7 +793,7 @@ void lhtMap(LongHashtable *ht, void (*visitor)(void *, int64, void *), void *use
 
 static void lruHashVisitor(void *key, void *value){
   LRUElement *element = (LRUElement*)value;
-  printf("    %16.16s: 0x%x containing 0x%x\n",key,value,element->data);
+  printf("    %16.16s: 0x%p containing 0x%p\n",(char*)key,value,element->data);
 }
 
 LRUCache *makeLRUCache(int size){
@@ -822,13 +822,13 @@ void lruDump(LRUCache *cache){
   LRUElement *element = cache->newest;
   printf("  Newest To Oldest:\n");
   while (element){
-    printf("    Elt: %16.16s -> 0x%x\n",element->digest,element->data);
+    printf("    Elt: %16.16s -> 0x%p\n",(char*)element->digest,element->data);
     element = element->older;
   }
   element = cache->oldest;
   printf("  Oldest To Newest:\n");
   while (element){
-    printf("    Elt: %16.16s -> 0x%x\n",element->digest,element->data);
+    printf("    Elt: %16.16s -> 0x%p\n",(char*)element->digest,element->data);
     element = element->newer;
   }
   printf("  In Hash Order:\n");
@@ -838,7 +838,7 @@ void lruDump(LRUCache *cache){
 /* can change recency */
 void *lruGet(LRUCache *cache, char *digest){
   if (cache->trace){
-    printf("LRU Get digest: 0x%x\n",digest);
+    printf("LRU Get digest: 0x%p\n",digest);
     dumpbuffer(digest,16);
   }
   LRUElement *element = (LRUElement*)htGet(cache->ht,digest);
@@ -868,14 +868,14 @@ static LRUElement *allocLRUElement(LRUCache *cache){
    */
 void *lruStore(LRUCache *cache, char *digest, void *thing){
   if (cache->trace){
-    printf("LRU Store digest: 0x%x\n",digest);
+    printf("LRU Store digest: 0x%p\n",digest);
     dumpbuffer(digest,16);
   }
 
   hashtable *ht = cache->ht;
   LRUElement *existingElement = htGet(ht,digest);
   if (cache->trace){
-    printf("lruStore existing = 0x%x\n",existingElement);
+    printf("lruStore existing = 0x%p\n",existingElement);
   }
   if (existingElement){
     if (existingElement == cache->newest){
@@ -886,7 +886,7 @@ void *lruStore(LRUCache *cache, char *digest, void *thing){
     } else if (existingElement == cache->oldest){
       LRUElement *newOldest = cache->oldest->newer;
       if (cache->trace){
-        printf("recaching oldest: rotate to front, newOldest = 0x%x\n",newOldest);
+        printf("recaching oldest: rotate to front, newOldest = 0x%p\n",newOldest);
       }
 
       existingElement->newer = NULL;
@@ -903,7 +903,7 @@ void *lruStore(LRUCache *cache, char *digest, void *thing){
       LRUElement *prev = existingElement->older;
       LRUElement *next = existingElement->newer;
       if (cache->trace){
-        printf("recaching middle, prun between older=0x%x and newer 0x%x\n",
+        printf("recaching middle, prun between older=0x%p and newer 0x%p\n",
         prev->data,next->data);
       }
 
@@ -924,14 +924,14 @@ void *lruStore(LRUCache *cache, char *digest, void *thing){
     if (cache->oldest && cache->newest){
       LRUElement *oldNewest = cache->newest;
       if (cache->trace){
-        printf(">1 room case newest->data=0x%x\n",oldNewest->data);
+        printf(">1 room case newest->data=0x%p\n",oldNewest->data);
       }
       newElement->older = cache->newest;
       cache->newest = newElement;
       oldNewest->newer = newElement;
     } else{
       if (cache->trace){
-        printf("== 0 case, go for it, newElement=0x%x\n",newElement);
+        printf("== 0 case, go for it, newElement=0x%p\n",newElement);
       }
       newElement->older = NULL;
       cache->newest = newElement;
@@ -946,7 +946,7 @@ void *lruStore(LRUCache *cache, char *digest, void *thing){
     LRUElement *secondOldest = oldOldest->newer;
     LRUElement *recycledElement = (LRUElement*)htGet(ht,oldOldest->digest);
     if (cache->trace){
-      printf("recycle case oldOldest=0x%x recycled = 0x%x\n",oldOldest,recycledElement);
+      printf("recycle case oldOldest=0x%p recycled = 0x%p\n",oldOldest,recycledElement);
     }
     void *decached = recycledElement->data;
     htRemove(ht,oldOldest->digest);
@@ -965,7 +965,7 @@ void *lruStore(LRUCache *cache, char *digest, void *thing){
 
     LRUElement *recycledElement = cache->oldest;
     if (cache->trace){
-      printf("recycle case (size=1) recycled = 0x%x\n",recycledElement);
+      printf("recycle case (size=1) recycled = 0x%p\n",recycledElement);
     }
     void *decached = recycledElement->data;
     htRemove(ht,recycledElement->digest);

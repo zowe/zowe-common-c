@@ -708,7 +708,7 @@ void dumpbufferA(const char *buffer, int length){
 #ifdef METTLE
     printf("the buffer is empty at %x\n",buffer);
 #else
-    fprintf((FILE*)traceOut,"the buffer is empty at %x\n",buffer);
+    fprintf((FILE*)traceOut,"the buffer is empty at %p\n",buffer);
 #endif
 
   while (index <= last_index){
@@ -1051,8 +1051,8 @@ static char binToEB64[] ={0xc1,0xc2,0xc3,0xc4,0xc5,0xc6,0xc7,0xc8,0xc9,0xd1,0xd2
 
 char *encodeBase64(ShortLivedHeap *slh, const char buf[], int size, int *resultSize, int useEbcdic){
   int   allocSize = BASE64_ENCODE_SIZE(size)+1;  /* +1 for null term */
-  char *result = NULL;
-  if (result = (slh ? SLHAlloc(slh,allocSize) : safeMalloc31(allocSize,"BASE64"))) {
+  char *result = (slh ? SLHAlloc(slh,allocSize) : safeMalloc31(allocSize,"BASE64"));
+  if (result){
     encodeBase64NoAlloc(buf, size, result, resultSize, useEbcdic);
     return result;
   } else{
@@ -1452,7 +1452,7 @@ static void reportSLHFailure(ShortLivedHeap *slh, int size){
   while (chain){
     char *data = chain->data-4;
     int size = *((int*)data);
-    printf("  segment %d at 0x%x, size = 0x%x\n",i,data,size+4);
+    printf("  segment %d at 0x%p, size = 0x%x\n",i,data,size+4);
     chain = chain->next;
     i++;
   }
@@ -1477,13 +1477,15 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
     size += (8-rem);
   }
   char *data;
-  /* printf("slh=%d\n",slh);fflush(stdout);
-     printf("SLHAlloc me=0x%x size=%d bc=%d\n",slh,size,slh->blockCount);fflush(stdout); */
+  /* 
+     printf("slh=0x%p\n",slh);fflush(stdout);
+     printf("SLHAlloc me=0x%p size=%d bc=%d\n",slh,size,slh->blockCount);fflush(stdout);
+  */
   int remainingHeapBytes = (slh->blockSize * (slh->maxBlocks - slh->blockCount));
   if (size > remainingHeapBytes){
     printf("SLH at 0x%p cannot allocate above block size %d > %d mxbl %d bkct %d bksz %d\n",
 	   slh,size,remainingHeapBytes,slh->maxBlocks,slh->blockCount,slh->blockSize);
-    
+    fflush(stdout);
     char *mem = (char*)0;
     mem[0] = 13;
     return NULL;
@@ -1736,7 +1738,7 @@ CharStream *makeBufferCharStream(char *buffer, int len, int trace){
   s->positionMethod = getBufferPosition;
   s->closeMethod = NULL;
   if (trace){
-    printf("mbcs out 0x%x, '%.*s'\n",s,len,s);
+    printf("mbcs out 0x%p, '%.*s'\n",s,len,buffer);
   }
   return s;
 }
@@ -1979,6 +1981,10 @@ int decimalToOctal(int decimal) {
 #else
 #define debugPrintf(formatString, ...)
 #endif
+
+static int incrementPlaceValues(int *placeValues,
+                                int lim, int digits);
+
 
 int matchWithWildcards(char *pattern, int patternLen,
                        char *s, int len, int flags){

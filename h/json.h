@@ -16,8 +16,10 @@
 #ifdef METTLE
 #  include <metal/metal.h>
 #  include <metal/stddef.h>
+#  include <metal/stdint.h>
 #else
 #  include <stddef.h>
+#  include <stdint.h>
 #endif /* METTLE */
 #include "zowetypes.h"
 #include "utils.h"
@@ -346,10 +348,18 @@ struct Json_tag {
 #define JSON_TYPE_NULL 3
 #define JSON_TYPE_OBJECT 4
 #define JSON_TYPE_ARRAY 5
+  /* V2 parsing can yield the following additional types */
+#define JSON_TYPE_INT64 6
+#define JSON_TYPE_DOUBLE 7
 #define JSON_TYPE_ERROR 666
   int type;
   union {
     int number;
+    /* There two fields are being introduced to support 'proper' parsing of
+       numbers.   Up until 2022, this json library was not very friendly to floating 
+       point and integers with a >32-bit mantissa. */
+    int64_t integerValue;
+    double  floatValue;
     char *string;
     int boolean;
     JsonObject *object;
@@ -382,6 +392,8 @@ struct JsonError_tag {
 Json *jsonParseString(ShortLivedHeap *slh, char *jsonString, char* errorBufferOrNull, int errorBufferSize);
 Json *jsonParseUnterminatedString(ShortLivedHeap *slh, char *jsonString, int len, char* errorBufferOrNull, int errorBufferSize);
 Json *jsonParseFile(ShortLivedHeap *slh, const char *filename , char* errorBufferOrNull, int errorBufferSize);
+/* parseFile2 supports full-width integers and floating-point numbers */
+Json *jsonParseFile2(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize);
 Json *jsonParseUnterminatedUtf8String(ShortLivedHeap *slh, int outputCCSID,
                                       char *jsonUtf8String, int len,
                                       char *errorBufferOrNull, int errorBufferSize);
@@ -395,6 +407,8 @@ void jsonPrintArray(jsonPrinter* printer, JsonArray *array);
 
 int         jsonAsBoolean(Json *json);
 int         jsonAsNumber(Json *json);
+int64_t     jsonAsInt64(Json *json);
+double      jsonAsDouble(Json *json);
 char       *jsonAsString(Json *json);
 JsonArray  *jsonAsArray(Json *json);
 JsonObject *jsonAsObject(Json *json);
@@ -405,8 +419,15 @@ int jsonIsArray(Json *json);
 int jsonIsBoolean(Json *json);
 int jsonIsNull(Json *json);
 int jsonIsNumber(Json *json);
+/* V2 more specific number type */
+int jsonIsDouble(Json *json);
+int jsonIsInt64(Json *json);
 int jsonIsObject(Json *json);
 int jsonIsString(Json *json);
+
+/************** High Uniqueness Hash ******************/
+
+int64_t jsonLongHash(Json *json);
 
 /************** Array Accessors ***********************/
 
@@ -516,6 +537,78 @@ int         jsonIntProperty(JsonObject *object, char *propertyName, int *status,
 char       *jsonStringProperty(JsonObject *object, char *propertyName, int *status);
 JsonObject *jsonObjectProperty(JsonObject *object, char *propertyName, int *status);
 void        reportJSONDataProblem(void *jsonObject, int status, char *propertyName);
+
+/* JSON Builder interface.  This Interface allows the translation to JSON
+   form other formats, without going through json syntax parsing. 
+*/
+
+typedef struct JsonParser_tag JsonParser;
+typedef struct JsonTokenizer_tag JsonTokenizer;
+typedef struct JsonToken_tag JsonToken;
+
+#define JSON_PARSE_VERSION_1 1 /* incorrect numbers (only 32-bit integers) */
+#define JSON_PARSE_VERSION_2 2 /* numbers parse to int64 or a double */
+
+struct JsonParser_tag {
+  JsonTokenizer *tokenizer;
+  JsonToken *unreadToken;
+  ShortLivedHeap *slh;
+  CharStream *in;
+  Json *jsonError;
+  int   version;
+};
+
+typedef struct JsonBuilder_tag {
+  JsonParser parser;
+  Json *root;
+} JsonBuilder;
+
+JsonBuilder *makeJsonBuilder(ShortLivedHeap *slh);
+
+#define JSON_BUILD_FAIL_PARENT_IS_SCALAR 12
+#define JSON_BUILD_FAIL_KEY_ON_ARRAY 16
+#define JSON_BUILD_FAIL_KEY_ON_ROOT 20
+#define JSON_BUILD_FAIL_NO_KEY_ON_OBJECT 24
+
+void freeJsonBuilder(JsonBuilder *builder, bool freeSLH);
+
+Json *jsonBuildObject(JsonBuilder *b,
+                      Json *parent,
+                      char *parentKey,
+                      int *errorCode);
+
+Json *jsonBuildArray(JsonBuilder *b,
+                     Json *parent,
+                     char *parentKey,
+                     int *errorCode);
+
+Json *jsonBuildString(JsonBuilder *b,
+                      Json *parent,
+                      char *parentKey,
+                      char *s,
+                      int   sLen,
+                      int *errorCode);
+
+Json *jsonBuildInt(JsonBuilder *b,
+                   Json *parent,
+                   char *parentKey,
+                   int i,
+                   int *errorCode);
+
+Json *jsonBuildBool(JsonBuilder *b,
+                    Json *parent,
+                    char *parentKey,
+                    bool *truthValue,
+                    int *errorCode);
+
+Json *jsonBuildNull(JsonBuilder *b,
+                    Json *parent,
+                    char *parentKey,
+                    int *errorCode);
+
+
+
+
 
 #endif	/* __JSON__ */
 

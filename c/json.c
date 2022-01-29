@@ -19,6 +19,7 @@
 #include <metal/string.h>
 #include <metal/stdarg.h>
 #include <metal/ctype.h>  
+#include <metal/stdbool.h>  
 #include "metalio.h"
 #include "qsam.h"
 
@@ -35,6 +36,9 @@
 #include <stdarg.h>
 #include <ctype.h>  
 #include <sys/stat.h>
+#include <sys/types.h> /* JOE 1/20/22 */
+#include <stdint.h> /* JOE 1/20/22 */
+#include <stdbool.h> /* JOE 1/20/22 */
 #include <errno.h>
 
 #endif
@@ -47,6 +51,11 @@
 #include "unixfile.h"
 #include "json.h"
 #include "charsets.h"
+
+#ifdef __ZOWE_OS_WINDOWS
+typedef int64_t ssize_t;
+#endif
+
 
 /*
  * 
@@ -65,13 +74,15 @@
 #define DEBUG(...) /* fprintf(stderr, __VA_ARGS__) */
 #define DUMPBUF($b, $l) /* dumpBufferToStream($b, $l, stderr) */
 
+/* JOE ERROR() is a defined macro in windows, so it needs a more specific name here */
+
 #ifdef METTLE
-#  define ERROR(...) /* TODO */
+#  define JSONERROR(...) /* TODO */
 #else
 /* TODO Implement good error handling: the caller must have a way to know if
  * an error happened. Most methods currently are void and there's no error
  * flag on the printer structure */
-#  define ERROR(...) fprintf(stderr, __VA_ARGS__)
+#  define JSONERROR(...) fprintf(stderr, __VA_ARGS__)
 #endif
 
 static
@@ -164,7 +175,16 @@ void jsonWriteBufferInternal(jsonPrinter *p, char *text, int len) {
     p->customWrite(p, text, len);
   } else {
     while (bytesWritten < len) {
-#ifndef METTLE
+#if defined(__ZOWE_OS_WINDOWS)
+      int newWriteReturn = -666; /* send(p->fd,text+bytesWritten,len-bytesWritten,0); */
+      if (p->fd == _fileno(stdout)){
+        newWriteReturn = fwrite(text, 1, len, stdout);
+      } else if (p->fd == _fileno(stderr)){
+        newWriteReturn = fwrite(text, 1, len, stderr);
+      } else {
+        printf("JOE WINDOWS FAKE SOCKET WRITE bad case\n");
+      }
+#elif !defined(METTLE)
       int newWriteReturn = write(p->fd,text+bytesWritten,len-bytesWritten);
 #else
       int newWriteReturn = socketWrite((Socket *)p->fd,text+bytesWritten,len-bytesWritten,
@@ -173,14 +193,14 @@ void jsonWriteBufferInternal(jsonPrinter *p, char *text, int len) {
       loopCount++;
       if (newWriteReturn < 0) {
         /* TODO: Replace by zowelog(...) */
-        ERROR("JSON: write error, rc %d, return code %d, reason code %08X\n",
+        JSONERROR("JSON: write error, rc %d, return code %d, reason code %08X\n",
               newWriteReturn, returnCode, reasonCode);
         jsonSetIOErrorFlag(p);
         break;
       }
       if (loopCount > 10) {
         /* TODO: Replace by zowelog(...) */
-        ERROR("JSON: write error, too many attempts\n");
+        JSONERROR("JSON: write error, too many attempts\n");
         jsonSetIOErrorFlag(p);
         break;
       }
@@ -245,7 +265,7 @@ convertToUtf8(jsonPrinter *p, size_t len, char text[len], int inputCCSID) {
           p->_conversionBufferSize, "JSON conversion buffer");
       if (newBuf == NULL) {
         //the old buffer will be free'd by freeJsonPrinter() if allocated
-        ERROR("JSON: error, not enough memory to convert\n");
+        JSONERROR("JSON: error, not enough memory to convert\n");
         return -1;
       }
       p->_conversionBufferSize = newSize;
@@ -257,14 +277,14 @@ convertToUtf8(jsonPrinter *p, size_t len, char text[len], int inputCCSID) {
     if (convRc == CHARSET_CONVERSION_SUCCESS) {
       return  convesionOutputLength;
     } else if (convRc != CHARSET_SHORT_BUFFER) {
-      ERROR("JSON: conversion error, rc %d, reason %d\n", convRc,
+      JSONERROR("JSON: conversion error, rc %d, reason %d\n", convRc,
               reasonCode);
       return -1;
     }
   } while (reallocLimit-- > 0);
   if (reallocLimit == 0) {
     //the old buffer will be free'd by freeJsonPrinter() if allocated
-    ERROR("JSON: error, not enough memory to convert\n");
+    JSONERROR("JSON: error, not enough memory to convert\n");
     return -1;
   }
   return len;
@@ -291,7 +311,7 @@ writeBufferWithEscaping(jsonPrinter *p, size_t len, char text[len]) {
 
     UTF8_GET_NEXT_CHAR(len, text, &i, &utf8Char, &getCharErr);
     if (getCharErr != 0) {
-      ERROR("JSON: invalid UTF-8, rc %d\n", getCharErr);
+      JSONERROR("JSON: invalid UTF-8, rc %d\n", getCharErr);
       return -1;
     }
     DEBUG("character at %p + %d, len %d, char %x\n", text, i, len, utf8Char);
@@ -326,7 +346,7 @@ writeBufferWithEscaping(jsonPrinter *p, size_t len, char text[len]) {
               CHARSET_OUTPUT_USE_BUFFER, &ptrToUtf8Buf, sizeof (escapeUtf),
               CCSID_UTF_8, NULL, &convesionOutputLength, &reasonCode);
           if (convRc != CHARSET_CONVERSION_SUCCESS) {
-            ERROR("JSON: conversion error, rc %d, reason %d\n",
+            JSONERROR("JSON: conversion error, rc %d, reason %d\n",
                     convRc, reasonCode);
             return -1;
           }
@@ -362,8 +382,8 @@ void jsonConvertAndWriteBuffer(jsonPrinter *p, char *text, size_t len,
       DUMPBUF(text, len);
       newLen = convertToUtf8(p, len, text, inputCCSID);
       if (newLen < 0) {
-        ERROR("jsonConvertAndWriteBuffer() error: newLen = %d\n",
-                newLen);
+        JSONERROR("jsonConvertAndWriteBuffer() error: newLen = %d\n",
+                  (int)newLen);
         return;
       }
       DEBUG("utf8, len %d:\n", newLen);
@@ -376,8 +396,8 @@ void jsonConvertAndWriteBuffer(jsonPrinter *p, char *text, size_t len,
 
       bytesWritten = writeBufferWithEscaping(p, len, text);
       if (bytesWritten < 0) {
-        ERROR("jsonConvertAndWriteBuffer() error: bytesWritten = %d\n",
-                bytesWritten);
+        JSONERROR("jsonConvertAndWriteBuffer() error: bytesWritten = %d\n",
+                  (int)bytesWritten);
         return;
       }
     } else {
@@ -449,6 +469,13 @@ static
 void jsonWriteInt64(jsonPrinter *p, int64 value) {
   char buffer[64];
   snprintf(buffer, sizeof (buffer), "%lld", value);
+  jsonWrite(p, buffer, false, SOURCE_CODE_CHARSET);
+}
+
+static
+void jsonWriteDouble(jsonPrinter *p, double value) {
+  char buffer[64];
+  snprintf(buffer, sizeof (buffer), "%f", value);
   jsonWrite(p, buffer, false, SOURCE_CODE_CHARSET);
 }
 
@@ -760,6 +787,20 @@ void jsonAddInt64(jsonPrinter *p, char *keyOrNull, int64 value) {
   jsonWriteInt64(p, value);
 }
 
+void jsonAddDouble(jsonPrinter *p, char *keyOrNull, double value) {
+  if (jsonShouldStopWriting(p)) {
+    return;
+  }
+  if (p->isFirstLine) {
+    p->isFirstLine = FALSE;
+  } else {
+    jsonNewLine(p);
+  }
+  jsonWriteKeyAndSemicolon(p, keyOrNull);
+  jsonWriteDouble(p, value);
+}
+
+
 void jsonSetIOErrorFlag(jsonPrinter *p) {
   p->ioErrorFlag = TRUE;
 }
@@ -829,17 +870,6 @@ writeToBuffer(struct jsonPrinter_tag *p, char *text, int len) {
 #define JSON_TOKEN_BUFFER_SIZE_LIMIT  104857600 /* 100 MB (for one token) */
 #endif
 
-typedef struct JsonParser_tag JsonParser;
-typedef struct JsonTokenizer_tag JsonTokenizer;
-typedef struct JsonToken_tag JsonToken;
-
-struct JsonParser_tag {
-  JsonTokenizer *tokenizer;
-  JsonToken *unreadToken;
-  ShortLivedHeap *slh;
-  CharStream *in;
-  Json *jsonError;
-};
 
 struct JsonTokenizer_tag {
   CharStream *in;
@@ -875,6 +905,8 @@ struct JsonToken_tag {
 #define JSON_TOKEN_BAD_COMMENT 17
 #define JSON_TOKEN_UNEXPECTED_CHAR 18
 #define JSON_TOKEN_STRING_TOO_LONG 19
+#define JSON_TOKEN_INT64 20  
+#define JSON_TOKEN_FLOAT 21 
 #define JSON_TOKEN_UNMATCHED 666
   int type;
   char *text;
@@ -895,7 +927,8 @@ static Json *jsonGetString(JsonParser* parser);
 static Json *jsonParse(JsonParser* parser);
 static JsonParser *makeJsonParser(ShortLivedHeap *slh, char *jsonString, int len);
 static JsonToken *getReservedWordToken(JsonTokenizer *tokenizer);
-static JsonToken *getNumberToken(JsonTokenizer *tokenizer);
+static JsonToken *getNumberTokenV1(JsonTokenizer *tokenizer);
+static JsonToken *getNumberTokenV2(JsonTokenizer *tokenizer);
 static JsonToken *getStringToken(JsonTokenizer *tokenizer);
 static JsonToken *getLineCommentToken(JsonTokenizer *tokenizer);
 static JsonToken *getBlockCommentToken(JsonTokenizer *tokenizer);
@@ -910,7 +943,7 @@ static void freeJsonParser(JsonParser *parser);
 static void freeJsonTokenizer(JsonTokenizer *tokenizer);
 static void jsonArrayAddElement(JsonParser *parser, JsonArray *arr, Json *element);
 static void jsonPrintInternal(jsonPrinter* printer, char* keyOrNull, Json *json);
-static void jsonOjectAddProperty(JsonParser *parser, JsonObject *obj, char *key, Json *value);
+static void jsonObjectAddProperty(JsonParser *parser, JsonObject *obj, char *key, Json *value);
 static void jsonParseFail(JsonParser *parser, char *formatString, ...);
 static void jsonTokenizerSkipWhitespace(JsonTokenizer *t);
 
@@ -951,6 +984,8 @@ char *getTokenTypeString(int type) {
       return "unmatched token";
     case JSON_TOKEN_STRING_TOO_LONG:
       return "string too long";
+    case JSON_TOKEN_FLOAT:
+      return "float";
     default:
       return "unknown token";
   }
@@ -1047,6 +1082,8 @@ void freeJsonParser(JsonParser *parser) {
 
 static 
 void jsonParseFail(JsonParser *parser, char *formatString, ...) {
+  printf("JSON PARSE FAIL!!!!!\n");
+  fflush(stdout);
   if (parser->jsonError == NULL) {
     int size = 1024;
     char *buffer = jsonParserAlloc(parser, size);
@@ -1203,7 +1240,7 @@ JsonToken *getStringToken(JsonTokenizer *tokenizer) {
 }
 
 static 
-JsonToken *getNumberToken(JsonTokenizer *tokenizer) {
+JsonToken *getNumberTokenV1(JsonTokenizer *tokenizer) {
   char *buffer = tokenizer->buffer;
   int pos = 0;
   int badNumber = FALSE;
@@ -1229,6 +1266,59 @@ JsonToken *getNumberToken(JsonTokenizer *tokenizer) {
   char *text = jsonTokenizerAlloc(tokenizer, pos + 1);
   memcpy(text, buffer, pos);
   return makeJsonToken(tokenizer, badNumber ? JSON_TOKEN_BAD_NUMBER : JSON_TOKEN_NUMBER, text);
+}
+
+static int addTokenChar(JsonTokenizer *tokenizer, int pos, int c){
+  if (pos < tokenizer->bufferSize){
+    tokenizer->buffer[pos++] = c;
+  }
+  return pos;
+}
+
+static 
+JsonToken *getNumberTokenV2(JsonTokenizer *tokenizer) {
+  char *buffer = tokenizer->buffer;
+  int pos = 0;
+  bool isInteger = true;
+  bool badNumber = false;
+  
+  if (jsonTokenizerLookahead(tokenizer) == '-') {
+    buffer[pos++] = jsonTokenizerRead(tokenizer);
+  }
+  if (isdigit(jsonTokenizerLookahead(tokenizer))) {
+    buffer[pos++] = jsonTokenizerRead(tokenizer);
+    while (isdigit(jsonTokenizerLookahead(tokenizer))) {
+      int c = jsonTokenizerRead(tokenizer);
+      pos = addTokenChar(tokenizer,pos,c);
+    }
+    if (jsonTokenizerLookahead(tokenizer) == '.'){
+      isInteger = false;
+      pos = addTokenChar(tokenizer,pos,jsonTokenizerRead(tokenizer));
+      if (isdigit(jsonTokenizerLookahead(tokenizer))){
+        pos = addTokenChar(tokenizer,pos,jsonTokenizerRead(tokenizer));
+        while (isdigit(jsonTokenizerLookahead(tokenizer))) {
+          int c = jsonTokenizerRead(tokenizer);
+          pos = addTokenChar(tokenizer,pos,c);
+        }
+      } else {
+        badNumber = true;
+      }
+    }
+    /* must have at least one number, followed by a lookahead to a non-number here */
+  } else {
+    badNumber = true;
+    int c = jsonTokenizerRead(tokenizer);
+    pos = addTokenChar(tokenizer,pos,c);
+  }
+  char *text = jsonTokenizerAlloc(tokenizer, pos + 1);
+  memcpy(text, buffer, pos);
+  if (badNumber){
+    return makeJsonToken(tokenizer,JSON_TOKEN_BAD_NUMBER,text);
+  } else if (isInteger){
+    return makeJsonToken(tokenizer,JSON_TOKEN_INT64,text);
+  } else {
+    return makeJsonToken(tokenizer,JSON_TOKEN_FLOAT,text);
+  }
 }
 
 static
@@ -1368,10 +1458,15 @@ JsonToken *jsonNextToken(JsonParser* parser) {
   lookahead = jsonTokenizerLookahead(tokenizer);
   tokenizer->lastTokenLineNumber = tokenizer->lineNumber;
   tokenizer->lastTokenColumnNumber = tokenizer->columnNumber;
+  /* printf("JOE jsonNextToken lookahead=0x%x '%c'\n",(int)lookahead,(char)lookahead);
+     fflush(stdout);
+  */
   if (lookahead == '\"') {
     token = getStringToken(tokenizer);
   } else if (isdigit(lookahead) || lookahead == '-') {
-    token = getNumberToken(tokenizer);
+    token = (parser->version >= 2 ?
+             getNumberTokenV2(tokenizer) :
+             getNumberTokenV1(tokenizer));
   } else if (isalpha(lookahead)) {
     token = getReservedWordToken(tokenizer);
   } else if (lookahead == '{') {
@@ -1401,12 +1496,13 @@ JsonToken *jsonNextToken(JsonParser* parser) {
     jsonParseFail(parser, "unexpected character %c(0x%x)\n", lookahead, lookahead);
     token = makeJsonToken(tokenizer, JSON_TOKEN_UNEXPECTED_CHAR, "");
   }
-  
+
   if (token->type == JSON_TOKEN_LINE_COMMENT || token->type == JSON_TOKEN_BLOCK_COMMENT) {
     token = jsonNextToken(parser);
   }
   jsonValidateToken(parser, token);
-
+  
+  /* printf("JOE returning next token=0x%p\n",token);fflush(stdout); */
   return token;
 }
 
@@ -1476,6 +1572,35 @@ Json *jsonGetNumber(JsonParser* parser) {
 }
 
 static 
+Json *jsonGetInt64(JsonParser* parser) {
+  Json *json = NULL;
+  JsonToken *token = jsonMatchToken(parser, JSON_TOKEN_INT64);
+  if (!jsonIsTokenUnmatched(token)) {
+    json = (Json*) jsonParserAlloc(parser, sizeof (Json));
+    json->type = JSON_TYPE_INT64;
+    json->data.integerValue = strtoll(token->text,NULL,10);
+  } else {
+    json = parser->jsonError;
+  }
+  return json;
+}
+
+static 
+Json *jsonGetFloat(JsonParser* parser) {
+  Json *json = NULL;
+  JsonToken *token = jsonMatchToken(parser, JSON_TOKEN_FLOAT);
+  if (!jsonIsTokenUnmatched(token)) {
+    json = (Json*) jsonParserAlloc(parser, sizeof (Json));
+    json->type = JSON_TYPE_DOUBLE;
+    json->data.floatValue = strtod(token->text,NULL);
+  } else {
+    json = parser->jsonError;
+  }
+  return json;
+}
+
+ 
+static 
 Json *jsonGetString(JsonParser* parser) {
   Json *json = NULL;
   JsonToken *token = jsonMatchToken(parser, JSON_TOKEN_STRING);
@@ -1517,7 +1642,7 @@ Json *jsonGetNull(JsonParser* parser) {
 }
 
 static 
-void jsonOjectAddProperty(JsonParser *parser, JsonObject *obj, char *key, Json *value) {
+void jsonObjectAddProperty(JsonParser *parser, JsonObject *obj, char *key, Json *value) {
   JsonProperty *property = (JsonProperty*) jsonParserAlloc(parser, sizeof (JsonProperty));
   property->key = key;
   property->value = value;
@@ -1600,10 +1725,13 @@ int jsonArrayContainsString(JsonArray *array, const char *s){
 
 static Json *jsonGetObject(JsonParser* parser) {
   JsonToken *token = jsonMatchToken(parser, JSON_TOKEN_OBJECT_START);
+  /* printf("JGO ck.1\n");fflush(stdout); */
   if (jsonIsTokenUnmatched(token)) {
+    /* printf("JGO ck.1.1\n");fflush(stdout); */
     return parser->jsonError;
   }
   Json *json = (Json*) jsonParserAlloc(parser, sizeof (Json));
+  /* printf("JGO ck.2\n");fflush(stdout); */
   JsonObject *obj = (JsonObject*) jsonParserAlloc(parser, sizeof (JsonObject));
   json->type = JSON_TYPE_OBJECT;
   json->data.object = obj;
@@ -1619,7 +1747,7 @@ static Json *jsonGetObject(JsonParser* parser) {
       if (jsonIsError(valueJSON)) {
         return parser->jsonError;
       }
-      jsonOjectAddProperty(parser, obj, keyToken->text, valueJSON);
+      jsonObjectAddProperty(parser, obj, keyToken->text, valueJSON);
       lookahead = jsonLookaheadToken(parser);
       if (lookahead->type == JSON_TOKEN_COMMA) {
         jsonMatchToken(parser, JSON_TOKEN_COMMA);
@@ -1678,9 +1806,16 @@ static Json *jsonParse(JsonParser* parser) {
   JsonToken *lookahead = jsonLookaheadToken(parser);
   Json *json = NULL;
   if (lookahead) {
+    /* printf("JOE: lookahead type %d\n",lookahead->type);fflush(stdout); */
     switch (lookahead->type) {
       case JSON_TOKEN_NUMBER:
         json = jsonGetNumber(parser);
+        break;
+      case JSON_TOKEN_INT64:
+        json = jsonGetInt64(parser);
+        break;
+      case JSON_TOKEN_FLOAT:
+        json = jsonGetFloat(parser);
         break;
       case JSON_TOKEN_STRING:
         json = jsonGetString(parser);
@@ -1705,6 +1840,193 @@ static Json *jsonParse(JsonParser* parser) {
   return json;
 }
 
+
+JsonBuilder *makeJsonBuilder(ShortLivedHeap *slh){
+  JsonBuilder *builder = (JsonBuilder*) safeMalloc(sizeof (JsonBuilder), "JSON Builder");
+  memset(builder,0,sizeof(JsonBuilder));
+  JsonParser *parser = (JsonParser*)builder;
+  parser->slh = slh;
+  return builder;
+}
+
+#define ADD_TO_ROOT -1
+#define ADD_TO_OBJECT -2
+#define ADD_TO_ARRAY -3
+
+void freeJsonBuilder(JsonBuilder *builder, bool freeSLH){
+  if (freeSLH){
+    JsonParser *parser = (JsonParser*)builder;
+    SLHFree(parser->slh);
+  }
+  safeFree((char*)builder,sizeof(JsonBuilder));
+}
+
+static int checkParentLValue(Json *parent,
+                             char *parentKey){
+  if (parent){
+    switch (parent->type){
+    case JSON_TYPE_OBJECT:
+      return (parentKey ? ADD_TO_OBJECT : JSON_BUILD_FAIL_NO_KEY_ON_OBJECT);
+    case JSON_TYPE_ARRAY:
+      return (parentKey ? JSON_BUILD_FAIL_KEY_ON_ARRAY : ADD_TO_ARRAY);
+    default:
+      return JSON_BUILD_FAIL_PARENT_IS_SCALAR;
+    }
+  } else {
+    return (parentKey ? JSON_BUILD_FAIL_KEY_ON_ROOT : ADD_TO_ROOT);
+  }
+}
+
+static void addToParent(JsonBuilder *b,
+                        int lvalueStatus,
+                        Json *parent,
+                        char *parentKey,
+                        Json *json){
+  JsonParser *p = (JsonParser*)b;
+  switch (lvalueStatus){
+  case ADD_TO_ROOT:
+    b->root = json;
+    break;
+  case ADD_TO_OBJECT:
+    jsonObjectAddProperty(p,parent->data.object,parentKey,json);
+    break;
+  case ADD_TO_ARRAY:
+    jsonArrayAddElement(p,parent->data.array,json);
+    break;
+  }
+}
+
+Json *jsonBuildObject(JsonBuilder *b,
+                      Json *parent,
+                      char *parentKey,
+                      int *errorCode){
+  JsonParser *parser = (JsonParser*)b;
+  int lvalueStatus = checkParentLValue(parent,parentKey);
+  if (lvalueStatus < 0){
+    Json *json = (Json*) jsonParserAlloc(parser, sizeof (Json));
+    JsonObject *obj = (JsonObject*) jsonParserAlloc(parser, sizeof (JsonObject));
+    json->type = JSON_TYPE_OBJECT;
+    json->data.object = obj;
+    *errorCode = 0;
+    addToParent(b,lvalueStatus,parent,parentKey,json);    
+    return json;
+  } else {
+    *errorCode = lvalueStatus;
+    return NULL;
+  }
+}
+
+Json *jsonBuildArray(JsonBuilder *b,
+                     Json *parent,
+                     char *parentKey,
+                     int *errorCode){
+  JsonParser *parser = (JsonParser*)b;
+  int lvalueStatus = checkParentLValue(parent,parentKey);
+  if (lvalueStatus < 0){
+    Json *json = (Json*) jsonParserAlloc(parser, sizeof (Json));
+    JsonArray *arr = (JsonArray*) jsonParserAlloc(parser, sizeof (JsonArray));
+    arr->count = 0;
+    arr->capacity = 8;
+    arr->elements = (Json**) jsonParserAlloc(parser, sizeof (Json*) * arr->capacity);
+    json->type = JSON_TYPE_ARRAY;
+    json->data.array = arr;
+    *errorCode = 0;
+    addToParent(b,lvalueStatus,parent,parentKey,json);    
+    return json;
+
+  } else {
+    *errorCode = lvalueStatus;
+    return NULL;
+  }
+}
+
+Json *jsonBuildString(JsonBuilder *b,
+                      Json *parent,
+                      char *parentKey,
+                      char *s,
+                      int   sLen,
+                      int *errorCode){
+  JsonParser *parser = (JsonParser*)b;
+  int lvalueStatus = checkParentLValue(parent,parentKey);
+  if (lvalueStatus < 0){
+    Json *json = (Json*) jsonParserAlloc(parser, sizeof (Json));
+    json->type = JSON_TYPE_STRING;
+    char *copy = jsonParserAlloc(parser,sLen+1);
+    memcpy(copy,s,sLen);
+    copy[sLen] = 0;
+    json->data.string = copy;
+    *errorCode = 0;
+    addToParent(b,lvalueStatus,parent,parentKey,json);    
+    return json;
+
+  } else {
+    *errorCode = lvalueStatus;
+    return NULL;
+  }
+  
+}
+
+Json *jsonBuildInt(JsonBuilder *b,
+                   Json *parent,
+                   char *parentKey,
+                   int i,
+                   int *errorCode){
+  JsonParser *parser = (JsonParser*)b;
+  int lvalueStatus = checkParentLValue(parent,parentKey);
+  if (lvalueStatus < 0){
+    Json *json = (Json*) jsonParserAlloc(parser, sizeof (Json));
+    json->type = JSON_TYPE_NUMBER;
+    json->data.number = i;
+    *errorCode = 0;
+    addToParent(b,lvalueStatus,parent,parentKey,json);    
+    return json;
+  } else {
+    *errorCode = lvalueStatus;
+    return NULL;
+  }
+  
+}
+
+Json *jsonBuildBool(JsonBuilder *b,
+                    Json *parent,
+                    char *parentKey,
+                    bool *truthValue,
+                    int *errorCode){
+  JsonParser *parser = (JsonParser*)b;
+  int lvalueStatus = checkParentLValue(parent,parentKey);
+  if (lvalueStatus < 0){
+    Json *json = (Json*) jsonParserAlloc(parser, sizeof (Json));
+    json->type = JSON_TYPE_BOOLEAN;
+    json->data.boolean = (truthValue ? 1 : 0);
+    *errorCode = 0;
+    addToParent(b,lvalueStatus,parent,parentKey,json);    
+    return json;
+  } else {
+    *errorCode = lvalueStatus;
+    return NULL;
+  }
+}
+
+Json *jsonBuildNull(JsonBuilder *b,
+                    Json *parent,
+                    char *parentKey,
+                    int *errorCode){
+  JsonParser *parser = (JsonParser*)b;
+  int lvalueStatus = checkParentLValue(parent,parentKey);
+  if (lvalueStatus < 0){
+    Json *json = (Json*) jsonParserAlloc(parser, sizeof (Json));
+    json->type = JSON_TYPE_NULL;
+    *errorCode = 0;
+    addToParent(b,lvalueStatus,parent,parentKey,json);    
+    return json;
+  } else {
+    *errorCode = lvalueStatus;
+    return NULL;
+  }
+}
+
+
+
 int jsonIsObject(Json *json) {
   return json->type == JSON_TYPE_OBJECT;
 }
@@ -1722,7 +2044,17 @@ int jsonIsBoolean(Json *json) {
 }
 
 int jsonIsNumber(Json *json) {
-  return json->type == JSON_TYPE_NUMBER;
+  return (json->type == JSON_TYPE_NUMBER ||  /* old-skool int */
+          json->type == JSON_TYPE_DOUBLE ||
+          json->type == JSON_TYPE_INT64);
+}
+
+int jsonIsInt64(Json *json) {
+  return json->type == JSON_TYPE_INT64;
+}
+
+int jsonIsDouble(Json *json) {
+  return json->type == JSON_TYPE_DOUBLE;
 }
 
 int jsonIsNull(Json *json) {
@@ -1760,8 +2092,79 @@ int jsonAsBoolean(Json *json) {
 int jsonAsNumber(Json *json) {
   if (json->type == JSON_TYPE_NUMBER) {
     return json->data.number;
+  } else if (json->type == JSON_TYPE_INT64){
+    return json->data.integerValue;
   }
   return 0;
+}
+
+int64_t jsonAsInt64(Json *json){
+  switch (json->type){
+  case JSON_TYPE_NUMBER:
+    return (int64)json->data.number;
+  case JSON_TYPE_INT64:
+    return json->data.integerValue;
+  case JSON_TYPE_DOUBLE:
+    return (int64)json->data.floatValue;
+  default:
+    return 0;
+  }
+}
+
+double jsonAsDouble(Json *json){
+  switch (json->type){
+  case JSON_TYPE_NUMBER:
+    return (double)json->data.number;
+  case JSON_TYPE_INT64:
+    return (double)json->data.integerValue;
+  case JSON_TYPE_DOUBLE:
+    return json->data.floatValue;
+  default:
+    return 0;
+  }
+}
+
+static int64 hashString(char *s){
+  int64 hash = 5381;
+  int i;
+  int len = strlen(s);
+
+  for (i=0; i<len; i++){
+    hash = ((hash << 5) + hash) + s[i];
+  }
+  return hash&0x7fffffffffffffffll;
+}
+
+int64_t jsonLongHash(Json *json){
+  int64_t hash = ((int64_t)json->type) << 56;
+  int64_t mask = (1ll<<56)-1;
+  switch (json->type) {
+  case JSON_TYPE_NUMBER:
+    hash |= (mask & jsonAsNumber(json));
+    break;
+  case JSON_TYPE_INT64:
+    hash |= (mask & jsonAsInt64(json));
+    break;
+  case JSON_TYPE_DOUBLE:
+    hash |= (mask & (int64)jsonAsDouble(json));
+    break;
+  case JSON_TYPE_STRING:
+    hash |= (mask & hashString(jsonAsString(json)));
+    break;
+  case JSON_TYPE_BOOLEAN:
+    hash |= (jsonAsBoolean(json) ? 1 : 0);
+    break;
+  case JSON_TYPE_NULL:
+    hash |= 0;
+    break;
+  case JSON_TYPE_OBJECT:
+    hash |= (int64)json;
+    break;
+  case JSON_TYPE_ARRAY:
+    hash |= (int64)json;
+    break;
+  }
+  return hash;
 }
 
 JsonArray *jsonArrayGetArray(JsonArray *array, int i) {
@@ -1891,6 +2294,12 @@ void jsonPrintInternal(jsonPrinter* printer, char* keyOrNull, Json *json) {
     case JSON_TYPE_NUMBER:
       jsonAddInt(printer, keyOrNull, jsonAsNumber(json));
       break;
+    case JSON_TYPE_INT64:
+      jsonAddInt64(printer, keyOrNull, jsonAsInt64(json));
+      break;
+    case JSON_TYPE_DOUBLE:
+      jsonAddDouble(printer, keyOrNull, jsonAsDouble(json));
+      break;
     case JSON_TYPE_STRING:
       jsonAddString(printer, keyOrNull, jsonAsString(json));
       break;
@@ -1962,7 +2371,8 @@ Json *jsonParseUnterminatedUtf8String(ShortLivedHeap *slh, int outputCCSID,
       errorBufferOrNull, errorBufferSize);
 }
 
-Json *jsonParseFile(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize) {
+static Json *jsonParseFileInternal(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize,
+                                   int version){
   Json *json = NULL;
   int returnCode = 0;
   int reasonCode = 0;
@@ -1971,11 +2381,17 @@ Json *jsonParseFile(ShortLivedHeap *slh, const char *filename, char* errorBuffer
   UnixFile *file = NULL;
   int fileLen = 0;
 
+  /* 
+     printf("JOE jsonParseFile\n");
+     fflush(stdout);
+  */
+
   file = fileOpen(filename, FILE_OPTION_READ_ONLY, 0, 1024, &returnCode, &reasonCode);
   status = fileInfo(filename, &info, &returnCode, &reasonCode);
   if (file != NULL && status == 0) {
     fileLen = (int)fileInfoSize(&info);
     JsonParser *parser = makeJsonFileParser(slh, file, fileLen);
+    parser->version = version;
     json = jsonParse(parser);
     JsonToken *token = jsonMatchToken(parser, JSON_TOKEN_EOF);
     if (jsonIsError(json) || jsonIsTokenUnmatched(token)) {
@@ -1990,7 +2406,16 @@ Json *jsonParseFile(ShortLivedHeap *slh, const char *filename, char* errorBuffer
       snprintf(errorBufferOrNull, errorBufferSize, "Couldn't open '%s'", filename);
     }
   }
+  /* printf("JOE return json\n");fflush(stdout); */
   return json;
+}
+
+Json *jsonParseFile(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize){
+  return jsonParseFileInternal(slh,filename,errorBufferOrNull,errorBufferSize,JSON_PARSE_VERSION_1);
+}
+
+Json *jsonParseFile2(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize){
+  return jsonParseFileInternal(slh,filename,errorBufferOrNull,errorBufferSize,JSON_PARSE_VERSION_2);
 }
 
 Json *jsonParseString(ShortLivedHeap *slh, char *jsonString, char* errorBufferOrNull, int errorBufferSize) {
@@ -2064,10 +2489,10 @@ JsonObject *jsonObjectProperty(JsonObject *object, char *propertyName, int *stat
 void reportJSONDataProblem(void *jsonObject, int status, char *propertyName){
   switch (status){
   case JSON_PROPERTY_NOT_FOUND:
-    printf("JSON property '%s' not found in object at 0x%x\n",propertyName,jsonObject);
+    printf("JSON property '%s' not found in object at 0x%p\n",propertyName,jsonObject);
     break;
   case JSON_PROPERTY_UNEXPECTED_TYPE:
-    printf("JSON property '%s' has wrong type in object at 0x%x\n",propertyName,jsonObject);
+    printf("JSON property '%s' has wrong type in object at 0x%p\n",propertyName,jsonObject);
     break;
   }
 }

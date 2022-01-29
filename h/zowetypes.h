@@ -123,6 +123,10 @@ no ifdef means XLC LE on ZOS, and everything else.  This is effectively our "def
 /* Base macros for Windows */
 #ifdef _MSC_VER
 
+#define ZOWE_PRAGMA_PACK  
+#define ZOWE_PRAGMA_PACK_RESET
+
+
 #define __ZOWE_OS_WINDOWS 1
 
 #ifdef _WIN64
@@ -132,6 +136,8 @@ no ifdef means XLC LE on ZOS, and everything else.  This is effectively our "def
 #endif
 
 #endif  /* _MSC_VER */
+
+
 
 /* Base Macros for zOS */
 #if defined(__MVS__) && (defined (__IBMC__) || defined (__IBMCPP__)) && (defined (_LP64) || defined (_ILP32))

@@ -35,6 +35,10 @@
 
 #ifdef __ZOWE_OS_WINDOWS
 
+/* JOE 1/20/22 */
+#include <Windows.h>
+
+
 /*
    Windows doc 
 
