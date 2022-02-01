@@ -12,4 +12,4 @@ more support for quirky non-compatible IO, systems calls, time functions, regula
 C++ is not used on ZOS, because ZOWE-common-c targets both LE (Posix) runtime environents and Metal 
 (traditional MVS) environments.  IBM's xlc C++ does not support Metal and probably never will.  So C++
 is out in general.  However, to provide platform support on Windows, C++ is needed because API's are
-often *only* published in C++.
+often *only* published in C++. 
