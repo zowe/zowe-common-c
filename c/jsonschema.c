@@ -44,13 +44,6 @@
 
 #endif
 
-/*
-#ifdef __ZOWE_OS_WINDOWS
-#include "winregex.h"
-#else
-#include "regex.h"
-#endif
-*/
 
 #include "zowetypes.h"
 #include "alloc.h"
@@ -61,6 +54,13 @@
 #include "json.h"
 #include "charsets.h"
 #include "collections.h"
+
+#ifdef __ZOWE_OS_WINDOWS
+#include "winregex.h"
+#else
+#include "psxregex.h"  /* works on ZOS and Linux */
+#endif
+
 #include "jsonschema.h"
 
 #ifdef __ZOWE_OS_WINDOWS
@@ -136,7 +136,8 @@ typedef struct JSValueSpec_tag {
   int64_t minLength;
   int64_t maxLength;
   char *pattern;
-  /* regex_t *compiledPattern; */
+  regex_t *compiledPattern;
+  int      regexCompilationError;
 } JSValueSpec;
 
 typedef struct AccessPathUnion_tag {
@@ -194,6 +195,7 @@ static void accessPathPop(AccessPath *accessPath){
 }
 
 
+
 #define ERROR_MAX 1024
 
 static void validationThrow(JsonValidator *validator, int errorCode, char *formatString, ...){
@@ -206,6 +208,24 @@ static void validationThrow(JsonValidator *validator, int errorCode, char *forma
   validator->errorMessage = text;
   validator->errorMessageLength = ERROR_MAX;
   longjmp(validator->recoveryData,1);
+}
+
+static ValidityException *noteValidityException(JsonValidator *validator, int invalidityCode, char *formatString, ...){
+  va_list argPointer;
+  ValidityException *exception = (ValidityException*)safeMalloc(sizeof(ValidityException),"ValidityException");
+  exception->code = invalidityCode;
+  exception->next = NULL;
+  va_start(argPointer,formatString);
+  vsnprintf(exception->message,MAX_VALIDITY_EXCEPTION_MSG,formatString,argPointer);
+  va_end(argPointer);
+  if (validator->firstValidityException == NULL){
+    validator->firstValidityException = exception;
+    validator->lastValidityException = exception;
+  } else {
+    validator->lastValidityException->next = exception;
+    validator->lastValidityException = exception;
+  }
+  return exception;
 }
 
 JsonValidator *makeJsonValidator(){
@@ -225,20 +245,26 @@ static char *validatorAccessPath(JsonValidator *validator){
   return makeAccessPathString(validator->accessPathBuffer,MAX_ACCESS_PATH,validator->accessPath);
 }
 
-static void validateType(JsonValidator *validator,
+/* The return types of these validators is bool to allow validator to signal whether to continue 
+   to gather more validation exceptions in this part of the JSON tree/graph.  Returning false says
+   this part is invalid enough such that further evaluation would probably confuse the user with 
+   contradictory information. */
+
+static bool validateType(JsonValidator *validator,
                          int typeCode,
                          JSValueSpec *valueSpec){
-  printf("validateType.1 typeCode=%d vspecMask=0x%x\n",typeCode,valueSpec->typeMask);fflush(stdout);
   if (((1 << typeCode) & valueSpec->typeMask) == 0){
-    validationThrow(validator,12,"type %d not permitted at %s",typeCode,validatorAccessPath(validator));
+    noteValidityException(validator,12,"type %d not permitted at %s",typeCode,validatorAccessPath(validator));
+    return false;
+  } else {
+    return true;
   }
-  printf("validateType.2\n");fflush(stdout);
 }
 
 /* for mutual recursion */
-static void validateJSON(JsonValidator *validator, Json *value, JSValueSpec *valueSpec);
+static bool validateJSON(JsonValidator *validator, Json *value, JSValueSpec *valueSpec);
 
-static void validateJSONObject(JsonValidator *validator,
+static bool validateJSONObject(JsonValidator *validator,
                                JsonObject *object,
                                JSValueSpec *valueSpec){
   AccessPath *accessPath = validator->accessPath;
@@ -248,10 +274,9 @@ static void validateJSONObject(JsonValidator *validator,
   if (valueSpec->required){
     for (int r=0; r<valueSpec->requiredCount; r++){
       char *requiredProperty = valueSpec->required[r];
-      printf("VJO requiredProp=%s\n",requiredProperty);fflush(stdout);
       if (jsonObjectGetPropertyValue(object,requiredProperty) == NULL){
-        validationThrow(validator,12,"missing required property %s at %s",
-                        requiredProperty,validatorAccessPath(validator));
+        noteValidityException(validator,12,"missing required property %s at %s",
+                              requiredProperty,validatorAccessPath(validator));
       }
     }
   }
@@ -272,9 +297,11 @@ static void validateJSONObject(JsonValidator *validator,
     if (propertySpec != NULL){
       validateJSON(validator,propertyValue,propertySpec);
     } else {
-      printf("*WARNING* unspecified property seen, '%s', and checking code is not complete, vspec->props=0x%p\n",
-             propertyName,valueSpec->properties);
-      fflush(stdout);
+      if (validator->flags && VALIDATOR_WARN_ON_UNDEFINED_PROPERTIES){
+        printf("*WARNING* unspecified property seen, '%s', and checking code is not complete, vspec->props=0x%p\n",
+               propertyName,valueSpec->properties);
+        fflush(stdout);
+      }
       if (valueSpec->properties){ 
         /* htDump(valueSpec->properties); */
       }
@@ -292,21 +319,21 @@ static void validateJSONObject(JsonValidator *validator,
   if (valueSpec->validatorFlags & JS_VALIDATOR_MAX_PROPS){
     int64_t lim = valueSpec->minProperties;
     if (propertyCount > lim){
-      validationThrow(validator,12,"too many properties, %d > MAX=%d at %s",
+      noteValidityException(validator,12,"too many properties, %d > MAX=%d at %s",
                       propertyCount,lim,validatorAccessPath(validator));
     }
   }
   if (valueSpec->validatorFlags & JS_VALIDATOR_MIN_PROPS){
     int64_t lim = valueSpec->minProperties;
     if (propertyCount < lim){
-      validationThrow(validator,12,"too few properties, %d < MIN=%d at %s",
-                      propertyCount,lim,validatorAccessPath(validator));
+      noteValidityException(validator,12,"too few properties, %d < MIN=%d at %s",
+                            propertyCount,lim,validatorAccessPath(validator));
     }
   }
-  
+  return true;
 }
 
-void validateJSONArray(JsonValidator *validator,
+bool validateJSONArray(JsonValidator *validator,
                        JsonArray *array,
                        JSValueSpec *valueSpec){
   AccessPath *accessPath = validator->accessPath;
@@ -317,17 +344,17 @@ void validateJSONArray(JsonValidator *validator,
   if (valueSpec->validatorFlags & JS_VALIDATOR_MAX_ITEMS){
     int64_t lim = valueSpec->maxItems;
     if (elementCount > lim){
-      validationThrow(validator,12,
-                      "too many array items, %d > MAX=%d at %s",
-                      elementCount,lim,validatorAccessPath(validator));
+      noteValidityException(validator,12,
+                            "too many array items, %d > MAX=%d at %s",
+                            elementCount,lim,validatorAccessPath(validator));
     }
   }
   if (valueSpec->validatorFlags & JS_VALIDATOR_MIN_ITEMS){
     int64_t lim = valueSpec->minItems;
     if (elementCount < lim){
-      validationThrow(validator,12,
-                      "too few array ites, %d < MIN=%d at %s",
-                      elementCount,lim,validatorAccessPath(validator));
+      noteValidityException(validator,12,
+                            "too few array ites, %d < MIN=%d at %s",
+                            elementCount,lim,validatorAccessPath(validator));
     }
   }
   /* 'uniqueItems' is poorly specified regarding equality predicates.
@@ -349,15 +376,16 @@ void validateJSONArray(JsonValidator *validator,
     if (valueSpec->uniqueItems){
       long longHash = jsonLongHash(itemValue);
       if (lhtGet(uniquenessSet,longHash) != NULL){
-        validationThrow(validator,12,"array uniqueItems violation %s is duplicate at %s",
-                        itemValue,i,validatorAccessPath(validator));
+        noteValidityException(validator,12,"array uniqueItems violation %s is duplicate at %s",
+                              itemValue,i,validatorAccessPath(validator));
       }
     }
     accessPathPop(accessPath);
   }
+  return true;
 }
 
-static void validateJSONString(JsonValidator *validator,
+static bool validateJSONString(JsonValidator *validator,
                                Json *string,
                                JSValueSpec *valueSpec){
   char *s = jsonAsString(string);
@@ -365,23 +393,45 @@ static void validateJSONString(JsonValidator *validator,
   if (valueSpec->validatorFlags & JS_VALIDATOR_MAX_LENGTH){
     long lim = valueSpec->maxLength;
     if (len > lim){
-      validationThrow(validator,12,"string too long, %d > MAX=%d at %s",
-                      len,lim,validatorAccessPath(validator));
+      noteValidityException(validator,12,"string too long, %d > MAX=%d at %s",
+                            len,lim,validatorAccessPath(validator));
     }
   }
   if (valueSpec->validatorFlags & JS_VALIDATOR_MIN_LENGTH){
     long lim = valueSpec->minLength;
     if (len < lim){
-      validationThrow(validator,12,"string too short, %d < MAX=%d at %s",
-                      len,lim,validatorAccessPath(validator));
+      noteValidityException(validator,12,"string too short, %d < MAX=%d at %s",
+                            len,lim,validatorAccessPath(validator));
+    }
+  }
+  if (valueSpec->pattern && (valueSpec->regexCompilationError == 0)){
+    if (valueSpec->compiledPattern == NULL){
+      regex_t *rx = regexAlloc();
+      int compStatus = regexComp(rx,valueSpec->pattern,REG_EXTENDED);
+      if (compStatus){
+        regexFree(rx);
+        valueSpec->regexCompilationError = compStatus;
+        printf("*** WARNING *** pattern '%s' failed to compile with status %d\n",
+               valueSpec->pattern,compStatus);
+      } else {
+        valueSpec->compiledPattern = rx;
+      }
+    }
+    if (valueSpec->compiledPattern){
+      int regexStatus = regexExec(valueSpec->compiledPattern,s,0,NULL,0);
+      if (regexStatus != 0){
+        noteValidityException(validator,12,"string pattern match fail s='%s', pat='%s', at %s",
+                              s,valueSpec->pattern,validatorAccessPath(validator));
+      }
     }
   }
   // String pattern; // ECMA-262 regex
   // prefix items
-  // additionalProperties  
+  // additionalProperties
+  return true;
 }
 
-static void validateJSONNumber(JsonValidator *validator,
+static bool validateJSONNumber(JsonValidator *validator,
                                Json *doubleOrLegacyInt,
                                JSValueSpec *valueSpec){
   // Number multipleOf; // can be a filled, and must be > 0
@@ -393,69 +443,73 @@ static void validateJSONNumber(JsonValidator *validator,
   if (valueSpec->validatorFlags & JS_VALIDATOR_MAX){
     double lim = valueSpec->maximum;
     if (valueSpec->exclusiveMaximum ? (d >= lim) : (d > lim)){
-      validationThrow(validator,12,"value too large, %f %s MAX=%f at %s",
-                      d,
-                      (valueSpec->exclusiveMaximum ? ">=" : ">"),
-                      lim,
-                      validatorAccessPath(validator));
+      noteValidityException(validator,12,"value too large, %f %s MAX=%f at %s",
+                            d,
+                            (valueSpec->exclusiveMaximum ? ">=" : ">"),
+                            lim,
+                            validatorAccessPath(validator));
     }
   }
   if (valueSpec->validatorFlags & JS_VALIDATOR_MIN){
     double lim = valueSpec->minimum;
     if (valueSpec->exclusiveMinimum ? (d <= lim) : (d < lim)){
-      validationThrow(validator,12,"value too small, %f %s MAX=%f at %s",
-                      d,
-                      (valueSpec->exclusiveMinimum ? "<=" : "<"),
-                      lim,
-                      validatorAccessPath(validator));
+      noteValidityException(validator,12,"value too small, %f %s MAX=%f at %s",
+                            d,
+                            (valueSpec->exclusiveMinimum ? "<=" : "<"),
+                            lim,
+                            validatorAccessPath(validator));
     }
   }
+  return true;
 }
 
-static void validateJSONInteger(JsonValidator *validator,
+static bool validateJSONInteger(JsonValidator *validator,
                                 Json *value64,
                                 JSValueSpec *valueSpec){
   // Number multipleOf; // can be a filled, and must be > 0
   // Number exclusiveMaximum;
   // Number exclusiveMinimum;
   int64_t i = jsonAsInt64(value64);
+  printf("JOE i=%lld valFlags=0x%llx\n",i,valueSpec->validatorFlags);
   if (valueSpec->validatorFlags & JS_VALIDATOR_MAX){
     int64_t lim = (int64_t)valueSpec->maximum;
     if (valueSpec->exclusiveMaximum ? (i >= lim) : (i > lim)){
-      validationThrow(validator,12,"value too large, %lld %s MAX=%lld at %s",
-                      i,
-                      (valueSpec->exclusiveMaximum ? ">=" : ">"),
-                      lim,
-                      validatorAccessPath(validator));
+      noteValidityException(validator,12,"value too large, %lld %s MAX=%lld at %s",
+                            i,
+                            (valueSpec->exclusiveMaximum ? ">=" : ">"),
+                            lim,
+                            validatorAccessPath(validator));
     }
   }
   if (valueSpec->validatorFlags & JS_VALIDATOR_MIN){
     int64_t lim = (int64_t)valueSpec->minimum;
     if (valueSpec->exclusiveMinimum ? (i <= lim) : (i < lim)){
-      validationThrow(validator,12,"value too small, %lld %s MAX=%lld at %s",
-                      i,
-                      (valueSpec->exclusiveMinimum ? "<=" : "<"),
-                      lim,
-                      validatorAccessPath(validator));
+      noteValidityException(validator,12,"value too small, %lld %s MAX=%lld at %s",
+                            i,
+                            (valueSpec->exclusiveMinimum ? "<=" : "<"),
+                            lim,
+                            validatorAccessPath(validator));
     }
   }
+  return true;
 }
 
 static JSValueSpec *resolveRef(JsonValidator *validator, JSValueSpec *valueSpec){
   char *ref = valueSpec->ref;
+  printf("resolveRef ref=%s\n",valueSpec->ref);
   if (!memcmp(ref,"#/$defs/",8)){   /* local resolution */
     int refLen = strlen(ref);
     int pos = 2;
     char *key = ref+8;
     JSValueSpec *topSchema = validator->schema->topValueSpec;
     if (topSchema->definitions == NULL){
-      validationThrow(validator,12,"schema '%s' does not define shared '$defs'",
-                      (topSchema->id ? topSchema->id : "<anonymous>"));
+      noteValidityException(validator,12,"schema '%s' does not define shared '$defs'",
+                            (topSchema->id ? topSchema->id : "<anonymous>"));
       return NULL; /* for the compiler, bless its heart */
     }
     JSValueSpec *resolvedSchema = htGet(topSchema->definitions,key);
     if (resolvedSchema == NULL){
-      validationThrow(validator,12,"schema ref '%s' does not resolve against '$defs'",ref);
+      noteValidityException(validator,12,"schema ref '%s' does not resolve against '$defs'",ref);
       return NULL;
     }
     return resolvedSchema;
@@ -464,43 +518,48 @@ static JSValueSpec *resolveRef(JsonValidator *validator, JSValueSpec *valueSpec)
        need to merge URL according W3 rules and pass to pluggable resolver that
        we hope this validator has.
      */
-    validationThrow(validator,12,"external refs not yet implemented",ref);
+    noteValidityException(validator,12,"external refs not yet implemented '%s' at %s",
+                          valueSpec->ref,validatorAccessPath(validator));
     return NULL;
   }
 }
 
-static void validateJSON(JsonValidator *validator, Json *value, JSValueSpec *valueSpec){
+static bool validateJSON(JsonValidator *validator, Json *value, JSValueSpec *valueSpec){
   while (valueSpec->ref){
     valueSpec = resolveRef(validator,valueSpec);
+    if (valueSpec == NULL){
+      return false;
+    }
   }
   printf("validate JSON value->type=%d\n",value->type);
   fflush(stdout);
   // type is string or array, does this mean to collapse ValueSpecTypes
   // should we flag errors on out-of-bounds validation keywords for type keyword
   if (jsonIsNull(value)){
-    validateType(validator,JSTYPE_NULL,valueSpec);
+    return validateType(validator,JSTYPE_NULL,valueSpec);
   } else if (jsonIsBoolean(value)){
-    validateType(validator,JSTYPE_BOOLEAN,valueSpec);
+    return validateType(validator,JSTYPE_BOOLEAN,valueSpec);
   } else if (jsonIsObject(value)){
-    validateType(validator,JSTYPE_OBJECT,valueSpec);
-    validateJSONObject(validator,jsonAsObject(value),valueSpec);
+    return (validateType(validator,JSTYPE_OBJECT,valueSpec) &&
+            validateJSONObject(validator,jsonAsObject(value),valueSpec));
   } else if (jsonIsArray(value)){
-    validateType(validator,JSTYPE_ARRAY,valueSpec);
-    validateJSONArray(validator,jsonAsArray(value),valueSpec);
+    return (validateType(validator,JSTYPE_ARRAY,valueSpec) &&
+            validateJSONArray(validator,jsonAsArray(value),valueSpec));
   } else if (jsonIsString(value)){
-    validateType(validator,JSTYPE_STRING,valueSpec);
-    validateJSONString(validator,value,valueSpec);
+    return (validateType(validator,JSTYPE_STRING,valueSpec) &&
+            validateJSONString(validator,value,valueSpec));
   } else if (jsonIsNumber(value)){
     if (!jsonIsInt64(value)){
-      validateType(validator,JSTYPE_NUMBER,valueSpec);
-      validateJSONInteger(validator,value,valueSpec); /* general, comparisons done as doubles */
+      return (validateType(validator,JSTYPE_NUMBER,valueSpec) &&
+              validateJSONNumber(validator,value,valueSpec)); /* general, comparisons done as doubles */
     } else {
-      validateType(validator,JSTYPE_INTEGER,valueSpec);
-      validateJSONNumber(validator,value,valueSpec);
+      return (validateType(validator,JSTYPE_INTEGER,valueSpec) &&
+              validateJSONInteger(validator,value,valueSpec));
     }
     
   } else {
     printf("*** PANIC *** unhandled JS Value with type = %d\n",value->type);
+    return false;
   }
 }
 
@@ -508,13 +567,17 @@ int jsonValidateSchema(JsonValidator *validator, Json *value, JsonSchema *schema
   if (setjmp(validator->recoveryData) == 0) {  /* normal execution */
     validator->schema = schema;
     validateJSON(validator,value,schema->topValueSpec);
-    printf("after validate without throw\n");
+    printf("after validate without throw, should show validation exceptions\n");
     fflush(stdout);
-    return 0;
+    if (validator->firstValidityException == NULL){
+      return JSON_VALIDATOR_NO_EXCEPTIONS;
+    } else {
+      return JSON_VALIDATOR_HAS_EXCEPTIONS;
+    }
   } else {
     printf("validation failed '%s'\n",validator->errorMessage);
     fflush(stdout);
-    return validator->errorCode;
+    return JSON_VALIDATOR_INTERNAL_FAILURE;
   }
 }
 
@@ -819,6 +882,20 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
     
     JSValueSpec *valueSpec = makeValueSpec(builder,getID(builder,object),description,title,typeArray,typeArrayCount);
     valueSpec->ref = getString(builder,object,"$ref",NULL);
+    if (valueSpec->ref){
+      /* THe JSON Schema spec says that if a $ref is defined it will be the only thing looked at, so
+         we short-cicuit here. 
+
+      "In Draft 4-7, $ref behaves a little differently. When an object
+      contains a $ref property, the object is considered a reference,
+      not a schema. Therefore, any other properties you put in that
+      object will not be treated as JSON Schema keywords and will be
+      ignored by the validator. $ref can only be used where a schema
+      is expected."
+
+      */
+      return valueSpec;
+    }
     valueSpec->definitions = getDefinitions(builder,object);
     valueSpec->allOf = getComposite(builder,object,"allOf");
     valueSpec->anyOf = getComposite(builder,object,"anyOf");
@@ -830,8 +907,10 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
       accessPathPop(accessPath);
     }
     /// valueSpec.not = getComposite(object,accessPath);
+    printf("valueSpec typeMask=0x%x\n",valueSpec->typeMask);
     for (int typeCode=0; typeCode<=JSTYPE_MAX; typeCode++){
       if ((1 << typeCode) & valueSpec->typeMask){
+        printf("switch typeCode = %d\n",typeCode);
         switch (typeCode){
         case JSTYPE_OBJECT:
           {
@@ -949,12 +1028,21 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
           {
             JSValueSpec *numericSpec = valueSpec;
             // new JSNumericSpec(description,title,(jsType == JSType.INTEGER));
+            printf("JOE JSTYPE_INT/NUM: ");
+            printAccessPath(stdout,accessPath);
             numericSpec->isInteger = (typeCode == JSTYPE_INTEGER);
             numericSpec->multipleOf = getNumber(builder,object,"multipleOf",MISSING_FLOAT_VALIDATOR);
             numericSpec->maximum = getNumber(builder,object,"maximum",MISSING_FLOAT_VALIDATOR);
             numericSpec->exclusiveMaximum = getBooleanValue(builder,object,"exclusiveMaximum",false);
             numericSpec->minimum = getNumber(builder,object,"minimum",MISSING_FLOAT_VALIDATOR);
+            printf("max = %f min=%f\n",numericSpec->maximum,numericSpec->minimum);
             numericSpec->exclusiveMinimum = getBooleanValue(builder,object,"exclusiveMinimum",false);
+            if (numericSpec->maximum != MISSING_FLOAT_VALIDATOR){
+              numericSpec->validatorFlags |= JS_VALIDATOR_MAX;
+            }
+            if (numericSpec->minimum != MISSING_FLOAT_VALIDATOR){
+              numericSpec->validatorFlags |= JS_VALIDATOR_MIN;
+            }
             if (numericSpec->multipleOf != MISSING_FLOAT_VALIDATOR){
               checkPositiveDouble(builder,numericSpec->multipleOf,"multipleOf");
               numericSpec->validatorFlags |= JS_VALIDATOR_MULTOF;
@@ -967,6 +1055,7 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
         
       }
     }// for (jsType...
+    printf("JOE end schema for loop\n");
     return valueSpec;
   } else {
     schemaThrow(builder,12,"top level schema must be an object");

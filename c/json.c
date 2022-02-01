@@ -1963,7 +1963,6 @@ Json *jsonBuildString(JsonBuilder *b,
     *errorCode = lvalueStatus;
     return NULL;
   }
-  
 }
 
 Json *jsonBuildInt(JsonBuilder *b,
@@ -1985,6 +1984,26 @@ Json *jsonBuildInt(JsonBuilder *b,
     return NULL;
   }
   
+}
+
+Json *jsonBuildInt64(JsonBuilder *b,
+                     Json *parent,
+                     char *parentKey,
+                     int64 i,
+                     int *errorCode){
+  JsonParser *parser = (JsonParser*)b;
+  int lvalueStatus = checkParentLValue(parent,parentKey);
+  if (lvalueStatus < 0){
+    Json *json = (Json*) jsonParserAlloc(parser, sizeof (Json));
+    json->type = JSON_TYPE_INT64;
+    json->data.integerValue = i;
+    *errorCode = 0;
+    addToParent(b,lvalueStatus,parent,parentKey,json);    
+    return json;
+  } else {
+    *errorCode = lvalueStatus;
+    return NULL;
+  }
 }
 
 Json *jsonBuildBool(JsonBuilder *b,

@@ -595,6 +595,14 @@ Json *jsonBuildInt(JsonBuilder *b,
                    int i,
                    int *errorCode);
 
+/* This builds a V2 compatible integer, jsonBuiltInt does the legacy 32 bit integer */
+Json *jsonBuildInt64(JsonBuilder *b,
+                     Json *parent,
+                     char *parentKey,
+                     int64 i,
+                     int *errorCode);
+
+
 Json *jsonBuildBool(JsonBuilder *b,
                     Json *parent,
                     char *parentKey,
