@@ -470,7 +470,6 @@ static bool validateJSONInteger(JsonValidator *validator,
   // Number exclusiveMaximum;
   // Number exclusiveMinimum;
   int64_t i = jsonAsInt64(value64);
-  printf("JOE i=%lld valFlags=0x%llx\n",i,valueSpec->validatorFlags);
   if (valueSpec->validatorFlags & JS_VALIDATOR_MAX){
     int64_t lim = (int64_t)valueSpec->maximum;
     if (valueSpec->exclusiveMaximum ? (i >= lim) : (i > lim)){
@@ -907,10 +906,8 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
       accessPathPop(accessPath);
     }
     /// valueSpec.not = getComposite(object,accessPath);
-    printf("valueSpec typeMask=0x%x\n",valueSpec->typeMask);
     for (int typeCode=0; typeCode<=JSTYPE_MAX; typeCode++){
       if ((1 << typeCode) & valueSpec->typeMask){
-        printf("switch typeCode = %d\n",typeCode);
         switch (typeCode){
         case JSTYPE_OBJECT:
           {
@@ -1028,14 +1025,11 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
           {
             JSValueSpec *numericSpec = valueSpec;
             // new JSNumericSpec(description,title,(jsType == JSType.INTEGER));
-            printf("JOE JSTYPE_INT/NUM: ");
-            printAccessPath(stdout,accessPath);
             numericSpec->isInteger = (typeCode == JSTYPE_INTEGER);
             numericSpec->multipleOf = getNumber(builder,object,"multipleOf",MISSING_FLOAT_VALIDATOR);
             numericSpec->maximum = getNumber(builder,object,"maximum",MISSING_FLOAT_VALIDATOR);
             numericSpec->exclusiveMaximum = getBooleanValue(builder,object,"exclusiveMaximum",false);
             numericSpec->minimum = getNumber(builder,object,"minimum",MISSING_FLOAT_VALIDATOR);
-            printf("max = %f min=%f\n",numericSpec->maximum,numericSpec->minimum);
             numericSpec->exclusiveMinimum = getBooleanValue(builder,object,"exclusiveMinimum",false);
             if (numericSpec->maximum != MISSING_FLOAT_VALIDATOR){
               numericSpec->validatorFlags |= JS_VALIDATOR_MAX;
@@ -1055,7 +1049,6 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
         
       }
     }// for (jsType...
-    printf("JOE end schema for loop\n");
     return valueSpec;
   } else {
     schemaThrow(builder,12,"top level schema must be an object");
