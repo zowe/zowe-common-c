@@ -614,8 +614,7 @@ Json *jsonBuildNull(JsonBuilder *b,
                     char *parentKey,
                     int *errorCode);
 
-
-
+char* jsonBuildKey(JsonBuilder *b, const char *key, int len);
 
 
 #endif	/* __JSON__ */

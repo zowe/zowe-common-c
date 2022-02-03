@@ -5,6 +5,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
+#ifndef __ZOWE_OS_WINDOWS
+#include <unistd.h>
+#endif
 
 #ifdef NDEBUG
 #undef NDEBUG

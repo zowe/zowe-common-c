@@ -2044,7 +2044,12 @@ Json *jsonBuildNull(JsonBuilder *b,
   }
 }
 
-
+char* jsonBuildKey(JsonBuilder *b, const char *key, int len) {
+  JsonParser *parser = (JsonParser*)b;
+  char *keyCopy = jsonParserAlloc(parser, len + 1);
+  snprintf(keyCopy, len+1, "%.*s", len, key);
+  return keyCopy;
+}
 
 int jsonIsObject(Json *json) {
   return json->type == JSON_TYPE_OBJECT;

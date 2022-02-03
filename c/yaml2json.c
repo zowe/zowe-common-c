@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <errno.h>
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -61,6 +62,26 @@ static char *getScalarStyleName(yaml_scalar_style_t style){
   }
 }
 
+static int yamlReadHandler(void *data, unsigned char *buffer, size_t size, size_t *size_read) {
+  FILE *fp = data;
+  int rc = 1;
+  size_t bytes_read = fread(buffer, 1, size, fp);
+  if (bytes_read > 0) {
+#ifdef __ZOWE_OS_ZOS
+    if (__etoa_l((char *)buffer, bytes_read) == -1) {
+    fprintf (stderr, "failed to convert yaml input - %s\n", strerror(errno));
+      rc = 0;
+    }
+#endif
+  }
+  if (ferror(fp)) {
+    fprintf (stderr, "failed to read yaml input - %s\n", strerror(errno));
+    rc = 0;
+  }
+  *size_read = bytes_read;
+  return rc;
+}
+
 
 yaml_document_t *readYAML(char *filename){
   FILE *file;
@@ -75,7 +96,7 @@ yaml_document_t *readYAML(char *filename){
   
   assert(yaml_parser_initialize(&parser));
 
-  yaml_parser_set_input_file(&parser, file);
+  yaml_parser_set_input(&parser, yamlReadHandler, file);
   
   printf("before parser_load\n");fflush(stdout);
   
@@ -119,6 +140,16 @@ static char *getSequenceStyleName(yaml_sequence_style_t style){
 
 #define SCALAR_SIZE_LIMIT 1024
 
+static void printYamlScalar(const yaml_node_t *node, bool eol) {
+  size_t dataLen = node->data.scalar.length;
+  int printLength = dataLen > SCALAR_SIZE_LIMIT ? 40 : (int)dataLen;
+  char val[printLength + 1];
+  snprintf(val, printLength + 1, "%.*s", printLength, node->data.scalar.value);
+#ifdef __ZOWE_OS_ZOS
+  __atoe(val);
+#endif
+  printf("%s%c", val, eol ? '\n' : '');
+}
 
 
 static void pprintYAML1(yaml_document_t *doc, yaml_node_t *node, int depth){
@@ -133,9 +164,8 @@ static void pprintYAML1(yaml_document_t *doc, yaml_node_t *node, int depth){
     {
       indent(depth);
       size_t dataLen = node->data.scalar.length;
-      int printLength = dataLen > SCALAR_SIZE_LIMIT ? 40 : (int)dataLen;
-      /* printf("printLength=%d dataLen=%lld\n",printLength,dataLen); */
-      printf("Scalar: (len=%d) %*.*s\n",printLength,printLength,printLength,node->data.scalar.value);
+      printf("Scalar: (len=%d)", node->data.scalar.length);
+      printYamlScalar(node, true);
     }
     break;
   case YAML_SEQUENCE_NODE:
@@ -155,6 +185,7 @@ static void pprintYAML1(yaml_document_t *doc, yaml_node_t *node, int depth){
     }
     break;
   case YAML_MAPPING_NODE:
+   {
     yaml_node_pair_t *pair;
     indent(depth);printf("MapStart\n");
     for (pair = node->data.mapping.pairs.start; pair < node->data.mapping.pairs.top; pair++) {
@@ -168,7 +199,8 @@ static void pprintYAML1(yaml_document_t *doc, yaml_node_t *node, int depth){
           size_t dataLen = keyNode->data.scalar.length;
           int printLength = dataLen > SCALAR_SIZE_LIMIT ? 40 : (int)dataLen;
           /* printf("printLength=%d dataLen=%lld\n",printLength,dataLen); */
-          printf("%*.*s:\n",printLength,printLength,keyNode->data.scalar.value);
+          printYamlScalar(keyNode, false);
+          printf(":\n");
         }
       } else {
         printf("dead end key\n");
@@ -181,6 +213,7 @@ static void pprintYAML1(yaml_document_t *doc, yaml_node_t *node, int depth){
       }
     }
     indent(depth);printf("MapEnd\n");
+  }
     break;
   default:
     printf("unexpected yaml node type %d\n",node->type);
@@ -261,33 +294,43 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
       case YAML_DOUBLE_QUOTED_SCALAR_STYLE:
       case YAML_LITERAL_SCALAR_STYLE:
       case YAML_FOLDED_SCALAR_STYLE:
+      {
+        char val[valueLength+1];
         char *tag = (char*)node->tag;
-        printf("tag = %s scalarStyle=%s\n",tag,getScalarStyleName(node->data.scalar.style));
+        int tagLen = strlen(tag);
+        char tagBuf[tagLen + 1];
+        snprintf(val, valueLength+1, "%.*s", valueLength, (const char *)node->data.scalar.value);
+        snprintf(tagBuf, tagLen + 1, "%.*s", tagLen, tag);
+#ifdef __ZOWE_OS_ZOS
+          __atoe(val);
+          __atoe(tagBuf);
+#endif
+        printf("tag = %s scalarStyle=%s\n",tagBuf,getScalarStyleName(node->data.scalar.style));
         Json *scalar = NULL;
         // HERE, make test with float, int, bool, null, ddate
-        if (!strcmp(tag,YAML_NULL_TAG)){
-        } else if (!strcmp(tag,YAML_NULL_TAG)){
+        if (!strcmp(tagBuf,YAML_NULL_TAG)){
+        } else if (!strcmp(tagBuf,YAML_NULL_TAG)){
           /* Json *scalar = jsonBuildNull(b,parent,parentKey,&buildStatus); */
-        } else if (!strcmp(tag,YAML_BOOL_TAG)){
+        } else if (!strcmp(tagBuf,YAML_BOOL_TAG)){
           /* Json *scalar = jsonBuildBool(b,parent,parentKey,"FOO",3,&buildStatus); */
-        } else if (!strcmp(tag,YAML_INT_TAG) ||
-                   (!strcmp(tag,YAML_STR_TAG) &&
+        } else if (!strcmp(tagBuf,YAML_INT_TAG) ||
+                   (!strcmp(tagBuf,YAML_STR_TAG) &&
                     (style == YAML_PLAIN_SCALAR_STYLE) &&
-                    isSyntacticallyInteger(node->data.scalar.value,valueLength))){
+                    isSyntacticallyInteger(val,valueLength))){
           bool valid;
-          int64_t x = readInt(node->data.scalar.value,valueLength,&valid);
+          int64_t x = readInt(val,valueLength,&valid);
           if (valid){
             scalar = jsonBuildInt64(b,parent,parentKey,x,&buildStatus);
           } else {
             buildStatus = JSON_FAIL_BAD_INTEGER;
           }
           /* Json *scalar = jsonBuildInt(b,parent,parentKey,"FOO",3,&buildStatus); */
-        } else if (!strcmp(tag,YAML_STR_TAG)){
-          scalar = jsonBuildString(b,parent,parentKey,(char*)node->data.scalar.value,valueLength,&buildStatus);
-        } else if (!strcmp(tag,YAML_FLOAT_TAG)){
+        } else if (!strcmp(tagBuf,YAML_STR_TAG)){
+          scalar = jsonBuildString(b,parent,parentKey,val,valueLength,&buildStatus);
+        } else if (!strcmp(tagBuf,YAML_FLOAT_TAG)){
           printf("*** Warning don't know how to handle float yet\n");
           buildStatus = JSON_FAIL_NOT_HANDLED;
-        } else if (!strcmp(tag,YAML_TIMESTAMP_TAG)){
+        } else if (!strcmp(tagBuf,YAML_TIMESTAMP_TAG)){
           printf("*** Warning don't know how to handle timestamp yet\n");
           buildStatus = JSON_FAIL_NOT_HANDLED;
         }
@@ -295,6 +338,7 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
           printf("*** WARNING *** Failed to add property/scalar err=%d\n",buildStatus);
         }
         return scalar;
+      }
       default:
         printf("*** WARNING *** - unknown scalar style %d",node->data.scalar.style);
         return NULL;
@@ -346,9 +390,13 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
             printf("*** WARNING *** dead end key\n");
           }
           if (key){
+            char *keyBuf = jsonBuildKey(b, key, keyLength);
+#ifdef __ZOWE_OS_ZOS
+          __atoe(keyBuf);
+#endif
             yaml_node_t *valueNode = yaml_document_get_node(doc, pair->value);
             if (valueNode){
-              yaml2JSON1(b,jsonObject,key,doc,valueNode,depth+2);
+              yaml2JSON1(b,jsonObject,keyBuf,doc,valueNode,depth+2);
             } else{
               printf("*** WARNING *** dead end value\n");
             }
