@@ -56,7 +56,6 @@ int main(int argc, char *argv[])
     char *charset = argv[3];
     char *schemaFilename = (argc >= 5 ? argv[4] : NULL);
     int errorBufferSize = 1024;
-    printf("Sizeof(size_t) = %lld\n",sizeof(size_t));
 #ifdef __ZOWE_OS_WINDOWS
     int stdoutFD = _fileno(stdout);
 #else
