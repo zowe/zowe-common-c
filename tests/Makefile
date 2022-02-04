@@ -11,11 +11,14 @@
 # Makefile for z/OS
 # make prepare && make
 CC:=c89
-MAJOR:=0
-MINOR:=2
-PATCH:=5
-ENHANCED_ASCII:=-Wc,ASCII -D_ENHANCED_ASCII_EXT=0xFFFFFFFF
-VERSION:=\"$(MAJOR).$(MINOR).$(PATCH)\"
+BITS:=
+#BITS:=lp64
+
+ifeq ($(BITS),lp64)
+	ENHANCED_ASCII:=-D_ENHANCED_ASCII_EXT=0xFFFFFFFF -Wc,ASCII
+else
+	ENHANCED_ASCII:=-D_ENHANCED_ASCII_EXT=0xFFFFFFFF -Wc,ASCII,NOXPLINK 
+endif
 
 MAJOR:=0
 MINOR:=2
@@ -23,10 +26,9 @@ PATCH:=5
 VERSION:=\"$(MAJOR).$(MINOR).$(PATCH)\"
 DEFINESYAML:=-DYAML_VERSION_MAJOR=$(MAJOR) -DYAML_VERSION_MINOR=$(MINOR) -DYAML_VERSION_PATCH=$(PATCH) -DYAML_VERSION_STRING=$(VERSION)
 DEFINES:=-D_XOPEN_SOURCE=600 -D_OPEN_THREADS=1
-LP64:=lp64
 
-CC_FLAGS:=-Ilibyaml/include -I../h -I../platform/posix $(DEFINES) -Wc,dll,expo,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) -Wc,agg,list\(\),so\(\),off,xref,$(LP64)
-LD_FLAGS:=-Wl,$(LP64)
+CC_FLAGS:=-Ilibyaml/include -I../h -I../platform/posix $(DEFINES) -Wc,dll,expo,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) -Wc,agg,list\(\),so\(\),off,xref,$(BITS)
+LD_FLAGS:=-Wl,$(BITS)
 
 LIBYAMLOBJS:=api.o reader.o scanner.o parser.o loader.o writer.o emitter.o dumper.o
 OBJS:=schematest.o  yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o timeutls.o utils.o alloc.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
