@@ -18,6 +18,20 @@
 #include "json.h"
 #include "jsonschema.h"
 
+static int convertToNative(char *buf, size_t size) {
+#ifdef __ZOWE_OS_ZOS
+  return __atoe_l(buf, size);
+#endif
+  return 0;
+}
+
+static int convertFromNative(char *buf, size_t size) {
+#ifdef __ZOWE_OS_ZOS
+  return __etoa_l(buf, size);
+#endif
+  return 0;
+}
+
 static char *tokenTypeName(yaml_token_type_t type){
   switch (type){
   case YAML_NO_TOKEN: return "NO_TOKEN";
@@ -62,23 +76,21 @@ static char *getScalarStyleName(yaml_scalar_style_t style){
   }
 }
 
-static int yamlReadHandler(void *data, unsigned char *buffer, size_t size, size_t *size_read) {
+static int yamlReadHandler(void *data, unsigned char *buffer, size_t size, size_t *sizeRead) {
   FILE *fp = data;
   int rc = 1;
-  size_t bytes_read = fread(buffer, 1, size, fp);
-  if (bytes_read > 0) {
-#ifdef __ZOWE_OS_ZOS
-    if (__etoa_l((char *)buffer, bytes_read) == -1) {
+  size_t bytesRead = fread(buffer, 1, size, fp);
+  if (bytesRead > 0) {
+    if (convertFromNative((char *)buffer, bytesRead) == -1) {
     fprintf (stderr, "failed to convert yaml input - %s\n", strerror(errno));
       rc = 0;
     }
-#endif
   }
   if (ferror(fp)) {
     fprintf (stderr, "failed to read yaml input - %s\n", strerror(errno));
     rc = 0;
   }
-  *size_read = bytes_read;
+  *sizeRead = bytesRead;
   return rc;
 }
 
@@ -145,9 +157,7 @@ static void printYamlScalar(const yaml_node_t *node, bool eol) {
   int printLength = dataLen > SCALAR_SIZE_LIMIT ? 40 : (int)dataLen;
   char val[printLength + 1];
   snprintf(val, printLength + 1, "%.*s", printLength, node->data.scalar.value);
-#ifdef __ZOWE_OS_ZOS
-  __atoe(val);
-#endif
+  convertToNative(val, printLength);
   printf("%s%c", val, eol ? '\n' : '');
 }
 
@@ -295,42 +305,40 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
       case YAML_LITERAL_SCALAR_STYLE:
       case YAML_FOLDED_SCALAR_STYLE:
       {
-        char val[valueLength+1];
+        char nativeValue[valueLength+1];
         char *tag = (char*)node->tag;
         int tagLen = strlen(tag);
-        char tagBuf[tagLen + 1];
-        snprintf(val, valueLength+1, "%.*s", valueLength, (const char *)node->data.scalar.value);
-        snprintf(tagBuf, tagLen + 1, "%.*s", tagLen, tag);
-#ifdef __ZOWE_OS_ZOS
-          __atoe(val);
-          __atoe(tagBuf);
-#endif
-        printf("tag = %s scalarStyle=%s\n",tagBuf,getScalarStyleName(node->data.scalar.style));
+        char nativeTag[tagLen + 1];
+        snprintf(nativeValue, valueLength+1, "%.*s", valueLength, (const char *)node->data.scalar.value);
+        snprintf(nativeTag, tagLen + 1, "%.*s", tagLen, tag);
+        convertToNative(nativeValue, valueLength);
+        convertToNative(nativeTag, tagLen);
+        printf("tag = %s scalarStyle=%s\n",nativeTag,getScalarStyleName(node->data.scalar.style));
         Json *scalar = NULL;
         // HERE, make test with float, int, bool, null, ddate
-        if (!strcmp(tagBuf,YAML_NULL_TAG)){
-        } else if (!strcmp(tagBuf,YAML_NULL_TAG)){
+        if (!strcmp(nativeTag,YAML_NULL_TAG)){
+        } else if (!strcmp(nativeTag,YAML_NULL_TAG)){
           /* Json *scalar = jsonBuildNull(b,parent,parentKey,&buildStatus); */
-        } else if (!strcmp(tagBuf,YAML_BOOL_TAG)){
+        } else if (!strcmp(nativeTag,YAML_BOOL_TAG)){
           /* Json *scalar = jsonBuildBool(b,parent,parentKey,"FOO",3,&buildStatus); */
-        } else if (!strcmp(tagBuf,YAML_INT_TAG) ||
-                   (!strcmp(tagBuf,YAML_STR_TAG) &&
+        } else if (!strcmp(nativeTag,YAML_INT_TAG) ||
+                   (!strcmp(nativeTag,YAML_STR_TAG) &&
                     (style == YAML_PLAIN_SCALAR_STYLE) &&
-                    isSyntacticallyInteger(val,valueLength))){
+                    isSyntacticallyInteger(nativeValue,valueLength))){
           bool valid;
-          int64_t x = readInt(val,valueLength,&valid);
+          int64_t x = readInt(nativeValue,valueLength,&valid);
           if (valid){
             scalar = jsonBuildInt64(b,parent,parentKey,x,&buildStatus);
           } else {
             buildStatus = JSON_FAIL_BAD_INTEGER;
           }
           /* Json *scalar = jsonBuildInt(b,parent,parentKey,"FOO",3,&buildStatus); */
-        } else if (!strcmp(tagBuf,YAML_STR_TAG)){
-          scalar = jsonBuildString(b,parent,parentKey,val,valueLength,&buildStatus);
-        } else if (!strcmp(tagBuf,YAML_FLOAT_TAG)){
+        } else if (!strcmp(nativeTag,YAML_STR_TAG)){
+          scalar = jsonBuildString(b,parent,parentKey,nativeValue,valueLength,&buildStatus);
+        } else if (!strcmp(nativeTag,YAML_FLOAT_TAG)){
           printf("*** Warning don't know how to handle float yet\n");
           buildStatus = JSON_FAIL_NOT_HANDLED;
-        } else if (!strcmp(tagBuf,YAML_TIMESTAMP_TAG)){
+        } else if (!strcmp(nativeTag,YAML_TIMESTAMP_TAG)){
           printf("*** Warning don't know how to handle timestamp yet\n");
           buildStatus = JSON_FAIL_NOT_HANDLED;
         }
@@ -390,13 +398,11 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
             printf("*** WARNING *** dead end key\n");
           }
           if (key){
-            char *keyBuf = jsonBuildKey(b, key, keyLength);
-#ifdef __ZOWE_OS_ZOS
-          __atoe(keyBuf);
-#endif
+            char *keyNative = jsonBuildKey(b, key, keyLength);
+            convertToNative(keyNative, keyLength);
             yaml_node_t *valueNode = yaml_document_get_node(doc, pair->value);
             if (valueNode){
-              yaml2JSON1(b,jsonObject,keyBuf,doc,valueNode,depth+2);
+              yaml2JSON1(b,jsonObject,keyNative,doc,valueNode,depth+2);
             } else{
               printf("*** WARNING *** dead end value\n");
             }
