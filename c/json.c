@@ -1082,7 +1082,6 @@ void freeJsonParser(JsonParser *parser) {
 
 static 
 void jsonParseFail(JsonParser *parser, char *formatString, ...) {
-  printf("JSON PARSE FAIL!!!!!\n");
   fflush(stdout);
   if (parser->jsonError == NULL) {
     int size = 1024;
