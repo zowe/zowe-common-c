@@ -87,13 +87,13 @@ int main(int argc, char *argv[])
     } else if (!strcmp(syntax,"yaml")){
       printf("yaml syntax case\n");
       fflush(stdout);
-      yaml_document_t *doc = readYAML(filename);
+      yaml_document_t *doc = readYAML(filename, errorBuffer, errorBufferSize);
       printf("yaml doc at 0x%p\n",doc);
       if (doc){
         pprintYAML(doc);
         json = yaml2JSON(doc,slh);
       } else {
-        printf("yaml probably had syntax issues\n");
+        printf("%s\n", errorBuffer);
       }
     } else {
       printf("unhandled syntax\n");

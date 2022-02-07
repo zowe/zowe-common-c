@@ -94,44 +94,95 @@ static int yamlReadHandler(void *data, unsigned char *buffer, size_t size, size_
   return rc;
 }
 
-
-yaml_document_t *readYAML(char *filename){
-  FILE *file;
-  yaml_parser_t parser;
-  yaml_document_t *document = (yaml_document_t*)safeMalloc(sizeof(yaml_document_t),"YAML Doc");
-  int done = 0;
-  int count = 0;
-  int error = 0;
-  
-   file = fopen(filename, "rb");
-  assert(file);
-  
-  assert(yaml_parser_initialize(&parser));
-
-  yaml_parser_set_input(&parser, yamlReadHandler, file);
-  
-  printf("before parser_load\n");fflush(stdout);
-  
-  if (!yaml_parser_load(&parser, document)) {
-
-    printf("bad yaml load\n");fflush(stdout);
-    error = 1;
-  } else if (yaml_document_get_root_node(document)){
-
-  } else {
-    error = 1;
+static void decodeParserError(yaml_parser_t *parser, char *errorBuf, size_t errorBufSize) {
+  switch (parser->error) {
+    case YAML_MEMORY_ERROR:
+      snprintf(errorBuf, errorBufSize, "YAML memory error: not enough memory for parsing");
+      break;
+    case YAML_READER_ERROR: {
+      size_t problemLen = strlen(parser->problem);
+      char problemNative[problemLen + 1];
+      snprintf (problemNative, problemLen + 1, "%s", parser->problem);
+      convertToNative(problemNative, problemLen);
+      if (parser->problem_value != -1) {
+        snprintf(errorBuf, errorBufSize, "YAML reader error: %s: #%X at %ld", problemNative, parser->problem_value, (long)parser->problem_offset);
+      } else {
+        snprintf(errorBuf, errorBufSize, "YAML reader error: %s at %ld", problemNative, (long)parser->problem_offset);
+      }
+      break;
+    }
+    case YAML_SCANNER_ERROR:
+      if (parser->context) {
+        snprintf(errorBuf, errorBufSize, "YAML scanner error: %s at line %d, column %d"
+                "%s at line %d, column %d\n", parser->context,
+                (int)parser->context_mark.line+1, (int)parser->context_mark.column+1,
+                parser->problem, (int)parser->problem_mark.line+1,
+                (int)parser->problem_mark.column+1);
+      } else {
+        snprintf(errorBuf, errorBufSize, "YAML scanner error: %s at line %d, column %d",
+                 parser->problem, (int)parser->problem_mark.line+1,
+                 (int)parser->problem_mark.column+1);
+      }
+      break;
+      case YAML_PARSER_ERROR:
+        if (parser->context) {
+          snprintf(errorBuf, errorBufSize, "YAML parser error: %s at line %d, column %d\n"
+                   "%s at line %d, column %d", parser->context,
+                   (int)parser->context_mark.line+1, (int)parser->context_mark.column+1,
+                   parser->problem, (int)parser->problem_mark.line+1,
+                   (int)parser->problem_mark.column+1);
+        } else {
+          snprintf(errorBuf, errorBufSize, "YAML parser error: %s at line %d, column %d",
+                   parser->problem, (int)parser->problem_mark.line+1,
+                   (int)parser->problem_mark.column+1);
+        }
+        break;
+      default:
+        snprintf(errorBuf, errorBufSize, "YAML parser: unknown error");
   }
+}
 
-  printf("before parser_delete\n");fflush(stdout);
-  yaml_parser_delete(&parser);
-  printf("after parser_delete\n");fflush(stdout);
-  assert(!fclose(file));
-          
-  if (error){
-    safeFree((char*)document,sizeof(yaml_document_t));
+yaml_document_t *readYAML(const char *filename, char *errorBuf, size_t errorBufSize) {
+  FILE *file = NULL;
+  yaml_document_t *document = NULL;
+  yaml_parser_t parser = {0};
+  bool done = false;
+
+  do {
+    if (!(document = (yaml_document_t*)safeMalloc(sizeof(yaml_document_t), "YAML Doc"))) {
+      snprintf(errorBuf, errorBufSize, "failed to alloc memory for YAML doc");
+      break;      
+    }
+    memset(document, 0, sizeof(document));
+    if (!(file = fopen(filename, "rb"))) {
+      snprintf(errorBuf, errorBufSize, "failed to read '%s' - %s", filename, strerror(errno));
+      break;
+    }
+    if (!yaml_parser_initialize(&parser)) {
+      snprintf(errorBuf, errorBufSize, "failed to initialize YAML parser");
+      break;
+    }
+    yaml_parser_set_input(&parser, yamlReadHandler, file);
+    if (!yaml_parser_load(&parser, document)) {
+      decodeParserError(&parser, errorBuf, errorBufSize);
+      break;
+    }
+    if (!yaml_document_get_root_node(document)){
+      snprintf(errorBuf, errorBufSize, "failed to get root node in YAML '%s'", filename);
+      break;
+    }
+    done = true;
+  } while (0);
+
+  if (!done && document) {
+    yaml_document_delete(document);
+    safeFree((char*)document, sizeof(yaml_document_t));
     document = NULL;
   }
-
+  if (file) {
+    fclose(file);
+  }
+  yaml_parser_delete(&parser);
   return document;
 }
 
