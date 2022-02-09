@@ -1396,6 +1396,7 @@ int locate(char *dsn, int *volserCount, char *firstVolser);
 #define safVerify4 SAFVRFY4
 #define safVerify5 SAFVRFY5
 #define safVerify6 SAFVRFY6
+#define safVerify7 SAFVRFY7
 
 
 ACEE *getAddressSpaceAcee(void);
@@ -1438,6 +1439,10 @@ int safVerify5(int options,
 
 int safVerify6(int options, char *userid, char *password,
               ACEE **aceeHandle,
+              int *racfStatus, int *racfReason, IDTA *idta);
+
+int safVerify7(int options, char *userid, char *password,
+              ACEE **aceeHandle, char *appl,
               int *racfStatus, int *racfReason, IDTA *idta);
 
 /* second flag set */
