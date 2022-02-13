@@ -20,6 +20,7 @@
  */
 
 #include "zowetypes.h"
+#include "utils.h"
 
 #ifndef __ZOWE_OS_ZOS
 #include "openprims.h"
@@ -49,6 +50,13 @@
 #define lhtRemove LNHTREMV
 #define makeQueue MAKELCFQ
 #define destroyQueue DSTRLCFQ
+
+#define makeArrayList ALSTMAKE
+#define arrayListAdd  ALSTADD
+#define arrayListElement ALSTELMT
+#define arrayListSort ALSTSORT
+#define arrayListShallowCopy ALSHLCPY 
+#define initEmbbededArrayList ALINEMAR
 
 #endif
 
@@ -307,8 +315,23 @@ void qInsert(Queue *q, void *newData) QueueAmode64;
  */
 void *qRemove(Queue *q) QueueAmode64;
 
-#endif
+typedef struct ArrayList_tag{
+  int capacity;
+  int size;
+  void **array;
+  ShortLivedHeap *slh;
+} ArrayList;
 
+ArrayList *makeArrayList();
+void arrayListFree(ArrayList *list);
+void arrayListAdd(ArrayList *list, void *thing);
+void *arrayListElement(ArrayList *list, int i);
+void initEmbeddedArrayList(ArrayList *list,
+			   ShortLivedHeap *slh);
+void *arrayListShallowCopy(ArrayList *source, ArrayList *target);
+void arrayListSort(ArrayList *list, int (*comparator)(const void *a, const void *b));
+
+#endif
 
 /*
   This program and the accompanying materials are
