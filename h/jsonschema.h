@@ -30,6 +30,7 @@ typedef struct JsonSchemaBuilder_tag {
   JsonSchema *schema;
   ShortLivedHeap *slh;
   int         version;
+  int         traceLevel;
   AccessPath *accessPath;
   int         errorCode;
   char       *errorMessage;

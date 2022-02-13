@@ -63,6 +63,7 @@ static char *getScalarStyleName(yaml_scalar_style_t style){
 
 
 yaml_document_t *readYAML(char *filename){
+  int traceLevel = 0;
   FILE *file;
   yaml_parser_t parser;
   yaml_document_t *document = (yaml_document_t*)safeMalloc(sizeof(yaml_document_t),"YAML Doc");
@@ -70,17 +71,18 @@ yaml_document_t *readYAML(char *filename){
   int count = 0;
   int error = 0;
   
-   file = fopen(filename, "rb");
+  file = fopen(filename, "rb");
   assert(file);
   
   assert(yaml_parser_initialize(&parser));
 
   yaml_parser_set_input_file(&parser, file);
-  
-  printf("before parser_load\n");fflush(stdout);
+
+  if (traceLevel >= 1){
+    printf("before parser_load\n");fflush(stdout);
+  }
   
   if (!yaml_parser_load(&parser, document)) {
-
     printf("bad yaml load\n");fflush(stdout);
     error = 1;
   } else if (yaml_document_get_root_node(document)){
@@ -88,10 +90,14 @@ yaml_document_t *readYAML(char *filename){
   } else {
     error = 1;
   }
-
-  printf("before parser_delete\n");fflush(stdout);
+  
+  if (traceLevel >= 1){
+    printf("before parser_delete\n");fflush(stdout);
+  }
   yaml_parser_delete(&parser);
-  printf("after parser_delete\n");fflush(stdout);
+  if (traceLevel >= 1){
+    printf("after parser_delete\n");fflush(stdout);
+  }
   assert(!fclose(file));
           
   if (error){
@@ -199,7 +205,7 @@ void pprintYAML(yaml_document_t *document){
 
 static bool isSyntacticallyInteger(yaml_char_t *data, int length){
   if (length == 0){
-    printf("empty string not integer\n");
+    /* printf("empty string not integer\n"); */
     return false;
   }
   for (int i=0; i<length; i++){
@@ -207,11 +213,11 @@ static bool isSyntacticallyInteger(yaml_char_t *data, int length){
     if (c >= '0' && c <= '9'){
       
     } else {
-      printf("%s is NOT an integer\n",data);
+      /* printf("%s is NOT an integer\n",data); */
       return false;
     }     
   }
-  printf("%s is an integer\n",data);
+  /* printf("%s is an integer\n",data); */
   return true;
 }
 
@@ -236,7 +242,7 @@ static int64_t readInt(yaml_char_t *data, int length, bool *valid){
 #define JSON_FAIL_BAD_INTEGER 104
 
 static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
-                       yaml_document_t *doc, yaml_node_t *node, int depth){
+                        yaml_document_t *doc, yaml_node_t *node, int depth){
   int buildStatus = 0;
   switch (node->type){
   case YAML_NO_NODE:
@@ -262,7 +268,9 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
       case YAML_LITERAL_SCALAR_STYLE:
       case YAML_FOLDED_SCALAR_STYLE:
         char *tag = (char*)node->tag;
-        printf("tag = %s scalarStyle=%s\n",tag,getScalarStyleName(node->data.scalar.style));
+        if (b->traceLevel >= 2){
+          printf("tag = %s scalarStyle=%s\n",tag,getScalarStyleName(node->data.scalar.style));
+        }
         Json *scalar = NULL;
         // HERE, make test with float, int, bool, null, ddate
         if (!strcmp(tag,YAML_NULL_TAG)){
