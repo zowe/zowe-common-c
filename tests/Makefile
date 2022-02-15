@@ -31,13 +31,17 @@ CC_FLAGS:=-Ilibyaml/include -I../h -I../platform/posix $(DEFINES) -Wc,dll,expo,l
 LD_FLAGS:=-Wl,$(BITS)
 
 LIBYAMLOBJS:=api.o reader.o scanner.o parser.o loader.o writer.o emitter.o dumper.o
-OBJS:=schematest.o  yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o timeutls.o utils.o alloc.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
+SCHEMATESTOBJS:=schematest.o  yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o timeutls.o utils.o alloc.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
+CONFIGMGROBJ:=configmgr.o  yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o timeutls.o utils.o alloc.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
 
-.PHONY:	clean all prepare
+.PHONY:	clean all prepare test_configmgr
 
-all:	schematest
+all:	configmgr schematest
 
-schematest:	$(OBJS) $(LIBYAMLOBJS)
+configmgr:	$(CONFIGMGROBJ) $(LIBYAMLOBJS)
+	$(CC) $(LD_FLAGS) -o $@ $^
+
+schematest:	$(SCHEMATESTOBJS) $(LIBYAMLOBJS)
 	$(CC) $(LD_FLAGS) -o $@ $^
 
 schematest.o:	schematest.c
@@ -58,7 +62,11 @@ libyaml:
 prepare: libyaml
 	
 clean:	
-	rm -f schematest *.o
+	rm -f configmgr schematest *.o
+
+test_configmgr:	configmgr
+	./configmgr -t 3 -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/zowebase.yaml)' validate
+	
 
 ################################################################################
 #  This program and the accompanying materials are
