@@ -920,7 +920,7 @@ int fileGetChar(UnixFile *file, int *returnCode, int *reasonCode){
     *reasonCode = 0xBFF;
     return -1;
   } else if (file->bufferPos < file->bufferFill){
-    return (int)(file->buffer[file->bufferPos++]);
+    return (int)(file->buffer[file->bufferPos++])&0xFF;
   } else if (file->eofKnown){
     return -1;
   } else{
@@ -932,7 +932,7 @@ int fileGetChar(UnixFile *file, int *returnCode, int *reasonCode){
       }
       file->bufferFill = bytesRead;
       file->bufferPos = 1;
-      return file->buffer[0];
+      return file->buffer[0]&0xFF;
     } else{
       return -1;
     }
@@ -1040,7 +1040,10 @@ int directoryRead(UnixFile *directory, char *entryBuffer, int entryBufferLength,
   
   if (directory->hasMoreEntries){
     int filenameLength = strlen(findData->cFileName);
-    printf("found %s\n",findData->cFileName);
+    DirectoryEntry *entry = (DirectoryEntry*)entryBuffer;
+    entry->entryLength = filenameLength+2;
+    entry->nameLength = filenameLength;
+    memcpy(entry->name,findData->cFileName,filenameLength);
     if (FindNextFile(hFind, findData)){
       directory->hasMoreEntries = TRUE;
     } else {

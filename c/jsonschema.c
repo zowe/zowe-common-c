@@ -850,9 +850,11 @@ static char *allJSTypeNames[ALL_TYPES_COUNT] = { "null", "boolean", "object", "a
 /* This function is recursive for all places that can be filled by a sub schema within a schema */
 static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopLevel){
   AccessPath *accessPath = builder->accessPath;
-  printf("JSONSchema build\n");
-  printAccessPath(stdout,accessPath);
-  fflush(stdout);
+  if (builder->traceLevel >= 2){
+    printf("JSONSchema build\n");
+    printAccessPath(stdout,accessPath);
+    fflush(stdout);
+  }
   if (jsonIsObject(jsValue)){
     JsonObject *object = jsonAsObject(jsValue);
     ensureUniqueKeys(builder,object);
@@ -860,8 +862,10 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
     char **typeArray = NULL;
     int    typeArrayCount = 0;
     if (typeValue == NULL){
-      printf("*** INFO *** untyped value at path:\n");
-      printAccessPath(stdout,accessPath);
+      if (builder->traceLevel >= 1){
+        printf("*** INFO *** untyped value at path:\n");
+        printAccessPath(stdout,accessPath);
+      }
       typeArray = allJSTypeNames;
       typeArrayCount = ALL_TYPES_COUNT;
     } else {
@@ -924,11 +928,9 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
               objectSpec->validatorFlags |= JS_VALIDATOR_MIN_PROPS;
             }
             JsonArray *required = getArrayValue(builder,object,"required");
-            printf("builder required array = 0x%p\n",required);
             if (required != NULL){
               int count = 0;
               objectSpec->required = getStringArrayOrFail(builder,required,&count);
-              printf("during build, required is 0x%p\n",objectSpec->required);
               objectSpec->requiredCount = count;
             }
             if (properties != NULL){
@@ -1076,8 +1078,10 @@ void freeJsonSchemaBuilder(JsonSchemaBuilder *builder){
 
 JsonSchema *jsonBuildSchema(JsonSchemaBuilder *builder, Json *jsValue){
   if (setjmp(builder->recoveryData) == 0) {  /* normal execution */
-    printf("after setjmp normal\n");
-    fflush(stdout);
+    if (builder->traceLevel >= 2){
+      printf("after setjmp normal\n");
+      fflush(stdout);
+    }
     JSValueSpec *topValueSpec = build(builder,jsValue,true);
     JsonSchema *schema = (JsonSchema*)SLHAlloc(builder->slh,sizeof(JsonSchema));
     schema->topValueSpec = topValueSpec;
@@ -1087,8 +1091,10 @@ JsonSchema *jsonBuildSchema(JsonSchemaBuilder *builder, Json *jsValue){
     builder->slh = NULL;
     return schema;
   } else {                                   /* throw handling */
-    printf("schema build fail %s\n",builder->errorMessage);
-    fflush(stdout);
+    if (builder->traceLevel >= 2){
+      printf("schema build fail %s\n",builder->errorMessage);
+      fflush(stdout);
+    }
     return NULL;
   }
 }

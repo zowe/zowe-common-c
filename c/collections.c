@@ -1417,6 +1417,84 @@ void *qRemove(Queue *q){
 #endif /* END OF OS-VARIANT Queue stuff */
 
 
+/* The Array List (flexible Array thing that smells like Java and javascript) */
+
+static void *arrayListAlloc(ArrayList *list, uint32_t size, char *location){
+  if (list->slh){
+    return (void*)SLHAlloc(list->slh,size);
+  } else{
+    return safeMalloc(size,location);
+  }
+}
+
+ArrayList *makeArrayList(){
+  ArrayList *list = (ArrayList*)safeMalloc(sizeof(ArrayList),"ArrayList");
+  list->capacity = 8;
+  list->size     = 0;
+  list->array = (void**)safeMalloc(list->capacity*sizeof(void*),"ArrayListArray");
+  list->slh = NULL;
+  return list;
+}
+
+void arrayListFree(ArrayList *list){
+  if (list->slh == NULL){
+    safeFree((char*)list->array,list->capacity*sizeof(void*));
+    safeFree((char*)list,sizeof(ArrayList));
+  }
+}
+
+void initEmbeddedArrayList(ArrayList *list,
+			   ShortLivedHeap *slh){ /* can be null for use safeMalloc - standard heap alloc */
+  list->capacity = 8;
+  list->size     = 0;
+  list->slh      = slh;
+  list->array = (void**)arrayListAlloc(list,list->capacity*sizeof(void*),"ArrayListArray");  
+}
+
+void arrayListAdd(ArrayList *list, void *thing){
+  if (list->size == list->capacity){
+    int newCapacity = 2*list->capacity;
+    void** newArray = (void**)arrayListAlloc(list,newCapacity*sizeof(void*),"ArrayListExtend");
+    memcpy(newArray,list->array,list->capacity*sizeof(void*));
+    if (list->slh == NULL){
+      safeFree((char*)list->array,list->capacity*sizeof(void*));
+    }
+    list->array = newArray;
+    list->capacity = newCapacity;
+  }
+  list->array[list->size++] = thing;
+}
+
+void arrayListSort(ArrayList *list, int (*comparator)(const void *a, const void *b)){
+  qsort(list->array,list->size,sizeof(void*),comparator);
+}
+
+bool arrayListContains(ArrayList *list, void *element){
+  for (int i=0; i<list->size; i++){
+    if (list->array[i] == element){
+      return true;
+    }
+  }
+  return false;
+}
+
+void *arrayListElement(ArrayList *list, int i){
+  if (i<list->size){
+    return list->array[i];
+  } else{
+    return NULL;
+  }
+}
+
+void *arrayListShallowCopy(ArrayList *source, ArrayList *target){
+  target->capacity = source->capacity;
+  target->size     = source->size;
+  target->slh      = source->slh;
+  target->array = (void**)arrayListAlloc(target,target->capacity*sizeof(void*),"ArrayListArray");  
+  memcpy(target->array,source->array,target->capacity*sizeof(void**));
+  return target;
+}
+
 
 /*
   This program and the accompanying materials are

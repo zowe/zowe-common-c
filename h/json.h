@@ -561,6 +561,7 @@ struct JsonParser_tag {
 typedef struct JsonBuilder_tag {
   JsonParser parser;
   Json *root;
+  int   traceLevel;
 } JsonBuilder;
 
 JsonBuilder *makeJsonBuilder(ShortLivedHeap *slh);

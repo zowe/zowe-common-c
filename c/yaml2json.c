@@ -293,7 +293,7 @@ void pprintYAML(yaml_document_t *document){
 
 static bool isSyntacticallyInteger(yaml_char_t *data, int length){
   if (length == 0){
-    printf("empty string not integer\n");
+    /* printf("empty string not integer\n"); */
     return false;
   }
   for (int i=0; i<length; i++){
@@ -301,11 +301,11 @@ static bool isSyntacticallyInteger(yaml_char_t *data, int length){
     if (c >= '0' && c <= '9'){
       
     } else {
-      printf("%s is NOT an integer\n",data);
+      /* printf("%s is NOT an integer\n",data); */
       return false;
     }     
   }
-  printf("%s is an integer\n",data);
+  /* printf("%s is an integer\n",data); */
   return true;
 }
 
@@ -330,7 +330,7 @@ static int64_t readInt(yaml_char_t *data, int length, bool *valid){
 #define JSON_FAIL_BAD_INTEGER 104
 
 static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
-                       yaml_document_t *doc, yaml_node_t *node, int depth){
+                        yaml_document_t *doc, yaml_node_t *node, int depth){
   int buildStatus = 0;
   switch (node->type){
   case YAML_NO_NODE:
@@ -364,7 +364,9 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
         snprintf(nativeTag, tagLen + 1, "%.*s", tagLen, tag);
         convertToNative(nativeValue, valueLength);
         convertToNative(nativeTag, tagLen);
-        printf("tag = %s scalarStyle=%s\n",nativeTag,getScalarStyleName(node->data.scalar.style));
+        if (b->traceLevel >= 2){
+          printf("tag = %s scalarStyle=%s\n",nativeTag,getScalarStyleName(node->data.scalar.style));
+        }
         Json *scalar = NULL;
         // HERE, make test with float, int, bool, null, ddate
         if (!strcmp(nativeTag,YAML_NULL_TAG)){
