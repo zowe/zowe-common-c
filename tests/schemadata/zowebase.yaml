@@ -1,0 +1,39 @@
+zowe:
+
+  #-------------------------------------------------------------------------------
+  # These configurations are used by "zwe install" or "zwe init" commands.
+  #-------------------------------------------------------------------------------
+  setup:
+    # MVS data set related configurations
+    mvs:
+      # **COMMONLY_CUSTOMIZED**
+      # where Zowe MVS data sets will be installed
+      #      hlq: IBMUSER.ZWEV2
+      hlq: IBMUSER.FOO
+      # **COMMONLY_CUSTOMIZED**
+      # PROCLIB where Zowe STCs will be copied over
+      proclib: VENDOR.PROCLIB
+      # **COMMONLY_CUSTOMIZED**
+      # Zowe PARMLIB
+      parmlib: IBMUSER.ZWEV2.CUST.PARMLIB
+      # **COMMONLY_CUSTOMIZED**
+      # JCL library where Zowe will store temporary JCLs during initialization
+      jcllib: IBMUSER.ZWEV2.CUST.JCLLIB
+      # APF authorized LOADLIB for Zowe
+      # Optional. If it's empty, <hlq>.SZWEAUTH will be APF authorized.
+      authLoadlib: 
+      # **COMMONLY_CUSTOMIZED**
+      # APF authorized LOADLIB for Zowe ZIS Plugins
+      authPluginLib: IBMUSER.ZWEV2.CUST.ZWESAPL
+
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # Certificate related configurations
+    #
+    # There are 5 configurations cases. Please choose one from below.
+
+    # >>>> Certificate setup scenario 1
+    # PKCS12 (keystore) with Zowe generate certificates.
+    certificate:
+      # Type of certificate storage. Valid values are: PKCS12 or JCERACFKS
+      type: PKCS12
+      pkcs12:

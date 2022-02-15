@@ -1,0 +1,4 @@
+zowe:
+  setup:
+    mvs:
+      hlq: SOMELIB.BAR

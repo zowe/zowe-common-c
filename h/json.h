@@ -23,6 +23,7 @@
 #endif /* METTLE */
 #include "zowetypes.h"
 #include "utils.h"
+#include "collections.h"
 
 /** \file
  *  \brief json.h is an implementation of an efficient low-level JSON writer and parser.
@@ -559,7 +560,7 @@ struct JsonParser_tag {
 };
 
 typedef struct JsonBuilder_tag {
-  JsonParser parser;
+  JsonParser parser;  /* must be first member to support casts */
   Json *root;
   int   traceLevel;
 } JsonBuilder;
@@ -607,16 +608,50 @@ Json *jsonBuildInt64(JsonBuilder *b,
 Json *jsonBuildBool(JsonBuilder *b,
                     Json *parent,
                     char *parentKey,
-                    bool *truthValue,
-                    int *errorCode);
+                    bool  truthValue,
+                    int  *errorCode);
 
 Json *jsonBuildNull(JsonBuilder *b,
                     Json *parent,
                     char *parentKey,
                     int *errorCode);
 
+
 char* jsonBuildKey(JsonBuilder *b, const char *key, int len);
 
+#define JSON_MERGE_STATUS_SUCCESS 0
+#define JSON_MERGE_STATUS_UNMERGEABLE_TYPES 1
+#define JSON_MERGE_STATUS_UNIMPLEMENTED 2
+
+/* Merging occurs when arrays match up to arays, or objects to objects */
+
+#define JSON_MERGE_FLAG_ARRAY_POLICY_MASK 0x000F
+
+#define JSON_MERGE_FLAG_CONCATENATE_ARRAYS 0x0001   /* len(merge) = len(a)+len(b) */
+#define JSON_MERGE_FLAG_MERGE_IN_PLACE     0x0002   /* len(merge) = max(len(a),len(b)), a overrides corresponding elements of b */
+#define JSON_MERGE_FLAG_TAKE_BASE          0x0003   /* len(merge) = len(b) */
+#define JSON_MERGE_FLAG_TAKE_OVERRIDES     0x0004   /* len(merge) = len(a) */
+
+Json *jsonMerge(ShortLivedHeap *slh, Json *overrides, Json *base, int flags, int *statusPtr);
+
+/* JSON Pointers */
+
+#define JSON_POINTER_NORMAL_KEY 1
+#define JSON_POINTER_INTEGER    2
+
+typedef struct JsonPointerElement_tag {
+  char *string;
+  int   type;
+} JsonPointerElement;
+
+/* These JSON pointers are *ABSOLUTE*, supporting relative is more work */
+
+typedef struct JsonPointer_tag {
+  ArrayList elements;
+} JsonPointer;
+
+JsonPointer *parseJsonPointer(char *s);
+void printJsonPointer(FILE *out, JsonPointer *jp);
 
 #endif	/* __JSON__ */
 

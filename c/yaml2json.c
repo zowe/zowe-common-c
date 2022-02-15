@@ -153,7 +153,7 @@ yaml_document_t *readYAML(const char *filename, char *errorBuf, size_t errorBufS
       snprintf(errorBuf, errorBufSize, "failed to alloc memory for YAML doc");
       break;      
     }
-    memset(document, 0, sizeof(document));
+    memset(document, 0, sizeof(yaml_document_t));
     if (!(file = fopen(filename, "rb"))) {
       snprintf(errorBuf, errorBufSize, "failed to read '%s' - %s", filename, strerror(errno));
       break;
@@ -209,7 +209,7 @@ static void printYamlScalar(const yaml_node_t *node, bool eol) {
   char val[printLength + 1];
   snprintf(val, printLength + 1, "%.*s", printLength, node->data.scalar.value);
   convertToNative(val, printLength);
-  printf("%s%c", val, eol ? '\n' : '');
+  printf("%s%s", val, eol ? "\n" : "");
 }
 
 
@@ -225,7 +225,7 @@ static void pprintYAML1(yaml_document_t *doc, yaml_node_t *node, int depth){
     {
       indent(depth);
       size_t dataLen = node->data.scalar.length;
-      printf("Scalar: (len=%d)", node->data.scalar.length);
+      printf("Scalar: (len=%d)", (int)node->data.scalar.length);
       printYamlScalar(node, true);
     }
     break;
@@ -377,9 +377,9 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
         } else if (!strcmp(nativeTag,YAML_INT_TAG) ||
                    (!strcmp(nativeTag,YAML_STR_TAG) &&
                     (style == YAML_PLAIN_SCALAR_STYLE) &&
-                    isSyntacticallyInteger(nativeValue,valueLength))){
+                    isSyntacticallyInteger((yaml_char_t*)nativeValue,valueLength))){
           bool valid;
-          int64_t x = readInt(nativeValue,valueLength,&valid);
+          int64_t x = readInt((yaml_char_t*)nativeValue,valueLength,&valid);
           if (valid){
             scalar = jsonBuildInt64(b,parent,parentKey,x,&buildStatus);
           } else {

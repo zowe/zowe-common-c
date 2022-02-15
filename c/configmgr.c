@@ -36,9 +36,9 @@
 #include <stdarg.h>
 #include <ctype.h>  
 #include <sys/stat.h>
-#include <sys/types.h> /* JOE 1/20/22 */
-#include <stdint.h> /* JOE 1/20/22 */
-#include <stdbool.h> /* JOE 1/20/22 */
+#include <sys/types.h> 
+#include <stdint.h> 
+#include <stdbool.h> 
 #include <errno.h>
 
 #endif
@@ -95,6 +95,8 @@ typedef int64_t ssize_t;
 
     configmgr -s "../tests/schemadata" -p "LIBRARY(FOO):DIR(BAR)" extract "/foo/bar"
 
+    configmgr -s "../tests/schemadata" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" validate
+
       
 */
 
@@ -123,6 +125,25 @@ typedef struct ConfigManager_tag {
   FILE      *traceOut;
 } ConfigManager;
 
+#ifdef __ZOWE_OS_WINDOWS
+static int stdoutFD(){
+  return _fileno(stdout);
+}
+
+static int stderrFD(){
+  return _fileno(stdout);
+}
+#else
+static int stdoutFD(){
+  return STDOUT_FILENO;
+}
+
+static int stderrFD(){
+  return STDERR_FILENO;
+}
+#endif
+
+
 #define INFO 0
 #define DEBUG 1
 #define DEBUG2 2
@@ -139,7 +160,7 @@ static void trace(ConfigManager *mgr, int level, char *formatString, ...){
 /* configlet semantcs *IS* javascript semantics (and-or-not scalars)
    Configs live in product read-only directories  
 
-   configrunner is the new ZWE
+   configrunner handles all the yaml/json/parmlib that the ZWE scripts need
 
    */
 
@@ -357,6 +378,14 @@ static void printConfigPath(ConfigManager *mgr){
   }
 }
 
+static void jsonPrettyPrint(ConfigManager *mgr, Json *json){
+  jsonPrinter *p = makeJsonPrinter(mgr->traceOut == stdout ? stdoutFD() : stderrFD());
+  jsonEnablePrettyPrint(p);
+  jsonPrint(p,json);
+  trace(mgr,INFO,"\n");
+  
+}
+
 #define ZOWE_SCHEMA_FILE "zoweyaml.schema"
 
 void freeConfigManager(ConfigManager *mgr);
@@ -364,13 +393,6 @@ void freeConfigManager(ConfigManager *mgr);
 ConfigManager *makeConfigManager(char *configPathArg, char *rootSchemaDirectory,
                                  int traceLevel, FILE *traceOut){
   ConfigManager *mgr = (ConfigManager*)safeMalloc(sizeof(ConfigManager),"ConfigManager");
-#ifdef __ZOWE_OS_WINDOWS
-  int stdoutFD = _fileno(stdout);
-  int stderrFD = _fileno(stdout);
-#else
-  int stdoutFD = STDOUT_FILENO;
-  int stderrFD = STDERR_FILENO;
-#endif
 
   memset(mgr,0,sizeof(ConfigManager));
   mgr->traceLevel = traceLevel;
@@ -401,10 +423,8 @@ ConfigManager *makeConfigManager(char *configPathArg, char *rootSchemaDirectory,
     return NULL;
   }
   if (mgr->traceLevel >= 1){
-    jsonPrinter *p = makeJsonPrinter(mgr->traceOut == stdout ? stdoutFD : stderrFD);
-    jsonEnablePrettyPrint(p);
-    jsonPrint(p,jsonWithSchema);
-    trace(mgr,INFO,"\n");
+    jsonPrettyPrint(mgr,jsonWithSchema);
+
   }
   JsonSchemaBuilder *builder = makeJsonSchemaBuilder(DEFAULT_JSON_SCHEMA_VERSION);
   JsonSchema *schema = jsonBuildSchema(builder,jsonWithSchema);
@@ -418,16 +438,16 @@ ConfigManager *makeConfigManager(char *configPathArg, char *rootSchemaDirectory,
     mgr->topSchema = schema;
   }
   freeJsonSchemaBuilder(builder); 
-  /*
-    Thurs read and merge from multiple sources
-   */
   return mgr;
 }
 
+#define YAML_ERROR_MAX 1024
+
 static Json *readJson(ConfigManager *mgr, ConfigPathElement *pathElement){
+  char errorBuffer[YAML_ERROR_MAX];
   if (pathElement->flags & CONFIG_PATH_OMVS_FILE){
     trace(mgr,DEBUG,"before read YAML file=%s\n",pathElement->data);
-    yaml_document_t *doc = readYAML(pathElement->data);
+    yaml_document_t *doc = readYAML(pathElement->data,errorBuffer,YAML_ERROR_MAX);
     trace(mgr,DEBUG,"yaml doc at 0x%p\n",doc);
     if (doc){
       if (mgr->traceLevel >= 1){
@@ -445,23 +465,35 @@ static Json *readJson(ConfigManager *mgr, ConfigPathElement *pathElement){
   }
 }
 
+
 /* need to collect violations as this goes */
-static void overloadConfiguration(ConfigManager *mgr,
-                                  ConfigPathElement *pathElement,
-                                  ConfigPathElement *pathTail){
+static int overloadConfiguration(ConfigManager *mgr,
+                                 ConfigPathElement *pathElement,
+                                 ConfigPathElement *pathTail){
   if (pathTail == NULL){
     printf("at end of config path \n");fflush(stdout);
     mgr->config = readJson(mgr,pathElement);
     printf("mgr->config = 0x%p\n",mgr->config);
+    return 0; /* success */
   } else {
-    Json *overlay = NULL;
-    /* overloadPathElement(pathElement); */
+    Json *overlay = readJson(mgr,pathElement);
+    int rhsStatus = overloadConfiguration(mgr,pathTail,pathTail->next);
+    printf("read the overlay with json=0x%p and status=%d\n",overlay,rhsStatus);
+    fflush(stdout);
+    if (rhsStatus){
+      return rhsStatus; /* don't merge if we couldn't load what's to the right in the list */
+    }
+    int mergeStatus = 0;
+    mgr->config = jsonMerge(mgr->slh,overlay,mgr->config,
+                            JSON_MERGE_FLAG_CONCATENATE_ARRAYS,
+                            &mergeStatus);
+    return mergeStatus;
   }
 }
 
-void loadConfigurations(ConfigManager *mgr){
+static int loadConfigurations(ConfigManager *mgr){
   ConfigPathElement *pathElement = mgr->configPath;
-  overloadConfiguration(mgr,pathElement,pathElement->next);
+  return overloadConfiguration(mgr,pathElement,pathElement->next);
 }
 
 void freeConfigManager(ConfigManager *mgr){
@@ -469,96 +501,6 @@ void freeConfigManager(ConfigManager *mgr){
   safeFree((char*)mgr,sizeof(ConfigManager));  
 }
 
-#define JSON_POINTER_NORMAL_KEY 1
-#define JSON_POINTER_INTEGER    2
-
-typedef struct JsonPointerElement_tag {
-  char *string;
-  int   type;
-} JsonPointerElement;
-
-typedef struct JsonPointer_tag {
-  ArrayList elements;
-} JsonPointer;
-
-static JsonPointerElement *makePointerElement(char *token, int type){
-  JsonPointerElement *element = (JsonPointerElement*)safeMalloc(sizeof(JsonPointerElement),"JsonPointerElement");
-  element->string = token;
-  element->type = type;
-  return element;
-}
-
-/* See RFC 6901 */
-JsonPointer *parseJsonPointer(char *s){
-  int len = strlen(s);
-  /* char *reduced = safeMalloc(len+1); */
-  JsonPointer *jp = (JsonPointer*)safeMalloc(sizeof(JsonPointer),"JSONPointer");
-  ArrayList *list = &(jp->elements);
-  initEmbeddedArrayList(list,NULL);
-  if (len == 0){
-    return jp;
-  }
-  int pos = 1;
-  while (pos < len){
-    int nextSlash = indexOf(s,len,'/',pos);
-    int end = (nextSlash == -1 ? len : nextSlash);
-    int tokenLen = end-pos+1;
-    char *token = safeMalloc(tokenLen,"JSON Ptr Token");
-    memset(token,0,tokenLen);
-    /* Step 2: reduce the following digraphs
-       ~0 -> '~'
-       ~1 -> '/'
-    */
-    bool pendingTilde = false;
-    int tPos = 0;
-    bool allDigits = true;
-    for (int i=pos; i<end; i++){
-      char c = s[i];
-      if (c < '0' || c > '9'){
-        allDigits = false;
-      }
-      if (pendingTilde){
-        if (c == '0'){
-          token[tPos++] = '~';
-        } else if (c == '1'){
-          token[tPos++] = '/';
-        } else {
-          token[tPos++] = '~';
-          token[tPos++] = c;
-        }
-      } else {
-        if (i == '~'){
-          pendingTilde = true;
-        } else {
-          token[tPos++] = c;
-        }
-      }
-    }
-    if (pendingTilde){
-      token[tPos++] = '~';
-    }
-    
-    arrayListAdd(list,
-                 makePointerElement(token,
-                                    (allDigits ? JSON_POINTER_INTEGER : JSON_POINTER_NORMAL_KEY)));
-        
-    if (nextSlash == -1){
-      break;
-    } else {
-      pos = nextSlash + 1;
-    }
-  }
-  return jp;
-}
-
-void printJsonPointer(FILE *out, JsonPointer *jp){
-  ArrayList *list = &jp->elements;
-  fprintf(out,"JSON Pointer:\n");
-  for (int i=0; i<list->size; i++){
-    JsonPointerElement *element = (JsonPointerElement*)arrayListElement(list,i);
-    fprintf(out,"  0x%04X: %s\n",element->type,element->string);
-  }
-}
 
 #define JSON_POINTER_TOO_DEEP 101
 #define JSON_POINTER_ARRAY_INDEX_NOT_INTEGER 102
@@ -789,6 +731,7 @@ static void showHelp(FILE *out){
   fprintf(out,"      -p <configPath>: list of colon-separated configPathElements - see below\n");
   fprintf(out,"    commands:\n");
   fprintf(out,"      extract <jsonPath>  : prints value to stdout\n");
+  fprintf(out,"      validate            : just loads and validates merged configuration\n");
   fprintf(out,"    configPathElement: \n");
   fprintf(out,"      LIB(datasetName) - a library that can contain config data\n");
   fprintf(out,"      FILE(filename)   - the name of a file containing Yaml\n");
@@ -873,10 +816,37 @@ int main(int argc, char **argv){
   if (mgr->traceLevel >= 1){
     printConfigPath(mgr);
   }
-  loadConfigurations(mgr);
+  int loadStatus = loadConfigurations(mgr);
+  if (loadStatus){
+    trace(mgr,INFO,"Failed to load configuration, element may be bad, or less likey a bad merge\n");
+  }
   trace(mgr,DEBUG,"configuration parms are loaded\n");
   if (!strcmp(command,"validate")){ /* just a testing mode */
-    
+    trace(mgr,INFO,"about to validate merged yamls as\n");
+    jsonPrettyPrint(mgr,mgr->config);
+    JsonValidator *validator = makeJsonValidator();
+    trace(mgr,DEBUG,"Before Validate\n");
+    int validateStatus = jsonValidateSchema(validator,mgr->config,mgr->topSchema);
+    trace(mgr,INFO,"validate status = %d\n",validateStatus);
+    switch (validateStatus){
+    case JSON_VALIDATOR_NO_EXCEPTIONS:
+      trace(mgr,INFO,"No validity Exceptions\n");
+      break;
+    case JSON_VALIDATOR_HAS_EXCEPTIONS:
+      {
+        trace(mgr,INFO,"Validity Exceptions:\n");
+        ValidityException *e = validator->firstValidityException;
+        while (e){
+          trace(mgr,INFO,"  %s\n",e->message);
+          e = e->next;
+        }
+      }
+      break;
+    case JSON_VALIDATOR_INTERNAL_FAILURE:
+      trace(mgr,INFO,"validation internal failure");
+      break;
+    }
+    freeJsonValidator(validator);
   } else if (!strcmp(command,"extract")){
     if (argx >= argc){
       trace(mgr,INFO,"extract command requires a json path\n");

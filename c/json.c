@@ -16,6 +16,7 @@
 #include <metal/stddef.h>
 #include <metal/stdio.h>
 #include <metal/stdlib.h>
+#include <metal/stdbool.h>
 #include <metal/string.h>
 #include <metal/stdarg.h>
 #include <metal/ctype.h>  
@@ -34,6 +35,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <ctype.h>  
 #include <sys/stat.h>
 #include <sys/types.h> /* JOE 1/20/22 */
@@ -2005,10 +2007,30 @@ Json *jsonBuildInt64(JsonBuilder *b,
   }
 }
 
+Json *jsonBuildDouble(JsonBuilder *b,
+                      Json *parent,
+                      char *parentKey,
+                      double d,
+                      int *errorCode){
+  JsonParser *parser = (JsonParser*)b;
+  int lvalueStatus = checkParentLValue(parent,parentKey);
+  if (lvalueStatus < 0){
+    Json *json = (Json*) jsonParserAlloc(parser, sizeof (Json));
+    json->type = JSON_TYPE_DOUBLE;
+    json->data.floatValue = d;
+    *errorCode = 0;
+    addToParent(b,lvalueStatus,parent,parentKey,json);    
+    return json;
+  } else {
+    *errorCode = lvalueStatus;
+    return NULL;
+  }
+}
+
 Json *jsonBuildBool(JsonBuilder *b,
                     Json *parent,
                     char *parentKey,
-                    bool *truthValue,
+                    bool  truthValue,
                     int *errorCode){
   JsonParser *parser = (JsonParser*)b;
   int lvalueStatus = checkParentLValue(parent,parentKey);
@@ -2508,6 +2530,252 @@ JsonObject *jsonObjectProperty(JsonObject *object, char *propertyName, int *stat
     return NULL;
   }
 }
+
+/* JSON Merging */
+
+typedef struct JsonMerger_tag {
+  JsonBuilder builder; /* must be first member to support casts */
+  int flags;
+} JsonMerger;
+
+static void copyJson(JsonBuilder *builder, Json *parent, char *parentKey, Json *json){
+  int errorCode = 0; /* consumed and discarded because existing tree is valid */
+  if (jsonIsObject(json)){
+    JsonObject *jsonObject = jsonAsObject(json);
+    JsonProperty *prop = jsonObjectGetFirstProperty(jsonObject);
+    Json *copyObject = jsonBuildObject(builder,parent,parentKey,&errorCode);
+    while (prop){
+      copyJson(builder,copyObject,prop->key,prop->value);
+      prop = jsonObjectGetNextProperty(prop);
+    }
+  } else if (jsonIsArray(json)){
+    JsonArray *jsonArray = jsonAsArray(json);
+    Json *copyArray = jsonBuildArray(builder,parent,parentKey,&errorCode);
+    int size = jsonArrayGetCount(jsonArray);
+    for (int i=0; i<size; i++){
+      copyJson(builder,copyArray,NULL,jsonArrayGetItem(jsonArray,i));
+    }
+  } else if (jsonIsBoolean(json)){
+    bool truthValue = jsonAsBoolean(json) ? true : false;
+    jsonBuildBool(builder,parent,parentKey,truthValue,&errorCode);
+  } else if (jsonIsNull(json)){
+    jsonBuildNull(builder,parent,parentKey,&errorCode);
+  } else if (jsonIsDouble(json)){
+    jsonBuildDouble(builder,parent,parentKey,jsonAsDouble(json),&errorCode);
+  } else if (jsonIsInt64(json)){
+    jsonBuildInt64(builder,parent,parentKey,jsonAsInt64(json),&errorCode);
+  } else if (jsonIsNumber(json)){
+    /* legacy */
+    jsonBuildInt(builder,parent,parentKey,jsonAsNumber(json),&errorCode);
+  } else if (jsonIsString(json)){
+    char *s = jsonAsString(json);
+    jsonBuildString(builder,parent,parentKey,s,strlen(s),&errorCode);
+  } else {
+    printf("*** PANIC *** unexpected json type %d\n",json->type);
+    return;
+  }
+}
+
+static int mergeJson1(JsonMerger *merger, Json *parent, char *parentKey, Json *overrides, Json *base){
+  int errorCode = 0;
+  JsonBuilder *builder = &merger->builder;
+  /*
+    printf("jsonMerge1 typeO=%d typeB=%d builder=0x%p\n",overrides->type,base->type,builder);
+    fflush(stdout);
+  */
+  if (jsonIsObject(base)){
+    JsonObject *baseObject = jsonAsObject(base);
+    if (jsonIsObject(overrides)){
+      JsonObject *overridesObject = jsonAsObject(overrides);
+      Json *merged = jsonBuildObject(builder,parent,parentKey,&errorCode);
+      JsonProperty *baseProp = jsonObjectGetFirstProperty(baseObject);
+      int status = JSON_MERGE_STATUS_SUCCESS;
+      while (baseProp && !status ){
+        /* printf("  base loop %s\n",baseProp->key);fflush(stdout); */
+        Json *baseValue = baseProp->value;
+        Json *overrideValue = jsonObjectGetPropertyValue(overridesObject,baseProp->key);
+        if (overrideValue == NULL){ /* NOT JSON NULL, really null */
+          copyJson(builder,merged,baseProp->key,baseValue);
+          status = 0;
+        } else {
+          status = mergeJson1(merger,merged,baseProp->key,overrideValue,baseValue);
+        }
+        /* need to set result */
+        baseProp = jsonObjectGetNextProperty(baseProp);
+      }
+      JsonProperty *overrideProp = jsonObjectGetFirstProperty(overridesObject);
+      while (overrideProp && !status){
+        /* printf("  override loop %s\n",overrideProp->key);fflush(stdout); */
+        if (!jsonObjectHasKey(baseObject,overrideProp->key)){
+          copyJson(builder,merged,overrideProp->key,overrideProp->value);
+        }
+        overrideProp = jsonObjectGetNextProperty(overrideProp);
+      }
+      return status;
+    } else {
+      copyJson(builder,parent,parentKey,overrides);
+      return JSON_MERGE_STATUS_SUCCESS;
+    }
+  } else if (jsonIsArray(base)){
+    JsonArray *baseArray = jsonAsArray(base);
+    if (jsonIsArray(overrides)){
+      JsonArray *overridesArray = jsonAsArray(overrides);
+      int arrayPolicy = merger->flags & JSON_MERGE_FLAG_ARRAY_POLICY_MASK;
+      Json *merged = jsonBuildArray(builder,parent,parentKey,&errorCode);
+      int sizeB = jsonArrayGetCount(baseArray);
+      int sizeO = jsonArrayGetCount(overridesArray);
+      int i;
+      switch (arrayPolicy){
+      case JSON_MERGE_FLAG_CONCATENATE_ARRAYS: /* len(merge) = len(a)+len(b) */
+        for (i=0; i<sizeB; i++){
+          copyJson(builder,merged,NULL,jsonArrayGetItem(baseArray,i));
+        }
+        for (i=0; i<sizeO; i++){
+          copyJson(builder,merged,NULL,jsonArrayGetItem(overridesArray,i));
+        }
+        return JSON_MERGE_STATUS_SUCCESS;
+      case JSON_MERGE_FLAG_MERGE_IN_PLACE:     /* len(merge) = max(len(a),len(b)), a overrides corresponding elements of b */
+        {
+          int mergedSize = (sizeB > sizeO ? sizeB : sizeO);
+          for (i=0; i<mergedSize; i++){
+            Json *valueB = (i < sizeB ? jsonArrayGetItem(baseArray,i) : NULL);
+            Json *valueO = (i < sizeO ? jsonArrayGetItem(overridesArray,i) : NULL);
+            if (valueO && valueB){
+              mergeJson1(merger,merged,NULL,valueO,valueB);
+            } else if (valueO){
+              copyJson(builder,merged,NULL,valueO);
+            } else if (valueB){
+              copyJson(builder,merged,NULL,valueB);
+            } else {
+              printf("*** Panic *** internal array merge error\n");
+            }
+          }
+        }
+        return JSON_MERGE_STATUS_SUCCESS;
+      case JSON_MERGE_FLAG_TAKE_BASE:          /* len(merge) = len(b) */
+        for (i=0; i<sizeB; i++){
+          copyJson(builder,merged,NULL,jsonArrayGetItem(baseArray,i));
+        }
+        return JSON_MERGE_STATUS_SUCCESS;
+      case JSON_MERGE_FLAG_TAKE_OVERRIDES:     /* len(merge) = len(a) */
+      default: 
+        for (i=0; i<sizeO; i++){
+          copyJson(builder,merged,NULL,jsonArrayGetItem(overridesArray,i));
+        }
+        return JSON_MERGE_STATUS_SUCCESS;
+      }
+    } else {
+      copyJson(builder,parent,parentKey,overrides);
+      return JSON_MERGE_STATUS_SUCCESS;
+    }
+  } else {
+    /* printf("merge scalar case parentKey=%s\n",(parentKey ? parentKey : "<noKey>"));
+       fflush(stdout);
+    */
+    copyJson(builder,parent,parentKey,overrides);
+    return JSON_MERGE_STATUS_SUCCESS;
+  }
+}
+
+Json *jsonMerge(ShortLivedHeap *slh, Json *overrides, Json *base, int flags, int *statusPtr){
+  JsonMerger merger;
+  memset(&merger,0,sizeof(JsonMerger));
+  merger.flags = flags;
+  merger.builder.parser.slh = slh;
+
+  int status = mergeJson1(&merger,NULL,NULL,overrides,base);
+  *statusPtr = status;
+  if (status){
+    return NULL;
+  } else {
+    return merger.builder.root;
+  }
+}
+
+/****** JSON Pointers ******************/
+
+static JsonPointerElement *makePointerElement(char *token, int type){
+  JsonPointerElement *element = (JsonPointerElement*)safeMalloc(sizeof(JsonPointerElement),"JsonPointerElement");
+  element->string = token;
+  element->type = type;
+  return element;
+}
+
+/* See RFC 6901 - absolute pointes only, so far */
+JsonPointer *parseJsonPointer(char *s){
+  int len = strlen(s);
+  /* char *reduced = safeMalloc(len+1); */
+  JsonPointer *jp = (JsonPointer*)safeMalloc(sizeof(JsonPointer),"JSONPointer");
+  ArrayList *list = &(jp->elements);
+  initEmbeddedArrayList(list,NULL);
+  if (len == 0){
+    return jp;
+  }
+  int pos = 1;
+  while (pos < len){
+    int nextSlash = indexOf(s,len,'/',pos);
+    int end = (nextSlash == -1 ? len : nextSlash);
+    int tokenLen = end-pos+1;
+    char *token = safeMalloc(tokenLen,"JSON Ptr Token");
+    memset(token,0,tokenLen);
+    /* Step 2: reduce the following digraphs
+       ~0 -> '~'
+       ~1 -> '/'
+    */
+    bool pendingTilde = false;
+    int tPos = 0;
+    bool allDigits = true;
+    for (int i=pos; i<end; i++){
+      char c = s[i];
+      if (c < '0' || c > '9'){
+        allDigits = false;
+      }
+      if (pendingTilde){
+        if (c == '0'){
+          token[tPos++] = '~';
+        } else if (c == '1'){
+          token[tPos++] = '/';
+        } else {
+          token[tPos++] = '~';
+          token[tPos++] = c;
+        }
+      } else {
+        if (i == '~'){
+          pendingTilde = true;
+        } else {
+          token[tPos++] = c;
+        }
+      }
+    }
+    if (pendingTilde){
+      token[tPos++] = '~';
+    }
+    
+    arrayListAdd(list,
+                 makePointerElement(token,
+                                    (allDigits ? JSON_POINTER_INTEGER : JSON_POINTER_NORMAL_KEY)));
+        
+    if (nextSlash == -1){
+      break;
+    } else {
+      pos = nextSlash + 1;
+    }
+  }
+  return jp;
+}
+
+void printJsonPointer(FILE *out, JsonPointer *jp){
+  ArrayList *list = &jp->elements;
+  fprintf(out,"JSON Pointer:\n");
+  for (int i=0; i<list->size; i++){
+    JsonPointerElement *element = (JsonPointerElement*)arrayListElement(list,i);
+    fprintf(out,"  0x%04X: %s\n",element->type,element->string);
+  }
+}
+
+
+
+
 
 void reportJSONDataProblem(void *jsonObject, int status, char *propertyName){
   switch (status){
