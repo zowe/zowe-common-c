@@ -135,11 +135,19 @@ static int stderrFD(){
 }
 #else
 static int stdoutFD(){
+#ifdef STDOUT_FILENO
   return STDOUT_FILENO;
+#else
+  return 1;
+#endif
 }
 
 static int stderrFD(){
+#ifdef STDERR_FILENO
   return STDERR_FILENO;
+#else
+  return 2;
+#endif
 }
 #endif
 
@@ -149,7 +157,7 @@ static int stderrFD(){
 #define DEBUG2 2
 
 static void trace(ConfigManager *mgr, int level, char *formatString, ...){
-  if (mgr->traceLevel >= level){
+  if (mgr && mgr->traceLevel >= level){
     va_list argPointer; 
     va_start(argPointer,formatString);
     vfprintf(mgr->traceOut,formatString,argPointer);
@@ -301,7 +309,7 @@ static bool addPathElement(ConfigManager *mgr, char *pathElementArg){
   regmatch_t matches[10];
   regex_t *argPattern = regexAlloc();
   /* Nice Regex test site */
-  char *pat = "^(LIBRARY|DIR|FILE)\\((\\S+)\\)$";
+  char *pat = "^(LIBRARY|DIR|FILE)\\(([^)]+)\\)$";
   int compStatus = regexComp(argPattern,pat,REG_EXTENDED);
   if (compStatus != 0){
     trace(mgr,INFO,"Internal error, pattern compilation failed\n");
