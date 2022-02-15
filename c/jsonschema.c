@@ -141,7 +141,7 @@ typedef struct JSValueSpec_tag {
 } JSValueSpec;
 
 typedef struct AccessPathUnion_tag {
- 
+  int dummy;
 } AccessPathUnion;
 
 
@@ -275,7 +275,7 @@ static bool validateJSONObject(JsonValidator *validator,
     for (int r=0; r<valueSpec->requiredCount; r++){
       char *requiredProperty = valueSpec->required[r];
       if (jsonObjectGetPropertyValue(object,requiredProperty) == NULL){
-        noteValidityException(validator,12,"missing required property %s at %s",
+        noteValidityException(validator,12,"missing required property '%s' at '%s'",
                               requiredProperty,validatorAccessPath(validator));
       }
     }

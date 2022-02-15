@@ -1082,7 +1082,6 @@ void freeJsonParser(JsonParser *parser) {
 
 static 
 void jsonParseFail(JsonParser *parser, char *formatString, ...) {
-  printf("JSON PARSE FAIL!!!!!\n");
   fflush(stdout);
   if (parser->jsonError == NULL) {
     int size = 1024;
@@ -2044,7 +2043,12 @@ Json *jsonBuildNull(JsonBuilder *b,
   }
 }
 
-
+char* jsonBuildKey(JsonBuilder *b, const char *key, int len) {
+  JsonParser *parser = (JsonParser*)b;
+  char *keyCopy = jsonParserAlloc(parser, len + 1);
+  snprintf(keyCopy, len+1, "%.*s", len, key);
+  return keyCopy;
+}
 
 int jsonIsObject(Json *json) {
   return json->type == JSON_TYPE_OBJECT;

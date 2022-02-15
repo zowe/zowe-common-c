@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <errno.h>
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -16,6 +17,20 @@
 #include "utils.h"
 #include "json.h"
 #include "jsonschema.h"
+
+static int convertToNative(char *buf, size_t size) {
+#ifdef __ZOWE_OS_ZOS
+  return __atoe_l(buf, size);
+#endif
+  return 0;
+}
+
+static int convertFromNative(char *buf, size_t size) {
+#ifdef __ZOWE_OS_ZOS
+  return __etoa_l(buf, size);
+#endif
+  return 0;
+}
 
 static char *tokenTypeName(yaml_token_type_t type){
   switch (type){
@@ -61,50 +76,113 @@ static char *getScalarStyleName(yaml_scalar_style_t style){
   }
 }
 
-
-yaml_document_t *readYAML(char *filename){
-  int traceLevel = 0;
-  FILE *file;
-  yaml_parser_t parser;
-  yaml_document_t *document = (yaml_document_t*)safeMalloc(sizeof(yaml_document_t),"YAML Doc");
-  int done = 0;
-  int count = 0;
-  int error = 0;
-  
-  file = fopen(filename, "rb");
-  assert(file);
-  
-  assert(yaml_parser_initialize(&parser));
-
-  yaml_parser_set_input_file(&parser, file);
-
-  if (traceLevel >= 1){
-    printf("before parser_load\n");fflush(stdout);
+static int yamlReadHandler(void *data, unsigned char *buffer, size_t size, size_t *sizeRead) {
+  FILE *fp = data;
+  int rc = 1;
+  size_t bytesRead = fread(buffer, 1, size, fp);
+  if (bytesRead > 0) {
+    if (convertFromNative((char *)buffer, bytesRead) == -1) {
+    fprintf (stderr, "failed to convert yaml input - %s\n", strerror(errno));
+      rc = 0;
+    }
   }
-  
-  if (!yaml_parser_load(&parser, document)) {
-    printf("bad yaml load\n");fflush(stdout);
-    error = 1;
-  } else if (yaml_document_get_root_node(document)){
+  if (ferror(fp)) {
+    fprintf (stderr, "failed to read yaml input - %s\n", strerror(errno));
+    rc = 0;
+  }
+  *sizeRead = bytesRead;
+  return rc;
+}
 
-  } else {
-    error = 1;
+static void decodeParserError(yaml_parser_t *parser, char *errorBuf, size_t errorBufSize) {
+  switch (parser->error) {
+    case YAML_MEMORY_ERROR:
+      snprintf(errorBuf, errorBufSize, "YAML memory error: not enough memory for parsing");
+      break;
+    case YAML_READER_ERROR: {
+      size_t problemLen = strlen(parser->problem);
+      char problemNative[problemLen + 1];
+      snprintf (problemNative, problemLen + 1, "%s", parser->problem);
+      convertToNative(problemNative, problemLen);
+      if (parser->problem_value != -1) {
+        snprintf(errorBuf, errorBufSize, "YAML reader error: %s: #%X at %ld", problemNative, parser->problem_value, (long)parser->problem_offset);
+      } else {
+        snprintf(errorBuf, errorBufSize, "YAML reader error: %s at %ld", problemNative, (long)parser->problem_offset);
+      }
+      break;
+    }
+    case YAML_SCANNER_ERROR:
+      if (parser->context) {
+        snprintf(errorBuf, errorBufSize, "YAML scanner error: %s at line %d, column %d"
+                "%s at line %d, column %d\n", parser->context,
+                (int)parser->context_mark.line+1, (int)parser->context_mark.column+1,
+                parser->problem, (int)parser->problem_mark.line+1,
+                (int)parser->problem_mark.column+1);
+      } else {
+        snprintf(errorBuf, errorBufSize, "YAML scanner error: %s at line %d, column %d",
+                 parser->problem, (int)parser->problem_mark.line+1,
+                 (int)parser->problem_mark.column+1);
+      }
+      break;
+      case YAML_PARSER_ERROR:
+        if (parser->context) {
+          snprintf(errorBuf, errorBufSize, "YAML parser error: %s at line %d, column %d\n"
+                   "%s at line %d, column %d", parser->context,
+                   (int)parser->context_mark.line+1, (int)parser->context_mark.column+1,
+                   parser->problem, (int)parser->problem_mark.line+1,
+                   (int)parser->problem_mark.column+1);
+        } else {
+          snprintf(errorBuf, errorBufSize, "YAML parser error: %s at line %d, column %d",
+                   parser->problem, (int)parser->problem_mark.line+1,
+                   (int)parser->problem_mark.column+1);
+        }
+        break;
+      default:
+        snprintf(errorBuf, errorBufSize, "YAML parser: unknown error");
   }
-  
-  if (traceLevel >= 1){
-    printf("before parser_delete\n");fflush(stdout);
-  }
-  yaml_parser_delete(&parser);
-  if (traceLevel >= 1){
-    printf("after parser_delete\n");fflush(stdout);
-  }
-  assert(!fclose(file));
-          
-  if (error){
-    safeFree((char*)document,sizeof(yaml_document_t));
+}
+
+yaml_document_t *readYAML(const char *filename, char *errorBuf, size_t errorBufSize) {
+  FILE *file = NULL;
+  yaml_document_t *document = NULL;
+  yaml_parser_t parser = {0};
+  bool done = false;
+
+  do {
+    if (!(document = (yaml_document_t*)safeMalloc(sizeof(yaml_document_t), "YAML Doc"))) {
+      snprintf(errorBuf, errorBufSize, "failed to alloc memory for YAML doc");
+      break;      
+    }
+    memset(document, 0, sizeof(document));
+    if (!(file = fopen(filename, "rb"))) {
+      snprintf(errorBuf, errorBufSize, "failed to read '%s' - %s", filename, strerror(errno));
+      break;
+    }
+    if (!yaml_parser_initialize(&parser)) {
+      snprintf(errorBuf, errorBufSize, "failed to initialize YAML parser");
+      break;
+    }
+    yaml_parser_set_input(&parser, yamlReadHandler, file);
+    if (!yaml_parser_load(&parser, document)) {
+      decodeParserError(&parser, errorBuf, errorBufSize);
+      break;
+    }
+    if (!yaml_document_get_root_node(document)){
+      snprintf(errorBuf, errorBufSize, "failed to get root node in YAML '%s'", filename);
+      break;
+    }
+    done = true;
+  } while (0);
+
+  if (!done && document) {
+    yaml_document_delete(document);
+    safeFree((char*)document, sizeof(yaml_document_t));
     document = NULL;
   }
-
+  if (file) {
+    fclose(file);
+  }
+  yaml_parser_delete(&parser);
   return document;
 }
 
@@ -125,6 +203,14 @@ static char *getSequenceStyleName(yaml_sequence_style_t style){
 
 #define SCALAR_SIZE_LIMIT 1024
 
+static void printYamlScalar(const yaml_node_t *node, bool eol) {
+  size_t dataLen = node->data.scalar.length;
+  int printLength = dataLen > SCALAR_SIZE_LIMIT ? 40 : (int)dataLen;
+  char val[printLength + 1];
+  snprintf(val, printLength + 1, "%.*s", printLength, node->data.scalar.value);
+  convertToNative(val, printLength);
+  printf("%s%c", val, eol ? '\n' : '');
+}
 
 
 static void pprintYAML1(yaml_document_t *doc, yaml_node_t *node, int depth){
@@ -139,9 +225,8 @@ static void pprintYAML1(yaml_document_t *doc, yaml_node_t *node, int depth){
     {
       indent(depth);
       size_t dataLen = node->data.scalar.length;
-      int printLength = dataLen > SCALAR_SIZE_LIMIT ? 40 : (int)dataLen;
-      /* printf("printLength=%d dataLen=%lld\n",printLength,dataLen); */
-      printf("Scalar: (len=%d) %*.*s\n",printLength,printLength,printLength,node->data.scalar.value);
+      printf("Scalar: (len=%d)", node->data.scalar.length);
+      printYamlScalar(node, true);
     }
     break;
   case YAML_SEQUENCE_NODE:
@@ -161,6 +246,7 @@ static void pprintYAML1(yaml_document_t *doc, yaml_node_t *node, int depth){
     }
     break;
   case YAML_MAPPING_NODE:
+   {
     yaml_node_pair_t *pair;
     indent(depth);printf("MapStart\n");
     for (pair = node->data.mapping.pairs.start; pair < node->data.mapping.pairs.top; pair++) {
@@ -174,7 +260,8 @@ static void pprintYAML1(yaml_document_t *doc, yaml_node_t *node, int depth){
           size_t dataLen = keyNode->data.scalar.length;
           int printLength = dataLen > SCALAR_SIZE_LIMIT ? 40 : (int)dataLen;
           /* printf("printLength=%d dataLen=%lld\n",printLength,dataLen); */
-          printf("%*.*s:\n",printLength,printLength,keyNode->data.scalar.value);
+          printYamlScalar(keyNode, false);
+          printf(":\n");
         }
       } else {
         printf("dead end key\n");
@@ -187,6 +274,7 @@ static void pprintYAML1(yaml_document_t *doc, yaml_node_t *node, int depth){
       }
     }
     indent(depth);printf("MapEnd\n");
+  }
     break;
   default:
     printf("unexpected yaml node type %d\n",node->type);
@@ -267,35 +355,43 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
       case YAML_DOUBLE_QUOTED_SCALAR_STYLE:
       case YAML_LITERAL_SCALAR_STYLE:
       case YAML_FOLDED_SCALAR_STYLE:
+      {
+        char nativeValue[valueLength+1];
         char *tag = (char*)node->tag;
+        int tagLen = strlen(tag);
+        char nativeTag[tagLen + 1];
+        snprintf(nativeValue, valueLength+1, "%.*s", valueLength, (const char *)node->data.scalar.value);
+        snprintf(nativeTag, tagLen + 1, "%.*s", tagLen, tag);
+        convertToNative(nativeValue, valueLength);
+        convertToNative(nativeTag, tagLen);
         if (b->traceLevel >= 2){
-          printf("tag = %s scalarStyle=%s\n",tag,getScalarStyleName(node->data.scalar.style));
+          printf("tag = %s scalarStyle=%s\n",nativeTag,getScalarStyleName(node->data.scalar.style));
         }
         Json *scalar = NULL;
         // HERE, make test with float, int, bool, null, ddate
-        if (!strcmp(tag,YAML_NULL_TAG)){
-        } else if (!strcmp(tag,YAML_NULL_TAG)){
+        if (!strcmp(nativeTag,YAML_NULL_TAG)){
+        } else if (!strcmp(nativeTag,YAML_NULL_TAG)){
           /* Json *scalar = jsonBuildNull(b,parent,parentKey,&buildStatus); */
-        } else if (!strcmp(tag,YAML_BOOL_TAG)){
+        } else if (!strcmp(nativeTag,YAML_BOOL_TAG)){
           /* Json *scalar = jsonBuildBool(b,parent,parentKey,"FOO",3,&buildStatus); */
-        } else if (!strcmp(tag,YAML_INT_TAG) ||
-                   (!strcmp(tag,YAML_STR_TAG) &&
+        } else if (!strcmp(nativeTag,YAML_INT_TAG) ||
+                   (!strcmp(nativeTag,YAML_STR_TAG) &&
                     (style == YAML_PLAIN_SCALAR_STYLE) &&
-                    isSyntacticallyInteger(node->data.scalar.value,valueLength))){
+                    isSyntacticallyInteger(nativeValue,valueLength))){
           bool valid;
-          int64_t x = readInt(node->data.scalar.value,valueLength,&valid);
+          int64_t x = readInt(nativeValue,valueLength,&valid);
           if (valid){
             scalar = jsonBuildInt64(b,parent,parentKey,x,&buildStatus);
           } else {
             buildStatus = JSON_FAIL_BAD_INTEGER;
           }
           /* Json *scalar = jsonBuildInt(b,parent,parentKey,"FOO",3,&buildStatus); */
-        } else if (!strcmp(tag,YAML_STR_TAG)){
-          scalar = jsonBuildString(b,parent,parentKey,(char*)node->data.scalar.value,valueLength,&buildStatus);
-        } else if (!strcmp(tag,YAML_FLOAT_TAG)){
+        } else if (!strcmp(nativeTag,YAML_STR_TAG)){
+          scalar = jsonBuildString(b,parent,parentKey,nativeValue,valueLength,&buildStatus);
+        } else if (!strcmp(nativeTag,YAML_FLOAT_TAG)){
           printf("*** Warning don't know how to handle float yet\n");
           buildStatus = JSON_FAIL_NOT_HANDLED;
-        } else if (!strcmp(tag,YAML_TIMESTAMP_TAG)){
+        } else if (!strcmp(nativeTag,YAML_TIMESTAMP_TAG)){
           printf("*** Warning don't know how to handle timestamp yet\n");
           buildStatus = JSON_FAIL_NOT_HANDLED;
         }
@@ -303,6 +399,7 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
           printf("*** WARNING *** Failed to add property/scalar err=%d\n",buildStatus);
         }
         return scalar;
+      }
       default:
         printf("*** WARNING *** - unknown scalar style %d",node->data.scalar.style);
         return NULL;
@@ -354,9 +451,11 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
             printf("*** WARNING *** dead end key\n");
           }
           if (key){
+            char *keyNative = jsonBuildKey(b, key, keyLength);
+            convertToNative(keyNative, keyLength);
             yaml_node_t *valueNode = yaml_document_get_node(doc, pair->value);
             if (valueNode){
-              yaml2JSON1(b,jsonObject,key,doc,valueNode,depth+2);
+              yaml2JSON1(b,jsonObject,keyNative,doc,valueNode,depth+2);
             } else{
               printf("*** WARNING *** dead end value\n");
             }

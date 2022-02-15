@@ -5,6 +5,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
+#ifndef __ZOWE_OS_WINDOWS
+#include <unistd.h>
+#endif
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -53,7 +56,6 @@ int main(int argc, char *argv[])
     char *charset = argv[3];
     char *schemaFilename = (argc >= 5 ? argv[4] : NULL);
     int errorBufferSize = 1024;
-    printf("Sizeof(size_t) = %lld\n",sizeof(size_t));
 #ifdef __ZOWE_OS_WINDOWS
     int stdoutFD = _fileno(stdout);
 #else
@@ -85,13 +87,13 @@ int main(int argc, char *argv[])
     } else if (!strcmp(syntax,"yaml")){
       printf("yaml syntax case\n");
       fflush(stdout);
-      yaml_document_t *doc = readYAML(filename);
+      yaml_document_t *doc = readYAML(filename, errorBuffer, errorBufferSize);
       printf("yaml doc at 0x%p\n",doc);
       if (doc){
         pprintYAML(doc);
         json = yaml2JSON(doc,slh);
       } else {
-        printf("yaml probably had syntax issues\n");
+        printf("%s\n", errorBuffer);
       }
     } else {
       printf("unhandled syntax\n");
