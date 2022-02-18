@@ -65,7 +65,8 @@ clean:
 	rm -f configmgr schematest *.o
 
 test_configmgr:	configmgr
-	./configmgr -t 3 -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/zowebase.yaml)' validate
+	./configmgr -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/zowebase.yaml)' validate
+	./configmgr -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/zowebase.yaml)' env out.env && cat out.env
 	
 
 ################################################################################

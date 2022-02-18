@@ -40,6 +40,7 @@
 #include <stdint.h> 
 #include <stdbool.h> 
 #include <errno.h>
+#include <math.h>
 
 #endif
 
@@ -479,15 +480,14 @@ static int overloadConfiguration(ConfigManager *mgr,
                                  ConfigPathElement *pathElement,
                                  ConfigPathElement *pathTail){
   if (pathTail == NULL){
-    printf("at end of config path \n");fflush(stdout);
+    trace(mgr, DEBUG2, "at end of config path\n");
     mgr->config = readJson(mgr,pathElement);
-    printf("mgr->config = 0x%p\n",mgr->config);
+    trace(mgr, DEBUG2, "mgr->config = 0x%p\n", mgr->config);
     return 0; /* success */
   } else {
     Json *overlay = readJson(mgr,pathElement);
     int rhsStatus = overloadConfiguration(mgr,pathTail,pathTail->next);
-    printf("read the overlay with json=0x%p and status=%d\n",overlay,rhsStatus);
-    fflush(stdout);
+    trace(mgr, DEBUG2, "read the overlay with json=0x%p and status=%d\n",overlay,rhsStatus);
     if (rhsStatus){
       return rhsStatus; /* don't merge if we couldn't load what's to the right in the list */
     }
@@ -740,11 +740,122 @@ static void showHelp(FILE *out){
   fprintf(out,"    commands:\n");
   fprintf(out,"      extract <jsonPath>  : prints value to stdout\n");
   fprintf(out,"      validate            : just loads and validates merged configuration\n");
+  fprintf(out,"      env <outEnvPath>    : prints merged configuration to a file as a list of environment vars\n");
   fprintf(out,"    configPathElement: \n");
   fprintf(out,"      LIB(datasetName) - a library that can contain config data\n");
   fprintf(out,"      FILE(filename)   - the name of a file containing Yaml\n");
   fprintf(out,"      PARMLIBS         - all PARMLIBS that are defined to this running Program in ZOS, nothing if not on ZOS\n");
 }
+
+#define ZWE_PREFIX "ZWE"
+#define ZOWE_ENV_PATH ZWE_PREFIX "_zowe_environments"
+
+static void convertJsonToEnv(FILE *fp, const char *path, Json *value);
+static void convertJsonObjectToEnv(FILE *fp, const char *path, JsonObject *object);
+static void convertJsonArrayToEnv(FILE *fp, const char *path, JsonArray *array);
+
+static int numberLen(int number) {
+  if (number == 0) {
+    return 1;
+  }
+  if (number < 0) {
+    return 1 + numberLen(-number);
+  }
+  return (int)(log10((double)number) + 1);
+}
+
+static size_t escapeForEnv(const char *s, bool isKey, char *buffer, size_t bufferSize) {
+  size_t pos = 0;
+  int len = strlen(s);
+  memset(buffer, 0, bufferSize);
+  for (int i = 0; i < len; i++) {
+    char c = s[i];
+    if (c == '\"' || c == '\"') {
+      pos += snprintf (buffer + pos, bufferSize - pos, "\\");
+    }
+    if (isKey && c == '-') {
+      c = '_';
+    }
+    pos += snprintf (buffer + pos, bufferSize - pos, "%c", c);
+  }
+  return pos;
+}
+
+static outputEnvKey(FILE * out, const char *str) {
+  size_t escapedSize = strlen(str) * 2 + 1;
+  char escaped[escapedSize];
+  escapeForEnv(str, true, escaped, escapedSize);
+  fprintf(out, "%s=", escaped);
+}
+
+static outputEnvString(FILE * out, const char *str) {
+  size_t escapedSize = strlen(str) * 2 + 1;
+  char escaped[escapedSize];
+  escapeForEnv(str, false, escaped, escapedSize);
+  fprintf(out, "\"%s\"\n", escaped);
+}
+
+static outputEnvInt64(FILE * out, int64_t num) {
+  fprintf(out, "%lld\n", num);
+}
+
+static outputEnvDouble(FILE * out, double num) {
+  fprintf(out, "%f\n", num);
+}
+
+static outputEnvBoolean(FILE * out, bool b) {
+  fprintf(out, "%s\n", b ? "true": "false");
+}
+
+static void convertJsonToEnv(FILE *out, const char *path, Json *value) {
+  if (jsonIsObject(value)) {
+    convertJsonObjectToEnv(out, path, jsonAsObject(value));
+  } else if (jsonIsArray(value)) {
+    convertJsonArrayToEnv(out, path, jsonAsArray(value));
+  } else {
+    if (jsonIsString(value)) {
+      outputEnvKey(out, path);
+      outputEnvString(out, jsonAsString(value));
+    } else if (jsonIsInt64(value)) {
+      outputEnvKey(out, path);
+      outputEnvInt64(out, jsonAsInt64(value));
+    } else if (jsonIsDouble(value)) {
+      outputEnvKey(out, path);
+      outputEnvDouble(out, jsonAsDouble(value));
+    } else if (jsonIsBoolean(value)) {
+      outputEnvKey(out, path);
+      outputEnvBoolean(out, jsonAsBoolean(value));
+    } else if (jsonIsNull(value)) {
+      /* omit null */
+    }
+  }
+}
+
+
+static void convertJsonObjectToEnv(FILE *out, const char *path, JsonObject *object) {
+  bool isEnvVar = (0 == strcmp(path, ZOWE_ENV_PATH));
+  for (JsonProperty *prop = jsonObjectGetFirstProperty(object); prop != NULL; prop = jsonObjectGetNextProperty(prop)) {
+    const char *key = jsonPropertyGetKey(prop);
+    size_t pathSize = strlen(path) + strlen(key) + 2;
+    char currentPath[pathSize];
+    snprintf (currentPath, pathSize, "%s_%s", path, key);
+    Json *value = jsonPropertyGetValue(prop);
+    convertJsonToEnv(out, isEnvVar ? key : currentPath, value);
+  }
+}
+
+static void convertJsonArrayToEnv(FILE *out, const char *path, JsonArray *array) {
+  int count = jsonArrayGetCount(array);
+  for (int i = 0; i < count; i ++) {
+    int len = numberLen(i);
+    size_t pathSize = strlen(path) + len + 2;
+    char currentPath[pathSize];
+    snprintf (currentPath, pathSize, "%s_%d", path, i);
+    Json *value = jsonArrayGetItem(array, i);
+    convertJsonToEnv(out, currentPath, value);
+  }
+}
+
 
 int main(int argc, char **argv){
   char *rootSchemaDirectory = NULL;   // Read-only   ZOWE runtime_directory (maybe 
@@ -873,6 +984,20 @@ int main(int argc, char **argv){
       extractText(mgr,jp,stdout);
       printf("\n");
       fflush(stdout);
+    }
+  } else if (!strcmp(command, "env")) {
+    if (argx >= argc){
+      trace(mgr, INFO, "env command requires an env file path\n");
+    } else {
+      char *outputPath = argv[argx++];
+      Json *config = mgr->config;
+      FILE *out = fopen(outputPath, "w");
+      if (out) {
+        convertJsonToEnv(out, ZWE_PREFIX, config);
+        fclose(out);
+      } else {
+        trace (mgr, INFO, "failed to open output file '%s' - %s\n", outputPath, strerror(errno));
+      }
     }
   }
   return 0;
