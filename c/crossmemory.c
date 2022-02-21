@@ -2145,6 +2145,11 @@ static void *getMyModuleAddressAndSize(unsigned int *size) {
 
   IHACDE *cde = (IHACDE *)(*(int *)((char *)rb + 0x0C) & 0x00FFFFFF);
 
+  if (cde->cdattr & IHACDE_ATTR_MINOR_CDE) {
+    // CDXLMJP is the major CDE and not the extent list if this CDE is minor
+    cde = (IHACDE *)cde->cdxlmjp;
+  }
+
   void *xtlst = cde->cdxlmjp;
 
   void *moduleAddress = *(void * __ptr32 *)((char *)xtlst + 0x0C);
@@ -2322,6 +2327,8 @@ CrossMemoryServer *makeCrossMemoryServer(STCBase *base,
 
 }
 
+static int getCurrentModuleName(EightCharString * __ptr32 result);
+
 CrossMemoryServer *makeCrossMemoryServer2(
     STCBase *base,
     const CrossMemoryServerName *name,
@@ -2340,6 +2347,17 @@ CrossMemoryServer *makeCrossMemoryServer2(
     return NULL;
   }
 
+  if (flags & CMS_SERVER_FLAG_DEBUG) {
+    logSetLevel(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG);
+    logSetLevel(NULL, LOG_COMP_ID_CMSPC, ZOWE_LOG_DEBUG);
+  }
+
+  EightCharString cmsModule = {0};
+  if (getCurrentModuleName(&cmsModule)) {
+    *reasonCode = RC_CMS_MODULE_QUERY_FAILED;
+    return NULL;
+  }
+
   CrossMemoryServer *server = (CrossMemoryServer *)safeMalloc31(sizeof(CrossMemoryServer), "CrossMemoryServer");
   memset(server, 0, sizeof(CrossMemoryServer));
   memcpy(server->eyecatcher, CMS_EYECATCHER, sizeof(server->eyecatcher));
@@ -2347,7 +2365,7 @@ CrossMemoryServer *makeCrossMemoryServer2(
   server->moduleAddressLocal = getMyModuleAddressAndSize(&server->moduleSize);
   server->name = name ? *name : CMS_DEFAULT_SERVER_NAME;
   memcpy(server->ddname.text, CMS_DDNAME, sizeof(server->ddname.text));
-  memcpy(server->dsname.text, CMS_MODULE, sizeof(server->dsname.text));
+  memcpy(server->dsname.text, &cmsModule, sizeof(server->dsname.text));
 
   server->startCallback = startCallback;
   server->stopCallback = stopCallback;
@@ -2357,10 +2375,6 @@ CrossMemoryServer *makeCrossMemoryServer2(
   server->pcssStackPoolSize = CMS_MAIN_PCSS_STACK_POOL_SIZE;
   server->pcssRecoveryPoolSize = CMS_MAIN_PCSS_RECOVERY_POOL_SIZE;
 
-  if (flags & CMS_SERVER_FLAG_DEBUG) {
-    logSetLevel(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG);
-    logSetLevel(NULL, LOG_COMP_ID_CMSPC, ZOWE_LOG_DEBUG);
-  }
   if (flags & CMS_SERVER_FLAG_COLD_START) {
     server->flags |= CROSS_MEMORY_SERVER_FLAG_COLD_START;
   }
@@ -4431,13 +4445,13 @@ static int verifySTEPLIB(CrossMemoryServer *srv) {
   BLDLList bldlList = {
       .entryCount = 1,
       .entryLength = sizeof(BLDLListEntry),
-      .entry.name = CMS_MODULE,
       .entry.ttr = 0,
       .entry.concatenationNumber = 0,
       .entry.dirEntryLocation = 0,
       .entry.nameType = BLDL_LIST_NAME_TYPE_MEMBER,
       .entry.userData = {0},
   };
+  memcpy(bldlList.entry.name, srv->dsname.text, sizeof(bldlList.entry.name));
 
   int bldlRC = 0, bldlRSN = 0;
   __asm(
@@ -4480,6 +4494,35 @@ static bool isReusableASID(void) {
 
 __asm("CSVQRGLB CSVQUERY PLISTVER=0,MF=(L,CSVQRGLB)" : "DS"(CSVQRGLB));
 
+static int getCurrentModuleName(EightCharString * __ptr32 result) {
+
+  int queryRC = 0;
+
+  __asm("CSVQRGLB CSVQUERY PLISTVER=0,MF=L" : "DS"(parmList));
+  parmList = CSVQRGLB;
+
+  /* Use the address of this function itself since it's in the module. */
+  unsigned moduleAddress = (unsigned)&getCurrentModuleName;
+
+  __asm(
+      "         CSVQUERY INADDR=(%[addr]),OUTMJNM=(%[module])"
+      ",PLISTVER=0,MF=(E,%[parm])                                              \n"
+      : "=NR:r15"(queryRC)
+      : [module]"r"(result), [addr]"r"(&moduleAddress), [parm]"m"(parmList)
+      : "r0", "r1", "r14", "r15"
+  );
+
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+          CMS_LOG_DEBUG_MSG_ID" CSVQUERY of 0x%08X - module = \'%8.8s\', RC = %d",
+          moduleAddress, result->text, queryRC);
+
+  if (queryRC != 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
 static bool isModulePrivate(void) {
 
   unsigned char attr = 0;
@@ -4500,7 +4543,7 @@ static bool isModulePrivate(void) {
   );
 
   zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
-          "CSVQUERY of 0x%08X - attr = 0x%02X, RC = %d",
+          CMS_LOG_DEBUG_MSG_ID" CSVQUERY of 0x%08X - attr = 0x%02X, RC = %d",
           moduleAddress, attr, queryRC);
 
   if (queryRC != 0) {
@@ -4540,7 +4583,7 @@ static bool isDubStatusOk(int *status, int *bpxRC, int *bpxRSN) {
   return true;
 }
 
-static int testEnvironment(void) {
+static int testEnvironment(const CrossMemoryServer *srv) {
 
   int authStatus = testAuth();
   if (authStatus != 0) {
@@ -4561,7 +4604,8 @@ static int testEnvironment(void) {
 
   if (!isModulePrivate()) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
-            CMS_LOG_NON_PRIVATE_MODULE_MSG);
+            CMS_LOG_NON_PRIVATE_MODULE_MSG,
+            srv->dsname.text, srv->dsname.text);
     return RC_CMS_NON_PRIVATE_MODULE;
   }
 
@@ -4581,7 +4625,7 @@ static int testEnvironment(void) {
 
 int cmsStartMainLoop(CrossMemoryServer *srv) {
 
-  int envStatus = testEnvironment();
+  int envStatus = testEnvironment(srv);
   if (envStatus != 0) {
     return envStatus;
   }
