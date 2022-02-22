@@ -143,6 +143,75 @@ static void *lookupDLLEntryPoint(char *libraryName, char *functionName){
   return ep;
 }
 
+#define LIBRARY_NAME_KEY           "libraryName"
+#define INITIALIZER_NAME_KEY       "initializerName"
+#ifdef _LP64
+#define LIBRARY_NAME_WITH_BITS_KEY "libraryName64"
+#else
+#define LIBRARY_NAME_WITH_BITS_KEY "libraryName31"
+#endif
+
+static InitializerAPI *loadDll(DataService *service, JsonObject *serviceJsonObject, const char *pluginLocation) {
+  char *libraryNameWithBits = jsonObjectGetString(serviceJsonObject, LIBRARY_NAME_WITH_BITS_KEY);
+  char *libraryName = jsonObjectGetString(serviceJsonObject, LIBRARY_NAME_KEY);
+  char *initializerName = jsonObjectGetString(serviceJsonObject, INITIALIZER_NAME_KEY);
+  char dllLocation[COMMON_PATH_MAX] = {0};
+  int pluginLocationLen = strlen(pluginLocation);
+  InitializerAPI *initializer = NULL;
+
+  /* "external will load a DLL in LE on the path, and a load module in the STEPLIB in METAL */
+#ifdef METTLE
+  /* do a load of 8 char name.  Pray that the STEPLIB yields something good. */
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_SEVERE, "*** PANIC ***  service loading in METTLE not implemented\n");
+#else
+  if (pluginLocationLen > 0 && pluginLocation[pluginLocationLen - 1] == '/') {
+    pluginLocationLen--; /* exclude trailing slash */
+  }
+
+  do {
+    if (!libraryNameWithBits && !libraryName) {
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_WARNING, "Dataservice: couldn't find '%s' or '%s' key for dataservice '%s'\n",
+        LIBRARY_NAME_WITH_BITS_KEY, LIBRARY_NAME_KEY, service->identifier);
+      break;
+    }
+    if (!initializerName) {
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_WARNING, "Dataservice: couldn't find '%s' key for dataservice '%s'\n",
+        INITIALIZER_NAME_KEY, service->identifier);
+      break;
+    }
+    if (libraryNameWithBits) {
+      snprintf(dllLocation, sizeof(dllLocation), "%.*s/lib/%s", pluginLocationLen, pluginLocation, libraryNameWithBits);
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "going for DLL EP lib=%s epName=%s\n", dllLocation, initializerName);
+      if (initializer = (InitializerAPI*) lookupDLLEntryPoint(dllLocation, initializerName)) {
+        break;
+      }
+    }
+    if (libraryName) {
+      snprintf(dllLocation, sizeof(dllLocation), "%.*s/lib/%s", pluginLocationLen, pluginLocation, libraryName);
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "going for DLL EP lib=%s epName=%s\n", dllLocation, initializerName);
+      if (initializer = (InitializerAPI*) lookupDLLEntryPoint(dllLocation, initializerName)) {
+        break;
+      }
+    }
+    if (libraryNameWithBits) {
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "going for DLL EP lib=%s epName=%s\n", libraryNameWithBits, initializerName);
+      if (initializer = (InitializerAPI*) lookupDLLEntryPoint(libraryNameWithBits, initializerName)) {
+        break;
+      }
+    }
+    if (libraryName) {
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "going for DLL EP lib=%s epName=%s\n", libraryName, initializerName);
+      initializer = (InitializerAPI*) lookupDLLEntryPoint(libraryName, initializerName);
+    }
+    if (!initializer) {
+      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_WARNING, "Dataservice: couldn't load dll for dataservice '%s'\n", service->identifier);
+    }
+  } while(0);
+  zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "DLL EP = 0x%x\n", initializer);
+#endif
+  return initializer;
+}
+
 static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonObject, char *subURI, InternalAPIMap *namedAPIMap,
                                     unsigned int *idMultiplier, int pluginLogLevel, Storage *remoteStorage) {
   zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "%s begin data service:\n", __FUNCTION__);
@@ -184,33 +253,7 @@ static DataService *makeDataService(WebPlugin *plugin, JsonObject *serviceJsonOb
     zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "Service=%s initializer set internal method=0x%p\n",
             service->identifier, service->name, service->initializer);
   } else if (!strcmp(initializerLookupMethod,"external")){
-    char *libraryName = jsonObjectGetString(serviceJsonObject, "libraryName");
-    /* "external will load a DLL in LE on the path, and a load module in the STEPLIB in METAL */
-#ifdef METTLE
-    /* do a load of 8 char name.  Pray that the STEPLIB yields something good. */
-    service->initializer = NULL;
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "*** PANIC ***  service loading in METTLE not implemented\n");
-#else
-    char dllLocation[1023] = {0}; /* USS max path length */
-    int pluginLocationLen = strlen(plugin->pluginLocation);
-    
-    if (plugin->pluginLocation[pluginLocationLen - 1] == '/') {
-      snprintf(dllLocation, sizeof(dllLocation), "%.*s/lib/%s", strlen(plugin->pluginLocation) - 1, plugin->pluginLocation, libraryName);
-    }
-    else {
-      snprintf(dllLocation, sizeof(dllLocation), "%s/lib/%s", plugin->pluginLocation, libraryName);
-    }
-
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "going for DLL EP lib=%s epName=%s\n", dllLocation, initializerName);
-    service->initializer = (InitializerAPI*) lookupDLLEntryPoint(dllLocation,initializerName);
-    if (service->initializer == NULL) {
-      zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "going for DLL EP lib=%s epName=%s\n", libraryName, initializerName);
-      service->initializer = (InitializerAPI*) lookupDLLEntryPoint(libraryName,initializerName);
-    }
-    zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "DLL EP = 0x%x\n", service->initializer);
-    fflush(stdout);
-    fflush(stderr);
-#endif
+    service->initializer = loadDll(service, serviceJsonObject, plugin->pluginLocation);
   } else {
     zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_DEBUG, "unknown plugin initialize lookup method %s\n", initializerLookupMethod);
   }

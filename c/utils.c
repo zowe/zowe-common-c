@@ -34,6 +34,9 @@
 #include "debug.h"
 #include "printables_for_dump.h"
 #include "timeutls.h"
+#ifdef __ZOWE_OS_ZOS
+#include "zos.h"
+#endif
 
 char * strcopy_safe(char * dest, const char * source, int dest_size) {
   if( dest_size == 0 )
@@ -2207,6 +2210,23 @@ void trimRight(char *str, int length) {
     str[i] = '\0';
   }
 }
+
+#ifdef __ZOWE_OS_ZOS
+int isLowerCasePasswordAllowed(){
+  RCVT* rcvt = getCVT()->cvtrac;
+  return (RCVTFLG3_BIT_RCVTPLC & (rcvt->rcvtflg3)); /* if lower-case pw allowed */
+}
+#else
+int isLowerCasePasswordAllowed(){
+  return TRUE;
+}
+#endif
+
+bool isPassPhrase(const char *password) {
+  return strlen(password) > 8;
+}
+
+
 
 /*
   This program and the accompanying materials are
