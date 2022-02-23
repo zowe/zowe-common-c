@@ -5,9 +5,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
-#ifndef __ZOWE_OS_WINDOWS
-#include <unistd.h>
-#endif
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -15,6 +12,11 @@
 #include <assert.h>
 
 #include "zowetypes.h"
+
+#ifndef __ZOWE_OS_WINDOWS
+#include <unistd.h>
+#endif
+
 #include "alloc.h"
 #include "utils.h"
 #include "json.h"

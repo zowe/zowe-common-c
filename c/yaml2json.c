@@ -15,8 +15,17 @@
 #include "zowetypes.h"
 #include "alloc.h"
 #include "utils.h"
+#include "charsets.h"
 #include "json.h"
 #include "jsonschema.h"
+
+
+#if defined(__ZOWE_OS_ZOS)
+#  define SOURCE_CODE_CHARSET CCSID_IBM1047
+#else
+#  define SOURCE_CODE_CHARSET CCSID_UTF_8
+#endif
+
 
 static int convertToNative(char *buf, size_t size) {
 #ifdef __ZOWE_OS_ZOS
@@ -289,7 +298,9 @@ void pprintYAML(yaml_document_t *document){
 #define MAX_JSON_KEY 256
 #define MAX_JSON_STRING 65536
 
-/* this needs to be smarter some day */
+/* this needs to be smarter some day
+   Refer to Yaml spec http://yaml.org/spec/1.2-old/spec.html#id2805071
+ */
 
 static bool isSyntacticallyInteger(yaml_char_t *data, int length){
   if (length == 0){
@@ -309,6 +320,44 @@ static bool isSyntacticallyInteger(yaml_char_t *data, int length){
   return true;
 }
 
+static bool isSyntacticallyBool(yaml_char_t *data, int length){
+  if ((length == 4) &&
+      (!memcmp(data,"true",4) ||
+       !memcmp(data,"True",4) ||
+       !memcmp(data,"TRUE",4))){
+    return true;
+  } else if ((length == 5) &&
+             (!memcmp(data,"false",5) ||
+              !memcmp(data,"False",5) ||
+              !memcmp(data,"FALSE",5))){
+    return true;
+  } else {
+    return false;
+  }
+}
+
+static bool isSyntacticallyNull(yaml_char_t *data, int length){
+  if ((length == 1) &&
+      !memcmp(data,"~",1)){
+    return true;
+  } else if ((length == 4) &&
+             (!memcmp(data,"null",4) ||
+              !memcmp(data,"Null",4) ||
+              !memcmp(data,"NULL",4))){
+    return true;
+  } else {
+    return false;
+  }
+}
+
+static bool isSyntacticallyTemplate(yaml_char_t *data, int length){
+  if (strstr((char*)data,"${{")){
+    return true;
+  } else {
+    return false;
+  }
+}
+
 static int64_t readInt(yaml_char_t *data, int length, bool *valid){
   int64_t val64 = 0;
   bool allDecimal = true;
@@ -326,8 +375,104 @@ static int64_t readInt(yaml_char_t *data, int length, bool *valid){
   return val64;
 }
 
-#define JSON_FAIL_NOT_HANDLED 100
-#define JSON_FAIL_BAD_INTEGER 104
+static bool readBool(yaml_char_t *data, int length, bool *valid){
+  if ((length == 4) &&
+      (!memcmp(data,"true",4) ||
+       !memcmp(data,"True",4) ||
+       !memcmp(data,"TRUE",4))){
+    *valid = true;
+    return true;
+  } else if ((length == 5) &&
+             (!memcmp(data,"false",5) ||
+              !memcmp(data,"False",5) ||
+              !memcmp(data,"FALSE",5))){
+    *valid = true;
+    return false;
+  } else {
+    *valid = false;
+    return false;
+  }
+}
+
+
+#define JSON_FAIL_NOT_HANDLED  100
+#define JSON_FAIL_BAD_INTEGER  104
+#define JSON_FAIL_BAD_BOOL     108
+#define JSON_FAIL_BAD_NULL     112
+#define JSON_FAIL_BAD_TEMPLATE 116
+
+static char *extractString(JsonBuilder *b, char *s, char *e){
+  int len = e-s;
+  char *copy = SLHAlloc(b->parser.slh,len+1);
+  memcpy(copy,s,len);
+  copy[len] = 0;
+  return copy;
+}
+
+static void addPlusIfNecessary(jsonPrinter *p, int sourceCCSID, bool *firstPtr){
+  bool first = *firstPtr;
+  if (!first){
+    jsonWriteParseably(p," + ",3,false,false,sourceCCSID);
+  }
+  *firstPtr = false;
+}
+
+static int buildTemplateJSON(JsonBuilder *b, Json *parent, char *parentKey,
+                             char *nativeValue, int valueLength){
+  char *tail = nativeValue;
+  JsonBuffer *buffer = makeJsonBuffer();
+  int sourceCCSID = SOURCE_CODE_CHARSET;
+  jsonPrinter *p = makeBufferJsonPrinter(sourceCCSID,buffer);
+  int status = 0;
+  bool first = true;
+  while (true){
+    char *nextExpr = strstr(tail,"${{");
+    
+    if (nextExpr){
+      if (nextExpr > tail){
+        char *frag = extractString(b,tail,nextExpr);
+        printf("frag = '%s'\n",frag);
+        addPlusIfNecessary(p,sourceCCSID,&first);
+        jsonWriteParseably(p,frag,strlen(frag),true,false,sourceCCSID);
+      }
+      char *end = strstr(nextExpr,"}}");
+      if (end){
+        char *exprText = extractString(b,nextExpr+3,end);
+        tail = end+2;
+        addPlusIfNecessary(p,sourceCCSID,&first);
+        jsonWriteParseably(p,exprText,strlen(exprText),false,false,sourceCCSID);
+      } else {
+        status = JSON_FAIL_BAD_TEMPLATE;
+        break;
+      }
+    } else {
+      char *lastFrag = extractString(b,tail,nativeValue+valueLength);
+      printf("lastFrag = '%s'\n",lastFrag);
+      if (strlen(lastFrag) > 0){
+        addPlusIfNecessary(p,sourceCCSID,&first);
+        jsonWriteParseably(p,lastFrag,strlen(lastFrag),true,false,sourceCCSID);
+      }
+      break;
+    }
+  }
+  if (status == 0){
+    Json *object = jsonBuildObject(b,parent,parentKey,&status);
+    if (!status){
+      jsonBuildString(b,object,ZOWE_INTERNAL_TYPE,ZOWE_UNEVALUATED,strlen(ZOWE_UNEVALUATED),&status);
+      if (!status){
+        jsonBufferTerminateString(buffer);
+        char *sourceCode = jsonBufferCopy(buffer);
+        printf("source code is: %s\n",sourceCode);
+        dumpbuffer(sourceCode,strlen(sourceCode));
+        jsonBuildString(b,object,"source",sourceCode,strlen(sourceCode),&status);
+      }
+    }
+  }
+  freeJsonPrinter(p);
+  freeJsonBuffer(buffer);
+  return status;
+}
+
 
 static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
                         yaml_document_t *doc, yaml_node_t *node, int depth){
@@ -369,11 +514,11 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
         }
         Json *scalar = NULL;
         // HERE, make test with float, int, bool, null, ddate
-        if (!strcmp(nativeTag,YAML_NULL_TAG)){
-        } else if (!strcmp(nativeTag,YAML_NULL_TAG)){
-          /* Json *scalar = jsonBuildNull(b,parent,parentKey,&buildStatus); */
-        } else if (!strcmp(nativeTag,YAML_BOOL_TAG)){
-          /* Json *scalar = jsonBuildBool(b,parent,parentKey,"FOO",3,&buildStatus); */
+        if (!strcmp(nativeTag,YAML_NULL_TAG) ||
+            (!strcmp(nativeTag,YAML_STR_TAG) &&
+             (style == YAML_PLAIN_SCALAR_STYLE) &&
+             isSyntacticallyNull((yaml_char_t*)nativeValue,valueLength))){
+          scalar = jsonBuildNull(b,parent,parentKey,&buildStatus);
         } else if (!strcmp(nativeTag,YAML_INT_TAG) ||
                    (!strcmp(nativeTag,YAML_STR_TAG) &&
                     (style == YAML_PLAIN_SCALAR_STYLE) &&
@@ -385,9 +530,35 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
           } else {
             buildStatus = JSON_FAIL_BAD_INTEGER;
           }
-          /* Json *scalar = jsonBuildInt(b,parent,parentKey,"FOO",3,&buildStatus); */
+        } else if (!strcmp(nativeTag,YAML_BOOL_TAG) ||
+                   (!strcmp(nativeTag,YAML_STR_TAG) &&
+                    (style == YAML_PLAIN_SCALAR_STYLE) &&
+                    isSyntacticallyBool((yaml_char_t*)nativeValue,valueLength))){
+          bool valid;
+          bool x = readBool((yaml_char_t*)nativeValue,valueLength,&valid);
+          if (valid){
+            scalar = jsonBuildBool(b,parent,parentKey,x,&buildStatus);
+          } else {
+            buildStatus = JSON_FAIL_BAD_BOOL;
+          }
         } else if (!strcmp(nativeTag,YAML_STR_TAG)){
-          scalar = jsonBuildString(b,parent,parentKey,nativeValue,valueLength,&buildStatus);
+          /*
+            Must be plain
+            ${{ <javaScript }} (otherText  ${{ }})*
+            how to be integer??
+          */
+          if ((style == YAML_PLAIN_SCALAR_STYLE) &&
+              isSyntacticallyTemplate((yaml_char_t*)nativeValue,valueLength)){
+            buildStatus = buildTemplateJSON(b,parent,parentKey,nativeValue,valueLength);
+          } else if (style == YAML_SINGLE_QUOTED_SCALAR_STYLE &&
+                     isSyntacticallyTemplate((yaml_char_t*)nativeValue,valueLength)){
+            buildStatus = JSON_FAIL_NOT_HANDLED;
+          } else if (style == YAML_DOUBLE_QUOTED_SCALAR_STYLE &&
+                     isSyntacticallyTemplate((yaml_char_t*)nativeValue,valueLength)){
+            buildStatus = buildTemplateJSON(b,parent,parentKey,nativeValue,valueLength);
+          } else {
+            scalar = jsonBuildString(b,parent,parentKey,nativeValue,valueLength,&buildStatus);
+          }
         } else if (!strcmp(nativeTag,YAML_FLOAT_TAG)){
           printf("*** Warning don't know how to handle float yet\n");
           buildStatus = JSON_FAIL_NOT_HANDLED;
@@ -474,9 +645,219 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
   }
 }
 
+typedef struct ByteOutputStream_tag{
+  int   size;
+  int   capacity;
+  int   chunkSize;
+  char *data;
+} ByteOutputStream;
+
+ByteOutputStream *makeByteOutputStream(int chunkSize){
+  ByteOutputStream *bos = (ByteOutputStream*)safeMalloc(sizeof(ByteOutputStream),"ByteOutputStream");
+  bos->size = 0;
+  bos->capacity = chunkSize;
+  bos->chunkSize = chunkSize;
+  bos->data = safeMalloc(chunkSize,"ByteOutputStream Chunk");
+  return bos;
+}
+
+int bosWrite(ByteOutputStream *bos, char *data, int dataSize){
+  if (bos->size+dataSize > bos->capacity){
+    int extendSize = (bos->chunkSize > dataSize) ? bos->chunkSize : dataSize;
+    printf("bos extend currSize=0x%x dataSize=0x%x chunk=0x%x extend=0x%x\n",
+           bos->size,dataSize,bos->chunkSize,extendSize);
+    int newCapacity = bos->capacity + extendSize;
+    char *newData = safeMalloc(newCapacity,"BOS extend");
+    memcpy(newData,bos->data,bos->size);
+    safeFree(bos->data,bos->capacity);
+    bos->data = newData;
+    bos->capacity = newCapacity;
+  }
+  memcpy(bos->data+bos->size,data,dataSize);
+  bos->size += dataSize;
+  return bos->size;
+}
+
+int bosAppendString(ByteOutputStream *bos, char *s){
+  return bosWrite(bos,s,strlen(s));
+}
+
+int bosAppendChar(ByteOutputStream *bos, char c){
+  return bosWrite(bos,&c,1);
+}
+
+char *bosNullTerminateAndUse(ByteOutputStream *bos){
+  char c = 0;
+  bosWrite(bos,&c,1);
+  return bos->data;
+}
+
+char *bosUse(ByteOutputStream *bos){
+  return bos->data;
+}
+
+void bosReset(ByteOutputStream *bos){
+  bos->size = 0;
+}
+
+void bosFree(ByteOutputStream *bos, bool freeBuffer){
+  if (freeBuffer){
+    safeFree(bos->data,bos->capacity);
+  }
+  safeFree((char*)bos,sizeof(ByteOutputStream));
+}
+
+/* Friday, expand it */
+
 Json *yaml2JSON(yaml_document_t *document, ShortLivedHeap *slh){
   JsonBuilder *builder = makeJsonBuilder(slh);
   Json *json = yaml2JSON1(builder,NULL,NULL,document,yaml_document_get_root_node(document),0);
   freeJsonBuilder(builder,false);
   return json;
+}
+
+
+static void yaml2JS1(ByteOutputStream *bos,
+                     yaml_document_t *doc, yaml_node_t *node, int depth,
+                     int traceLevel){
+  int buildStatus = 0;
+  switch (node->type){
+  case YAML_NO_NODE:
+    {
+      printf("*** WARNING *** NoNode\n");
+      return;
+    }
+  case YAML_SCALAR_NODE:
+    {
+      size_t dataLen = node->data.scalar.length;
+      int valueLength = (int)dataLen;
+      if (dataLen > MAX_JSON_STRING){
+        printf("*** WARNING *** oversize JSON string!\n");
+        valueLength = MAX_JSON_STRING;
+      }
+      // Negative numbers, hexadecimal
+      yaml_scalar_style_t style = node->data.scalar.style;
+      switch (style){
+      case YAML_ANY_SCALAR_STYLE:
+      case YAML_PLAIN_SCALAR_STYLE:
+      case YAML_SINGLE_QUOTED_SCALAR_STYLE:
+      case YAML_DOUBLE_QUOTED_SCALAR_STYLE:
+      case YAML_LITERAL_SCALAR_STYLE:
+      case YAML_FOLDED_SCALAR_STYLE:
+      {
+        char nativeValue[valueLength+1];
+        char *tag = (char*)node->tag;
+        int tagLen = strlen(tag);
+        char nativeTag[tagLen + 1];
+        snprintf(nativeValue, valueLength+1, "%.*s", valueLength, (const char *)node->data.scalar.value);
+        snprintf(nativeTag, tagLen + 1, "%.*s", tagLen, tag);
+        convertToNative(nativeValue, valueLength);
+        convertToNative(nativeTag, tagLen);
+        if (traceLevel >= 2){
+          printf("tag = %s scalarStyle=%s\n",nativeTag,getScalarStyleName(node->data.scalar.style));
+        }
+        Json *scalar = NULL;
+        // HERE, make test with float, int, bool, null, ddate
+        if (!strcmp(nativeTag,YAML_NULL_TAG)){
+        } else if (!strcmp(nativeTag,YAML_NULL_TAG)){
+          /* Json *scalar = jsonBuildNull(b,parent,parentKey,&buildStatus); */
+        } else if (!strcmp(nativeTag,YAML_BOOL_TAG)){
+          /* Json *scalar = jsonBuildBool(b,parent,parentKey,"FOO",3,&buildStatus); */
+        } else if (!strcmp(nativeTag,YAML_INT_TAG) ||
+                   (!strcmp(nativeTag,YAML_STR_TAG) &&
+                    (style == YAML_PLAIN_SCALAR_STYLE) &&
+                    isSyntacticallyInteger((yaml_char_t*)nativeValue,valueLength))){
+          bool valid;
+          int64_t x = readInt((yaml_char_t*)nativeValue,valueLength,&valid);
+          if (valid){
+            printf("%lld\n",x);
+          } else {
+            buildStatus = JSON_FAIL_BAD_INTEGER;
+          }
+          /* Json *scalar = jsonBuildInt(b,parent,parentKey,"FOO",3,&buildStatus); */
+        } else if (!strcmp(nativeTag,YAML_STR_TAG)){
+          printf("%*.*s\n",valueLength,valueLength,nativeValue);
+        } else if (!strcmp(nativeTag,YAML_FLOAT_TAG)){
+          printf("*** Warning don't know how to handle float yet\n");
+          buildStatus = JSON_FAIL_NOT_HANDLED;
+        } else if (!strcmp(nativeTag,YAML_TIMESTAMP_TAG)){
+          printf("*** Warning don't know how to handle timestamp yet\n");
+          buildStatus = JSON_FAIL_NOT_HANDLED;
+        }
+        if (buildStatus){
+          printf("*** WARNING *** Failed to add property/scalar err=%d\n",buildStatus);
+        }
+        return;
+      }
+      default:
+        printf("*** WARNING *** - unknown scalar style %d",node->data.scalar.style);
+        return;
+      }
+    }
+  case YAML_SEQUENCE_NODE:
+    {
+      yaml_node_item_t *item;
+      printf("[\n");
+      for (item = node->data.sequence.items.start; item < node->data.sequence.items.top; item++) {
+        yaml_node_t *nextNode = yaml_document_get_node(doc, *item);
+        if (nextNode){
+          yaml2JS1(bos,doc,nextNode,depth+2,traceLevel);
+        } else {
+          printf("*** WARNING *** dead end item\n");
+        }
+      }
+      printf("]\n");
+    }
+  case YAML_MAPPING_NODE:
+    {
+      yaml_node_pair_t *pair;
+      /* Json *jsonObject = jsonBuildObject(b,parent,parentKey,&buildStatus); */
+      for (pair = node->data.mapping.pairs.start; pair < node->data.mapping.pairs.top; pair++) {
+        yaml_node_t *keyNode = yaml_document_get_node(doc, pair->key);
+        /* printf("keyNode 0x%p\n",keyNode); */
+        char *key = NULL;
+        int keyLength;
+        if (keyNode) {
+          if (keyNode->type != YAML_SCALAR_NODE){
+            printf("*** WARNING *** Non Scalar key\n");
+          } else {
+            size_t dataLen = keyNode->data.scalar.length;
+            keyLength = (int)dataLen;
+            if (keyLength > MAX_JSON_KEY){
+              printf("*** WARNING *** key too long '%*.*s...'\n",
+                     MAX_JSON_KEY,MAX_JSON_KEY,keyNode->data.scalar.value);
+            } else {
+                key = (char*)keyNode->data.scalar.value;
+            }
+          }
+        } else {
+          printf("*** WARNING *** dead end key\n");
+        }
+        if (key){
+          char keyNative[keyLength+1];
+          memcpy(keyNative,key,keyLength);
+          keyNative[keyLength] = 0;
+          convertToNative(keyNative, keyLength);
+          yaml_node_t *valueNode = yaml_document_get_node(doc, pair->value);
+          if (valueNode){
+            printf("%s\n",keyNative);
+            yaml2JS1(bos,doc,valueNode,depth+2,traceLevel);
+          } else{
+            printf("*** WARNING *** dead end value\n");
+          }
+        }
+      }
+      return;
+    }
+    break;
+  default:
+    printf("*** WARNING *** unexpected yaml node type %d\n",node->type);
+    return;
+  }
+}
+
+/* this is not fully done, and might not be needed */
+static void yaml2JS(yaml_document_t *document, ShortLivedHeap *slh){
+  ByteOutputStream *bos = makeByteOutputStream(0x1000);
+  yaml2JS1(bos,document,yaml_document_get_root_node(document),0,1);
 }

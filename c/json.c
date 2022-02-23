@@ -421,6 +421,17 @@ void jsonWrite(jsonPrinter *p, char *text, bool escape, int inputCCSID) {
   jsonConvertAndWriteBuffer(p, text, strlen(text), escape, inputCCSID);
 }
 
+void jsonWriteParseably(jsonPrinter *p, char *text, int len, bool quote, bool escape, int inputCCSID){
+  if (quote){
+    jsonWrite(p, "\"", false, inputCCSID);
+  }
+  jsonConvertAndWriteBuffer(p, text, len, escape, inputCCSID);
+  if (quote){
+    jsonWrite(p, "\"", false, inputCCSID);
+  }
+}
+
+
 static
 void jsonIndent(jsonPrinter *p) {
   int depth = p->depth;
@@ -833,6 +844,12 @@ void jsonBufferTerminateString(JsonBuffer *buf) {
 void freeJsonBuffer(JsonBuffer *buf) {
   safeFree(buf->data, buf->size);
   safeFree((void *)buf, sizeof (*buf));
+}
+
+char *jsonBufferCopy(JsonBuffer *buf){
+  char *data = safeMalloc(buf->len,"copyJsonBuffer");
+  memcpy(data,buf->data,buf->len);
+  return data;
 }
 
 void jsonBufferRewind(JsonBuffer *buf) {
@@ -2316,6 +2333,14 @@ int jsonObjectHasKey(JsonObject *object, const char *key) {
 
 void jsonPrintProperty(jsonPrinter* printer, JsonProperty *property) {
   jsonPrintInternal(printer, jsonPropertyGetKey(property), jsonPropertyGetValue(property));
+}
+
+static bool filterFromPrinting(jsonPrinter *printer, char *keyOrNull, Json *value){
+  if (printer->filter){
+    return printer->filter(printer->filterContext,keyOrNull,value);
+  } else {
+    return false;
+  }
 }
 
 void jsonPrintObject(jsonPrinter* printer, JsonObject *object) {

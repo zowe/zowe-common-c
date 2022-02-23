@@ -80,17 +80,22 @@ typedef int64_t ssize_t;
      (PDS/PDSE's).  
  
 
-   References
+   -- References ----------
 
      http://json-schema.org
 
      https://datatracker.ietf.org/doc/html/draft-bhutton-json-schema-validation)
+
+
+    -- Compilation ----------
+
+    set QJS=c:\repos\quickjs
      
     set YAML=c:\repos\libyaml   ## Wherever you git clone'd libyaml
 
     clang++ -c ../platform/windows/cppregex.cpp ../platform/windows/winregex.cpp
 
-    clang -I%YAML%/include -I./src -I../h -I ../platform/windows -Dstrdup=_strdup -D_CRT_SECURE_NO_WARNINGS -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 -o configmgr.exe configmgr.c %YAML%/src/api.c %YAML%/src/reader.c %YAML%/src/scanner.c %YAML%/src/parser.c %YAML%/src/loader.c %YAML%/src/writer.c %YAML%/src/emitter.c %YAML%/src/dumper.c ../c/yaml2json.c ../c/jsonschema.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c cppregex.o winregex.o
+    clang -I%YAML%/include -I %QJS% -I./src -I../h -I ../platform/windows -DCONFIG_VERSION=\"2021-03-27\" -Dstrdup=_strdup -D_CRT_SECURE_NO_WARNINGS -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 --rtlib=compiler-rt -o configmgr.exe configmgr.c %QJS%\quickjs.c %QJS%\cutils.c %QJS%\quickjs-libc.c %QJS%\libbf.c %QJS%\libregexp.c %QJS%\libunicode.c %QJS%\winpthread.c %QJS%\wintime.c %QJS%\windirent.c %QJS%\winunistd.c %YAML%/src/api.c %YAML%/src/reader.c %YAML%/src/scanner.c %YAML%/src/parser.c %YAML%/src/loader.c %YAML%/src/writer.c %YAML%/src/emitter.c %YAML%/src/dumper.c ../c/yaml2json.c ../c/jsonschema.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c cppregex.o winregex.o
 
     configmgr "../tests/schemadata" "" "LIBRARY(FOO):DIR(BAR)" yak
 
@@ -98,7 +103,17 @@ typedef int64_t ssize_t;
 
     configmgr -s "../tests/schemadata" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" validate
 
-      
+    HERE
+     - Embeddedjs.c  - new file
+       - JSON/wUneval -> source 
+       - buildEmbJS
+       - customize with more roots
+       - run 
+       - embedding wrapper
+         QJS JSValue->Json
+     - forks/pushes portable-quickjs clang -> libquickjs.a 
+
+    
 */
 
 #define CONFIG_PATH_OMVS_FILE    0x0001

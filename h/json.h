@@ -32,6 +32,8 @@
  *  and chunked input and output.   
  */
 
+typedef struct Json_tag Json;
+
 /**
  *   \brief  jsonPrinter represents a high-level stream to write JSON.
  *
@@ -60,6 +62,10 @@ typedef struct jsonPrinter_tag {
   char *_conversionBuffer;
   int ioErrorFlag;
   int isInMultipartString;
+  bool (*filter)(void *filterContext,
+                 char *keyOrNull,
+                 Json *value);
+  void *filterContext;
 } jsonPrinter;
 
 typedef struct jsonBuffer_tag {
@@ -144,6 +150,13 @@ void jsonEndArray(jsonPrinter *p);
  */
 
 void jsonAddString(jsonPrinter *p, char *keyOrNull, char *value);
+
+/**
+ *
+ *  A special method for writing javascript data that goes beyond standard JSON writing.
+ *
+ */
+void jsonWriteParseably(jsonPrinter *p, char *text, int len, bool quote, bool escape, int inputCCSID);
 
 /** 
  * \brief Allows the caller to place a string representing well-formed JSON
@@ -335,8 +348,8 @@ JsonBuffer *makeJsonBuffer(void);
 void jsonBufferTerminateString(JsonBuffer *buffer);
 void jsonBufferRewind(JsonBuffer *buffer);
 void freeJsonBuffer(JsonBuffer *buffer);
+char *jsonBufferCopy(JsonBuffer *buffer);
 
-typedef struct Json_tag Json;
 typedef struct JsonObject_tag JsonObject;
 typedef struct JsonArray_tag JsonArray;
 typedef struct JsonProperty_tag JsonProperty;
@@ -565,6 +578,9 @@ typedef struct JsonBuilder_tag {
   int   traceLevel;
 } JsonBuilder;
 
+#define ZOWE_INTERNAL_TYPE "__zowe_internal_type__"
+#define ZOWE_UNEVALUATED "unevaluated"
+
 JsonBuilder *makeJsonBuilder(ShortLivedHeap *slh);
 
 #define JSON_BUILD_FAIL_PARENT_IS_SCALAR 12
@@ -584,6 +600,10 @@ Json *jsonBuildArray(JsonBuilder *b,
                      char *parentKey,
                      int *errorCode);
 
+/**
+   This copies the string into memory owned by the builder/parser.  That is
+   the input string arg "s" is not incorporated into the result.
+*/
 Json *jsonBuildString(JsonBuilder *b,
                       Json *parent,
                       char *parentKey,
@@ -603,6 +623,12 @@ Json *jsonBuildInt64(JsonBuilder *b,
                      char *parentKey,
                      int64 i,
                      int *errorCode);
+
+Json *jsonBuildDouble(JsonBuilder *b,
+                      Json *parent,
+                      char *parentKey,
+                      double d,
+                      int *errorCode);
 
 
 Json *jsonBuildBool(JsonBuilder *b,
