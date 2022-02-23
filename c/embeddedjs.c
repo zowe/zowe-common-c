@@ -568,15 +568,19 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
       if (evalStatus){
         printf("failed to evaluate '%s', status=%d\n",source,evalStatus);
       } else {
-        printf("evaluation succeeded\n");
-        dumpbuffer((char*)&output,sizeof(JSValue));
+        /* 
+           printf("evaluation succeeded\n");
+           dumpbuffer((char*)&output,sizeof(JSValue));
+        */
         Json *evaluationResult = ejsJSToJson(ejs,output,evalContext->slh);
-        printf("evaluationResult back in Json 0x%p\n",evaluationResult);
-        fflush(stdout);
-        if (keyInParent){
-          setJsonProperty(jsonAsObject(parent),keyInParent,evaluationResult);
+        if (evaluationResult){
+          if (keyInParent){
+            setJsonProperty(jsonAsObject(parent),keyInParent,evaluationResult);
+          } else {
+            setJsonArrayElement(jsonAsArray(parent),indexInParent,evaluationResult);
+          }
         } else {
-          setJsonArrayElement(jsonAsArray(parent),indexInParent,evaluationResult);
+          printf("Warning EJS failed to translate eval result JSValue to Json\n");
         }
       }
     }

@@ -54,6 +54,7 @@
 #include "jsonschema.h"
 #include "yaml.h"
 #include "yaml2json.h"
+#include "embeddedjs.h"
 #include "charsets.h"
 #include "collections.h"
 
@@ -89,29 +90,21 @@ typedef int64_t ssize_t;
 
     -- Compilation ----------
 
-    set QJS=c:\repos\quickjs
-     
+    set QJS=c:\repos\quickjs-portable  ## wherever you git cloned quickjs-portable
+      
     set YAML=c:\repos\libyaml   ## Wherever you git clone'd libyaml
 
     clang++ -c ../platform/windows/cppregex.cpp ../platform/windows/winregex.cpp
 
-    clang -I%YAML%/include -I %QJS% -I./src -I../h -I ../platform/windows -DCONFIG_VERSION=\"2021-03-27\" -Dstrdup=_strdup -D_CRT_SECURE_NO_WARNINGS -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 --rtlib=compiler-rt -o configmgr.exe configmgr.c %QJS%\quickjs.c %QJS%\cutils.c %QJS%\quickjs-libc.c %QJS%\libbf.c %QJS%\libregexp.c %QJS%\libunicode.c %QJS%\winpthread.c %QJS%\wintime.c %QJS%\windirent.c %QJS%\winunistd.c %YAML%/src/api.c %YAML%/src/reader.c %YAML%/src/scanner.c %YAML%/src/parser.c %YAML%/src/loader.c %YAML%/src/writer.c %YAML%/src/emitter.c %YAML%/src/dumper.c ../c/yaml2json.c ../c/jsonschema.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c cppregex.o winregex.o
+    clang -I %QJS%\porting -I%YAML%/include -I %QJS% -I./src -I../h -I ../platform/windows -DCONFIG_VERSION=\"2021-03-27\" -Dstrdup=_strdup -D_CRT_SECURE_NO_WARNINGS -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 --rtlib=compiler-rt -o configmgr.exe configmgr.c embeddedjs.c %QJS%\quickjs.c %QJS%\cutils.c %QJS%\quickjs-libc.c %QJS%\libbf.c %QJS%\libregexp.c %QJS%\libunicode.c %QJS%\porting\winpthread.c %QJS%\porting\wintime.c %QJS%\porting\windirent.c %QJS%\porting\winunistd.c %YAML%/src/api.c %YAML%/src/reader.c %YAML%/src/scanner.c %YAML%/src/parser.c %YAML%/src/loader.c %YAML%/src/writer.c %YAML%/src/emitter.c %YAML%/src/dumper.c ../c/yaml2json.c ../c/jsonschema.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c cppregex.o winregex.o
 
     configmgr "../tests/schemadata" "" "LIBRARY(FOO):DIR(BAR)" yak
 
-    configmgr -s "../tests/schemadata" -p "LIBRARY(FOO):DIR(BAR)" extract "/foo/bar"
+    configmgr -s "../tests/schemadata" -p "LIBRARY(FOO):DIR(BAR)" extract "/zowe/setup/"
 
     configmgr -s "../tests/schemadata" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" validate
 
-    HERE
-     - Embeddedjs.c  - new file
-       - JSON/wUneval -> source 
-       - buildEmbJS
-       - customize with more roots
-       - run 
-       - embedding wrapper
-         QJS JSValue->Json
-     - forks/pushes portable-quickjs clang -> libquickjs.a 
+    configmgr -s "../tests/schemadata" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" extract "/zowe/setup/mvs/proclib"
 
     
 */
@@ -119,7 +112,6 @@ typedef int64_t ssize_t;
 #define CONFIG_PATH_OMVS_FILE    0x0001
 #define CONFIG_PATH_OMVS_DIR     0x0002
 #define CONFIG_PATH_OMVS_LIBRARY 0x0004
-
 
 typedef struct ConfigPathElement_tag {
   int    flags;
@@ -135,10 +127,11 @@ typedef struct ConfigManager_tag {
   ConfigPathElement *configPath;
   JsonSchema *topSchema;
   Json       *config;
-  hashtable *schemaCache;
-  hashtable *configCache;
-  int        traceLevel;
-  FILE      *traceOut;
+  hashtable  *schemaCache;
+  hashtable  *configCache;
+  int         traceLevel;
+  FILE       *traceOut;
+  EmbeddedJS *ejs;
 } ConfigManager;
 
 #ifdef __ZOWE_OS_WINDOWS
@@ -422,6 +415,8 @@ ConfigManager *makeConfigManager(char *configPathArg, char *rootSchemaDirectory,
   mgr->traceLevel = traceLevel;
   mgr->traceOut = traceOut;
   mgr->slh = makeShortLivedHeap(0x10000,0x100);
+  EmbeddedJS *ejs = makeEmbeddedJS(NULL);
+  mgr->ejs = ejs;
   if (buildConfigPath(mgr,configPathArg)){
     printf("built config path failed\n");fflush(stdout);
     safeFree((char*)mgr,sizeof(ConfigManager));
@@ -489,6 +484,27 @@ static Json *readJson(ConfigManager *mgr, ConfigPathElement *pathElement){
   }
 }
 
+void freeConfigManager(ConfigManager *mgr){
+  SLHFree(mgr->slh);
+  safeFree((char*)mgr,sizeof(ConfigManager));  
+}
+
+#define JSON_POINTER_TOO_DEEP 101
+#define JSON_POINTER_ARRAY_INDEX_NOT_INTEGER 102
+#define JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS 103
+
+#define ZCFG_ALLOC_HEAP 1
+#define ZCFG_ALLOC_SLH  2
+#define ZCFG_ALLOC_MEMCPY 3
+
+/* These eventually need ZWE unique messages */
+#define ZCFG_SUCCESS 0
+#define ZCFG_TYPE_MISMATCH 1
+#define ZCFG_EVAL_FAILURE 2
+#define ZCFG_POINTER_TOO_DEEP JSON_POINTER_TOO_DEEP
+#define ZCFG_POINTER_ARRAY_INDEX_NOT_INTEGER JSON_POINTER_ARRAY_INDEX_NOT_INTEGER 
+#define ZCFG_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS 
+
 
 /* need to collect violations as this goes */
 static int overloadConfiguration(ConfigManager *mgr,
@@ -516,30 +532,20 @@ static int overloadConfiguration(ConfigManager *mgr,
 
 static int loadConfigurations(ConfigManager *mgr){
   ConfigPathElement *pathElement = mgr->configPath;
-  return overloadConfiguration(mgr,pathElement,pathElement->next);
+  int overloadStatus = overloadConfiguration(mgr,pathElement,pathElement->next);
+  if (overloadStatus){
+    return overloadStatus;
+  } else {
+    Json *evaluatedConfig = evaluateJsonTemplates(mgr->ejs,mgr->slh,mgr->config);
+    if (evaluatedConfig){
+      mgr->config = evaluatedConfig;
+      return ZCFG_SUCCESS;
+    } else {
+      return ZCFG_EVAL_FAILURE;
+    }
+  }
 }
-
-void freeConfigManager(ConfigManager *mgr){
-  SLHFree(mgr->slh);
-  safeFree((char*)mgr,sizeof(ConfigManager));  
-}
-
-
-#define JSON_POINTER_TOO_DEEP 101
-#define JSON_POINTER_ARRAY_INDEX_NOT_INTEGER 102
-#define JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS 103
-
-#define ZCFG_ALLOC_HEAP 1
-#define ZCFG_ALLOC_SLH  2
-#define ZCFG_ALLOC_MEMCPY 3
-
-/* These eventually need ZWE unique messages */
-#define ZCFG_SUCCESS 0
-#define ZCFG_TYPE_MISMATCH 1
-#define ZCFG_POINTER_TOO_DEEP JSON_POINTER_TOO_DEEP
-#define ZCFG_POINTER_ARRAY_INDEX_NOT_INTEGER JSON_POINTER_ARRAY_INDEX_NOT_INTEGER 
-#define ZCFG_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS 
-
+  
 
 /* Merging notes
    defaulting and merging requires the same data shape at all levels and sources 
@@ -567,9 +573,7 @@ static Json *jsonPointerDereference(Json *json, JsonPointer *jsonPointer, int *e
       printf("deref elt=0x%p, i=%d value=0x%p\n",element,i,value);fflush(stdout);
     }
     if (jsonIsArray(value)){
-      printf("AAA\n");fflush(stdout);
       JsonArray *array = jsonAsArray(value);
-      printf("array case = 0x%p\n",array);fflush(stdout);
       if (element->type == JSON_POINTER_INTEGER){
         int index = atoi(element->string);
         int arraySize = jsonArrayGetCount(array);
@@ -583,12 +587,8 @@ static Json *jsonPointerDereference(Json *json, JsonPointer *jsonPointer, int *e
         return NULL;
       }
     } else if (jsonIsObject(value)){
-      printf("OOO\n");fflush(stdout);
       JsonObject *object = jsonAsObject(value);
-      printf("object case = 0x%p\n",object);fflush(stdout);
       value = jsonObjectGetPropertyValue(object,element->string);
-      printf("value for key='%s' is 0x%p\n",element->string,value);
-      fflush(stdout);
       if (value == NULL){
         *errorReason = JSON_POINTER_TOO_DEEP;
         return NULL;
@@ -660,9 +660,7 @@ int cfgGetAny(ConfigManager *mgr, char *value, int allocOptions, void *mem, ...)
 
 static void extractText(ConfigManager *mgr, JsonPointer *jp, FILE *out){
   Json *value = NULL;
-  printf("extract ckpt.1\n");fflush(stdout);
   int status = cfgGetAnyJ(mgr,&value,jp);
-  printf("extract ckpt.2\n");fflush(stdout);
   if (status){
     fprintf(out,"error not found, reason=%d",status);
   } else {
@@ -796,29 +794,29 @@ static size_t escapeForEnv(const char *s, bool isKey, char *buffer, size_t buffe
   return pos;
 }
 
-static outputEnvKey(FILE * out, const char *str) {
+static void outputEnvKey(FILE * out, const char *str) {
   size_t escapedSize = strlen(str) * 2 + 1;
   char escaped[escapedSize];
   escapeForEnv(str, true, escaped, escapedSize);
   fprintf(out, "%s=", escaped);
 }
 
-static outputEnvString(FILE * out, const char *str) {
+static void outputEnvString(FILE * out, const char *str) {
   size_t escapedSize = strlen(str) * 2 + 1;
   char escaped[escapedSize];
   escapeForEnv(str, false, escaped, escapedSize);
   fprintf(out, "\"%s\"\n", escaped);
 }
 
-static outputEnvInt64(FILE * out, int64_t num) {
+static void outputEnvInt64(FILE * out, int64_t num) {
   fprintf(out, "%lld\n", num);
 }
 
-static outputEnvDouble(FILE * out, double num) {
+static void outputEnvDouble(FILE * out, double num) {
   fprintf(out, "%f\n", num);
 }
 
-static outputEnvBoolean(FILE * out, bool b) {
+static void outputEnvBoolean(FILE * out, bool b) {
   fprintf(out, "%s\n", b ? "true": "false");
 }
 

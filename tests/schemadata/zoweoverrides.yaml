@@ -1,4 +1,4 @@
 zowe:
   setup:
     mvs:
-      hlq: SOMELIB.BAR
+      jcllib: ${{ zowe.setup.mvs.hlq + ".FRED" }}

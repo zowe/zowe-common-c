@@ -447,7 +447,7 @@ static int buildTemplateJSON(JsonBuilder *b, Json *parent, char *parentKey,
       }
     } else {
       char *lastFrag = extractString(b,tail,nativeValue+valueLength);
-      printf("lastFrag = '%s'\n",lastFrag);
+      /* printf("lastFrag = '%s'\n",lastFrag); */
       if (strlen(lastFrag) > 0){
         addPlusIfNecessary(p,sourceCCSID,&first);
         jsonWriteParseably(p,lastFrag,strlen(lastFrag),true,false,sourceCCSID);
@@ -462,8 +462,10 @@ static int buildTemplateJSON(JsonBuilder *b, Json *parent, char *parentKey,
       if (!status){
         jsonBufferTerminateString(buffer);
         char *sourceCode = jsonBufferCopy(buffer);
-        printf("source code is: %s\n",sourceCode);
-        dumpbuffer(sourceCode,strlen(sourceCode));
+        if (b->traceLevel >= 1){
+          printf("embedded source code is (tl=%d): %s\n",b->traceLevel,sourceCode);
+          dumpbuffer(sourceCode,strlen(sourceCode));
+        }
         jsonBuildString(b,object,"source",sourceCode,strlen(sourceCode),&status);
       }
     }

@@ -48,6 +48,8 @@
   A configuration source is a user (or UI) created document
     - is owned by the user
     - is text
+    - "No Dark Matter" - all source/paths must be known
+    - Zowe-wide Changes to sources/path must be reviewed
     - can be place under Version Control, eg Git
     - is not modified by installers, launchers, etc.
     - can be syntactically validated and prompted for syntax in editors

@@ -6,24 +6,12 @@ zowe:
   setup:
     # MVS data set related configurations
     mvs:
-      # **COMMONLY_CUSTOMIZED**
-      # where Zowe MVS data sets will be installed
-      #      hlq: IBMUSER.ZWEV2
-      hlq: IBMUSER.FOO
-      # **COMMONLY_CUSTOMIZED**
-      # PROCLIB where Zowe STCs will be copied over
-      proclib: VENDOR.PROCLIB
-      # **COMMONLY_CUSTOMIZED**
-      # Zowe PARMLIB
+      xxx: "FOOBAR"
+      hlq: ${{ zowe.setup.mvs.xxx+".ZWEV2" }}
+      proclib: ${{ zowe.setup.mvs.hlq+".PROCLIB" }}
       parmlib: IBMUSER.ZWEV2.CUST.PARMLIB
-      # **COMMONLY_CUSTOMIZED**
-      # JCL library where Zowe will store temporary JCLs during initialization
       jcllib: IBMUSER.ZWEV2.CUST.JCLLIB
-      # APF authorized LOADLIB for Zowe
-      # Optional. If it's empty, <hlq>.SZWEAUTH will be APF authorized.
       authLoadlib: 
-      # **COMMONLY_CUSTOMIZED**
-      # APF authorized LOADLIB for Zowe ZIS Plugins
       authPluginLib: IBMUSER.ZWEV2.CUST.ZWESAPL
 
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
