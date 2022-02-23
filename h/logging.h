@@ -100,6 +100,34 @@ ZOWE_PRAGMA_PACK_RESET
 #define LOG_DEST_PRINTF_STDOUT 0x008F0001
 #define LOG_DEST_PRINTF_STDERR 0x008F0002
 
+typedef struct LogComponentsMap_tag {
+  uint64 compID;
+  const char* name;
+} LogComponentsMap;
+
+#define LOGGING_COMPONENTS_MAP(logComponents)\
+ static const LogComponentsMap logComponents[] = {\
+  {LOG_COMP_ALLOC, "_zss.alloc"},\
+  {LOG_COMP_UTILS, "_zss.utils"},\
+  {LOG_COMP_COLLECTIONS, "_zss.collections"},\
+  {LOG_COMP_SERIALIZATION, "_zss.serialization"},\
+  {LOG_COMP_ZLPARSER, "_zss.zlparser"},\
+  {LOG_COMP_ZLCOMPILER, "_zss.zlcompiler"},\
+  {LOG_COMP_ZLRUNTIME, "_zss.zlruntime"},\
+  {LOG_COMP_STCBASE, "_zss.stcbase"},\
+  {LOG_COMP_HTTPSERVER, "_zss.httpserver"},\
+  {LOG_COMP_DISCOVERY, "_zss.discovery"},\
+  {LOG_COMP_DATASERVICE, "_zss.dataservice"},\
+  {LOG_COMP_CMS, "_zss.cms"},\
+  {LOG_COMP_LPA, "_zss.lpa"},\
+  {LOG_COMP_RESTDATASET, "_zss.resetdataset"},\
+  {LOG_COMP_RESTFILE, "_zss.restfile"},\
+  {LOG_COMP_ZOS, "_zss.zos"},\
+  {LOG_COMP_HTTPCLIENT, "_zss.httpclient"},\
+  {LOG_COMP_JWT, "_zss.jwt"},\
+  {0, NULL}\
+};
+
 struct LoggingContext_tag;
 
 typedef void (*LogHandler)(struct LoggingContext_tag *context,
