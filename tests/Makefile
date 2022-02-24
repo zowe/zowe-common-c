@@ -34,7 +34,7 @@ LIBYAMLOBJS:=api.o reader.o scanner.o parser.o loader.o writer.o emitter.o dumpe
 SCHEMATESTOBJS:=schematest.o  yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o timeutls.o utils.o alloc.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
 CONFIGMGROBJ:=configmgr.o  yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o timeutls.o utils.o alloc.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
 
-.PHONY:	clean all prepare test_configmgr
+.PHONY:	clean all prepare test_validate test_env test_extract_arr test_extract_arr_el
 
 all:	configmgr schematest
 
@@ -64,9 +64,17 @@ prepare: libyaml
 clean:	
 	rm -f configmgr schematest *.o
 
-test_configmgr:	configmgr
+test_validate:	configmgr
 	./configmgr -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/zowebase.yaml)' validate
+
+test_env:	configmgr
 	./configmgr -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/zowebase.yaml)' env out.env && cat out.env
+
+test_extract_arr:	configmgr
+	./configmgr -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/example-zowe.yaml)' extract '/zowe/externalDomains'
+
+test_extract_arr_el:	configmgr
+	./configmgr -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/example-zowe.yaml)' extract '/zowe/externalDomains/1'
 	
 
 ################################################################################

@@ -443,7 +443,7 @@ ConfigManager *makeConfigManager(char *configPathArg, char *rootSchemaDirectory,
     freeConfigManager(mgr);
     return NULL;
   } else {
-    trace(mgr,INFO,"JSON Schema built successfully\n");
+    trace(mgr,DEBUG2,"JSON Schema built successfully\n");
     mgr->topSchema = schema;
   }
   freeJsonSchemaBuilder(builder); 
@@ -552,9 +552,9 @@ static Json *jsonPointerDereference(Json *json, JsonPointer *jsonPointer, int *e
       printf("deref elt=0x%p, i=%d value=0x%p\n",element,i,value);fflush(stdout);
     }
     if (jsonIsArray(value)){
-      printf("AAA\n");fflush(stdout);
+      //printf("AAA\n");fflush(stdout);
       JsonArray *array = jsonAsArray(value);
-      printf("array case = 0x%p\n",array);fflush(stdout);
+      //printf("array case = 0x%p\n",array);fflush(stdout);
       if (element->type == JSON_POINTER_INTEGER){
         int index = atoi(element->string);
         int arraySize = jsonArrayGetCount(array);
@@ -568,12 +568,12 @@ static Json *jsonPointerDereference(Json *json, JsonPointer *jsonPointer, int *e
         return NULL;
       }
     } else if (jsonIsObject(value)){
-      printf("OOO\n");fflush(stdout);
+      //printf("OOO\n");fflush(stdout);
       JsonObject *object = jsonAsObject(value);
-      printf("object case = 0x%p\n",object);fflush(stdout);
+      //printf("object case = 0x%p\n",object);fflush(stdout);
       value = jsonObjectGetPropertyValue(object,element->string);
-      printf("value for key='%s' is 0x%p\n",element->string,value);
-      fflush(stdout);
+      //printf("value for key='%s' is 0x%p\n",element->string,value);
+      //fflush(stdout);
       if (value == NULL){
         *errorReason = JSON_POINTER_TOO_DEEP;
         return NULL;
@@ -643,29 +643,42 @@ int cfgGetAny(ConfigManager *mgr, char *value, int allocOptions, void *mem, ...)
   return 0;
 }
 
+static void extractScalarText(ConfigManager *mgr, Json *value, FILE *out) {
+  if (jsonIsString(value)) {
+    fprintf(out,"%s\n",jsonAsString(value));
+  } else if (jsonIsInt64(value)) {
+    fprintf(out,"%lld\n",jsonAsInt64(value));
+  } else if (jsonIsDouble(value)) {
+    fprintf(out,"%f\n",jsonAsDouble(value));
+  } else if (jsonIsBoolean(value)) {
+    fprintf(out,"%s\n",jsonAsBoolean(value) ? "true" : "false");
+  } else if (jsonIsNull(value)) {
+    fprintf(out,"null\n");
+  }
+}
+
+static void extractArrayText(ConfigManager *mgr, JsonArray *array, FILE *out) {
+  int count = jsonArrayGetCount(array);
+  for (int i = 0; i < count; i++) {
+    Json *value = jsonArrayGetItem(array, i);
+    extractScalarText(mgr, value, out);
+  }
+}
+
 static void extractText(ConfigManager *mgr, JsonPointer *jp, FILE *out){
   Json *value = NULL;
-  printf("extract ckpt.1\n");fflush(stdout);
+  trace(mgr, DEBUG2, "extract ckpt.1\n");
   int status = cfgGetAnyJ(mgr,&value,jp);
-  printf("extract ckpt.2\n");fflush(stdout);
+  trace(mgr, DEBUG2, "extract ckpt.2\n");
   if (status){
     fprintf(out,"error not found, reason=%d",status);
   } else {
-    if (jsonIsObject(value) ||
-        jsonIsArray(value)){
-      fprintf(out,"error: cannot access whole objects or arrays");
-    } else if (jsonIsString(value)){
-      fprintf(out,"%s",jsonAsString(value));
-    } else if (jsonIsInt64(value)){
-      fprintf(out,"%lld",jsonAsInt64(value));
-    } else if (jsonIsDouble(value)){
-      fprintf(out,"%f",jsonAsDouble(value));
-    } else if (jsonIsBoolean(value)){
-      fprintf(out,"%s",jsonAsBoolean(value) ? "true" : "false");
-    } else if (jsonIsNull(value)){
-      fprintf(out,"null");
-    } else {
-      fprintf(out,"error: unhandled type");
+    if (jsonIsObject(value)){
+      fprintf(out,"error: cannot access whole objects");
+    } else if (jsonIsArray(value)){
+      extractArrayText(mgr, jsonAsArray(value), out);
+    } else{
+      extractScalarText(mgr, value, out);
     }
   }
 }
@@ -982,7 +995,6 @@ int main(int argc, char **argv){
       }
       /* Friday, extract some text and show Jack */
       extractText(mgr,jp,stdout);
-      printf("\n");
       fflush(stdout);
     }
   } else if (!strcmp(command, "env")) {
