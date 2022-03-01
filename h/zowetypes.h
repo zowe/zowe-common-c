@@ -84,6 +84,7 @@ __ZOWE_COMP_GCC
 __ZOWE_COMP_VCPP
 __ZOWE_COMP_XLC
 __ZOWE_COMP_IXLC
+__ZOWE_COMP_CLANG - new in 2022!
 
 __ZOWE_64BIT
 
@@ -144,6 +145,10 @@ no ifdef means XLC LE on ZOS, and everything else.  This is effectively our "def
 
 #define __ZOWE_OS_ZOS
 #define __ZOWE_ARCH_Z
+#define __ZOWE_COMP_XLC
+#ifdef __clang__
+#define __ZOWE_COMP_XLCLANG /* new in 2022, xlclang defines *BOTH* __IBMC__ *AND* __clang__ */
+#endif
 
 #ifdef _LP64
 #define __ZOWE_64
@@ -154,6 +159,26 @@ no ifdef means XLC LE on ZOS, and everything else.  This is effectively our "def
 #define ZOWE_PRAGMA_PACK_RESET  _Pragma ( "pack(reset)" )
 
 #endif /* __MVS__ __IBMC__ */
+
+
+/* new clang on ZOS cases */
+#if defined(__MVS__) && defined(__clang__) && (defined (_LP64) || defined (_ILP32))
+
+#define __ZOWE_OS_ZOS
+#define __ZOWE_ARCH_Z
+#define __ZOWE_COMP_CLANG
+
+#ifdef _LP64
+#define __ZOWE_64
+#else 
+#define __ZOWE_32
+#endif
+
+/* Structure packing */
+#define ZOWE_PRAGMA_PACK  _Pragma ( "pack(packed)" )
+#define ZOWE_PRAGMA_PACK_RESET  _Pragma ( "pack(reset)" )
+
+#endif /* __MVS__ __clang__ */
 
 #if defined(_AIX) && (defined (__IBMC__) || defined (__IBMCPP__))
  #define __ZOWE_OS_AIX 1
@@ -171,7 +196,7 @@ no ifdef means XLC LE on ZOS, and everything else.  This is effectively our "def
 #endif /* AIX */
 
 /* Base Macros for GCC, which is usually Linux or Unix, but Z,P and X architectures can use GCC so analysis is more complex */
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__clang__)
 
 #ifdef _LP64
 #define __ZOWE_64
@@ -255,6 +280,7 @@ typedef uint64_t uint64;
 #define INT64_INT(x) ((int)x)
 #define INT_INT64(x) ((int64)x)
 #define CHARPTR_INT64(x) ((int64)x)
+#define INT2PTR(x) ((void*)((int64_t)(x)))
 
 #else
 
@@ -264,6 +290,7 @@ typedef unsigned long long uint64;
 #define INT64_INT(x) ((int)x)
 #define INT_INT64(x) ((int64)x)
 #define CHARPTR_INT64(x) ((int64)((int)x))
+#define INT2PTR(x) ((void*)(x))
 
 #endif
 

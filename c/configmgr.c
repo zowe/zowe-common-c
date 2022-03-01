@@ -104,9 +104,26 @@ typedef int64_t ssize_t;
 
     configmgr -s "../tests/schemadata" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" validate
 
+    configmgr -t 2 -s "../tests/schemadata" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" validate
+
     configmgr -s "../tests/schemadata" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" extract "/zowe/setup/mvs/proclib"
 
+
+    -- Compilation with XLCLang on ZOS -------------------------------------
+ 
+    export YAML="/u/zossteam/jdevlin/git2022/libyaml" 
+    export QJS="/u/zossteam/jdevlin/git2022/quickjs"
+
+    NOTE!! charsets.c requires a path that is NOT unix path.  xlclang and clang will not support this
+
+      Easy, maybe temporary workaround is to copy this H file somewhere
     
+      cp "//'SYS1.SCUNHF(CUNHC)'" ../h/CUNHC.h 
+
+    xlclang -q64 -qascii -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 -DCONFIG_VERSION=\"2021-03-27\" -D_OPEN_SYS_FILE_EXT=1 -D_XOPEN_SOURCE=600 -D_OPEN_THREADS=1 -DSUBPOOL=132 "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN')" -I ../h -I ../platform/posix -I ${YAML}/include -I ${QJS} -Wbitwise-op-parentheses -o configmgr configmgr.c yaml2json.c embeddedjs.c jsonschema.c json.c xlate.c charsets.c zosfile.c logging.c recovery.c scheduling.c zos.c le.c collections.c timeutls.c utils.c alloc.c ../platform/posix/psxregex.c ${QJS}/quickjs.c ${QJS}/cutils.c ${QJS}/quickjs-libc.c ${QJS}/libregexp.c ${QJS}/libunicode.c ${QJS}/porting/polyfill.c ${YAML}/src/api.c ${YAML}/src/reader.c ${YAML}/src/scanner.c ${YAML}/src/parser.c ${YAML}/src/loader.c ${YAML}/src/writer.c ${YAML}/src/emitter.c ${YAML}/src/dumper.c 
+
+    
+
 */
 
 #define CONFIG_PATH_OMVS_FILE    0x0001
@@ -352,6 +369,8 @@ static bool addPathElement(ConfigManager *mgr, char *pathElementArg){
 }
 
 static int buildConfigPath(ConfigManager *mgr, char *configPathArg){
+  printf("JOE buildConfigPath\n");
+  fflush(stdout);
   int pos = 0;
   int len = strlen(configPathArg);
   while (pos < len){
@@ -416,7 +435,10 @@ ConfigManager *makeConfigManager(char *configPathArg, char *rootSchemaDirectory,
   mgr->traceOut = traceOut;
   mgr->slh = makeShortLivedHeap(0x10000,0x100);
   EmbeddedJS *ejs = makeEmbeddedJS(NULL);
+  printf("really\n");
+  fflush(stdout);
   mgr->ejs = ejs;
+  trace(mgr,DEBUG,"before build config path\n");
   if (buildConfigPath(mgr,configPathArg)){
     printf("built config path failed\n");fflush(stdout);
     safeFree((char*)mgr,sizeof(ConfigManager));
@@ -429,12 +451,15 @@ ConfigManager *makeConfigManager(char *configPathArg, char *rootSchemaDirectory,
   int returnCode = 0;
   int reasonCode = 0;
   FileInfo yamlFileInfo;
+  trace(mgr,DEBUG,"before file info\n");
   int infoStatus = fileInfo(zoweYamlPath,&yamlFileInfo,&returnCode,&reasonCode);
   if (infoStatus){
+    trace(mgr,INFO,"failed to get fileInfo of '%s', infoStatus=%d\n",zoweYamlPath,infoStatus);
     freeConfigManager(mgr);
     return NULL;
   }
   char errorBuffer[1024];
+  trace(mgr,DEBUG,"before jsonParseFile info\n");
   Json *jsonWithSchema = jsonParseFile2(mgr->slh,zoweYamlPath,errorBuffer,1024);
   if (jsonWithSchema == NULL){
     trace(mgr,INFO,"failed to read JSON with base schema: %s\n",errorBuffer);
@@ -868,6 +893,15 @@ static void convertJsonArrayToEnv(FILE *out, const char *path, JsonArray *array)
     convertJsonToEnv(out, currentPath, value);
   }
 }
+
+/* 
+   Here:
+   1) Detect qascii or not
+   2) store in code
+   3) BPX routines do NOT tolerate qASCII like c-library 
+   4) fileInfo tag must be used on ZOS target to potentially preprocess input
+   5) maybe Leonty has done this for yaml (or not)
+ */
 
 
 int main(int argc, char **argv){

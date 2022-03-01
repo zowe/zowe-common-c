@@ -118,7 +118,7 @@ int convertCharset(char *input,
   return 0;
 }
 
-#elif defined(__ZOWE_OS_ZOS)
+#elif defined(__ZOWE_OS_ZOS) && !defined(__ZOWE_COMP_XLCLANG)
 
 /*
 
@@ -167,7 +167,11 @@ static const union {
 
 };
 
+#ifdef __ZOWE_COMP_XLCLANG
+#include "CUNHC.h"
+#else 
 #include "//'SYS1.SCUNHF(CUNHC)'"
+#endif
 
 int convertCharset(char *input, 
                    int inputLength, 
@@ -223,6 +227,7 @@ int convertCharset(char *input,
   case CHARSET_OUTPUT_USE_SLH:
     outputBuffer = SLHAlloc(slh,outputAllocLength);
     outputLength = outputAllocLength;
+    *output = outputBuffer;
     break;
   }
   parms.Targ_Buf_Ptr = outputBuffer;
@@ -253,11 +258,15 @@ int convertCharset(char *input,
 #endif
 
   *conversionOutputLength = (((char*)parms.Targ_Buf_Ptr) - outputBuffer);
+  printf("inputLen=%d reasonCode = %d src=%d targ=%d\n",inputLength,parms.Reason_Code,parms.Src_CCSID,parms.Targ_CCSID);
+  fflush(stdout);
+
   if (parms.Return_Code){
     if (outputMode == CHARSET_OUTPUT_SAFE_MALLOC){
       safeFree(parms.Targ_Buf_Ptr,outputAllocLength);
     }
     *reasonCode = parms.Return_Code;
+
     return CHARSET_CONVERSION_ROUTINE_FAILURE;
   } else {
     if (outputMode == CHARSET_OUTPUT_SAFE_MALLOC){
@@ -310,7 +319,9 @@ int getCharsetCode(const char *charsetName) {
   }
 }
 
-#elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) /* end of ZOWE_OS_ZOS */
+/* End of Traditional METAL and XLC cases, since linkage(OS64_NOSTACK) doesn't work in xlclang and clang 
+   some C code goes through here, too.  We should short circuit easy special cases here some day */
+#elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || (defined(__ZOWE_OS_ZOS) && defined(__ZOWE_COMP_XLCLANG))
 
 #include <iconv.h>
 #include <errno.h>
@@ -391,6 +402,7 @@ int convertCharset(char *input,
   case CHARSET_OUTPUT_USE_SLH:
     outputBuffer = SLHAlloc(slh,outputAllocLength);
     outputSize = outputAllocLength;
+    *output = outputBuffer;
     break;
   default:
     return CHARSET_INTERNAL_ERROR;

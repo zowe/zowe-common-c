@@ -1,5 +1,5 @@
-#ifndef __ZOWE_PSxREGEX__
-#define __ZOWE_PS
+#ifndef __ZOWE_PSXREGEX__
+#define __ZOWE_PSXREGEX__
 
 #include <regex.h>
 

@@ -16,6 +16,7 @@
 #include <metal/stdio.h>
 #include <metal/stdlib.h>
 #include <metal/string.h>
+#include <metal/strings.h>
 #include <metal/ctype.h>
 #include "qsam.h"
 #include "metalio.h"
@@ -24,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>  
+#include <strings.h>  
 #include <ctype.h>  
 #endif
 
@@ -1078,8 +1080,8 @@ void encodeBase64NoAlloc(const char buf[], int size, char result[], int *resultS
       int byte1 = data[inCursor++] & 0xff;
       int byte2 = data[inCursor++] & 0xff;
       *resPtr++ = (char)(translation[byte0 >> 2]); 
-      *resPtr++ = (char)(translation[(byte0 << 4) & 0x3f | (byte1 >> 4)]); 
-      *resPtr++ = (char)(translation[(byte1 << 2) & 0x3f | (byte2 >> 6)]); 
+      *resPtr++ = (char)(translation[((byte0 << 4) & 0x3f) | (byte1 >> 4)]); 
+      *resPtr++ = (char)(translation[((byte1 << 2) & 0x3f) | (byte2 >> 6)]); 
       *resPtr++ = (char)(translation[byte2 & 0x3f]); 
     }
 
@@ -1093,7 +1095,7 @@ void encodeBase64NoAlloc(const char buf[], int size, char result[], int *resultS
       }
       else{
         int byte1 = data[inCursor++] & 0xff;
-        *resPtr++ = (char)(translation[(byte0 << 4) & 0x3f | (byte1 >> 4)]); 
+        *resPtr++ = (char)(translation[((byte0 << 4) & 0x3f) | (byte1 >> 4)]); 
         *resPtr++ = (char)(translation[(byte1 << 2) & 0x3f]); 
         *resPtr++ = equalsChar; 
       }
@@ -1297,19 +1299,19 @@ int base32Decode (int alphabet,
     if (ch2 == -2) {
       break;
     }
-    output [outputIndex++] = (char) ((ch1 << 6) | (ch2 << 1) | (ch3 >> 4) & 0xff);
+    output [outputIndex++] = (char) ((ch1 << 6) | (ch2 << 1) | ((ch3 >> 4) & 0xff));
     if (ch4 == -2) {
       break;
     }
-    output [outputIndex++] = (char) ((ch3 << 4) | (ch4 >> 1) & 0xff);
+    output [outputIndex++] = (char) ((ch3 << 4) | ((ch4 >> 1) & 0xff));
     if (ch5 == -2) {
       break;
     }
-    output [outputIndex++] = (char) ((ch4 << 7) | (ch5 << 2) | (ch6 >> 3) & 0xff);
+    output [outputIndex++] = (char) ((ch4 << 7) | (ch5 << 2) | ((ch6 >> 3) & 0xff));
     if (ch7 == -2) {
       break;
     }
-    output [outputIndex++] = (char) ((ch6 << 5) | (ch7) & 0xff);
+    output [outputIndex++] = (char) ((ch6 << 5) | ((ch7) & 0xff));
   }
   *outputLength = outputIndex;
   return 0;
@@ -1356,12 +1358,12 @@ int base32Encode (int alphabet,
     byte3 = *input++ & 0xff;
     byte4 = *input++ & 0xff;
     output [outputIndex++] = (char)(encodeTable [(byte0 >> 3) & 0x1f]); 
-    output [outputIndex++] = (char)(encodeTable [(byte0 << 2) & 0x1f | (byte1 >> 6)]); 
+    output [outputIndex++] = (char)(encodeTable [((byte0 << 2) & 0x1f) | (byte1 >> 6)]); 
     output [outputIndex++] = (char)(encodeTable [(byte1 >> 1) & 0x1f]); 
-    output [outputIndex++] = (char)(encodeTable [(byte1 << 4) & 0x1f | (byte2 >> 4)]); 
-    output [outputIndex++] = (char)(encodeTable [(byte2 << 1) & 0x1f | (byte3 >> 7)]); 
+    output [outputIndex++] = (char)(encodeTable [((byte1 << 4) & 0x1f) | (byte2 >> 4)]); 
+    output [outputIndex++] = (char)(encodeTable [((byte2 << 1) & 0x1f) | (byte3 >> 7)]); 
     output [outputIndex++] = (char)(encodeTable [(byte3 >> 2) & 0x1f]); 
-    output [outputIndex++] = (char)(encodeTable [(byte3 << 3) & 0x1f | (byte4 >> 5)]); 
+    output [outputIndex++] = (char)(encodeTable [((byte3 << 3) & 0x1f) | (byte4 >> 5)]); 
     output [outputIndex++] = (char)(encodeTable [(byte4 & 0x1f)]); 
   }
   if (numCharsLeft) {
@@ -1379,7 +1381,7 @@ int base32Encode (int alphabet,
     }
     else if (numCharsLeft == 2) {
       int byte1 = *input++;
-      output [outputIndex++] = (char)(encodeTable [(byte0 << 2) & 0x1f | (byte1 >> 6)]);
+      output [outputIndex++] = (char)(encodeTable [((byte0 << 2) & 0x1f) | (byte1 >> 6)]);
       output [outputIndex++] = (char)(encodeTable [(byte1 >> 1) & 0x1f]);
       output [outputIndex++] = (char)(encodeTable [(byte1 << 4) & 0x1f]);
       output [outputIndex++] = equals;
@@ -1390,9 +1392,9 @@ int base32Encode (int alphabet,
     else if (numCharsLeft == 3) {
       int byte1 = *input++;
       int byte2 = *input++;
-      output [outputIndex++] = (char)(encodeTable [(byte0 << 2) & 0x1f | (byte1 >> 6)]);
+      output [outputIndex++] = (char)(encodeTable [((byte0 << 2) & 0x1f) | (byte1 >> 6)]);
       output [outputIndex++] = (char)(encodeTable [(byte1 >> 1) & 0x1f]);
-      output [outputIndex++] = (char)(encodeTable [(byte1 << 4) & 0x1f | (byte2 >> 4)]);
+      output [outputIndex++] = (char)(encodeTable [((byte1 << 4) & 0x1f) | (byte2 >> 4)]);
       output [outputIndex++] = (char)(encodeTable [(byte2 << 1) & 0x1f]);
       output [outputIndex++] = equals;
       output [outputIndex++] = equals;
@@ -1402,10 +1404,10 @@ int base32Encode (int alphabet,
       int byte1 = *input++;
       int byte2 = *input++;
       int byte3 = *input++;
-      output [outputIndex++] = (char)(encodeTable [(byte0 << 2) & 0x1f | (byte1 >> 6)]); 
+      output [outputIndex++] = (char)(encodeTable [((byte0 << 2) & 0x1f) | (byte1 >> 6)]); 
       output [outputIndex++] = (char)(encodeTable [(byte1 >> 1) & 0x1f]); 
-      output [outputIndex++] = (char)(encodeTable [(byte1 << 4) & 0x1f | (byte2 >> 4)]); 
-      output [outputIndex++] = (char)(encodeTable [(byte2 << 1) & 0x1f | (byte3 >> 7)]); 
+      output [outputIndex++] = (char)(encodeTable [((byte1 << 4) & 0x1f) | (byte2 >> 4)]); 
+      output [outputIndex++] = (char)(encodeTable [((byte2 << 1) & 0x1f) | (byte3 >> 7)]); 
       output [outputIndex++] = (char)(encodeTable [(byte3 >> 2) & 0x1f]); 
       output [outputIndex++] = (char)(encodeTable [(byte3 << 3) & 0x1f]); 
       output [outputIndex++] = equals;
@@ -2216,17 +2218,6 @@ void trimRight(char *str, int length) {
     str[i] = '\0';
   }
 }
-
-#ifdef __ZOWE_OS_ZOS
-int isLowerCasePasswordAllowed(){
-  RCVT* rcvt = getCVT()->cvtrac;
-  return (RCVTFLG3_BIT_RCVTPLC & (rcvt->rcvtflg3)); /* if lower-case pw allowed */
-}
-#else
-int isLowerCasePasswordAllowed(){
-  return TRUE;
-}
-#endif
 
 bool isPassPhrase(const char *password) {
   return strlen(password) > 8;

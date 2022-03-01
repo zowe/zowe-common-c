@@ -107,6 +107,28 @@
 
 #endif
 
+/* xlclang and clang what prototypes, these are incomplete, but quiet the compiler */
+int BPXSOC();
+int BPXCON();
+int BPXGHN();
+int BPXSLP();
+int BPXCHR();
+int BPXBND();
+int BPXLSN();
+int BPXACP();
+int BPXSEL();
+int BPXOPT();
+int BPXGNM();
+int BPXSTO();
+int BPXRFM();
+int BPXHST();
+int BPXIOC();
+int BPXRED();
+int BPXWRT();
+int BPXFCT();
+int BPXCLO();
+
+
 #define SOCK_SO_REUSEADDR 0x00000004
 #define SOCK_SO_SNDBUF    0x00001001
 #define SOCK_SO_RCVBUF    0x00001002
@@ -151,6 +173,7 @@ void bpxSleep(int seconds)
 
 int socketInit(char *uniqueName){
   /* do nothing for now */
+  return 0;
 }
 
 SocketAddress *makeSocketAddr(InetAddr *addr, 
@@ -172,7 +195,7 @@ SocketAddress *makeSocketAddrIPv6(InetAddr *addr, unsigned short port){
   SocketAddress *address = (SocketAddress*)safeMalloc31(sizeof(SocketAddress),"BPX SocketAddress");
   memset(address,0,sizeof(SocketAddress));
   if (socketTrace){
-    printf("socket address at 0x%x\n",address);
+    printf("socket address at 0x%p\n",address);
   }
   address->length = 26;
   address->family = AF_INET6;
@@ -181,7 +204,7 @@ SocketAddress *makeSocketAddrIPv6(InetAddr *addr, unsigned short port){
     address->data6 = addr->data.data6;
   }
   if (socketTrace){
-    printf("about to return socket address at 0x%x\n",address);
+    printf("about to return socket address at 0x%p\n",address);
   }
   return address;
 }
@@ -744,7 +767,7 @@ int getV4HostByName(char *string){
     /* dumpbuffer((char*)hostent,20); */
     for (i=0; i<hostent->length; i++){
       if (socketTrace){
-        printf("  addr[%d] = %x\n",i,hostent->addrList[i]);
+        printf("  addr[%d] = 0x%p\n",i,hostent->addrList[i]);
       }
       if (hostent->addrList[i]){
         numericAddress = *(hostent->addrList[i]);
@@ -1276,7 +1299,7 @@ int udpReceiveFrom(Socket *socket,
   int socketAddressSize = SOCKET_ADDRESS_SIZE_IPV4;
 
   if (socketTrace > 2){
-    printf("receiveFrom into buffer=0x%x bufLen=%d retVal=%d retCode=%d reasonCode=%d\n",
+    printf("receiveFrom into buffer=0x%p bufLen=%d retVal=%d retCode=%d reasonCode=%d\n",
            buffer,bufferLength,returnValue,*returnCode,*reasonCode);
   }
 
@@ -1300,7 +1323,7 @@ int udpReceiveFrom(Socket *socket,
     return -1;
   } else {
     if (socketTrace > 2){
-      printf("recvFrom into buffer=0x%x %d bytes\n",buffer,returnValue);fflush(stdout);
+      printf("recvFrom into buffer=0x%p %d bytes\n",buffer,returnValue);fflush(stdout);
     }
     *returnCode = 0;
     *reasonCode = 0;
@@ -1680,7 +1703,7 @@ int not_main(int argc, char **argv){
       sleep(1);
     }
   }
-  
+  return 0;  
 }
 
 

@@ -1101,7 +1101,7 @@ static int compareAndLoad(long *oldCounter, long *counterAddress, long *sourceAd
         :
         "r"(counterAddress), "r"(sourceAddress), "r"(resultAddress), "i"(sizeof(oldCounter))
         :
-        "r0 r1 r14 r15");
+        "r0","r1","r14","r15");
   return status;
 }
 
@@ -1133,7 +1133,7 @@ static int compareAndSwapTriple(long *oldCounter, long newCounter, long *counter
         :
         "r"(counterAddress), "r"(parms), "r"(newCounter), "i"(sizeof(oldCounter))
         :
-        "r0 r1 r14 r15");
+        "r0","r1","r14","r15");
   return status;
 }
 
@@ -1142,7 +1142,7 @@ void qEnqueue(Queue *q, QueueElement *newElement) {
   union {
     long long alignit;
     CSTSTParms parms;
-  };
+  } vars;
 
   newElement->next = NULL;
 
@@ -1197,7 +1197,7 @@ void qEnqueue(Queue *q, QueueElement *newElement) {
   }
   else
   {
-    memset(&parms,0,sizeof(CSTSTParms));
+    memset(&vars.parms,0,sizeof(CSTSTParms));
 
     /* Insert a queue element at the tail of a queue using PLO.
 
@@ -1216,17 +1216,17 @@ void qEnqueue(Queue *q, QueueElement *newElement) {
 
       void *desiredQHead = (q->head ? q->head : newElement);
       /* HEAD */
-      parms.thing1 = (long)desiredQHead;
-      parms.thing1Addr = &(q->head);
+      vars.parms.thing1 = (long)desiredQHead;
+      vars.parms.thing1Addr = &(q->head);
       /* TAIL */
-      parms.thing2 = (long)newElement;
-      parms.thing2Addr = &(q->tail);
+      vars.parms.thing2 = (long)newElement;
+      vars.parms.thing2Addr = &(q->tail);
       /* PENULTIMATE */
-      parms.thing3 = (long)newElement;
+      vars.parms.thing3 = (long)newElement;
       QueueElement *last = q->tail;
-      parms.thing3Addr = (q->tail ? &(last->next) : &(q->tail));
+      vars.parms.thing3Addr = (q->tail ? &(last->next) : &(q->tail));
 
-      if (compareAndSwapTriple(&lockCounter,newCounter,&q->counter,&parms)){
+      if (compareAndSwapTriple(&lockCounter,newCounter,&q->counter,&vars.parms)){
         break;
       }
     }
@@ -1249,7 +1249,7 @@ QueueElement *qDequeue(Queue *q) {
   union {
     long long alignit;
     CSTSTParms parms;
-  };
+  } vars;
 
   QueueElement *currentHead;
 
@@ -1312,7 +1312,7 @@ QueueElement *qDequeue(Queue *q) {
   }
   else
   {
-    memset(&parms,0,sizeof(CSTSTParms));
+    memset(&vars.parms,0,sizeof(CSTSTParms));
 
     /* Remove a queue element from the head of a queue using PLO.
 
@@ -1335,18 +1335,18 @@ QueueElement *qDequeue(Queue *q) {
       void *desiredQTail = (desiredQHead ? q->tail : NULL);
 
       /* HEAD */
-      parms.thing1 = (long)desiredQHead;
-      parms.thing1Addr = &(q->head);
+      vars.parms.thing1 = (long)desiredQHead;
+      vars.parms.thing1Addr = &(q->head);
       /* TAIL */
-      parms.thing2 = (long)desiredQTail;
-      parms.thing2Addr = &(q->tail);
+      vars.parms.thing2 = (long)desiredQTail;
+      vars.parms.thing2Addr = &(q->tail);
       /* CURRENT_HEAD */
-   /* parms.thing3 = NULL -- was set to NULL when parmData was initialized */
+   /* vars.parms.thing3 = NULL -- was set to NULL when parmData was initialized */
       QueueElement *last = NULL;
 
-      parms.thing3Addr = &(currentHead->next);
+      vars.parms.thing3Addr = &(currentHead->next);
 
-      if (compareAndSwapTriple(&lockCounter,newCounter,&q->counter,&parms))
+      if (compareAndSwapTriple(&lockCounter,newCounter,&q->counter,&vars.parms))
         break;
     }
   }

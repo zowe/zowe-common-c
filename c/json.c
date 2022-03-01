@@ -60,9 +60,13 @@ typedef int64_t ssize_t;
 
 
 /*
- * 
- c89 -DTEST_JSON_PARSER "-Wc,langlvl(extc99),gonum,goff,hgpr,roconst,ASM,asmlib('SYS1.MACLIB')" -o parser -I ../h json.c utils.c alloc.c bpxskt.c charsets.c
- c89 -DTEST_JSON_PRINTER "-Wc,langlvl(extc99),gonum,goff,hgpr,roconst,ASM,asmlib('SYS1.MACLIB')" -o printer -I ../h json.c utils.c alloc.c bpxskt.c charsets.c
+
+  Some unit tests for parsing and printing.  Updated 2022 for current filenames and modularity, and 64-bitness.
+
+  xlc -q64 -DTEST_JSON_PARSER -D_OPEN_SYS_FILE_EXT=1 -D_XOPEN_SOURCE=600 -D_OPEN_THREADS=1 -DSUBPOOL=132 "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN')" -I ../h -o jsonparser json.c zosfile.c collections.c charsets.c logging.c zos.c recovery.c scheduling.c le.c timeutls.c utils.c alloc.c
+
+  xlc -q64 -DTEST_JSON_PRINTER -D_OPEN_SYS_FILE_EXT=1 -D_XOPEN_SOURCE=600 -D_OPEN_THREADS=1 -DSUBPOOL=132 "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN')" -I ../h -o jsonprinter json.c zosfile.c collections.c charsets.c logging.c zos.c recovery.c scheduling.c le.c timeutls.c utils.c alloc.c
+
  */
 
 #define CONVERSION_BUFFER_DEFAULT_SIZE 8192
@@ -266,7 +270,7 @@ convertToUtf8(jsonPrinter *p, size_t len, char text[len], int inputCCSID) {
       newBuf = safeRealloc(p->_conversionBuffer, newSize,
           p->_conversionBufferSize, "JSON conversion buffer");
       if (newBuf == NULL) {
-        //the old buffer will be free'd by freeJsonPrinter() if allocated
+        /* the old buffer will be free'd by freeJsonPrinter() if allocated */
         JSONERROR("JSON: error, not enough memory to convert\n");
         return -1;
       }
@@ -2485,6 +2489,8 @@ Json *jsonParseFile(ShortLivedHeap *slh, const char *filename, char* errorBuffer
 }
 
 Json *jsonParseFile2(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize){
+  printf("JOE: jsonParseFile2\n");
+  fflush(stdout);
   return jsonParseFileInternal(slh,filename,errorBufferOrNull,errorBufferSize,JSON_PARSE_VERSION_2);
 }
 

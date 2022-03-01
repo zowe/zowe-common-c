@@ -1,4 +1,6 @@
 #include "psxregex.h"
+#include "zowetypes.h"
+#include "alloc.h"
 
 regex_t *regexAlloc(){
   return (regex_t*)safeMalloc(sizeof(regex_t),"regex_t");

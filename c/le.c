@@ -165,12 +165,12 @@ static LibraryFunction *findLibraryFunction(int rtlVectorOffset){
 void showRTL(){
   CAA *caa = (CAA*)getCAA();
   void **rtlVector = caa->runtimeLibraryVectorTable;
-  printf("RTL Vector at 0x%x\n",rtlVector);
+  printf("RTL Vector at 0x%p\n",rtlVector);
   dumpbuffer((char*)rtlVector,ESTIMATED_RTL_VECTOR_SIZE);
   int estimatedEntries = ESTIMATED_RTL_VECTOR_SIZE / 4;
   for (int i=2; i<estimatedEntries; i++){
     char *stub = rtlVector[i];
-    printf("i = %d offset=0x%03x at 0x%x\n",i,i*sizeof(int),stub);
+    printf("i = %d offset=0x%03x at 0x%p\n",i,(int)(i*sizeof(int)),stub);
     dumpbuffer(stub,0x40);
 
     int offset = i * 4;

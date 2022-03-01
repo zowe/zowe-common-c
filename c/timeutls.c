@@ -237,10 +237,10 @@ int stckToTimestamp(int64 stck, char *output)
   STCKCONVPlist * pPlist = (STCKCONVPlist *) safeMalloc31(sizeof(STCKCONVPlist), "STCKCONVPlist");
   int * value = (int *)(&stck);
 
-  int * __ptr32 CVTPTR = (int* __ptr32) ((int* __ptr32) 16);
-  int * __ptr32 CVT = (int * __ptr32) CVTPTR[0];
-  int * __ptr32 SFT = (int * __ptr32) (CVT[772/4]);
-  int serviceRoutine = SFT[304/4];
+  int *mem = (int*)0;
+  void *cvt = INT2PTR(mem[0x10/4]);
+  int *sft = (int*)INT2PTR(((int*)cvt)[772/4]);
+  int serviceRoutine = sft[304/4];
 
 
   pPlist->dateFlags = 0x03;
@@ -266,10 +266,10 @@ int stckToTimestamp(int64 stck, char *output)
 int timestampToSTCK(char *todText, int64 *stck, int64 offset){
   int *value = (int*)stck;
 
-  int *CVTPTR = (int*)((int*)16);
-  int *CVT = (int*)CVTPTR[0];
-  int *SFT = (int*)(CVT[772/4]);
-  int serviceRoutine = SFT[352/4];
+  int *mem = (int*)0;
+  void *cvt = INT2PTR(mem[0x10/4]);
+  int *sft = (int*)INT2PTR(((int*)cvt)[772/4]);
+  int serviceRoutine = sft[352/4];
   int res = 0;
   CONVTODPlist plist;
 

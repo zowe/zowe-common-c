@@ -2519,6 +2519,19 @@ static char *getCookieValue(HttpRequest *request, char *cookieName){
 }
 
 #ifdef __ZOWE_OS_ZOS
+static int isLowerCasePasswordAllowed(){
+  RCVT* rcvt = getCVT()->cvtrac;
+  return (RCVTFLG3_BIT_RCVTPLC & (rcvt->rcvtflg3));
+  /* if lower-case pw allowed */
+}
+#else
+static int isLowerCasePasswordAllowed(){
+  return TRUE;
+}
+#endif
+
+
+#ifdef __ZOWE_OS_ZOS
 static int safAuthenticate(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
   int safStatus = 0, racfStatus = 0, racfReason = 0;
   int options = VERIFY_CREATE;

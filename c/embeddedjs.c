@@ -465,8 +465,10 @@ char *json2JS(Json *json){
   /* jsonPrinter *p = makeBufferJsonPrinter(sourceCCSID,buffer); */
 #ifdef __ZOWE_OS_WINDOWS
   int stdoutFD = _fileno(stdout);
-#else
+#elif defined(STDOUT_FILENO)
   int stdoutFD = STDOUT_FILENO;
+#else
+  int stdoutFD = 1; /* this looks hacky, but it's been true for about 50 years */
 #endif
   jsonPrinter *p = makeJsonPrinter(stdoutFD);
   jsonEnablePrettyPrint(p);
@@ -657,7 +659,7 @@ EmbeddedJS *makeEmbeddedJS(EmbeddedJS *sharedRuntimeEJS){ /* can be NULL */
     JSValue throwaway = ejsEvalBuffer(embeddedJS, str, strlen(str), "<input>", JS_EVAL_TYPE_MODULE, &evalStatus);
   }
 
-
+  printf("returning embeddedJS 0x%p\n",embeddedJS);
   return embeddedJS;
 }
 
