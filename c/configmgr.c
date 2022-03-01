@@ -561,6 +561,7 @@ static int loadConfigurations(ConfigManager *mgr){
   if (overloadStatus){
     return overloadStatus;
   } else {
+    jsonPrettyPrint(mgr, mgr->config);
     Json *evaluatedConfig = evaluateJsonTemplates(mgr->ejs,mgr->slh,mgr->config);
     if (evaluatedConfig){
       mgr->config = evaluatedConfig;

@@ -421,7 +421,8 @@ static int buildTemplateJSON(JsonBuilder *b, Json *parent, char *parentKey,
                              char *nativeValue, int valueLength){
   char *tail = nativeValue;
   JsonBuffer *buffer = makeJsonBuffer();
-  int sourceCCSID = SOURCE_CODE_CHARSET;
+  int sourceCCSID = CCSID_UTF_8;
+  printf ("buildTemplateJSON nativeValue '%.*s' sourceCodeCharset %d\n", valueLength, nativeValue, sourceCCSID);
   jsonPrinter *p = makeBufferJsonPrinter(sourceCCSID,buffer);
   int status = 0;
   bool first = true;
