@@ -105,28 +105,27 @@ typedef struct LogComponentsMap_tag {
   const char* name;
 } LogComponentsMap;
 
-#define LOG_COMP_NAME_PREFIX "_zss."
 
 #define LOGGING_COMPONENTS_MAP(logComponents)\
  static const LogComponentsMap logComponents[] = {\
-  {LOG_COMP_ALLOC, LOG_COMP_NAME_PREFIX"alloc"},\
-  {LOG_COMP_UTILS, LOG_COMP_NAME_PREFIX"utils"},\
-  {LOG_COMP_COLLECTIONS, LOG_COMP_NAME_PREFIX"collections"},\
-  {LOG_COMP_SERIALIZATION, LOG_COMP_NAME_PREFIX"serialization"},\
-  {LOG_COMP_ZLPARSER, LOG_COMP_NAME_PREFIX"zlparser"},\
-  {LOG_COMP_ZLCOMPILER, LOG_COMP_NAME_PREFIX"zlcompiler"},\
-  {LOG_COMP_ZLRUNTIME, LOG_COMP_NAME_PREFIX"zlruntime"},\
-  {LOG_COMP_STCBASE, LOG_COMP_NAME_PREFIX"stcbase"},\
-  {LOG_COMP_HTTPSERVER, LOG_COMP_NAME_PREFIX"httpserver"},\
-  {LOG_COMP_DISCOVERY, LOG_COMP_NAME_PREFIX"discovery"},\
-  {LOG_COMP_DATASERVICE, LOG_COMP_NAME_PREFIX"dataservice"},\
-  {LOG_COMP_CMS, LOG_COMP_NAME_PREFIX"cms"},\
-  {LOG_COMP_LPA, LOG_COMP_NAME_PREFIX"lpa"},\
-  {LOG_COMP_RESTDATASET, LOG_COMP_NAME_PREFIX"resetdataset"},\
-  {LOG_COMP_RESTFILE, LOG_COMP_NAME_PREFIX"restfile"},\
-  {LOG_COMP_ZOS, LOG_COMP_NAME_PREFIX"zos"},\
-  {LOG_COMP_HTTPCLIENT, LOG_COMP_NAME_PREFIX"httpclient"},\
-  {LOG_COMP_JWT, LOG_COMP_NAME_PREFIX"jwt"},\
+  {LOG_COMP_ALLOC, "alloc"},\
+  {LOG_COMP_UTILS, "utils"},\
+  {LOG_COMP_COLLECTIONS, "collections"},\
+  {LOG_COMP_SERIALIZATION, "serialization"},\
+  {LOG_COMP_ZLPARSER, "zlparser"},\
+  {LOG_COMP_ZLCOMPILER, "zlcompiler"},\
+  {LOG_COMP_ZLRUNTIME, "zlruntime"},\
+  {LOG_COMP_STCBASE, "stcbase"},\
+  {LOG_COMP_HTTPSERVER, "httpserver"},\
+  {LOG_COMP_DISCOVERY, "discovery"},\
+  {LOG_COMP_DATASERVICE, "dataservice"},\
+  {LOG_COMP_CMS, "cms"},\
+  {LOG_COMP_LPA, "lpa"},\
+  {LOG_COMP_RESTDATASET, "resetdataset"},\
+  {LOG_COMP_RESTFILE, "restfile"},\
+  {LOG_COMP_ZOS, "zos"},\
+  {LOG_COMP_HTTPCLIENT, "httpclient"},\
+  {LOG_COMP_JWT, "jwt"},\
   {0, NULL}\
 };
 
