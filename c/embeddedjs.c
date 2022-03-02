@@ -59,6 +59,20 @@
 typedef int64_t ssize_t;
 #endif
 
+static int convertToNative(char *buf, size_t size) {
+#ifdef __ZOWE_OS_ZOS
+  return __atoe_l(buf, size);
+#endif
+  return 0;
+}
+
+static int convertFromNative(char *buf, size_t size) {
+#ifdef __ZOWE_OS_ZOS
+  return __etoa_l(buf, size);
+#endif
+  return 0;
+}
+
 JSValue ejsEvalBuffer(EmbeddedJS *ejs,
                       const void *buffer, int bufferLength,
                       const char *filename, int eval_flags,
@@ -96,6 +110,7 @@ void ejsFreeJSValue(EmbeddedJS *ejs, JSValue value){
 int ejsSetGlobalProperty(EmbeddedJS *ejs, const char *propertyName, JSValue value){
   JSContext *ctx = ejs->ctx;
   JSValue theGlobal = JS_GetGlobalObject(ctx);
+
   return JS_SetPropertyStr(ctx,theGlobal,propertyName,value);
 }
 
@@ -328,7 +343,11 @@ static Json *jsToJson1(EmbeddedJS *ejs,
       fflush(stderr);
       return NULL;
     } else {
-      Json *jsonString = jsonBuildString(b,parent,parentKey,(char*)str,strlen(str),&buildStatus);
+      size_t strLen = strlen(str);
+      char nativeStr[strLen+1];
+      snprintf (nativeStr, strLen + 1, "%.*s", strLen, str);
+      convertToNative(nativeStr, strLen);
+      Json *jsonString = jsonBuildString(b,parent,parentKey,(char*)nativeStr,strlen(nativeStr),&buildStatus);
       JS_FreeCString(ctx, str);
       return jsonString;
     }
@@ -407,7 +426,15 @@ static JSValue jsonToJS1(EmbeddedJS *ejs, Json *json, bool hideUnevaluated){
   case JSON_TYPE_DOUBLE:
     return JS_NewFloat64(ctx,jsonAsDouble(json));
   case JSON_TYPE_STRING:
-    return JS_NewString(ctx,jsonAsString(json));
+    {
+      char *str = jsonAsString(json);
+      size_t strLen = strlen(str);
+      char convertedStr[strLen+1];
+      snprintf (convertedStr, strLen + 1, "%.*s", strLen, str);
+      printf ("about to convert string '%s'\n", convertedStr);
+      convertFromNative(convertedStr, strLen);
+      return JS_NewString(ctx, convertedStr);
+    }
   case JSON_TYPE_BOOLEAN:
     return JS_NewBool(ctx,jsonAsBoolean(json));
   case JSON_TYPE_NULL:
@@ -424,10 +451,18 @@ static JSValue jsonToJS1(EmbeddedJS *ejs, Json *json, bool hideUnevaluated){
         for (property = jsonObjectGetFirstProperty(jsonObject);
              property != NULL;
              property = jsonObjectGetNextProperty(property)) {
+              {
+                char *key = jsonPropertyGetKey(property);
+                size_t keyLen = strlen(key);
+                char convertedKey[keyLen+1];
+                snprintf (convertedKey, keyLen + 1, "%.*s", keyLen, key);
+                printf ("about to convert key '%s'\n", convertedKey);
+                convertFromNative(convertedKey, keyLen);
           JS_SetPropertyStr(ctx,
                             object,
-                            jsonPropertyGetKey(property),
+                            convertedKey,
                             jsonToJS1(ejs,jsonPropertyGetValue(property),hideUnevaluated));
+              }
         }
         return object;
       }
@@ -559,14 +594,25 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
          property = jsonObjectGetNextProperty(property)) {
       char *key = jsonPropertyGetKey(property);
       Json *value = jsonPropertyGetValue(property);
-      ejsSetGlobalProperty(ejs,key,ejsJsonToJS(ejs,value));
+      printf ("global object key '%s'\n", key);
+      size_t keyLen = strlen(key);
+      char convertedKey[keyLen+1];
+      snprintf (convertedKey, keyLen + 1, "%.*s", keyLen, key);
+      convertFromNative(convertedKey, keyLen);
+      ejsSetGlobalProperty(ejs,convertedKey,ejsJsonToJS(ejs,value));
     }
     Json *sourceValue = jsonObjectGetPropertyValue(object,"source");
     if (sourceValue){
       char *source = jsonAsString(sourceValue);
+      size_t sourceLen = strlen(source);
+      char asciiSource[sourceLen + 1];
+      snprintf (asciiSource, sourceLen + 1, "%.*s", sourceLen, source);
+      convertFromNative(asciiSource, sourceLen);
       printf("should evaluate: %s\n",source);
       int evalStatus = 0;
-      JSValue output = ejsEvalBuffer(ejs,source,strlen(source),"<embedded>",0,&evalStatus);
+      char embedded[] = "<embedded>";
+      convertFromNative(embedded, sizeof(embedded));
+      JSValue output = ejsEvalBuffer(ejs,asciiSource,strlen(asciiSource),embedded,0,&evalStatus);
       if (evalStatus){
         printf("failed to evaluate '%s', status=%d\n",source,evalStatus);
       } else {
