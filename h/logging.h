@@ -100,6 +100,35 @@ ZOWE_PRAGMA_PACK_RESET
 #define LOG_DEST_PRINTF_STDOUT 0x008F0001
 #define LOG_DEST_PRINTF_STDERR 0x008F0002
 
+typedef struct LogComponentsMap_tag {
+  uint64 compID;
+  const char* name;
+} LogComponentsMap;
+
+
+#define LOGGING_COMPONENTS_MAP(logComponents)\
+ static const LogComponentsMap logComponents[] = {\
+  {LOG_COMP_ALLOC, "alloc"},\
+  {LOG_COMP_UTILS, "utils"},\
+  {LOG_COMP_COLLECTIONS, "collections"},\
+  {LOG_COMP_SERIALIZATION, "serialization"},\
+  {LOG_COMP_ZLPARSER, "zlparser"},\
+  {LOG_COMP_ZLCOMPILER, "zlcompiler"},\
+  {LOG_COMP_ZLRUNTIME, "zlruntime"},\
+  {LOG_COMP_STCBASE, "stcbase"},\
+  {LOG_COMP_HTTPSERVER, "httpserver"},\
+  {LOG_COMP_DISCOVERY, "discovery"},\
+  {LOG_COMP_DATASERVICE, "dataservice"},\
+  {LOG_COMP_CMS, "cms"},\
+  {LOG_COMP_LPA, "lpa"},\
+  {LOG_COMP_RESTDATASET, "resetdataset"},\
+  {LOG_COMP_RESTFILE, "restfile"},\
+  {LOG_COMP_ZOS, "zos"},\
+  {LOG_COMP_HTTPCLIENT, "httpclient"},\
+  {LOG_COMP_JWT, "jwt"},\
+  {0, NULL}\
+};
+
 struct LoggingContext_tag;
 
 typedef void (*LogHandler)(struct LoggingContext_tag *context,
