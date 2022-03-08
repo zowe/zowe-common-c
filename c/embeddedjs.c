@@ -345,7 +345,7 @@ static Json *jsToJson1(EmbeddedJS *ejs,
     } else {
       size_t strLen = strlen(str);
       char nativeStr[strLen+1];
-      snprintf (nativeStr, strLen + 1, "%.*s", strLen, str);
+      snprintf (nativeStr, strLen + 1, "%.*s", (int)strLen, str);
       convertToNative(nativeStr, strLen);
       Json *jsonString = jsonBuildString(b,parent,parentKey,(char*)nativeStr,strlen(nativeStr),&buildStatus);
       JS_FreeCString(ctx, str);
@@ -430,7 +430,7 @@ static JSValue jsonToJS1(EmbeddedJS *ejs, Json *json, bool hideUnevaluated){
       char *str = jsonAsString(json);
       size_t strLen = strlen(str);
       char convertedStr[strLen+1];
-      snprintf (convertedStr, strLen + 1, "%.*s", strLen, str);
+      snprintf (convertedStr, strLen + 1, "%.*s", (int)strLen, str);
       printf ("about to convert string '%s'\n", convertedStr);
       convertFromNative(convertedStr, strLen);
       return JS_NewString(ctx, convertedStr);
@@ -455,7 +455,7 @@ static JSValue jsonToJS1(EmbeddedJS *ejs, Json *json, bool hideUnevaluated){
                 char *key = jsonPropertyGetKey(property);
                 size_t keyLen = strlen(key);
                 char convertedKey[keyLen+1];
-                snprintf (convertedKey, keyLen + 1, "%.*s", keyLen, key);
+                snprintf (convertedKey, keyLen + 1, "%.*s", (int)keyLen, key);
                 printf ("about to convert key '%s'\n", convertedKey);
                 convertFromNative(convertedKey, keyLen);
           JS_SetPropertyStr(ctx,
@@ -597,7 +597,7 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
       printf ("global object key '%s'\n", key);
       size_t keyLen = strlen(key);
       char convertedKey[keyLen+1];
-      snprintf (convertedKey, keyLen + 1, "%.*s", keyLen, key);
+      snprintf (convertedKey, keyLen + 1, "%.*s", (int)keyLen, key);
       convertFromNative(convertedKey, keyLen);
       ejsSetGlobalProperty(ejs,convertedKey,ejsJsonToJS(ejs,value));
     }
@@ -606,7 +606,7 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
       char *source = jsonAsString(sourceValue);
       size_t sourceLen = strlen(source);
       char asciiSource[sourceLen + 1];
-      snprintf (asciiSource, sourceLen + 1, "%.*s", sourceLen, source);
+      snprintf (asciiSource, sourceLen + 1, "%.*s", (int)sourceLen, source);
       convertFromNative(asciiSource, sourceLen);
       printf("should evaluate: %s\n",source);
       int evalStatus = 0;

@@ -108,7 +108,6 @@ typedef int64_t ssize_t;
 
     configmgr -s "../tests/schemadata" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" extract "/zowe/setup/mvs/proclib"
 
-
     -- Compilation with XLCLang on ZOS -------------------------------------
  
     export YAML="/u/zossteam/jdevlin/git2022/libyaml" 
@@ -123,7 +122,23 @@ typedef int64_t ssize_t;
     xlclang -q64 -qascii -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 -DCONFIG_VERSION=\"2021-03-27\" -D_OPEN_SYS_FILE_EXT=1 -D_XOPEN_SOURCE=600 -D_OPEN_THREADS=1 -DSUBPOOL=132 "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN')" -I ../h -I ../platform/posix -I ${YAML}/include -I ${QJS} -Wbitwise-op-parentheses -o configmgr configmgr.c yaml2json.c embeddedjs.c jsonschema.c json.c xlate.c charsets.c zosfile.c logging.c recovery.c scheduling.c zos.c le.c collections.c timeutls.c utils.c alloc.c ../platform/posix/psxregex.c ${QJS}/quickjs.c ${QJS}/cutils.c ${QJS}/quickjs-libc.c ${QJS}/libregexp.c ${QJS}/libunicode.c ${QJS}/porting/polyfill.c ${YAML}/src/api.c ${YAML}/src/reader.c ${YAML}/src/scanner.c ${YAML}/src/parser.c ${YAML}/src/loader.c ${YAML}/src/writer.c ${YAML}/src/emitter.c ${YAML}/src/dumper.c 
 
     
+    -------
 
+    Supporting a subset of jq syntax for extraction:
+
+    JQ available at 
+ 
+      https://stedolan.github.io/jq/
+
+    Examples:
+
+      jq ".properties.zowe.type" ../tests/schemadata/zoweyaml.schema 
+
+      Good examples in https://stedolan.github.io/jq/tutorial/
+
+      curl https://api.github.com/repos/stedolan/jq/commits?per_page=5 > commits.json
+
+      
 */
 
 #define CONFIG_PATH_OMVS_FILE    0x0001
@@ -1014,6 +1029,13 @@ int main(int argc, char **argv){
       break;
     }
     freeJsonValidator(validator);
+  } else if (!strcmp(command,"jq")){
+    if (argx >= argc){
+      trace(mgr,INFO,"jq requires at least one filter argument");
+    } else {
+      char *jqArg = argv[argx++];
+      
+    }
   } else if (!strcmp(command,"extract")){
     if (argx >= argc){
       trace(mgr,INFO,"extract command requires a json path\n");

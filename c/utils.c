@@ -24,8 +24,10 @@
 #else
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>  
-#include <strings.h>  
+#include <string.h>
+#ifndef _MSC_VER     /* Windows always has to be the oddball */
+#include <strings.h>
+#endif
 #include <ctype.h>  
 #endif
 
