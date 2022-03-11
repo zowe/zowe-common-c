@@ -50,13 +50,15 @@
 #include "openprims.h"
 #include "bpxnet.h"
 #include "unixfile.h"
+#include "charsets.h"
+#include "collections.h"
 #include "json.h"
 #include "jsonschema.h"
 #include "yaml.h"
 #include "yaml2json.h"
 #include "embeddedjs.h"
-#include "charsets.h"
-#include "collections.h"
+#include "parsetools.h"
+#include "microjq.h"
 
 #ifdef __ZOWE_OS_WINDOWS
 typedef int64_t ssize_t;
@@ -96,7 +98,7 @@ typedef int64_t ssize_t;
 
     clang++ -c ../platform/windows/cppregex.cpp ../platform/windows/winregex.cpp
 
-    clang -I %QJS%\porting -I%YAML%/include -I %QJS% -I./src -I../h -I ../platform/windows -DCONFIG_VERSION=\"2021-03-27\" -Dstrdup=_strdup -D_CRT_SECURE_NO_WARNINGS -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 --rtlib=compiler-rt -o configmgr.exe configmgr.c embeddedjs.c %QJS%\quickjs.c %QJS%\cutils.c %QJS%\quickjs-libc.c %QJS%\libbf.c %QJS%\libregexp.c %QJS%\libunicode.c %QJS%\porting\winpthread.c %QJS%\porting\wintime.c %QJS%\porting\windirent.c %QJS%\porting\winunistd.c %YAML%/src/api.c %YAML%/src/reader.c %YAML%/src/scanner.c %YAML%/src/parser.c %YAML%/src/loader.c %YAML%/src/writer.c %YAML%/src/emitter.c %YAML%/src/dumper.c ../c/yaml2json.c ../c/jsonschema.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c cppregex.o winregex.o
+    clang -I %QJS%\porting -I%YAML%/include -I %QJS% -I./src -I../h -I ../platform/windows -DCONFIG_VERSION=\"2021-03-27\" -Dstrdup=_strdup -D_CRT_SECURE_NO_WARNINGS -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 --rtlib=compiler-rt -o configmgr.exe configmgr.c embeddedjs.c %QJS%\quickjs.c %QJS%\cutils.c %QJS%\quickjs-libc.c %QJS%\libbf.c %QJS%\libregexp.c %QJS%\libunicode.c %QJS%\porting\winpthread.c %QJS%\porting\wintime.c %QJS%\porting\windirent.c %QJS%\porting\winunistd.c %YAML%/src/api.c %YAML%/src/reader.c %YAML%/src/scanner.c %YAML%/src/parser.c %YAML%/src/loader.c %YAML%/src/writer.c %YAML%/src/emitter.c %YAML%/src/dumper.c ../c/yaml2json.c ../c/microjq.c ../c/parsetools.c ../c/jsonschema.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c cppregex.o winregex.o
 
     configmgr "../tests/schemadata" "" "LIBRARY(FOO):DIR(BAR)" yak
 
@@ -384,8 +386,6 @@ static bool addPathElement(ConfigManager *mgr, char *pathElementArg){
 }
 
 static int buildConfigPath(ConfigManager *mgr, char *configPathArg){
-  printf("JOE buildConfigPath\n");
-  fflush(stdout);
   int pos = 0;
   int len = strlen(configPathArg);
   while (pos < len){
@@ -450,8 +450,6 @@ ConfigManager *makeConfigManager(char *configPathArg, char *rootSchemaDirectory,
   mgr->traceOut = traceOut;
   mgr->slh = makeShortLivedHeap(0x10000,0x100);
   EmbeddedJS *ejs = makeEmbeddedJS(NULL);
-  printf("really\n");
-  fflush(stdout);
   mgr->ejs = ejs;
   trace(mgr,DEBUG,"before build config path\n");
   if (buildConfigPath(mgr,configPathArg)){
@@ -493,7 +491,7 @@ ConfigManager *makeConfigManager(char *configPathArg, char *rootSchemaDirectory,
     freeConfigManager(mgr);
     return NULL;
   } else {
-    trace(mgr,INFO,"JSON Schema built successfully\n");
+    trace(mgr,DEBUG,"JSON Schema built successfully\n");
     mgr->topSchema = schema;
   }
   freeJsonSchemaBuilder(builder); 
@@ -576,7 +574,10 @@ static int loadConfigurations(ConfigManager *mgr){
   if (overloadStatus){
     return overloadStatus;
   } else {
-    jsonPrettyPrint(mgr, mgr->config);
+    if (mgr->traceLevel >= 1){
+      printf("config before template eval:\n");
+      jsonPrettyPrint(mgr, mgr->config);
+    }
     Json *evaluatedConfig = evaluateJsonTemplates(mgr->ejs,mgr->slh,mgr->config);
     if (evaluatedConfig){
       mgr->config = evaluatedConfig;
@@ -790,6 +791,8 @@ static void showHelp(FILE *out){
   fprintf(out,"      -o <outStream> : OUT|ERR , ERR is default\n");
   fprintf(out,"      -s <path>      : root schema directory\n");
   fprintf(out,"      -w <path>      : workspace directory\n");
+  fprintf(out,"      -c             : compact output for jq and extract commands\n");
+  fprintf(out,"      -r             : raw string output for jq and extract commands\n");
   fprintf(out,"      -p <configPath>: list of colon-separated configPathElements - see below\n");
   fprintf(out,"    commands:\n");
   fprintf(out,"      extract <jsonPath>  : prints value to stdout\n");
@@ -929,6 +932,8 @@ int main(int argc, char **argv){
   int argx = 1;
   int traceLevel = 0;
   FILE *traceOut = stderr;
+  bool jqCompact = false;
+  bool jqRaw     = false;
   if (argc == 1){
     showHelp(traceOut);
     return 0;
@@ -950,6 +955,10 @@ int main(int argc, char **argv){
       zoweWorkspaceHome = optionValue;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-p")) != NULL){
       configPath = optionValue;
+    } else if ((optionValue = getStringOption(argc,argv,&argx,"-c")) != NULL){
+      jqCompact = true;
+    } else if ((optionValue = getStringOption(argc,argv,&argx,"-c")) != NULL){
+      jqRaw = true;
     } else {
       char *nextArg = argv[argx];
       if (strlen(nextArg) && nextArg[0] == '-'){
@@ -1033,8 +1042,23 @@ int main(int argc, char **argv){
     if (argx >= argc){
       trace(mgr,INFO,"jq requires at least one filter argument");
     } else {
-      char *jqArg = argv[argx++];
-      
+      JQTokenizer jqt;
+      memset(&jqt,0,sizeof(JQTokenizer));
+      jqt.data = argv[argx++];
+      jqt.length = strlen(jqt.data);
+      jqt.ccsid = 1208;
+
+      Json *jqTree = parseJQ(&jqt,mgr->slh,0);
+      if (jqTree){
+        int flags = ((jqCompact ? 0 : JQ_FLAG_PRINT_PRETTY)|
+                     (jqRaw     ? JQ_FLAG_RAW_STRINGS : 0));
+        int evalStatus = evalJQ(mgr->config,jqTree,stdout,flags,mgr->traceLevel);
+        if (evalStatus != 0){
+          trace(mgr, INFO,"micro jq eval problem %d\n",evalStatus);
+        }
+      } else {
+        trace(mgr, INFO, "Failed to parse jq expression\n");
+      }
     }
   } else if (!strcmp(command,"extract")){
     if (argx >= argc){
@@ -1050,7 +1074,6 @@ int main(int argc, char **argv){
         printJsonPointer(mgr->traceOut,jp);
         fflush(mgr->traceOut);
       }
-      /* Friday, extract some text and show Jack */
       extractText(mgr,jp,stdout);
       printf("\n");
       fflush(stdout);

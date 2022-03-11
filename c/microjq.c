@@ -38,6 +38,7 @@
 #include <stdint.h> 
 #include <stdbool.h> 
 #include <errno.h>
+#include <setjmp.h>
 #include <math.h>
 
 #endif
@@ -50,202 +51,8 @@
 #include "unixfile.h"
 #include "json.h"
 #include "parsetools.h"
+#include "microjq.h"
 
-/*
-  clang -I %QJS%/porting -I%YAML%/include -I../platform/windows -I %QJS% -I ..\h -Wdeprecated-declarations -D_CRT_SECURE_NO_WARNINGS -o microjq.exe microjq.c parsetools.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c
- */
-
-#define STATE_INITIAL    0
-#define STATE_INTEGER    1
-#define STATE_IDENTIFIER 2
-#define STATE_SQUOTE     3
-#define STATE_DQUOTE     4
-
-#define TOKEN_IDENTIFIER    FIRST_REAL_TOKEN_ID
-#define TOKEN_INTEGER       (FIRST_REAL_TOKEN_ID+1)
-#define TOKEN_DQUOTE_STRING FIRST_REAL_TOKEN_ID+2
-#define TOKEN_SQUOTE_STRING FIRST_REAL_TOKEN_ID+3
-#define TOKEN_LPAREN        FIRST_REAL_TOKEN_ID+4
-#define TOKEN_RPAREN        FIRST_REAL_TOKEN_ID+5
-#define TOKEN_LBRACK        FIRST_REAL_TOKEN_ID+6
-#define TOKEN_RBRACK        FIRST_REAL_TOKEN_ID+7
-#define TOKEN_LBRACE        FIRST_REAL_TOKEN_ID+8
-#define TOKEN_RBRACE        FIRST_REAL_TOKEN_ID+9
-#define TOKEN_DOT           FIRST_REAL_TOKEN_ID+10
-#define TOKEN_COMMA         FIRST_REAL_TOKEN_ID+11
-#define TOKEN_VBAR          FIRST_REAL_TOKEN_ID+12
-#define TOKEN_COLON         FIRST_REAL_TOKEN_ID+13
-#define TOKEN_QMARK         FIRST_REAL_TOKEN_ID+14
-#define TOKEN_PLUS          FIRST_REAL_TOKEN_ID+15
-#define TOKEN_DASH          FIRST_REAL_TOKEN_ID+16
-#define TOKEN_STAR          FIRST_REAL_TOKEN_ID+17
-#define TOKEN_SLASH         FIRST_REAL_TOKEN_ID+18
-#define TOKEN_PERCENT       FIRST_REAL_TOKEN_ID+19
-
-#define LAST_TOKEN_ID TOKEN_PERCENT /* KEEP ME UPDATED!!! - whenever a new token ID is added*/
-
-
-typedef struct JQParser_tag {
-  AbstractTokenizer tokenizer; /* low token, high token */
-  int ccsid;
-  int tokenState; /*  = STATE_INITIAL; */
-  char *data;
-  int   length;
-  int   pos;
-} JQParser;
-
-static char *getTokenName(int id){
-  switch (id){
-  case EOF_TOKEN: return "EOF";
-  case TOKEN_IDENTIFIER: return "ID";
-  case TOKEN_INTEGER: return "INTEGER";
-  case TOKEN_DQUOTE_STRING: return "DQUOTE_STRING";
-  case TOKEN_SQUOTE_STRING: return "SQUOTE_STRING";
-  case TOKEN_LPAREN: return "LPAREN";
-  case TOKEN_RPAREN: return "RPAREN";
-  case TOKEN_LBRACK: return "LBRACK";
-  case TOKEN_RBRACK: return "RBRACK";
-  case TOKEN_LBRACE: return "LBRACE";
-  case TOKEN_RBRACE: return "RBRACE";
-  case TOKEN_DOT: return "DOT";
-  case TOKEN_COMMA: return "COMMA";
-  case TOKEN_VBAR: return "VBAR";
-  case TOKEN_COLON: return "COLON";
-  case TOKEN_QMARK: return "QMARK";
-  case TOKEN_PLUS: return "PLUS";
-  case TOKEN_DASH: return "DASH";
-  case TOKEN_STAR: return "STAR";
-  case TOKEN_SLASH: return "SLASH";
-  case TOKEN_PERCENT: return "PERCENT";
-  default:return "BAD_TOKEN";
-  }
-}
-
-static bool isLetter(JQParser *jqp, int c){
-  return testCharProp(jqp->ccsid,c,CPROP_LETTER);
-}
-
-static bool isDigit(JQParser *jqp, int c){
-  return testCharProp(jqp->ccsid,c,CPROP_DIGIT);
-}
-
-static bool isWhite(JQParser *jqp, int c){
-  return testCharProp(jqp->ccsid,c,CPROP_WHITE);
-}
-
-static int jqpToken(JQParser *jqp){
-  /* belt *AND* suspenders */
-  AbstractTokenizer *tokenizer = (AbstractTokenizer*)jqp;
-  if (jqp->pos >= jqp->length){
-    tokenizer->lastTokenStart = jqp->pos; /* 0-length token */
-    tokenizer->lastTokenEnd = jqp->pos;
-    return EOF_TOKEN;
-  }
-  int tokenID = NO_VALID_TOKEN;
-  while(tokenID == NO_VALID_TOKEN){
-    int c = -1; // EOF by defaultx
-    int charPos = jqp->pos;
-    if (jqp->pos < jqp->length){
-      c = (int)jqp->data[jqp->pos++];
-    }
-    /* printf("at pos=%d, c=0x%x state=%d\n",jqp->pos,c,jqp->tokenState);  */
-    switch (jqp->tokenState){
-    case STATE_INITIAL:
-      if (c == -1){
-        tokenID = EOF_TOKEN;
-        tokenizer->lastTokenStart = jqp->length;
-      } else if (isLetter(jqp,c) ||
-                 (c == UNI_DOLLAR) ||
-                 (c == UNI_UNDER)){
-        jqp->tokenState = STATE_IDENTIFIER;
-        tokenizer->lastTokenStart = charPos;
-      } else if (isDigit(jqp,c)){
-        jqp->tokenState = STATE_INTEGER;
-        tokenizer->lastTokenStart = charPos;
-      } else if (isWhite(jqp,c)){
-        // just roll forward 
-      } else if (c == UNI_DQUOTE){
-        jqp->tokenState = STATE_DQUOTE;
-        tokenizer->lastTokenStart = charPos;
-      } else if (c == UNI_SQUOTE){
-        jqp->tokenState = STATE_SQUOTE;
-        tokenizer->lastTokenStart = charPos;
-      } else {
-        /* Single-char-punc tokens */
-        switch (c){
-        case UNI_LPAREN: tokenID = TOKEN_LPAREN; break;
-        case UNI_RPAREN: tokenID = TOKEN_RPAREN; break;
-        case UNI_LBRACK: tokenID = TOKEN_LBRACK; break;
-        case UNI_RBRACK: tokenID = TOKEN_RBRACK; break;
-        case UNI_LBRACE: tokenID = TOKEN_LBRACE; break;
-        case UNI_RBRACE: tokenID = TOKEN_RBRACE; break;
-        case UNI_DOT: tokenID = TOKEN_DOT; break;
-        case UNI_COMMA: tokenID = TOKEN_COMMA; break;
-        case UNI_COLON: tokenID = TOKEN_COLON; break;
-        case UNI_VBAR: tokenID = TOKEN_VBAR; break;
-        case UNI_QMARK: tokenID = TOKEN_QMARK; break;
-        case UNI_PLUS: tokenID = TOKEN_PLUS; break;
-        case UNI_DASH: tokenID = TOKEN_DASH; break;
-        case UNI_STAR: tokenID = TOKEN_STAR; break;
-        case UNI_SLASH: tokenID = TOKEN_SLASH; break;
-        case UNI_PERCENT: tokenID = TOKEN_PERCENT; break;
-        default:
-          /* unhandled char, kill the parse */
-          return NO_VALID_TOKEN; 
-        }
-        tokenizer->lastTokenStart = charPos;
-      }
-      break;
-    case STATE_INTEGER:
-      if (!isDigit(jqp,c)){
-        if (c != -1) jqp->pos--; /* nothing to push back */
-        tokenID = TOKEN_INTEGER;
-      }
-      break;
-    case STATE_IDENTIFIER:
-      if (isLetter(jqp,c) ||
-          (c == UNI_DOLLAR) ||
-          (c == UNI_UNDER)){
-        // accumulate
-      } else {
-        if (c != -1) jqp->pos--; /* nothing to push back */
-        tokenID = TOKEN_IDENTIFIER;
-      }
-      break;
-    case STATE_DQUOTE:
-      if (c == -1){ /* EOF in string */
-        return NO_VALID_TOKEN;
-      } else if (c == UNI_DQUOTE){
-        tokenID = TOKEN_DQUOTE_STRING;
-      }
-      break;
-    case STATE_SQUOTE:
-      if (c == -1){ /* EOF in string */
-        return NO_VALID_TOKEN;
-      } else if (c == UNI_SQUOTE){
-        tokenID = TOKEN_SQUOTE_STRING;
-      }
-    default:
-      printf("*** PANIC *** internal error unknown tokenizer state = %d\n",jqp->tokenState);
-      return NO_VALID_TOKEN;
-      // unknow state, kill the parse
-    }
-    if (tokenID != NO_VALID_TOKEN){
-      tokenizer->lastTokenEnd = jqp->pos;
-      jqp->tokenState = STATE_INITIAL;
-      return tokenID;
-    } 
-  }
-  return 0;
-}
-
-int getNextToken(AbstractTokenizer *tokenizer, char *s, int len, int pos, int *nextPos){
-  JQParser *jqp = (JQParser*)tokenizer;
-  jqp->pos = pos;
-  int id = jqpToken(jqp);
-  *nextPos = jqp->pos;
-  return id;
-}
 
 /* 
    Grammar 
@@ -284,109 +91,406 @@ int getNextToken(AbstractTokenizer *tokenizer, char *s, int len, int pos, int *n
    
  */
 
-static void tokenTest(JQParser *jqp){
-  AbstractTokenizer *tokenizer = (AbstractTokenizer*)jqp;
-  printf("length = %d\n",jqp->length);
-  while (true){
-    int tokenID = jqpToken(jqp);
-    printf("token id=%d, %s pos is now=%d\n",tokenID,getTokenName(tokenID),jqp->pos);
-    printf("  from %d to %d\n",tokenizer->lastTokenStart,tokenizer->lastTokenEnd);
-    if (tokenID == NO_VALID_TOKEN){
-      printf("bad token seen near %d\n",jqp->pos);
-      break;
-    } else if (tokenID == EOF_TOKEN){
-      printf("EOF Seen\n");
-      break;
-    }
-  }
-}
 
-#define  TOP           (FIRST_GRULE_ID+0)
-#define  EXPR          (FIRST_GRULE_ID+1)
-#define  EXPR_TAIL     (FIRST_GRULE_ID+2)
-#define  EXPR_ADD_SUB  (FIRST_GRULE_ID+3)
-#define  PLUS_MINUS    (FIRST_GRULE_ID+4)
-#define  TERM          (FIRST_GRULE_ID+5)
-#define  TERM_TAIL     (FIRST_GRULE_ID+6)
-#define  TERM_MULT_DIV (FIRST_GRULE_ID+7)
-#define  STAR_SLASH    (FIRST_GRULE_ID+8)
-#define  FACTOR        (FIRST_GRULE_ID+9)
+#define  TOP                (FIRST_GRULE_ID+0)
+#define  EXPR               (FIRST_GRULE_ID+1)
+#define  EXPR_TAIL          (FIRST_GRULE_ID+2)
+#define  EXPR_PIPE_OP       (FIRST_GRULE_ID+3)
+#define  OPERATION          (FIRST_GRULE_ID+4)
+#define  CREATE_ARRAY       (FIRST_GRULE_ID+5)
+#define  CREATE_ARRAY_TAIL  (FIRST_GRULE_ID+6)
+#define  COMMA_EXPR         (FIRST_GRULE_ID+7)
+#define  CREATE_OBJECT      (FIRST_GRULE_ID+8)
+#define  CREATE_OBJECT_TAIL (FIRST_GRULE_ID+9)
+#define  COMMA_KEY_VALUE    (FIRST_GRULE_ID+10)
+#define  KEY_VALUE          (FIRST_GRULE_ID+11)
+#define  FILTER             (FIRST_GRULE_ID+12)
+#define  TRAVERSAL          (FIRST_GRULE_ID+13)
+#define  MORE_TRAVERSALS    (FIRST_GRULE_ID+14)
+#define  INDEX              (FIRST_GRULE_ID+15)
+#define  PICK               (FIRST_GRULE_ID+16)
+#define  EXPLODE            (FIRST_GRULE_ID+17)
+#define  CONTEXT            (FIRST_GRULE_ID+18)
 
-static char *getRuleName(int id){
+static char *getJQRuleName(int id){
   switch (id){
   case TOP: return "TOP";
   case EXPR: return "EXPR";
   case EXPR_TAIL: return "EXPR_TAIL";
-  case EXPR_ADD_SUB: return "EXPR_ADD_SUB";
-  case PLUS_MINUS: return "PLUS_MINUS";
-  case TERM: return "TERM";
-  case TERM_TAIL: return "TERM_TAIL";
-  case TERM_MULT_DIV: return "TERM_MULT_DIV";
-  case STAR_SLASH: return "STAR_SLASH";
-  case FACTOR: return "FACTOR";
+  case EXPR_PIPE_OP: return "EXPR_PIPE_OP";
+  case OPERATION: return "OPERATION";
+  case CREATE_ARRAY: return "CREATE_ARRAY";
+  case CREATE_ARRAY_TAIL: return "CREATE_ARRAY_TAIL";
+  case COMMA_EXPR: return "COMMA_EXPR";
+  case CREATE_OBJECT: return "CREATE_OBJECT";
+  case CREATE_OBJECT_TAIL: return "CREATE_OBJECT_TAIL";
+  case COMMA_KEY_VALUE: return "COMMA_KEY_VALUE";
+  case KEY_VALUE: return "KEY_VALUE";
+  case FILTER: return "FILTER";
+  case TRAVERSAL: return "TRAVERSAL";
+  case MORE_TRAVERSALS: return "MORE_TRAVERSALS";
+  case INDEX: return "INDEX";
+  case PICK: return "PICK";
+  case EXPLODE: return "EXPLODE";
+  case CONTEXT: return "CONTEXT";
   default:
     return "UNKNOWN_RULE";
   }
 }
 
-static GRuleSpec expressionGrammar[] = {
-  { G_SEQ, TOP,  .sequence = {  EXPR, EOF_TOKEN, G_END} },
-  { G_SEQ, EXPR, .sequence = {  TERM, EXPR_TAIL, G_END }},
-  { G_STAR, EXPR_TAIL, .star = EXPR_ADD_SUB },
-  { G_SEQ,  EXPR_ADD_SUB, .sequence = { PLUS_MINUS, TERM, G_END }},
-  { G_ALT, PLUS_MINUS, .alternates = { TOKEN_PLUS, TOKEN_DASH, G_END }},
-  { G_SEQ, TERM, .sequence = { FACTOR, TERM_TAIL, G_END }},
-  { G_STAR, TERM_TAIL, .star = TERM_MULT_DIV },
-  { G_SEQ,  TERM_MULT_DIV, .sequence = { STAR_SLASH, FACTOR, G_END}},
-  { G_ALT, STAR_SLASH, .alternates = { TOKEN_STAR, TOKEN_SLASH, G_END }},
-  { G_ALT, FACTOR, .alternates = { TOKEN_IDENTIFIER, TOKEN_INTEGER, G_END }}, /* add expression recursion later */
+static GRuleSpec jqGrammar[] = {
+  { G_SEQ,  TOP,  .sequence = {  EXPR, EOF_TOKEN, G_END} },
+  { G_SEQ,  EXPR, .sequence = {  OPERATION, EXPR_TAIL, G_END }},
+  { G_STAR, EXPR_TAIL, .star = EXPR_PIPE_OP },
+  { G_SEQ,  EXPR_PIPE_OP, .sequence = { JTOKEN_VBAR, OPERATION, G_END }},
+  { G_ALT,  OPERATION, .alternates = { JTOKEN_INTEGER,
+                                      /* JTOKEN_DQUOTE_STRING,
+                                       JTOKEN_SQUOTE_STRING,
+                                       CREATE_ARRAY,
+                                       CREATE_OBJECT, --> how are these distinguishable from traversals??  */
+                                       FILTER,
+                                       G_END }},
+  { G_SEQ, CREATE_ARRAY, .sequence = { JTOKEN_LBRACK, EXPR, CREATE_ARRAY_TAIL, JTOKEN_RBRACK, G_END }},
+  { G_STAR, CREATE_ARRAY_TAIL, .star = COMMA_EXPR },
+  { G_SEQ, COMMA_EXPR, .sequence = { JTOKEN_COMMA, EXPR, G_END }},
+  { G_SEQ, CREATE_OBJECT, .sequence = { JTOKEN_LBRACE, KEY_VALUE, CREATE_OBJECT_TAIL, JTOKEN_RBRACE, G_END }},
+  { G_STAR, CREATE_OBJECT_TAIL, .star = COMMA_KEY_VALUE },
+  { G_SEQ, COMMA_KEY_VALUE, .sequence = {JTOKEN_COMMA, KEY_VALUE, G_END }},
+  { G_SEQ, KEY_VALUE, .sequence = { JTOKEN_IDENTIFIER, JTOKEN_COLON, EXPR, G_END }},
+  { G_SEQ, FILTER, .sequence = { TRAVERSAL, MORE_TRAVERSALS, G_END }},
+  { G_ALT, TRAVERSAL, .alternates = { INDEX, PICK, EXPLODE, CONTEXT, G_END }},
+  { G_STAR, MORE_TRAVERSALS, .star = TRAVERSAL },
+  { G_SEQ, INDEX, .sequence = { JTOKEN_LBRACK, JTOKEN_INTEGER, JTOKEN_RBRACK, G_END}},
+  { G_SEQ, PICK, .sequence = { JTOKEN_DOT, JTOKEN_IDENTIFIER, G_END }},
+  { G_SEQ, EXPLODE, .sequence = { JTOKEN_LBRACK, JTOKEN_RBRACK, G_END }},
+  { G_SEQ, CONTEXT, .sequence = { JTOKEN_DOT, G_END}},
   { G_END }
 };
 
 
-static void parseTest1(JQParser *jqp){
-  AbstractTokenizer *tokenizer = (AbstractTokenizer*)jqp;
+Json *parseJQ(JQTokenizer *jqt, ShortLivedHeap *slh, int traceLevel){
+  AbstractTokenizer *tokenizer = (AbstractTokenizer*)jqt;
   tokenizer->lowTokenID = FIRST_REAL_TOKEN_ID;
-  tokenizer->highTokenID = LAST_TOKEN_ID;
-  tokenizer->nextToken = getNextToken;
-  tokenizer->getTokenIDName = getTokenName;
-  GParseContext *ctx = gParse(expressionGrammar,TOP,tokenizer,jqp->data,jqp->length,getRuleName);
-  printf("parse ctx = 0x%p\n",ctx);
+  tokenizer->highTokenID = LAST_JTOKEN_ID;
+  tokenizer->nextToken = getNextJToken;
+  tokenizer->getTokenIDName = getJTokenName;
+  tokenizer->getTokenJsonType = getJTokenJsonType;
+  GParseContext *ctx = gParse(jqGrammar,TOP,tokenizer,jqt->data,jqt->length,getJQRuleName,traceLevel);
   if (ctx->status > 0){
-    #ifdef __ZOWE_OS_WINDOWS
-    int stdoutFD = _fileno(stdout);
-#else
-    int stdoutFD = STDOUT_FILENO;
-#endif
-    ShortLivedHeap *slh = makeShortLivedHeap(0x10000, 100);
-    Json *tree = gBuildJSON(ctx,slh);
-    if (tree){
-      jsonPrinter *p = makeJsonPrinter(stdoutFD);
-      jsonEnablePrettyPrint(p);
-      printf("parse result as json\n");
-      jsonPrint(p,tree);
-    }
-  }
-}
-
-
-int main(int argc, char **argv){
-  char *command = argv[1];
-  char *filter = argv[2];
-  char *filename = argv[3];
-  JQParser jqp;
-  memset(&jqp,0,sizeof(JQParser));
-  jqp.data = argv[2];
-  jqp.length = strlen(jqp.data);
-  jqp.ccsid = 1208;
-  if (!strcmp(command,"tokenize")){
-    printf("tokenize...\n");
-    tokenTest(&jqp);
-  } else if (!strcmp(command,"parse")){
-    printf("parse...\n");
-    parseTest1(&jqp);
+    return gBuildJSON(ctx,slh);
   } else {
-    printf("bad command: %s\n",command);
+    return NULL;
   }
-  return 0;
 }
+
+#define JQ_ERROR_MAX 1024
+
+
+
+typedef struct JQEvalContext_tag {
+  FILE   *out;
+  jmp_buf recoveryData;
+  int     flags;
+  int     traceLevel;
+  int     errorCode;
+  char   *errorMessage;
+  int     errorMessageLength;
+  jsonPrinter *printer;
+  FILE   *traceOut;
+} JQEvalContext;
+
+#define JQ_SUCCESS 0
+#define JQ_MISSING_PROPERTY 8
+#define JQ_BAD_PROPERTY_TYPE 12
+#define JQ_NOT_AN_OBJECT 16
+#define JQ_NOT_AN_ARRAY 20
+#define JQ_UNEXPECTED_OPERATION 24
+#define JQ_INTERNAL_NULL_POINTER 28
+#define JQ_NON_INTEGER_ARRAY_INDEX_NOT_YET_SUPPORTED 32
+#define JQ_ARRAY_INDEX_OUT_OF_BOUNDS 36
+
+static void jqEvalThrow(JQEvalContext *ctx, int errorCode, char *formatString, ...){
+  va_list argPointer;
+  char *text = safeMalloc(JQ_ERROR_MAX,"ErrorBuffer");
+  va_start(argPointer,formatString);
+  vsnprintf(text,JQ_ERROR_MAX,formatString,argPointer);
+  va_end(argPointer);
+  ctx->errorCode = errorCode;
+  ctx->errorMessage = text;
+  ctx->errorMessageLength = JQ_ERROR_MAX;
+  longjmp(ctx->recoveryData,1);
+}
+
+static Json *getJQProperty(JQEvalContext *ctx, JsonObject *value, char *key, bool isRequired){
+  if (value == NULL){
+    jqEvalThrow(ctx,JQ_INTERNAL_NULL_POINTER,"NULL pointer seen when looking for key = '%s'",key);
+    return NULL;
+  }
+  Json *propertyValue = jsonObjectGetPropertyValue(value,key);
+  if (isRequired && (propertyValue == NULL)){
+    jqEvalThrow(ctx,JQ_MISSING_PROPERTY,"Missing required property %s",key);
+  }
+  return propertyValue;
+}
+
+static int getJQInt(JQEvalContext *ctx, JsonObject *value, char *key, bool isRequired, int defaultValue){
+  Json *intProperty = getJQProperty(ctx,value,key,isRequired);
+  if (jsonIsNumber(intProperty)){
+    return jsonAsNumber(intProperty);
+  } else if (isRequired){
+    jqEvalThrow(ctx,JQ_BAD_PROPERTY_TYPE,"Property '%s' is not int",key);
+    return 0; /* unreachable */
+  } else {
+    return defaultValue;
+  }
+}
+
+static JsonObject *getJQObject(JQEvalContext *ctx, JsonObject *value, char *key, bool isRequired){
+  Json *p = getJQProperty(ctx,value,key,isRequired);
+  if (jsonIsObject(p)){
+    return jsonAsObject(p);
+  } else if (isRequired){
+    jqEvalThrow(ctx,JQ_BAD_PROPERTY_TYPE,"Property '%s' is not object",key);
+    return NULL; /* unreachable */
+  } else {
+    return NULL;
+  }
+}
+
+static char *getJQString(JQEvalContext *ctx, JsonObject *value, char *key, bool isRequired){
+  Json *p = getJQProperty(ctx,value,key,isRequired);
+  if (jsonIsString(p)){
+    return jsonAsString(p);
+  } else if (isRequired){
+    jqEvalThrow(ctx,JQ_BAD_PROPERTY_TYPE,"Property '%s' is not string",key);
+    return NULL; /* unreachable */
+  } else {
+    return NULL;
+  }
+}
+
+static JsonArray *getJQArray(JQEvalContext *ctx, JsonObject *value, char *key, bool isRequired){
+  Json *p = getJQProperty(ctx,value,key,isRequired);
+  if (jsonIsArray(p)){
+    return jsonAsArray(p);
+  } else if (isRequired){
+    jqEvalThrow(ctx,JQ_BAD_PROPERTY_TYPE,"Property '%s' is not array",key);
+    return NULL; /* unreachable */
+  } else {
+    return NULL;
+  }
+}
+
+static JsonObject *jqCastToObject(JQEvalContext *ctx, Json *json){
+  if (json == NULL){
+    jqEvalThrow(ctx,JQ_INTERNAL_NULL_POINTER,"NULL pointer seen when casting to JsonObject");
+    return NULL;
+  }
+  if (jsonIsObject(json)){
+    return jsonAsObject(json);
+  } else {
+    jqEvalThrow(ctx,JQ_NOT_AN_OBJECT,"Attempt to use value as object that is not an object");
+    return NULL; /* unreachable */
+  }
+}
+
+static JsonArray *jqCastToArray(JQEvalContext *ctx, Json *json){
+  if (jsonIsArray(json)){
+    return jsonAsArray(json);
+  } else {
+    jqEvalThrow(ctx,JQ_NOT_AN_ARRAY,"Attempt to use value as array that is not an array");
+    return NULL; /* unreachable */
+  }
+}
+
+static void jqPrint(JQEvalContext *ctx, Json *json){
+  if (jsonIsString(json) && ctx->flags & JQ_FLAG_RAW_STRINGS){
+    char *s = jsonAsString(json);
+    fprintf(ctx->out,"%s",s);
+  } else {
+    jsonPrint(ctx->printer,json);
+  }
+}
+
+static void evalTraversal(JQEvalContext *ctx, Json *value, Json *filter, int index, int moreCount){
+  JsonObject *filterObject = jqCastToObject(ctx,filter);
+  if (ctx->traceLevel >= 1){
+    fprintf(ctx->traceOut,"evalTraversal, index=%d mcount=%d\n",index,moreCount);
+  }
+  Json *firstTraversal = getJQProperty(ctx,filterObject,"TRAVERSAL",true);
+  JsonArray *moreTraversals = getJQArray(ctx,filterObject,"MORE_TRAVERSALS",true);
+  Json *traversal = (index == 0 ) ? firstTraversal : jsonArrayGetItem(moreTraversals,index-1);
+  JsonObject *traversalObject = jqCastToObject(ctx,traversal);
+  int traversalType = getJQInt(ctx,traversalObject,"altID",true,0);
+  Json *traversalDetails = getJQProperty(ctx,traversalObject,"value",true);
+  switch (traversalType){
+  case INDEX:
+    {
+      JsonObject *detailsObject = jqCastToObject(ctx,traversalDetails);
+      int arrayIndex = getJQInt(ctx,detailsObject,"INTEGER",false,-1);
+      if (arrayIndex == -1){        
+        jqEvalThrow(ctx,JQ_NON_INTEGER_ARRAY_INDEX_NOT_YET_SUPPORTED,"Index must be integer");
+      } else {
+        JsonArray *valueArray = jqCastToArray(ctx,value);
+        if (arrayIndex >= 0 || arrayIndex < jsonArrayGetCount(valueArray)){
+          Json *valueForIndex = jsonArrayGetItem(valueArray,arrayIndex);
+          if (index+1 <= moreCount){
+            evalTraversal(ctx,valueForIndex,filter,index+1,moreCount);
+          } else {
+            jqPrint(ctx,valueForIndex);
+          }
+        } else {
+          jqEvalThrow(ctx,JQ_ARRAY_INDEX_OUT_OF_BOUNDS,"% is not in size of array",arrayIndex);
+        }
+      }
+    }
+    break;
+  case PICK:
+    {
+      JsonObject *detailsObject = jqCastToObject(ctx,traversalDetails);
+      char *identifier = getJQString(ctx,detailsObject,"ID",true);
+      JsonObject *valueObject = jqCastToObject(ctx,value);
+      Json *valueForID = getJQProperty(ctx,valueObject,identifier,true);
+      if (index+1 <= moreCount){
+        evalTraversal(ctx,valueForID,filter,index+1,moreCount);
+      } else {
+        jqPrint(ctx,valueForID);
+      }
+    }
+    break;
+  case EXPLODE:
+    {
+      JsonArray *valueArray = jqCastToArray(ctx,value);
+      int valueCount = jsonArrayGetCount(valueArray);
+      for (int v=0; v<valueCount; v++){
+        jsonPrinterReset(ctx->printer);
+        Json *element = jsonArrayGetItem(valueArray,v);
+        if (index+1 <= moreCount){
+          evalTraversal(ctx,element,filter,index+1,moreCount);
+        } else {
+          jqPrint(ctx,element);
+        }
+        fprintf(ctx->out,"\n");
+      }
+    }
+    break;
+  case CONTEXT:
+    if (index+1 <= moreCount){
+      evalTraversal(ctx,value,filter,index+1,moreCount);
+    } else {
+      jqPrint(ctx,value);
+    }
+    break;
+  default:
+    jqEvalThrow(ctx,JQ_UNEXPECTED_OPERATION,"unexpeted operation %d",traversalType);
+  }
+}
+
+static void evalFilter(JQEvalContext *ctx, Json *value, Json *filter){
+  JsonObject *filterObject = jqCastToObject(ctx,filter);
+  JsonArray *moreTraversals = getJQArray(ctx,filterObject,"MORE_TRAVERSALS",true);
+  int moreCount = jsonArrayGetCount(moreTraversals);
+  evalTraversal(ctx,value,filter,0,moreCount);
+}
+
+static void evalOperation(JQEvalContext *ctx, Json *value, Json *operation){
+  JsonObject *operationObject = jqCastToObject(ctx,operation);
+  int altID = getJQInt(ctx,operationObject,"altID",true,-1);
+  switch (altID){
+  case FILTER:
+    evalFilter(ctx,value,getJQProperty(ctx,operationObject,"value",true));
+    break;
+  default:
+    jqEvalThrow(ctx,JQ_UNEXPECTED_OPERATION,"unexpected operation %d",altID);
+  } 
+}
+
+static void evalJQExpr(JQEvalContext *ctx, Json *value, Json *expr){
+  JsonObject *exprObject = jqCastToObject(ctx,expr);
+  Json *operation = getJQProperty(ctx,exprObject,"OPERATION",true);
+  Json *exprTail = getJQProperty(ctx,exprObject,"EXPR_TAIL",true);
+  evalOperation(ctx,value,operation);
+  /* ignoring tail for now */
+}
+
+int evalJQ(Json *value, Json *jqTree, FILE *out, int flags, int traceLevel){
+  JQEvalContext ctx;
+  memset(&ctx,0,sizeof(JQEvalContext));
+  ctx.out = out;
+#ifdef __ZOWE_OS_WINDOWS
+  int fd = _fileno(out);
+#else
+  int fd = fileno(out);
+#endif
+  ctx.printer = makeJsonPrinter(fd);
+  if (flags & JQ_FLAG_PRINT_PRETTY){
+    jsonEnablePrettyPrint(ctx.printer);
+  }
+  ctx.traceLevel = traceLevel;
+  ctx.traceOut = stderr;
+  ctx.flags = flags;
+  if (setjmp(ctx.recoveryData) == 0) {  /* normal execution */
+    evalJQExpr(&ctx,value,getJQProperty(&ctx,jqCastToObject(&ctx,jqTree),"EXPR",true));
+    return JQ_SUCCESS;
+  } else {
+    fprintf(stderr,"uJQ error message: %s\n",ctx.errorMessage);
+    return ctx.errorCode;
+  }
+}
+
+/*
+  Known examples from zowe-install-plugins
+
+arguments: "-r .apimlServices.static.file"
+arguments: "-r .apimlServices.static[].file"
+arguments: "-r .appfwPlugins[0].path"
+arguments: "-r .commands.configure"
+arguments: "-r .commands.preConfigure"
+arguments: "-r .commands.start"
+arguments: "-r .commands.validate"
+arguments: "-r .components.caching-service.storage.mode"
+arguments: "-r .gatewaySharedLibs[0]"
+arguments: "-r .zOSMF.host"
+arguments: "-r .zOSMF.port"
+arguments: "-r .zowe.launchScript.logLevel"
+arguments: "-r .zowe.runtimeDirectory"
+arguments: "-r .zowe.setup.certificate.dname.caCommonName"
+arguments: "-r .zowe.setup.certificate.dname.commonName"
+arguments: "-r .zowe.setup.certificate.dname.country"
+arguments: "-r .zowe.setup.certificate.dname.locality"
+arguments: "-r .zowe.setup.certificate.dname.org"
+arguments: "-r .zowe.setup.certificate.dname.orgUnit"
+arguments: "-r .zowe.setup.certificate.dname.state"
+arguments: "-r .zowe.setup.certificate.importCertificateAuthorities"
+arguments: "-r .zowe.setup.certificate.pkcs12.caAlias"
+arguments: "-r .zowe.setup.certificate.pkcs12.caPassword"
+arguments: "-r .zowe.setup.certificate.pkcs12.directory"
+arguments: "-r .zowe.setup.certificate.pkcs12.import.alias"
+arguments: "-r .zowe.setup.certificate.pkcs12.import.keystore"
+arguments: "-r .zowe.setup.certificate.pkcs12.import.password"
+arguments: "-r .zowe.setup.certificate.pkcs12.name"
+arguments: "-r .zowe.setup.certificate.pkcs12.password"
+arguments: "-r .zowe.setup.certificate.san"
+arguments: "-r .zowe.setup.certificate.type"
+arguments: "-r .zowe.setup.certificate.validity"
+arguments: "-r .zowe.setup.certificate.zOSMF.ca"
+arguments: "-r .zowe.setup.certificate.zOSMF.user"
+arguments: "-r .zowe.setup.mvs.authLoadlib"
+arguments: "-r .zowe.setup.mvs.authPluginLib"
+arguments: "-r .zowe.setup.mvs.hlq"
+arguments: "-r .zowe.setup.mvs.jcllib"
+arguments: "-r .zowe.setup.mvs.parmlib"
+arguments: "-r .zowe.setup.mvs.proclib"
+arguments: "-r .zowe.setup.security.groups.admin"
+arguments: "-r .zowe.setup.security.groups.stc"
+arguments: "-r .zowe.setup.security.groups.sysProg"
+arguments: "-r .zowe.setup.security.product"
+arguments: "-r .zowe.setup.security.stcs.aux"
+arguments: "-r .zowe.setup.security.stcs.xmem"
+arguments: "-r .zowe.setup.security.stcs.zowe"
+arguments: "-r .zowe.setup.security.users.aux"
+arguments: "-r .zowe.setup.security.users.xmem"
+arguments: "-r .zowe.setup.security.users.zowe"
+arguments: "-r .zowe.verifyCertificates"
+arguments: "-r .zowe.workspaceDirectory"
+ */

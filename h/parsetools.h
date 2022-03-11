@@ -337,6 +337,7 @@ typedef struct AbstractTokenizer_tag {
   int lastTokenEnd;
   int (*nextToken)(struct AbstractTokenizer_tag *tokenizer, char *s, int len, int pos, int *nextPos);
   char *(*getTokenIDName)(int tokenID);
+  int   (*getTokenJsonType)(int tokenID);  /* if not specified, you get a string! */
 } AbstractTokenizer;
 
 bool testCharProp(int ccsid, int c, int prop);
@@ -384,14 +385,16 @@ typedef struct GRule_tag {
 #define BUILD_OBJECT 1
 #define BUILD_ARRAY 2
 #define BUILD_STRING 3
-#define BUILD_INT 4
-#define BUILD_INT64 5
-#define BUILD_DOUBLE 6
-#define BUILD_BOOL 7
-#define BUILD_NULL 8
-#define BUILD_KEY 9
-#define BUILD_POP 10
-#define BUILD_ALT 11
+#define BUILD_NUMBER 4
+#define BUILD_INT 5
+#define BUILD_INT64 6
+#define BUILD_DOUBLE 7
+#define BUILD_BOOL 8
+#define BUILD_NULL 9
+#define BUILD_KEY 10
+#define BUILD_POP 11
+#define BUILD_ALT 12
+
 
 #define MAX_BUILD_STEPS 10000 /* who in hell knows?  JK, actually should be a parameter to GParse() */
 #define STEP_UNDEFINED_POSITION (-1)
@@ -417,6 +420,7 @@ typedef struct GParseContext_tag {
   int                buildStepCount;
   GBuildStep        *buildSteps;
   int                status;
+  int                traceLevel;
   int                errorPosition;
   char              *errorMessage;
 } GParseContext;
@@ -438,8 +442,52 @@ typedef struct GParseResult_tag {
 } GParseResult;
 
 GParseContext *gParse(GRuleSpec *ruleSet, int topRuleID, AbstractTokenizer *tokenizer, char *s, int len,
-                      char *(*ruleName)(int id));
+                      char *(*ruleName)(int id),
+                      int traceLevel);
 
 Json *gBuildJSON(GParseContext *ctx, ShortLivedHeap *slh);
+
+
+/* These definitions are for JLexer, a flexible tokenizer for java/javascript-ish syntaxes */
+
+typedef struct JQTokenizer_tag {
+  AbstractTokenizer tokenizer; /* cheesy "subclassing" idiom */
+  int ccsid;
+  int tokenState; /*  = STATE_INITIAL; */
+  char *data;
+  int   length;
+  int   pos;
+} JQTokenizer;
+
+#define JTOKEN_IDENTIFIER    FIRST_REAL_TOKEN_ID
+#define JTOKEN_INTEGER       (FIRST_REAL_TOKEN_ID+1)
+#define JTOKEN_DQUOTE_STRING FIRST_REAL_TOKEN_ID+2
+#define JTOKEN_SQUOTE_STRING FIRST_REAL_TOKEN_ID+3
+#define JTOKEN_LPAREN        FIRST_REAL_TOKEN_ID+4
+#define JTOKEN_RPAREN        FIRST_REAL_TOKEN_ID+5
+#define JTOKEN_LBRACK        FIRST_REAL_TOKEN_ID+6
+#define JTOKEN_RBRACK        FIRST_REAL_TOKEN_ID+7
+#define JTOKEN_LBRACE        FIRST_REAL_TOKEN_ID+8
+#define JTOKEN_RBRACE        FIRST_REAL_TOKEN_ID+9
+#define JTOKEN_DOT           FIRST_REAL_TOKEN_ID+10
+#define JTOKEN_COMMA         FIRST_REAL_TOKEN_ID+11
+#define JTOKEN_VBAR          FIRST_REAL_TOKEN_ID+12
+#define JTOKEN_COLON         FIRST_REAL_TOKEN_ID+13
+#define JTOKEN_QMARK         FIRST_REAL_TOKEN_ID+14
+#define JTOKEN_PLUS          FIRST_REAL_TOKEN_ID+15
+#define JTOKEN_DASH          FIRST_REAL_TOKEN_ID+16
+#define JTOKEN_STAR          FIRST_REAL_TOKEN_ID+17
+#define JTOKEN_SLASH         FIRST_REAL_TOKEN_ID+18
+#define JTOKEN_PERCENT       FIRST_REAL_TOKEN_ID+19
+
+#define LAST_JTOKEN_ID JTOKEN_PERCENT /* KEEP ME UPDATED!!! - whenever a new token ID is added*/
+
+char *getJTokenName(int id);
+/* testing interface */
+int jqtToken(JQTokenizer *jqt);
+/* proper interface for use in GParser */
+int getNextJToken(AbstractTokenizer *tokenizer, char *s, int len, int pos, int *nextPos);
+int getJTokenJsonType(int tokenID);
+
 
 #endif

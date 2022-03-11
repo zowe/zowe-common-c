@@ -422,7 +422,7 @@ static int buildTemplateJSON(JsonBuilder *b, Json *parent, char *parentKey,
   char *tail = nativeValue;
   JsonBuffer *buffer = makeJsonBuffer();
   int sourceCCSID = CCSID_UTF_8;
-  printf ("buildTemplateJSON nativeValue '%.*s' sourceCodeCharset %d\n", valueLength, nativeValue, sourceCCSID);
+  /* printf ("buildTemplateJSON nativeValue '%.*s' sourceCodeCharset %d\n", valueLength, nativeValue, sourceCCSID);*/
   jsonPrinter *p = makeBufferJsonPrinter(sourceCCSID,buffer);
   int status = 0;
   bool first = true;
@@ -432,7 +432,7 @@ static int buildTemplateJSON(JsonBuilder *b, Json *parent, char *parentKey,
     if (nextExpr){
       if (nextExpr > tail){
         char *frag = extractString(b,tail,nextExpr);
-        printf("frag = '%s'\n",frag);
+        /* printf("frag = '%s'\n",frag); */
         addPlusIfNecessary(p,sourceCCSID,&first);
         jsonWriteParseably(p,frag,strlen(frag),true,false,sourceCCSID);
       }

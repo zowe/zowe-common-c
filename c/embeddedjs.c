@@ -431,7 +431,7 @@ static JSValue jsonToJS1(EmbeddedJS *ejs, Json *json, bool hideUnevaluated){
       size_t strLen = strlen(str);
       char convertedStr[strLen+1];
       snprintf (convertedStr, strLen + 1, "%.*s", (int)strLen, str);
-      printf ("about to convert string '%s'\n", convertedStr);
+      /* printf ("about to convert string '%s'\n", convertedStr); */
       convertFromNative(convertedStr, strLen);
       return JS_NewString(ctx, convertedStr);
     }
@@ -456,7 +456,7 @@ static JSValue jsonToJS1(EmbeddedJS *ejs, Json *json, bool hideUnevaluated){
                 size_t keyLen = strlen(key);
                 char convertedKey[keyLen+1];
                 snprintf (convertedKey, keyLen + 1, "%.*s", (int)keyLen, key);
-                printf ("about to convert key '%s'\n", convertedKey);
+                /* printf ("about to convert key '%s'\n", convertedKey); */
                 convertFromNative(convertedKey, keyLen);
           JS_SetPropertyStr(ctx,
                             object,
@@ -594,7 +594,7 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
          property = jsonObjectGetNextProperty(property)) {
       char *key = jsonPropertyGetKey(property);
       Json *value = jsonPropertyGetValue(property);
-      printf ("global object key '%s'\n", key);
+      /* printf ("global object key '%s'\n", key); */
       size_t keyLen = strlen(key);
       char convertedKey[keyLen+1];
       snprintf (convertedKey, keyLen + 1, "%.*s", (int)keyLen, key);
@@ -608,7 +608,7 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
       char asciiSource[sourceLen + 1];
       snprintf (asciiSource, sourceLen + 1, "%.*s", (int)sourceLen, source);
       convertFromNative(asciiSource, sourceLen);
-      printf("should evaluate: %s\n",source);
+      /* printf("should evaluate: %s\n",source); */
       int evalStatus = 0;
       char embedded[] = "<embedded>";
       convertFromNative(embedded, sizeof(embedded));
@@ -680,9 +680,6 @@ EmbeddedJS *makeEmbeddedJS(EmbeddedJS *sharedRuntimeEJS){ /* can be NULL */
     exit(2);
   }
 
-  printf("JSTest Made Runtime and context \n");
-  fflush(stdout);
-
   
   /* loader for ES6 modules */
   JS_SetModuleLoaderFunc(embeddedJS->rt, NULL, js_module_loader, NULL);
@@ -705,7 +702,6 @@ EmbeddedJS *makeEmbeddedJS(EmbeddedJS *sharedRuntimeEJS){ /* can be NULL */
     JSValue throwaway = ejsEvalBuffer(embeddedJS, str, strlen(str), "<input>", JS_EVAL_TYPE_MODULE, &evalStatus);
   }
 
-  printf("returning embeddedJS 0x%p\n",embeddedJS);
   return embeddedJS;
 }
 

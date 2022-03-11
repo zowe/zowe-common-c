@@ -214,51 +214,6 @@ static GRule *makeGRules(GRuleSpec *ruleSpecs, AbstractTokenizer *tokenizer, Sho
   return rules;
 }
 
-/*
-
-  HERE
-  0) specs could be arrays of strings for simpler parsing
-  maybe
-  0.5) factor to parse test and jqtest
-  0.6) separate out the JLExer
-  1) write microJQ grammar 
-  2) start pushing builder operations corresponding to loops, trees
-  3) tree construction comes from temporarily associating text ranges and token ID's with this node tree
-  can tree construction go direct to json
-  can all steps be a set of JSON Build calls that are kept in a list,
-  and then backtracked to on earlier places in list, and then finally played forward to make the JSON Tree
-  4) JSON program can be written to take this output and test it in Node.js
-  5) bring it into QuickJS as evaluator
-  6) or just interpret it straight up
-  7) Trace improvements:
-     backtrack uniqueID and establishment trace
-     backtrack printf enhance to be specific
-
-
-     build steps
-    
-    SEQ 
-      kv pairs - (uniquified names of subs -> json)
-   
-    ALT 
-      {
-         indicator:  <nameOfToken>
-         value:      <json>
-      }
-  
-    STAR
-      [ <JSON> ]
-
-    TOKEN 
-      jsonValuizer 
-        makeString ( various escaping rules, like handling \r \u, etc )
-        makeInteger
-        makeBoolean
-        makeNull
-      but can make anything!!
-        
-
-*/
 
 typedef struct GContinuation_tag {
   struct GContinuation_tag *previous;
@@ -331,7 +286,17 @@ static GBuildStep *makeBuildStep(GParseContext *ctx, int type, GRuleRef *ref, GR
 }
 
 static void buildTokenValue(GParseContext *ctx, GRuleRef *ref, int lastTokenStart, int lastTokenEnd){
-  GBuildStep *step = makeBuildStep(ctx,BUILD_STRING,ref,NULL);
+  int jsonType = JSON_TYPE_STRING;
+  if (ctx->tokenizer->getTokenJsonType){
+    jsonType = ctx->tokenizer->getTokenJsonType(ref->tokenID);
+  }
+  int buildType = BUILD_STRING;
+  switch (jsonType){
+  case JSON_TYPE_NUMBER:
+    buildType = BUILD_NUMBER;
+    break;
+  }
+  GBuildStep *step = makeBuildStep(ctx,buildType,ref,NULL);
   step->valueStart = lastTokenStart;
   step->valueEnd = lastTokenEnd;
 }
@@ -363,10 +328,12 @@ static void indent(int depth){
 static int parseDispatch(GParseContext *ctx, GRule *rule, int startPos, int depth, GContinuation *resumePoint);
 
 static void backtrack(GParseContext *ctx, GContinuation *continuation){
-  printf("-------> Backtracking... build step back from %d to %d\n",
-         ctx->buildStepCount,
-         continuation->buildStepHWM);
-  fflush(stdout);
+  if (ctx->traceLevel >= 1){
+    printf("-------> Backtracking... build step back from %d to %d\n",
+           ctx->buildStepCount,
+           continuation->buildStepHWM);
+    fflush(stdout);
+  }
   longjmp(continuation->resumeData,1);
 }
 
@@ -374,9 +341,11 @@ static int runTokenMatch(GParseContext *ctx, GRuleRef *ref, int pos, int depth){
   AbstractTokenizer *tokenizer = ctx->tokenizer;
   int nextPos = 0;
   int tokenID = 0;
-  indent(depth);
-  printf("runTokenMatch trying id=0x%x, (%s) pos=%d\n",ref->tokenID,tokenizer->getTokenIDName(ref->tokenID),pos);
-  fflush(stdout);
+  if (ctx->traceLevel >= 1){
+    indent(depth);
+    printf("runTokenMatch trying id=0x%x, (%s) pos=%d\n",ref->tokenID,tokenizer->getTokenIDName(ref->tokenID),pos);
+    fflush(stdout);
+  }
   bool matched = matchToken(tokenizer,ctx->s,ctx->len,pos,&nextPos,ref->tokenID,&tokenID);
   if (matched){
     buildTokenValue(ctx,ref,tokenizer->lastTokenStart,tokenizer->lastTokenEnd);
@@ -398,9 +367,11 @@ static char *ruleName(GParseContext *ctx, GRule *rule){
 }
 
 static int runSeq(GParseContext *ctx, GRule *rule, int startPos, int depth, GContinuation *resumePoint){
-  indent(depth);
-  printf("runSeq (%s) at pos=%d, resume=0x%p\n",ruleName(ctx,rule),startPos,resumePoint);
-  fflush(stdout);
+  if (ctx->traceLevel >= 1){
+    indent(depth);
+    printf("runSeq (%s) at pos=%d, resume=0x%p\n",ruleName(ctx,rule),startPos,resumePoint);
+    fflush(stdout);
+  }
   int pos = startPos;
   for (int index=0; index<rule->subCount; index++){
     GRuleRef *ref = &rule->refs[index];
@@ -409,8 +380,10 @@ static int runSeq(GParseContext *ctx, GRule *rule, int startPos, int depth, GCon
       (ref->isTokenRef ?
        runTokenMatch(ctx,ref,pos,depth) :
        parseDispatch(ctx,ref->rule,pos,depth,resumePoint));
-    indent(depth+1);
-    printf("seq submatch index=%d result=%d\n",index,matchResult);
+    if (ctx->traceLevel >= 1){
+      indent(depth+1);
+      printf("seq submatch index=%d result=%d\n",index,matchResult);
+    }
     if (GPARSE_SUCCESS(matchResult)){
       pos = matchResult;
     } else if (resumePoint){
@@ -423,9 +396,11 @@ static int runSeq(GParseContext *ctx, GRule *rule, int startPos, int depth, GCon
 }
 
 static int runAlt(GParseContext *ctx, GRule *rule, int startPos, int depth, GContinuation *resumePoint){
-  indent(depth);
-  printf("runAlt (%s) at pos=%d, resume=0x%p\n",ruleName(ctx,rule),startPos,resumePoint);
-  fflush(stdout);
+  if (ctx->traceLevel >= 1){
+    indent(depth);
+    printf("runAlt (%s) at pos=%d, resume=0x%p\n",ruleName(ctx,rule),startPos,resumePoint);
+    fflush(stdout);
+  }
   GBuildStep *altStep = buildAltValue(ctx,rule);
   GContinuation continuation;
   continuation.previous = resumePoint;
@@ -444,20 +419,28 @@ static int runAlt(GParseContext *ctx, GRule *rule, int startPos, int depth, GCon
     if (ref->isTokenRef){
       int matchResult = runTokenMatch(ctx,ref,pos,depth);
       if (GPARSE_SUCCESS(matchResult)){
-        indent(depth+1);
-        printf("alt token success matchResult=%d\n",matchResult);
+        if (ctx->traceLevel >= 1){
+          indent(depth+1);
+          printf("alt token success matchResult=%d\n",matchResult);
+        }
         return matchResult;
       } else if (index+1 < rule->subCount){
         // just roll forward
-        indent(depth+1);
-        printf("alt token roll forward\n");
+        if (ctx->traceLevel >= 1){
+          indent(depth+1);
+          printf("alt token roll forward\n");
+        }
       } else if (resumePoint){
-        indent(depth+1);
-        printf("alt token backtrack\n");
+        if (ctx->traceLevel >= 1){
+          indent(depth+1);
+          printf("alt token backtrack\n");
+        }
         backtrack(ctx,resumePoint);
       } else {
-        indent(depth+1);
-        printf("alt token fail\n");
+        if (ctx->traceLevel >= 1){
+          indent(depth+1);
+          printf("alt token fail\n");
+        }
         return GPARSE_FAIL;
       }
     } else {
@@ -465,21 +448,27 @@ static int runAlt(GParseContext *ctx, GRule *rule, int startPos, int depth, GCon
                                          &continuation :
                                          resumePoint);
       int parseResult = parseDispatch(ctx,ref->rule,pos,depth,failContinuation);
-      indent(depth+1);
-      printf("alt subrule res = %d\n",parseResult);
+      if (ctx->traceLevel >= 1){
+        indent(depth+1);
+        printf("alt subrule res = %d\n",parseResult);
+      }
       return parseResult; // we never loop except when hitting a token 
     }
   }
-  indent(depth+1);
-  printf("out of ALT's\n");
+  if (ctx->traceLevel >= 1){
+    indent(depth+1);
+    printf("out of ALT's\n");
+  }
   return GPARSE_FAIL;
 }
 
 // can easily by plus or repeat, or opt
 static int runStar(GParseContext *ctx, GRule *rule, int startPos, int depth, GContinuation *resumePoint){
-  indent(depth);
-  printf("runStar (%s) at pos=%d, resume=0x%p\n",ruleName(ctx,rule),startPos,resumePoint);
-  fflush(stdout);
+  if (ctx->traceLevel >= 1){
+    indent(depth);
+    printf("runStar (%s) at pos=%d, resume=0x%p\n",ruleName(ctx,rule),startPos,resumePoint);
+    fflush(stdout);
+  }
   GContinuation continuation;
   continuation.previous = resumePoint;
   continuation.indexInRule = 0;
@@ -569,7 +558,9 @@ Json *gBuildJSON(GParseContext *ctx, ShortLivedHeap *slh){
   Json *currentParent = NULL;
   char *currentKey = NULL;
   for (int i=0; i<ctx->buildStepCount; i++){
-    printf("build step %d\n",i);
+    if (ctx->traceLevel >= 1){
+      printf("build step %d, currKey=%s\n",i,currentKey);
+    }
     GBuildStep *step = &ctx->buildSteps[i];
     int errorCode = 0;
     switch (step->type){
@@ -606,7 +597,7 @@ Json *gBuildJSON(GParseContext *ctx, ShortLivedHeap *slh){
           currentKey = "<EOF>";
           break;
         default:
-          ctx->tokenizer->getTokenIDName(step->tokenID);
+          currentKey = ctx->tokenizer->getTokenIDName(step->tokenID);
           break;
         }
       }
@@ -624,11 +615,25 @@ Json *gBuildJSON(GParseContext *ctx, ShortLivedHeap *slh){
       break;
     case BUILD_STRING:
       if (currentKey == NULL){
-        printf("no parent for string!!!\n");
+        printf("*** WARNING *** no parent for string!!!\n");
       } else {
         int len = step->valueEnd - step->valueStart;
         jsonBuildString(b,currentParent,currentKey,ctx->s+step->valueStart,len,&errorCode);
         currentKey = NULL; /* because was consumed */
+      }
+      break;
+    case BUILD_NUMBER:
+      {
+        int len = step->valueEnd - step->valueStart;
+        char *numberText = SLHAlloc(ctx->slh,len+1);
+        memcpy(numberText,ctx->s+step->valueStart,len);
+        numberText[len] = 0;
+        int64_t val = strtoll(numberText,NULL,10);
+        if (val < 0x7FFFFFFF){
+          jsonBuildInt(b,currentParent,currentKey,(int)val,&errorCode);
+        } else {
+          jsonBuildInt64(b,currentParent,currentKey,val,&errorCode);
+        }
       }
       break;
     case BUILD_INT64:
@@ -655,14 +660,14 @@ Json *gBuildJSON(GParseContext *ctx, ShortLivedHeap *slh){
       printf("last build step failed with code = %d\n",errorCode);
     }
   }
-  printf("final sp = %d\n",sp);
   Json *result = b->root;
   freeJsonBuilder(b,false);
   return result;
 }
 
 GParseContext *gParse(GRuleSpec *ruleSet, int topRuleID, AbstractTokenizer *tokenizer, char *s, int len,
-                     char *(*ruleNamer)(int id)){
+                      char *(*ruleNamer)(int id),
+                      int traceLevel){
   ShortLivedHeap *slh = makeShortLivedHeap(0x10000, 100);
   GParseContext *ctx = (GParseContext *)SLHAlloc(slh,sizeof(GParseContext));
   memset(ctx,0,sizeof(GParseContext));
@@ -673,19 +678,192 @@ GParseContext *gParse(GRuleSpec *ruleSet, int topRuleID, AbstractTokenizer *toke
   ctx->slh = slh;
   ctx->buildStepsSize = MAX_BUILD_STEPS;
   ctx->buildSteps = (GBuildStep*)SLHAlloc(slh,ctx->buildStepsSize*sizeof(GBuildStep));
+  ctx->traceLevel = traceLevel;
   int ruleSetSize = 0;
   GRule *rules = makeGRules(ruleSet,tokenizer,slh,&ruleSetSize);
   ctx->rules = rules;
   GRule *topRule = getRule(rules,ruleSetSize,topRuleID);
   if (topRule->type == G_SEQ){
     int parseResult = parseDispatch(ctx,topRule,0,0,NULL);
-    printf("parseResult=%d\n",parseResult);
     ctx->status = parseResult;
-    showBuildSteps(ctx);
+    if (ctx->traceLevel >= 1){
+      printf("parseResult=%d\n",parseResult);
+      showBuildSteps(ctx);
+    }
     return ctx;
   } else {
     printf("top rule must be G_SEQ\n");
     ctx->status = -1;
     return ctx;
+  }
+}
+
+/* JLexer (Flexible Tokenizer for java-ish languages) */
+
+#define STATE_INITIAL    0
+#define STATE_INTEGER    1
+#define STATE_IDENTIFIER 2
+#define STATE_SQUOTE     3
+#define STATE_DQUOTE     4
+
+char *getJTokenName(int id){
+  switch (id){
+  case EOF_TOKEN: return "EOF";
+  case JTOKEN_IDENTIFIER: return "ID";
+  case JTOKEN_INTEGER: return "INTEGER";
+  case JTOKEN_DQUOTE_STRING: return "DQUOTE_STRING";
+  case JTOKEN_SQUOTE_STRING: return "SQUOTE_STRING";
+  case JTOKEN_LPAREN: return "LPAREN";
+  case JTOKEN_RPAREN: return "RPAREN";
+  case JTOKEN_LBRACK: return "LBRACK";
+  case JTOKEN_RBRACK: return "RBRACK";
+  case JTOKEN_LBRACE: return "LBRACE";
+  case JTOKEN_RBRACE: return "RBRACE";
+  case JTOKEN_DOT: return "DOT";
+  case JTOKEN_COMMA: return "COMMA";
+  case JTOKEN_VBAR: return "VBAR";
+  case JTOKEN_COLON: return "COLON";
+  case JTOKEN_QMARK: return "QMARK";
+  case JTOKEN_PLUS: return "PLUS";
+  case JTOKEN_DASH: return "DASH";
+  case JTOKEN_STAR: return "STAR";
+  case JTOKEN_SLASH: return "SLASH";
+  case JTOKEN_PERCENT: return "PERCENT";
+  default:return "BAD_TOKEN";
+  }
+}
+
+static bool isLetter(JQTokenizer *jqt, int c){
+  return testCharProp(jqt->ccsid,c,CPROP_LETTER);
+}
+
+static bool isDigit(JQTokenizer *jqt, int c){
+  return testCharProp(jqt->ccsid,c,CPROP_DIGIT);
+}
+
+static bool isWhite(JQTokenizer *jqt, int c){
+  return testCharProp(jqt->ccsid,c,CPROP_WHITE);
+}
+
+int jqtToken(JQTokenizer *jqt){
+  /* belt *AND* suspenders */
+  AbstractTokenizer *tokenizer = (AbstractTokenizer*)jqt;
+  if (jqt->pos >= jqt->length){
+    tokenizer->lastTokenStart = jqt->pos; /* 0-length token */
+    tokenizer->lastTokenEnd = jqt->pos;
+    return EOF_TOKEN;
+  }
+  int tokenID = NO_VALID_TOKEN;
+  while(tokenID == NO_VALID_TOKEN){
+    int c = -1; // EOF by defaultx
+    int charPos = jqt->pos;
+    if (jqt->pos < jqt->length){
+      c = (int)jqt->data[jqt->pos++];
+    }
+    /* printf("at pos=%d, c=0x%x state=%d\n",jqt->pos,c,jqt->tokenState);  */
+    switch (jqt->tokenState){
+    case STATE_INITIAL:
+      if (c == -1){
+        tokenID = EOF_TOKEN;
+        tokenizer->lastTokenStart = jqt->length;
+      } else if (isLetter(jqt,c) ||
+                 (c == UNI_DOLLAR) ||
+                 (c == UNI_UNDER)){
+        jqt->tokenState = STATE_IDENTIFIER;
+        tokenizer->lastTokenStart = charPos;
+      } else if (isDigit(jqt,c)){
+        jqt->tokenState = STATE_INTEGER;
+        tokenizer->lastTokenStart = charPos;
+      } else if (isWhite(jqt,c)){
+        // just roll forward 
+      } else if (c == UNI_DQUOTE){
+        jqt->tokenState = STATE_DQUOTE;
+        tokenizer->lastTokenStart = charPos;
+      } else if (c == UNI_SQUOTE){
+        jqt->tokenState = STATE_SQUOTE;
+        tokenizer->lastTokenStart = charPos;
+      } else {
+        /* Single-char-punc tokens */
+        switch (c){
+        case UNI_LPAREN: tokenID = JTOKEN_LPAREN; break;
+        case UNI_RPAREN: tokenID = JTOKEN_RPAREN; break;
+        case UNI_LBRACK: tokenID = JTOKEN_LBRACK; break;
+        case UNI_RBRACK: tokenID = JTOKEN_RBRACK; break;
+        case UNI_LBRACE: tokenID = JTOKEN_LBRACE; break;
+        case UNI_RBRACE: tokenID = JTOKEN_RBRACE; break;
+        case UNI_DOT: tokenID = JTOKEN_DOT; break;
+        case UNI_COMMA: tokenID = JTOKEN_COMMA; break;
+        case UNI_COLON: tokenID = JTOKEN_COLON; break;
+        case UNI_VBAR: tokenID = JTOKEN_VBAR; break;
+        case UNI_QMARK: tokenID = JTOKEN_QMARK; break;
+        case UNI_PLUS: tokenID = JTOKEN_PLUS; break;
+        case UNI_DASH: tokenID = JTOKEN_DASH; break;
+        case UNI_STAR: tokenID = JTOKEN_STAR; break;
+        case UNI_SLASH: tokenID = JTOKEN_SLASH; break;
+        case UNI_PERCENT: tokenID = JTOKEN_PERCENT; break;
+        default:
+          /* unhandled char, kill the parse */
+          return NO_VALID_TOKEN; 
+        }
+        tokenizer->lastTokenStart = charPos;
+      }
+      break;
+    case STATE_INTEGER:
+      if (!isDigit(jqt,c)){
+        if (c != -1) jqt->pos--; /* nothing to push back */
+        tokenID = JTOKEN_INTEGER;
+      }
+      break;
+    case STATE_IDENTIFIER:
+      if (isLetter(jqt,c) ||
+          (c == UNI_DOLLAR) ||
+          (c == UNI_UNDER)){
+        // accumulate
+      } else {
+        if (c != -1) jqt->pos--; /* nothing to push back */
+        tokenID = JTOKEN_IDENTIFIER;
+      }
+      break;
+    case STATE_DQUOTE:
+      if (c == -1){ /* EOF in string */
+        return NO_VALID_TOKEN;
+      } else if (c == UNI_DQUOTE){
+        tokenID = JTOKEN_DQUOTE_STRING;
+      }
+      break;
+    case STATE_SQUOTE:
+      if (c == -1){ /* EOF in string */
+        return NO_VALID_TOKEN;
+      } else if (c == UNI_SQUOTE){
+        tokenID = JTOKEN_SQUOTE_STRING;
+      }
+    default:
+      printf("*** PANIC *** internal error unknown tokenizer state = %d\n",jqt->tokenState);
+      return NO_VALID_TOKEN;
+      // unknow state, kill the parse
+    }
+    if (tokenID != NO_VALID_TOKEN){
+      tokenizer->lastTokenEnd = jqt->pos;
+      jqt->tokenState = STATE_INITIAL;
+      return tokenID;
+    } 
+  }
+  return 0;
+}
+
+int getNextJToken(AbstractTokenizer *tokenizer, char *s, int len, int pos, int *nextPos){
+  JQTokenizer *jqt = (JQTokenizer*)tokenizer;
+  jqt->pos = pos;
+  int id = jqtToken(jqt);
+  *nextPos = jqt->pos;
+  return id;
+}
+
+int getJTokenJsonType(int tokenID){
+  switch (tokenID){
+  case JTOKEN_INTEGER:
+    return JSON_TYPE_NUMBER; /* see json.h */
+  default:
+    return JSON_TYPE_STRING;
   }
 }

@@ -105,10 +105,7 @@ int jsonIsError(Json *json) {
 static void
 writeToBuffer(struct jsonPrinter_tag *p, char *text, int len);
 
-jsonPrinter *makeJsonPrinter(int fd) {
-  jsonPrinter *p = (jsonPrinter*) safeMalloc(sizeof (jsonPrinter), "JSON Printer");
-
-  p->fd = fd;
+void jsonPrinterReset(jsonPrinter *p){
   p->depth = 0;
   p->indentString = "  ";
   p->isStart = TRUE;
@@ -116,6 +113,12 @@ jsonPrinter *makeJsonPrinter(int fd) {
   p->_conversionBufferSize = 0;
   p->_conversionBuffer = NULL;
   p->mode = JSON_MODE_NATIVE_CHARSET;
+}
+
+jsonPrinter *makeJsonPrinter(int fd) {
+  jsonPrinter *p = (jsonPrinter*) safeMalloc(sizeof (jsonPrinter), "JSON Printer");
+  p->fd = fd;
+  jsonPrinterReset(p);
   return p;
 }
 
@@ -132,13 +135,7 @@ jsonPrinter *makeCustomJsonPrinter(void (*writeMethod)(jsonPrinter *, char *, in
   p->isCustom = TRUE;
   p->customWrite = writeMethod;
   p->customObject = object;
-  p->depth = 0;
-  p->indentString = "  ";
-  p->isStart = TRUE;
-  p->isFirstLine = TRUE;
-  p->_conversionBufferSize = 0;
-  p->_conversionBuffer = NULL;
-  p->mode = JSON_MODE_NATIVE_CHARSET;
+  jsonPrinterReset(p);
   return p;
 }
 
@@ -2489,8 +2486,6 @@ Json *jsonParseFile(ShortLivedHeap *slh, const char *filename, char* errorBuffer
 }
 
 Json *jsonParseFile2(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize){
-  printf("JOE: jsonParseFile2\n");
-  fflush(stdout);
   return jsonParseFileInternal(slh,filename,errorBufferOrNull,errorBufferSize,JSON_PARSE_VERSION_2);
 }
 

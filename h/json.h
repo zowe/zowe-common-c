@@ -90,6 +90,11 @@ jsonPrinter *makeCustomUtf8JsonPrinter(
     void (*writeMethod)(jsonPrinter *, char *, int),  void *object,
     int inputCCSID);
 
+/**
+ *  \brief Reset a printer to its starting state.
+ */
+void jsonPrinterReset(jsonPrinter *printer);
+
 jsonPrinter *makeBufferJsonPrinter(int inputCCSID, JsonBuffer *buf);
 
 /** 
