@@ -138,8 +138,8 @@
 #define RC_CMS_ALLOC_FAILED                 87
 #define RC_CMS_NON_PRIVATE_MODULE           88
 #define RC_CMS_BAD_DUB_STATUS               89
-#define RC_CMS_NO_ROOM_FOR_CMS_GETTER       90
-#define RC_CMS_MODULE_QUERY_FAILED          91
+#define RC_CMS_MODULE_QUERY_FAILED          90
+#define RC_CMS_NO_ROOM_FOR_CMS_GETTER       91
 #define RC_CMS_MAX_RC                       91
 
 extern const char *CMS_RC_DESCRIPTION[];
@@ -235,7 +235,7 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   PAD_LONG(0, RecoveryStatePool *pcssRecoveryPool);
   CPID pcssStackPool;
 
-  PAD_LONG(0, void *dynamicLinkageVector);  /* This is an opt-in feature for CMS 
+  PAD_LONG(1, void *dynamicLinkageVector);  /* This is an opt-in feature for CMS 
 					       Servers that want to offer Dynamic Linkage
 					       to some of their routines is an MVS/Metal/ASM 
 					       way.   That is to provide a well-known

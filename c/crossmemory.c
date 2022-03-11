@@ -2839,6 +2839,12 @@ static void *getCMSServerLookup(int *routineLengthPtr){
       "         ST    1,%1                                                     \n"
       "         J     L$UXITEX                                                 \n"
       "L$UXIT00 DS    0H                                                       \n"
+      "         J     L$UXITRT                                                 \n"
+      "         DC    CL8'ZWECMSLK'           ROUTINE NAME                     \n"
+      "         DC    XL1'01'                 VERSION                          \n"
+      "         DC    XL1'" ZVT_KEY_STR "'      KEY                              \n"
+      "         DC    XL1'" ZVT_SUBPOOL_STR "'  SUBPOOL                          \n"
+      "         DC    XL5'0000000000'         Reserved                         \n"
       "L$UXITRT DS    0H                                                       \n"
       "         STM   14,12,12(13)                                             \n"
       "         L     14,16                   GET CVTPTR                       \n"
@@ -2846,32 +2852,31 @@ static void *getCMSServerLookup(int *routineLengthPtr){
       "         L     14,X'CC'(,14)           GET CSRCTABL                     \n"
       "         L     14,X'23C'(,14)          GET ZVT                          \n"
       "         LTR   14,14                   TEST NON ZERO                    \n"
-      "         BZ    L$NOZVT                                                  \n"
+      "         JZ    L$NOZVT                                                  \n"
       "         L     14,X'9C'(,14)           FIRST ZVTE                       \n"
       "ZVTELOOP LTR   14,14                   NULL CHECK ZVTE                  \n"
-      "         BZ    L$NOZVTE                                                 \n"
+      "         JZ    L$NOZVTE                                                 \n"
       "         L     4,X'4C'(,14)            PRODUCT ANCHOR                   \n"
       "         LARL  3,L$CMSRVG              LOAD CONSTANT                    \n"
       "         CLC   0(8,4),0(3)             Is it RSCMSRVG                   \n"
-      "         BNE   ZVTECNTU                No CMS Global Server             \n"
+      "         JNE   ZVTECNTU                No CMS Global Server             \n"
       "         L     1,0(,1)                 Server Name is First Arg         \n"
       "         CLC   X'50'(16,4),0(1)        Is it the right server name      \n"
-      "         BE    ZVTEFND                 Found it !                       \n"
+      "         JE    ZVTEFND                 Found it !                       \n"
       "ZVTECNTU LG    14,X'40'(,14)           ZVTE = ZVTE->NEXT                \n"
-      "         B     ZVTELOOP                Should limit by N, too           \n"
+      "         J     ZVTELOOP                Should limit by N, too           \n"
       "ZVTEFND  LR    15,4                    return the CMS GA                \n"
-      "         B     L$RETURN                Non error end                    \n"
+      "         J     L$RETURN                Non error end                    \n"
       "L$NOZVT  XGR   15,15                   clear result                     \n"
       "         LGFI  0,8                     reason 8                         \n"
-      "         B     L$RETURN                                                 \n"         
+      "         J     L$RETURN                                                 \n"         
       "L$NOZVTE XGR   15,15                   clear result                     \n"
-      "         LGFI  0,12                     reason 8                         \n"
-      "         B     L$RETURN                                                 \n"         
+      "         LGFI  0,12                    reason 12                        \n"
+      "         J     L$RETURN                                                 \n"         
       "L$NOCMSG XGR   15,15                   clear result                     \n"
-      "         LGFI  0,16                    reason 8                         \n"
-      "         B     L$RETURN                                                 \n"
+      "         LGFI  0,16                    reason 16                         \n"
+      "         J     L$RETURN                                                 \n"
       "L$RETURN L     14,12(,13)              Restore everything but R15       \n"
-      "         LA    15,0                    Let's not change the outside world \n"
       "         LM    1,12,24(13)             Restore                          \n"
       "         BR    14                                                       \n"
       /* non executable code */
@@ -2898,6 +2903,13 @@ static void *getCMSServerLookup(int *routineLengthPtr){
       "         ST    1,%1                                                     \n"
       "         J     L$UXITEX                                                 \n"
       "L$UXIT00 DS    0H                                                       \n"
+      "         J     L$UXITRT                                                 \n"
+      "         DC    CL8'ZWECMSLK'           ROUTINE NAME                     \n"
+	/* ZVT_KEY, ZVT_SUBPOOL */
+      "         DC    XL1'01'                 VERSION                          \n"
+      "         DC    XL1'" ZVT_KEY_STR "'      KEY                              \n"
+      "         DC    XL1'" ZVT_SUBPOOL_STR "'  SUBPOOL                          \n"
+      "         DC    XL5'0000000000'         Reserved                         \n"
       "L$UXITRT DS    0H                                                       \n"
       "         STMG  14,12,8(13)                                              \n"
       "         LLGT  14,16                   GET CVTPTR                       \n"
@@ -2905,30 +2917,30 @@ static void *getCMSServerLookup(int *routineLengthPtr){
       "         LGF   14,X'CC'(,14)           GET CSRCTABL                     \n"
       "         LGF   14,X'23C'(,14)          GET ZVT                          \n"
       "         LTR   14,14                   TEST NON ZERO                    \n"
-      "         BZ    L$NOZVT                                                  \n"
+      "         JZ    L$NOZVT                                                  \n"
       "         LGF   14,X'9C'(,14)           FIRST ZVTE                       \n"
       "ZVTELOOP LTR   14,14                   NULL CHECK ZVTE                  \n"
-      "         BZ    L$NOZVTE                                                 \n"
+      "         JZ    L$NOZVTE                                                 \n"
       "         LGF   4,X'4C'(,14)            PRODUCT ANCHOR                   \n"
       "         LARL  3,L$CMSRVG              LOAD CONSTANT                    \n"
       "         CLC   0(8,4),0(3)             Is it RSCMSRVG                   \n"
-      "         BNE   ZVTECNTU                No CMS Global Server             \n"
+      "         JNE   ZVTECNTU                No CMS Global Server             \n"
       "         LG    1,0(,1)                 Server Name is First Arg         \n"
       "         CLC   X'50'(16,4),0(1)        Is it the right server name      \n"
-      "         BE    ZVTEFND                 Found it !                       \n"
+      "         JE    ZVTEFND                 Found it !                       \n"
       "ZVTECNTU LG    14,X'40'(,14)           ZVTE = ZVTE->NEXT                \n"
-      "         B     ZVTELOOP                Should limit by N, too           \n"
+      "         J     ZVTELOOP                Should limit by N, too           \n"
       "ZVTEFND  LGR   15,4                    return the CMS GA                \n"
-      "         B     L$RETURN                Non error end                    \n"
+      "         J     L$RETURN                Non error end                    \n"
       "L$NOZVT  XGR   15,15                   clear result                     \n"
       "         LGFI  0,8                     reason 8                         \n"
-      "         B     L$RETURN                                                 \n"         
+      "         J     L$RETURN                                                 \n"         
       "L$NOZVTE XGR   15,15                   clear result                     \n"
       "         LGFI  0,12                    reason 12                        \n"
-      "         B     L$RETURN                                                 \n"         
+      "         J     L$RETURN                                                 \n"         
       "L$NOCMSG XGR   15,15                   clear result                     \n"
       "         LGFI  0,16                    reason 16                        \n"
-      "         B     L$RETURN                                                 \n"
+      "         J     L$RETURN                                                 \n"
       "L$RETURN LG    14,8(,13)              Restore everything but R15,R0     \n"
 	/* "         DC    XL2'0000' \n"  */
       "         LMG   1,12,32(13)            Restore                            \n"
@@ -2947,26 +2959,35 @@ static void *getCMSServerLookup(int *routineLengthPtr){
 
 #endif
 
+/* always give the routine its own page so that it might be marked executable
+   as opposed to most ZVT storage which is unexecutable data */
+
+#define ZWECMSLK_LENGTH 0x1000
+
 static int installCMSLookupRoutine(ZVT *zvt){
   int routineLength = 0;
   char *routineMaster = getCMSServerLookup(&routineLength);
-  if (routineLength > MAX_CMS_GETTER_ROUTINE_SIZE){    
-    return RC_CMS_NO_ROOM_FOR_CMS_GETTER;
-  }
 
   int wasProblemState = supervisorMode(TRUE);
-  int originalKey = setKey(0);
-
-  memcpy(zvt->cmsGetterRoutineCode,routineMaster,routineLength);
-  zvt->version = ZVT_VERSION;
-  zvt->cmsGetterRoutine = (void*)&(zvt->cmsGetterRoutineCode[0]);
-
-  setKey(originalKey);
+  int status = RC_CMS_OK;
+  char *routineStorage = cmAlloc(ZWECMSLK_LENGTH, ZVT_SUBPOOL, ZVT_KEY);
+  if (routineStorage == NULL){
+    status = RC_CMS_NO_ROOM_FOR_CMS_GETTER;
+  } else{
+    int originalKey = setKey(0);
+    
+    memset(routineStorage,0,ZWECMSLK_LENGTH);
+    memcpy(routineStorage,routineMaster,routineLength);
+    zvt->version = ZVT_VERSION;
+    zvt->cmsGetterRoutine = (void*)routineStorage;
+    
+    setKey(originalKey);
+  }
   if (wasProblemState) {
     supervisorMode(FALSE);
   }
 
-  return RC_CMS_OK;
+  return status;
 }
 
 
@@ -2974,7 +2995,7 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
 
 #ifndef CROSS_MEMORY_SERVER_DEBUG
   bool buildingZVTFromScratch = (zvtGet() == NULL);
-
+  
   zvtInit();
   ZVT *zvt = zvtGet();
 

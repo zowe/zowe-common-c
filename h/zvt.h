@@ -27,6 +27,8 @@ ZOWE_PRAGMA_PACK
 #define ZVT_VERSION       2   /* 2 introduces dynamic linking support */
 #define ZVT_KEY           0
 #define ZVT_SUBPOOL       228
+#define ZVT_KEY_STR       "0"
+#define ZVT_SUBPOOL_STR   "E4"
 
 typedef struct ZVTEntry_tag {
 
@@ -87,7 +89,7 @@ typedef struct ZVT_tag {
   /* Offset 0x20 */
   uint16_t asid;
   char reserved22[6];
-  PAD_LONG(9, void *cmsGetterRoutine);
+  PAD_LONG(9, void *cmsGetterRoutine); /* points at another page in 31-common */
   char reserved3[104];
 
   struct {
@@ -103,8 +105,7 @@ typedef struct ZVT_tag {
     PAD_LONG(19, ZVTEntry *reservedSlot9);
   } zvteSlots;
 
-  char reserved4[3864-MAX_CMS_GETTER_ROUTINE_SIZE];
-  char cmsGetterRoutineCode[MAX_CMS_GETTER_ROUTINE_SIZE];
+  char reserved4[3864];
 } ZVT;
 
 ZOWE_PRAGMA_PACK_RESET
