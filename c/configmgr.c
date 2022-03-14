@@ -957,7 +957,7 @@ int main(int argc, char **argv){
       configPath = optionValue;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-c")) != NULL){
       jqCompact = true;
-    } else if ((optionValue = getStringOption(argc,argv,&argx,"-c")) != NULL){
+    } else if ((optionValue = getStringOption(argc,argv,&argx,"-r")) != NULL){
       jqRaw = true;
     } else {
       char *nextArg = argv[argx];
