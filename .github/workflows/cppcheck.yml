@@ -1,5 +1,12 @@
 name: cppcheck-action-test
-on: [push]
+on:
+  push:
+    branches:
+      - v1.x/staging
+      - master
+      - rc
+  pull_request:
+    types: [opened, reopened, synchronize]
 
 jobs:
   build:
@@ -13,16 +20,9 @@ jobs:
         env:
           JF_ARTIFACTORY_1: ${{ secrets.JF_ARTIFACTORY_TOKEN }}
           
-      - name: cppcheck
-        uses: deep5050/cppcheck-action@main
+      - name: upload artifact      
+        uses: actions/upload-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN}}
-          force: enable
-          
-      - name: upload to artifactory 
-        run: |
-          ls /home/runner/work/zowe-common-c/zowe-common-c/
-          TIMESTAMP=`date +%Y%m%d.%H%M%S`
-          mv cppcheck_report.txt cppcheck_report_${TIMESTAMP}.txt
-          jfrog rt u cppcheck_report_${TIMESTAMP}.txt libs-snapshot-local/org/zowe/zlux/zowe-common-c/scan/cppcheck_report_${TIMESTAMP}.txt
+          name: cppcheck_report.txt
+          path: /home/runner/work/zowe-common-c/zowe-common-c/cppcheck_report.txt
           
