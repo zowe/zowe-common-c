@@ -2,9 +2,7 @@ name: cppcheck-action-test
 on:
   push:
     branches:
-      - v1.x/staging
-      - master
-      - rc
+      - v2.x/staging
   pull_request:
     types: [opened, reopened, synchronize]
 
