@@ -14,14 +14,10 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN}}
           force: enable
           
-      - name: ls
+      - name: upload to artifactory 
         run: |
-          ls /home/runner/work/zowe-common-c/zowe-common-c/   
-          echo "new"
-          ls /home/runner/work/zowe-common-c/
+          ls /home/runner/work/zowe-common-c/zowe-common-c/
+          TIMESTAMP=`date +%Y%m%d.%H%M%S`
+          mv cppcheck_report.txt cppcheck_report_${TIMESTAMP}.txt
+          jfrog rt u cppcheck_report_${TIMESTAMP}.txt libs-snapshot-local/org/zowe/zlux/zowe-common-c/scan/cppcheck_report_${TIMESTAMP}.txt
           
-      - name: upload to artifact      
-        uses: actions/upload-artifact@v3
-        with:
-          name: my-artifact
-          path: /home/runner/work/zowe-common-c/zowe-common-c/cppcheck_report.txt
