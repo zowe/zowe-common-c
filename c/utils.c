@@ -16,7 +16,6 @@
 #include <metal/stdio.h>
 #include <metal/stdlib.h>
 #include <metal/string.h>
-#include <metal/strings.h>
 #include <metal/ctype.h>
 #include "qsam.h"
 #include "metalio.h"

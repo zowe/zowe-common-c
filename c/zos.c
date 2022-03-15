@@ -1051,7 +1051,9 @@ static int safVerifyInternal(int options,
       fprintf(safTraceFile,"about to go call saf wrapper at 0x%p' verify block at 0x%p' acee 0x%p'\n",safWrapper,verifyRequest,
               (aceeHandle != NULL ? *aceeHandle : NULL));
       dumpbuffer((char*)safWrapper,sizeof(safp));
+#ifndef METTLE
       fprintf(safTraceFile,"verify:\n");
+#endif
       dumpbuffer((char*)verifyRequest,sizeof(safVerifyRequest));
     }
     safStatus = SAF(safWrapper,useSupervisorMode);
