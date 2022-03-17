@@ -159,7 +159,7 @@ static void addResponseHeader(HttpResponseParser *parser) {
   newHeader->value = copyString(parser->slh, parser->headerValue, parser->headerValueLength);
   newHeader->nativeValue = copyStringToNative(parser->slh, parser->headerValue, parser->headerValueLength);
 
-  zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "adding response header %s=%s", newHeader->nativeName, newHeader->nativeValue);
+  zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "adding response header %s=%s\n", newHeader->nativeName, newHeader->nativeValue);
 
   /* pull out enough data for parsing the entity body */
   if (!compareIgnoringCase(newHeader->nativeName, "Transfer-Encoding", parser->headerNameLength)) {
@@ -221,14 +221,14 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
         break;
       default:
         if (c > 1 && c <= 32) {
-          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "isWhitespace");
+          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "isWhitespace\n");
           isWhitespace = TRUE;
         } else if (c > 32 && c < 127) {
           isAsciiPrintable = TRUE;
         }
     }
     if (parser->state >= HTTP_STATE_RESP_STATUS_VERSION) {
-      zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "loop top i=%d c=0x%x wsp=%d cr/lf=%d state=%s", 
+      zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "loop top i=%d c=0x%x wsp=%d cr/lf=%d state=%s\n", 
              i, c, isWhitespace, (isCR || isLF),
              respStateNames[parser->state]);
     }
@@ -238,7 +238,7 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
           if (parser->versionLength < 1) {
             return ANSI_FAILED;
           }
-          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "RESP_STATUS_VERSION state to GAP1");
+          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "RESP_STATUS_VERSION state to GAP1\n");
           parser->state = HTTP_STATE_RESP_STATUS_GAP1;
         } else if (isAsciiPrintable) {
           if (parser->versionLength >= MAX_HTTP_VERSION) {
@@ -256,16 +256,16 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
           parser->statusReason[parser->statusReasonLength++] = c;
           parser->state = HTTP_STATE_RESP_STATUS_STATUS;
         } else if (isCR || isLF) {
-          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "Failing because saw CR or LF in GAP1 state");
+          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "Failing because saw CR or LF in GAP1 state\n");
           return ANSI_FAILED;
         }
         break;
       case HTTP_STATE_RESP_STATUS_STATUS:
         if (isCR || isLF) {
-          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "RespStatus CR/LF");
+          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "RespStatus CR/LF\n");
           return ANSI_FAILED;
         } else if (isWhitespace) {
-          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "RespStatus white");
+          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "RespStatus white\n");
           char *nativeStatusReason = copyStringToNative(parser->slh, parser->statusReason, parser->statusReasonLength);
           parser->httpStatusCode = atoi(nativeStatusReason);
           parser->state = HTTP_STATE_RESP_STATUS_GAP2;
@@ -305,7 +305,7 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
         break;
       case HTTP_STATE_HEADER_FIELD_NAME:
         if (isCR) {
-          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "field name CR seen: NameLen=%d", parser->headerNameLength);
+          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "field name CR seen: NameLen=%d\n", parser->headerNameLength);
           if (parser->headerNameLength == 0) {
             parser->state = HTTP_STATE_END_CR_SEEN;
           } else {
@@ -365,18 +365,18 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
         if (isLF) {
           /* read entity body - if present */
           if (parser->isChunked) {
-            zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ end CR -> READING_CHUNK_HEADER ____");
+            zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ end CR -> READING_CHUNK_HEADER ____\n");
             parser->specifiedChunkLength = -1;
             parser->state = HTTP_STATE_READING_CHUNK_HEADER;
             if (parser->specifiedContentLength > 0) {
-              zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ Chunked body specified len %d ____", 
+              zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ Chunked body specified len %d ____\n", 
                       parser->specifiedContentLength);
               parser->content = SLHAlloc(parser->slh, parser->specifiedContentLength);
               parser->contentSize = parser->specifiedContentLength;
 
             } else {
               /* assume all chunks will fit within an SLH block */
-              zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ Chunked body assumed within len %d ____", HTTP_CLIENT_MAX_RESPONSE);
+              zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ Chunked body assumed within len %d ____\n", HTTP_CLIENT_MAX_RESPONSE);
               parser->content = SLHAlloc(parser->slh, HTTP_CLIENT_MAX_RESPONSE);
               parser->contentSize = HTTP_CLIENT_MAX_RESPONSE;
             }
@@ -391,7 +391,7 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
           } else {
             /* fixed or no body */
             if (parser->specifiedContentLength > 0) { /* fixed body known length */
-              zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ Fixed body length %d ____", parser->specifiedContentLength);
+              zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ Fixed body length %d ____\n", parser->specifiedContentLength);
               parser->state = HTTP_STATE_READING_FIXED_BODY;
               parser->content = SLHAlloc(parser->slh, parser->specifiedContentLength);
               parser->contentSize = parser->specifiedContentLength;
@@ -399,14 +399,14 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
             } else {
               if (i < (len - 1)) { /* fixed body intuited length */
                                    /* there was no Content-length header, but we got more data */
-                zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ Simulating Content-length of %d ____", (len - i) - 1);
+                zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ Simulating Content-length of %d ____\n", (len - i) - 1);
                 parser->specifiedContentLength = (len - i) - 1;
                 parser->state = HTTP_STATE_READING_FIXED_BODY;
                 parser->content = SLHAlloc(parser->slh, parser->specifiedContentLength);
                 parser->contentSize = parser->specifiedContentLength;
                 parser->remainingContentLength = parser->specifiedContentLength;
               } else { /* no body */
-                zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ No body, output response  ______");
+                zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ No body, output response  ______\n");
                 parser->resp = (HttpClientResponse*)SLHAlloc(parser->slh, sizeof(HttpClientResponse));
                 parser->resp->slh = parser->slh;
                 parser->resp->statusCode = parser->httpStatusCode;
@@ -425,7 +425,7 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
         parser->content[parser->specifiedContentLength - parser->remainingContentLength] = (char)c;
         --(parser->remainingContentLength);
         if (parser->remainingContentLength <= 0) {
-          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "_____ END OF FIXED BODY _________");
+          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "_____ END OF FIXED BODY _________\n");
           parser->resp = (HttpClientResponse*)SLHAlloc(parser->slh, sizeof(HttpClientResponse));
           parser->resp->slh = parser->slh;
           parser->resp->statusCode = parser->httpStatusCode;
@@ -438,10 +438,10 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
       case HTTP_STATE_READING_CHUNK_HEADER:
         if (isCR) {
           if (-1 == parser->specifiedChunkLength) {
-            zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ CHUNKHEADER_CR with unspecified chunklen->LF->READING_CHUNK_TRAILER ____");
+            zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ CHUNKHEADER_CR with unspecified chunklen->LF->READING_CHUNK_TRAILER ____\n");
             parser->state = HTTP_STATE_READING_CHUNK_TRAILER;
           } else {
-            zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ CHUNKHEADER_CR with chunklen (%d) ->LF->HEADER_CR_SEEN ____", parser->specifiedChunkLength);
+            zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ CHUNKHEADER_CR with chunklen (%d) ->LF->HEADER_CR_SEEN ____\n", parser->specifiedChunkLength);
             parser->state = HTTP_STATE_CHUNK_HEADER_CR_SEEN;
           }
         } else {
@@ -461,7 +461,7 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
           if (0 < parser->specifiedChunkLength) {
             parser->remainingChunkLength = parser->specifiedChunkLength;
             parser->state = HTTP_STATE_READING_CHUNK_DATA;
-            zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ CHUNKHEADER_CR->LF->CHUNK_DATA length %d ____", parser->specifiedChunkLength);
+            zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ CHUNKHEADER_CR->LF->CHUNK_DATA length %d ____\n", parser->specifiedChunkLength);
           } else if (0 == parser->specifiedChunkLength) {
             parser->state = HTTP_STATE_READING_CHUNK_TRAILER;
           }
@@ -475,11 +475,11 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
             parser->content[parser->resp->contentLength++] = c;
             --(parser->remainingChunkLength);
           } else {
-            zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ CHUNKDATA would overflow parser content buffer! ____");
+            zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ CHUNKDATA would overflow parser content buffer! ____\n");
             return ANSI_FAILED;
           }
         } else {
-          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ CHUNKDATA zero remaining, expect CR ____");
+          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ CHUNKDATA zero remaining, expect CR ____\n");
           if (isCR) {
             parser->state = HTTP_STATE_CHUNK_DATA_CR_SEEN;
           } else {
@@ -488,9 +488,9 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
         }
         break;
       case HTTP_STATE_CHUNK_DATA_CR_SEEN:
-        zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ CHUNKDATA CR expect LF ____");
+        zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ CHUNKDATA CR expect LF ____\n");
         if (isLF) {
-          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ done reading a valid chunk, looking for next header ____");
+          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ done reading a valid chunk, looking for next header ____\n");
           parser->specifiedChunkLength = -1;
           parser->state = HTTP_STATE_READING_CHUNK_HEADER;
         } else {
@@ -501,7 +501,7 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
         if (isCR) {
           parser->state = HTTP_STATE_CHUNK_TRAILER_CR_SEEN;
         } else {
-          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ CHUNK TRAILER unsupported ____");
+          zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "____ CHUNK TRAILER unsupported ____\n");
           return ANSI_FAILED;
         }
         break;
@@ -876,11 +876,11 @@ static void writeRequestWithBody(HttpRequest *request, Socket *socket) {
   HttpHeader *headerChain = NULL;
   char crlf[] = {0x0d, 0x0a};
 
-  zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "in writeRequestWithBody");
+  zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "in writeRequestWithBody\n");
   // printf("socket->sslHandle is 0x%p\n", socket->sslHandle);
 
   len = snprintf(line, 1024, "%s %s HTTP/1.1", request->method, request->uri);
-  zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "header: %s", line);
+  zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "header: %s\n", line);
 #ifdef __ZOWE_OS_ZOS
   e2a(line, len);
 #endif
@@ -895,14 +895,14 @@ static void writeRequestWithBody(HttpRequest *request, Socket *socket) {
   dumpbuffer(crlf, 2);
 #endif
 
-  zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "write header chain 0x%x", headerChain);
+  zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "write header chain 0x%x\n", headerChain);
 
   if (request->contentBody && (0 < request->contentLength)) {
     requestIntHeader(request, TRUE, "Content-Length", request->contentLength);
   }
   headerChain = request->headerChain;
   while (headerChain) {
-    zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "headerChain %s %s or %d", headerChain->name, 
+    zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "headerChain %s %s or %d\n", headerChain->name, 
           (headerChain->nativeValue ? headerChain->nativeValue : "<n/a>"),
            headerChain->intValue);
 
@@ -1081,7 +1081,7 @@ int httpClientSessionReceiveNative(HttpClientContext *ctx, HttpClientSession *se
       break;
     }
 
-    zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "httpClientSessionReceiveNative will pass %d bytes to response parser", buflen);
+    zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "httpClientSessionReceiveNative will pass %d bytes to response parser\n", buflen);
 #ifdef DEBUG
     dumpbuffer(buf, buflen);
 #endif
