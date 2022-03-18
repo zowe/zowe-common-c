@@ -26,10 +26,6 @@
 
 #else
 
-#ifndef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 600
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -38,9 +34,9 @@
 #include <stdbool.h>
 #include <ctype.h>  
 #include <sys/stat.h>
-#include <sys/types.h> /* JOE 1/20/22 */
-#include <stdint.h> /* JOE 1/20/22 */
-#include <stdbool.h> /* JOE 1/20/22 */
+#include <sys/types.h> 
+#include <stdint.h> 
+#include <stdbool.h> 
 #include <errno.h>
 
 #endif
@@ -57,6 +53,13 @@
 
 #ifdef __ZOWE_OS_WINDOWS
 typedef int64_t ssize_t;
+#endif
+
+#ifdef __ZOWE_OS_ZOS
+
+int __atoe_l(char *bufferptr, int leng);
+int __etoa_l(char *bufferptr, int leng);
+
 #endif
 
 static int convertToNative(char *buf, size_t size) {

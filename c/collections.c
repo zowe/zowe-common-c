@@ -1427,7 +1427,7 @@ static void *arrayListAlloc(ArrayList *list, uint32_t size, char *location){
   }
 }
 
-ArrayList *makeArrayList(){
+ArrayList *makeArrayList(void){
   ArrayList *list = (ArrayList*)safeMalloc(sizeof(ArrayList),"ArrayList");
   list->capacity = 8;
   list->size     = 0;
@@ -1491,7 +1491,7 @@ void *arrayListShallowCopy(ArrayList *source, ArrayList *target){
   target->size     = source->size;
   target->slh      = source->slh;
   target->array = (void**)arrayListAlloc(target,target->capacity*sizeof(void*),"ArrayListArray");  
-  memcpy(target->array,source->array,target->capacity*sizeof(void**));
+  memcpy(target->array,source->array,target->size*sizeof(void**));
   return target;
 }
 

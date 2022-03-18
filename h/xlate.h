@@ -80,7 +80,7 @@ typedef struct CharsetOracle_tag {
 #define CHARSET_ORACLE_EBCDIC_FAMILY  0x10000
 #define CHARSET_ORACLE_UTF_FAMILY     0x20000
 
-CharsetOracle *makeCharsetOracle();
+CharsetOracle *makeCharsetOracle(void);
 
 void freeCharsetOracle(CharsetOracle *oracle);
 void charsetOracleDigest(CharsetOracle *oracle, char *s, int len);

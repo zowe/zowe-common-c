@@ -228,7 +228,7 @@ static ValidityException *noteValidityException(JsonValidator *validator, int in
   return exception;
 }
 
-JsonValidator *makeJsonValidator(){
+JsonValidator *makeJsonValidator(void){
   JsonValidator *validator = (JsonValidator*)safeMalloc(sizeof(JsonValidator),"JsonValidator");
   memset(validator,0,sizeof(JsonValidator));
   validator->accessPath = (AccessPath*)safeMalloc(sizeof(AccessPath),"JsonValidatorAccessPath");

@@ -19,6 +19,13 @@
 #include "json.h"
 #include "jsonschema.h"
 
+#ifdef __ZOWE_OS_ZOS
+
+int __atoe_l(char *bufferptr, int leng);
+int __etoa_l(char *bufferptr, int leng);
+
+#endif
+
 
 #if defined(__ZOWE_OS_ZOS)
 #  define SOURCE_CODE_CHARSET CCSID_IBM1047
@@ -760,7 +767,7 @@ static void yaml2JS1(ByteOutputStream *bos,
           printf("tag = %s scalarStyle=%s\n",nativeTag,getScalarStyleName(node->data.scalar.style));
         }
         Json *scalar = NULL;
-        // HERE, make test with float, int, bool, null, ddate
+        /* HERE, make test with float, int, bool, null, date */
         if (!strcmp(nativeTag,YAML_NULL_TAG)){
         } else if (!strcmp(nativeTag,YAML_NULL_TAG)){
           /* Json *scalar = jsonBuildNull(b,parent,parentKey,&buildStatus); */
@@ -773,7 +780,7 @@ static void yaml2JS1(ByteOutputStream *bos,
           bool valid;
           int64_t x = readInt((yaml_char_t*)nativeValue,valueLength,&valid);
           if (valid){
-            printf("%lld\n",x);
+            /* this is not yet done */
           } else {
             buildStatus = JSON_FAIL_BAD_INTEGER;
           }

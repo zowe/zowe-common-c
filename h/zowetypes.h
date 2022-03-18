@@ -281,6 +281,8 @@ typedef uint64_t uint64;
 #define INT_INT64(x) ((int64)x)
 #define CHARPTR_INT64(x) ((int64)x)
 #define INT2PTR(x) ((void*)((int64_t)(x)))
+#define INT64_LL(x) ((long long)(x))
+#define UINT64_ULL(x) ((unsigned long long)(x))
 
 #else
 
@@ -291,6 +293,8 @@ typedef unsigned long long uint64;
 #define INT_INT64(x) ((int64)x)
 #define CHARPTR_INT64(x) ((int64)((int)x))
 #define INT2PTR(x) ((void*)(x))
+#define INT64_LL(x) ((long long)(x))
+#define UINT64_ULL(x) ((unsigned long long)(x))
 
 #endif
 

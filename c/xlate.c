@@ -80,7 +80,7 @@ char* a2e(char *buffer, int len)
 }
 
 
-CharsetOracle *makeCharsetOracle(){
+CharsetOracle *makeCharsetOracle(void){
   CharsetOracle *oracle = (CharsetOracle*)safeMalloc(sizeof(CharsetOracle),"CharsetOracle");
   memset(oracle,0,sizeof(CharsetOracle));
   return oracle;

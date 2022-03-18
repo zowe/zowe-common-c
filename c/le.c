@@ -86,7 +86,7 @@ LibraryFunction libraryFunctionTable[LIBRARY_FUNCTION_COUNT]
 #endif
 };
 
-char *getCAA(){
+char *getCAA(void){
   char *realCAA = NULL;
 
 #if !defined(METTLE) && defined(_LP64)
@@ -162,7 +162,7 @@ static LibraryFunction *findLibraryFunction(int rtlVectorOffset){
 
 #define ESTIMATED_RTL_VECTOR_SIZE 0xB00
 
-void showRTL(){
+void showRTL(void){
   CAA *caa = (CAA*)getCAA();
   void **rtlVector = caa->runtimeLibraryVectorTable;
   printf("RTL Vector at 0x%p\n",rtlVector);

@@ -15,14 +15,18 @@ WORKING_DIR=$(dirname "$0")
 echo "********************************************************************************"
 echo "Building configmgr..."
 
-rm -f "${COMMON}/bin/configmgr"
+# These paths assume that the build is run from /zss/deps/zowe-common-c/builds
+
+
 
 mkdir -p "${WORKING_DIR}/tmp-configmgr" && cd "$_"
+
 COMMON="../.."
+QUICKJS="../../../../../quickjs"
+LIBYAML="../../../../../libyaml"
 
-QUICKJS="/u/zossteam/jdevlin/git2022/quickjs"
+rm -f "${COMMON}/bin/configmgr"
 
-LIBYAML="/u/zossteam/jdevlin/git2022/libyaml"
 MAJOR=0
 MINOR=2
 PATCH=5
@@ -107,6 +111,8 @@ xlclang \
   ${COMMON}/c/jsonschema.c \
   ${COMMON}/c/le.c \
   ${COMMON}/c/logging.c \
+  ${COMMON}/c/microjq.c \
+  ${COMMON}/c/parsetools.c \
   ${COMMON}/platform/posix/psxregex.c \
   ${COMMON}/c/recovery.c \
   ${COMMON}/c/scheduling.c \

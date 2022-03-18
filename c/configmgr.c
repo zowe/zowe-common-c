@@ -169,15 +169,15 @@ typedef struct ConfigManager_tag {
 } ConfigManager;
 
 #ifdef __ZOWE_OS_WINDOWS
-static int stdoutFD(){
+static int stdoutFD(void){
   return _fileno(stdout);
 }
 
-static int stderrFD(){
+static int stderrFD(void){
   return _fileno(stdout);
 }
 #else
-static int stdoutFD(){
+static int stdoutFD(void){
 #ifdef STDOUT_FILENO
   return STDOUT_FILENO;
 #else
@@ -185,7 +185,7 @@ static int stdoutFD(){
 #endif
 }
 
-static int stderrFD(){
+static int stderrFD(void){
 #ifdef STDERR_FILENO
   return STDERR_FILENO;
 #else
@@ -712,7 +712,7 @@ static void extractText(ConfigManager *mgr, JsonPointer *jp, FILE *out){
     } else if (jsonIsString(value)){
       fprintf(out,"%s",jsonAsString(value));
     } else if (jsonIsInt64(value)){
-      fprintf(out,"%lld",jsonAsInt64(value));
+      fprintf(out,"%lld",INT64_LL(jsonAsInt64(value)));
     } else if (jsonIsDouble(value)){
       fprintf(out,"%f",jsonAsDouble(value));
     } else if (jsonIsBoolean(value)){
@@ -853,7 +853,7 @@ static void outputEnvString(FILE * out, const char *str) {
 }
 
 static void outputEnvInt64(FILE * out, int64_t num) {
-  fprintf(out, "%lld\n", num);
+  fprintf(out, "%lld\n", INT64_LL(num));
 }
 
 static void outputEnvDouble(FILE * out, double num) {

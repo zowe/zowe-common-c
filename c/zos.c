@@ -1413,7 +1413,7 @@ static void *loadByNameInternal(char *moduleName, int *statusPtr,
   if (status){
     return 0; /* entry point not found */
   } else{
-    return (void*)entryPoint;
+    return INT2PTR(entryPoint);
   }
 
 }

@@ -38,9 +38,8 @@
 #include <stdbool.h>
 #include <ctype.h>  
 #include <sys/stat.h>
-#include <sys/types.h> /* JOE 1/20/22 */
-#include <stdint.h> /* JOE 1/20/22 */
-#include <stdbool.h> /* JOE 1/20/22 */
+#include <sys/types.h>
+#include <stdint.h>
 #include <errno.h>
 
 #endif
@@ -185,7 +184,8 @@ void jsonWriteBufferInternal(jsonPrinter *p, char *text, int len) {
       } else if (p->fd == _fileno(stderr)){
         newWriteReturn = fwrite(text, 1, len, stderr);
       } else {
-        printf("JOE WINDOWS FAKE SOCKET WRITE bad case\n");
+        JSONERROR("JSON: can only write to stderr or stdout on Windows, not p->fd=%d\n",p->fd);
+        jsonSetIOErrorFlag(p);
       }
 #elif !defined(METTLE)
       int newWriteReturn = write(p->fd,text+bytesWritten,len-bytesWritten);
@@ -482,7 +482,7 @@ void jsonWriteUInt(jsonPrinter *p, unsigned int value) {
 static
 void jsonWriteInt64(jsonPrinter *p, int64 value) {
   char buffer[64];
-  snprintf(buffer, sizeof (buffer), "%lld", value);
+  snprintf(buffer, sizeof (buffer), "%lld", INT64_LL(value));
   jsonWrite(p, buffer, false, SOURCE_CODE_CHARSET);
 }
 
@@ -1102,7 +1102,6 @@ void freeJsonParser(JsonParser *parser) {
 
 static 
 void jsonParseFail(JsonParser *parser, char *formatString, ...) {
-  fflush(stdout);
   if (parser->jsonError == NULL) {
     int size = 1024;
     char *buffer = jsonParserAlloc(parser, size);
