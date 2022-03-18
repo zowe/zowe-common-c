@@ -30,10 +30,10 @@ jobs:
           arguments: '--sarif ./'
           output: 'flawfinder_results.sarif'
 
-      - name: Upload analysis results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v1
-        with:
-          sarif_file: ${{github.workspace}}/flawfinder_results.sarif
+      #- name: Upload analysis results to GitHub Security tab
+      #  uses: github/codeql-action/upload-sarif@v1
+      #  with:
+      #    sarif_file: ${{github.workspace}}/flawfinder_results.sarif
       
       - name: Upload SARIF as an Artifact
         uses: actions/upload-artifact@v3
