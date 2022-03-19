@@ -231,7 +231,7 @@ typedef struct CrossMemoryServerGlobalArea_tag {
 
   int pcLogLevel;
 
-  PAD_LONG(0, RecoveryStatePool *pcssRecoveryPool);
+  PAD_LONG(0, struct RecoveryStatePool_tag *pcssRecoveryPool);
   CPID pcssStackPool;
 
   char reserved3[492];
