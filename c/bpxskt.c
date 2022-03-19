@@ -447,6 +447,9 @@ Socket *udpPeer(SocketAddress *socketAddress,
   }
 }
 
+/* Forward decl */
+static int setSocketReuseAddr(int sd, int *returnCode, int *reasonCode);
+
 Socket *tcpServer2(InetAddr *addr,
                    int port,
                    int tlsFlags,
@@ -521,7 +524,7 @@ Socket *tcpServer2(InetAddr *addr,
       dumpbuffer((char*)socketAddress,sizeof(SocketAddress));
       dumpbuffer((char*)addr,sizeof(InetAddr));
     }
-    setSocketReuseAddr(&sd,
+    setSocketReuseAddr(sd,
                        returnCode,
                        reasonCodePtr);
     if (returnValue != 0){
@@ -1230,10 +1233,9 @@ int getSocketOption(Socket *socket, int optionName, int *optionDataLength, char 
   }
 }
 
-int setSocketOption(Socket *socket, int level, int optionName, int optionDataLength, char *optionData,
-		    int *returnCode, int *reasonCode){
+static int setSDOption(int sd, int level, int optionName, int optionDataLength, char *optionData,
+		       int *returnCode, int *reasonCode){
   int status = 0;
-  int sd = socket->sd;
   int returnValue = 0;
   *returnCode = *reasonCode = 0;
   int *reasonCodePtr;
@@ -1266,6 +1268,12 @@ int setSocketOption(Socket *socket, int level, int optionName, int optionDataLen
   }
 }
 
+int setSocketOption(Socket *socket, int level, int optionName, int optionDataLength, char *optionData,
+		    int *returnCode, int *reasonCode){
+  return setSDOption(socket->sd,level,optionName,optionDataLength,optionData,returnCode,reasonCode);
+}
+
+
 int setSocketNoDelay(Socket *socket, int noDelay, int *returnCode, int *reasonCode){
   return setSocketOption(socket,IPPROTO_TCP,TCP_NODELAY,sizeof(int),(char*)&noDelay,returnCode,reasonCode);
 }
@@ -1278,9 +1286,9 @@ int setSocketReadBufferSize(Socket *socket, int bufferSize, int *returnCode, int
   return setSocketOption(socket,SOL_SOCKET,SOCK_SO_RCVBUF,sizeof(int),(char*)&bufferSize,returnCode,reasonCode);
 }
 
-int setSocketReuseAddr(Socket *socket, int *returnCode, int *reasonCode){
+static int setSocketReuseAddr(int sd, int *returnCode, int *reasonCode){
   int on = 1;
-  return setSocketOption(socket,SOL_SOCKET,SOCK_SO_REUSEADDR,sizeof(int),(char*)&on,returnCode,reasonCode);
+  return setSDOption(sd,SOL_SOCKET,SOCK_SO_REUSEADDR,sizeof(int),(char*)&on,returnCode,reasonCode);
 }
 
 int udpReceiveFrom(Socket *socket, 

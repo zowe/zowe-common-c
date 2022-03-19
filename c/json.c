@@ -26,10 +26,6 @@
 
 #else
 
-#ifndef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 600
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -55,6 +51,11 @@
 
 #ifdef __ZOWE_OS_WINDOWS
 typedef int64_t ssize_t;
+#endif
+
+/* Having lots of problems including unistd, so here's a hack */
+#ifdef __ZOWE_OS_ZOS
+ssize_t write(int fd, const void *buf, size_t count); 
 #endif
 
 
@@ -217,16 +218,10 @@ void jsonWriteBufferInternal(jsonPrinter *p, char *text, int len) {
 #define ESCAPE_LEN 6 /* \u0123 */
 #define ESCAPE_NATIVE_BUF_SIZE 12 /* some bytes have been added for safety */
 
-#if defined(__ZOWE_OS_ZOS)
-#  pragma convert("UTF8")
-#endif
-static char UTF8_QUOTE = '"';
-static char UTF8_BACKSLASH = '\\';
-static char UTF8_ESCAPED_QUOTE[2] = "\\\"";
-static char UTF8_ESCAPED_BACKSLASH[2]= "\\\\";
-#if defined(__ZOWE_OS_ZOS)
-#  pragma convert(pop)
-#endif
+static char UTF8_QUOTE = 0x22;
+static char UTF8_BACKSLASH = 0x5C;
+static char UTF8_ESCAPED_QUOTE[2] = { 0x5C, 0x22 };
+static char UTF8_ESCAPED_BACKSLASH[2]={ 0x5C, 0x5C};
 
 #define UTF8_GET_NEXT_CHAR($size, $buf, $idx, $outChar, $err) do { \
     if ((($buf)[*($idx)] & 0x80) == 0) { \
@@ -318,8 +313,9 @@ writeBufferWithEscaping(jsonPrinter *p, size_t len, char text[len]) {
       return -1;
     }
     DEBUG("character at %p + %d, len %d, char %x\n", text, i, len, utf8Char);
-    if (((utf8Char >= 0) && (utf8Char <= effectiveControlCharBoundary))
-        || (utf8Char == UTF8_BACKSLASH) || (utf8Char == UTF8_QUOTE)) {
+    if ((utf8Char <= effectiveControlCharBoundary) ||
+        (utf8Char == UTF8_BACKSLASH) || 
+        (utf8Char == UTF8_QUOTE)) {
 
       chunkLen = i - 1 - currentChunkOffset;
       if (chunkLen > 0) {
@@ -395,14 +391,7 @@ void jsonConvertAndWriteBuffer(jsonPrinter *p, char *text, size_t len,
       DUMPBUF(text, len);
     }
     if (escape) {
-      size_t bytesWritten;
-
-      bytesWritten = writeBufferWithEscaping(p, len, text);
-      if (bytesWritten < 0) {
-        JSONERROR("jsonConvertAndWriteBuffer() error: bytesWritten = %d\n",
-                  (int)bytesWritten);
-        return;
-      }
+      writeBufferWithEscaping(p, len, text);
     } else {
       jsonWriteBufferInternal(p, text, len);
     }

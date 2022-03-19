@@ -461,6 +461,8 @@ typedef struct safp_tag{
 #define SAF_VERIFY_NESTED_COPY    0x20
 #define SAF_VERIFY_NO_MFA         0x10
 
+#pragma pack(packed)
+
 typedef struct safVerifyRequest_tag{
   char initlen;
   char initsubp;
@@ -507,6 +509,13 @@ typedef struct safVerifyRequest_tag{
   void * __ptr32 idta;
 } safVerifyRequest;
 
+/* Helper function to workaround xlclang FE and backend not agreeing on packed ptr32 size */
+
+static int sizeofSafVerifyRequest(void){
+  return sizeof(safVerifyRequest);
+}
+
+
 /* first flag set */
 #define SAF_AUTH_RACFIND_SPECIFIED 0x80
 #define SAF_AUTH_RACFIND_YES       0x40
@@ -533,15 +542,59 @@ typedef struct safVerifyRequest_tag{
 #define SAF_AUTH_STATUS_WRITEONLY 0x20
 #define SAF_AUTH_STATUS_ACCESS 0x10
 
+typedef struct safAuthRequest_tag{
+  char achkleng;
+  char old_installationDataAddress[3];
+  char achkflg1;
+  char old_entityNameAddress[3];
+  char achkflg2;
+  char old_classNameAddress[3];
+  char achkflg3;
+  char old_volser3ByteAddress[3];
+  void * __ptr32 old_volserAddress;
+  void * __ptr32 applName;
+  void * __ptr32 acee;
+  void * __ptr32 owner; /* ? */
+  void * __ptr32 installationData;
+  void * __ptr32 entityName;
+  void * __ptr32 className;
+  void * __ptr32 volser;
+  void * __ptr32 acclvl1;
+  void * __ptr32 acclvl2;
+  short fileSequenceNumber;
+  char tapeFlags;
+  char achkflg4;
+  void * __ptr32 userid;
+  void * __ptr32 groupName;
+  void * __ptr32 ddname;
+  void * __ptr32 reserved1;
+  void * __ptr32 utoken;
+  void * __ptr32 rtoken;
+  void * __ptr32 logstr;
+  void * __ptr32 recvr;
+} safAuthRequest;
+
+typedef struct safStatRequest_tag{
+  void * __ptr32 className;
+  void * __ptr32 CDTentry;
+  short statLength;
+  char reserved[2];
+  void * __ptr32 classCopy;
+  int classCopyLength;
+  void * __ptr32 statNext;
+} safStatRequest;
+
+#pragma pack(reset)
+
 static int SAF(safp * __ptr32 safwrapper, int useSupervisorMode)
 {
   int returnCode = 0;
 
   int supervisorState = 0;
 
-  char * __ptr32 cvt = * (char * __ptr32 * __ptr32 ) 16;
-  char * __ptr32 safVectorTable = (char * __ptr32) *(int *)(cvt + 248);
-  char * __ptr32 safRouter = (char * __ptr32) *(int *)(safVectorTable + 12);
+  CVT *cvt = getCVT();
+  int *safVectorTable = (int*)INT2PTR(cvt->cvtsaf);
+  int safRouter = safVectorTable[3]; /* not using ptr type becuz embedded ASM does not care */
 
   ALLOC_STRUCT31(
     STRUCT31_NAME(below2G),
@@ -595,47 +648,6 @@ void setSafTrace(int traceLevel, void *traceFile){
   safTraceFile = traceFile;
 }
 
-typedef struct safAuthRequest_tag{
-  char achkleng;
-  char old_installationDataAddress[3];
-  char achkflg1;
-  char old_entityNameAddress[3];
-  char achkflg2;
-  char old_classNameAddress[3];
-  char achkflg3;
-  char old_volser3ByteAddress[3];
-  void * __ptr32 old_volserAddress;
-  void * __ptr32 applName;
-  void * __ptr32 acee;
-  void * __ptr32 owner; /* ? */
-  void * __ptr32 installationData;
-  void * __ptr32 entityName;
-  void * __ptr32 className;
-  void * __ptr32 volser;
-  void * __ptr32 acclvl1;
-  void * __ptr32 acclvl2;
-  short fileSequenceNumber;
-  char tapeFlags;
-  char achkflg4;
-  void * __ptr32 userid;
-  void * __ptr32 groupName;
-  void * __ptr32 ddname;
-  void * __ptr32 reserved1;
-  void * __ptr32 utoken;
-  void * __ptr32 rtoken;
-  void * __ptr32 logstr;
-  void * __ptr32 recvr;
-} safAuthRequest;
-
-typedef struct safStatRequest_tag{
-  void * __ptr32 className;
-  void * __ptr32 CDTentry;
-  short statLength;
-  char reserved[2];
-  void * __ptr32 classCopy;
-  int classCopyLength;
-  void * __ptr32 statNext;
-} safStatRequest;
 
 static safp *makeSAFCallData(int requestNumber,
                              int useSupervisorMode,
@@ -652,7 +664,7 @@ static safp *makeSAFCallData(int requestNumber,
   version = SAFPR192;
   switch (requestNumber){
   case SAFPVER:
-    specificDataSize = sizeof(safVerifyRequest);
+    specificDataSize = sizeofSafVerifyRequest();
     flags = SAFP_FLAG_R18;
     if (useSupervisorMode){
       flags |= SAFP_FLAG_SYST;
@@ -995,7 +1007,7 @@ static int safVerifyInternal(int options,
       }
     }
 
-    verifyRequest->initlen = sizeof(safVerifyRequest);
+    verifyRequest->initlen = sizeofSafVerifyRequest();
     if (options & VERIFY_CREATE){
       verifyFlags1 |= SAF_VERIFY_CREATE;
     } else if (options & VERIFY_DELETE){
