@@ -902,7 +902,7 @@ static void writeRequestWithBody(HttpRequest *request, Socket *socket) {
   }
   headerChain = request->headerChain;
   while (headerChain) {
-    zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "headerChain %s %s or %d\n", headerChain->name, 
+    zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG3, "headerChain %s %s or %d\n", headerChain->name, 
           (headerChain->nativeValue ? headerChain->nativeValue : "<n/a>"),
            headerChain->intValue);
 

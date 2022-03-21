@@ -1749,7 +1749,7 @@ static void writeXmlByteCallback(xmlPrinter *p, char c){
 
 xmlPrinter *respondWithXmlPrinter(HttpResponse *response){
   if (response->responseTypeChosen){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "*** WARNING *** response type already chosen\n");
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "*** WARNING *** response type already chosen\n");
     return NULL;
   }
   response->stream = makeChunkedOutputStreamInternal(response);
@@ -5348,14 +5348,14 @@ static void doHttpReadWork(HttpConversation *conversation, int readBufferSize){
 
   int bytesRead = socketRead(socket,readBuffer,readBufferSize,&returnCode,&reasonCode);
   if (bytesRead < 1) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "HTTP desiredBytes = %d bytesRead=%d, so a problem or no more available rc=0x%x, reason=0x%x. conversation=0x%X\n",
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "HTTP desiredBytes = %d bytesRead=%d, so a problem or no more available rc=0x%x, reason=0x%x. conversation=0x%X\n",
             readBufferSize,bytesRead,returnCode,reasonCode,conversation);
     conversation->shouldClose = TRUE;
     return; /* can't respond on a bad socket, even with an error */
   } 
   int requestStreamOK = processHttpFragment(parser,readBuffer,bytesRead);
   if (!requestStreamOK) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "some issue with parser status\n");
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "Issue with parser status\n");
     conversation->shouldError = TRUE;
     conversation->httpErrorStatus = parser->httpReasonCode;
   }
@@ -5384,7 +5384,7 @@ static void doWSReadWork(HttpConversation *conversation, int readBufferSize){
 
   int bytesRead = socketRead(socket,readBuffer,readBufferSize,&returnCode,&reasonCode);
   if (bytesRead < 1){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "WS desiredBytes = %d bytesRead=%d, so a problem or no more available rc=0x%x, reason=0x%x, conversation=0x%X\n",
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "WS desiredBytes = %d bytesRead=%d, so a problem or no more available rc=0x%x, reason=0x%x, conversation=0x%X\n",
             readBufferSize,bytesRead,returnCode,reasonCode,conversation);
     conversation->shouldClose = TRUE;
     return; /* dangerous to enqueue any work once shouldClose has been set */
@@ -5431,7 +5431,7 @@ static int httpHandleTCP(STCBase *base,
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "TCP Accept return=0x%x reason=0x%x socket %s\n",
               returnCode,reasonCode,(peerSocket ? peerSocket->debugName : "NONE"));
       if (peerSocket == NULL){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "httpserver: accept failed ret=%d reason=0x%x\n",returnCode,reasonCode);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "httpserver: accept failed ret=%d reason=0x%x\n",returnCode,reasonCode);
         break; /* end server socket processing */
       }
 #ifdef USE_RS_SSL
@@ -5442,7 +5442,7 @@ static int httpHandleTCP(STCBase *base,
                                                         peerSocket->sd,
                                                         &(peerSocket->sslHandle)); /* RS_SSL_CONNECTION */
         if ((0 != rsStatus) || (NULL == peerSocket->sslHandle)) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "httpserver failed to negotiate TLS with peer; closing socket\n");
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "httpserver failed to negotiate TLS with peer; closing socket\n");
           socketClose(peerSocket, &returnCode, &reasonCode);
           break;
         }
@@ -5455,7 +5455,7 @@ static int httpHandleTCP(STCBase *base,
                                peerSocket->sd,
                                true);
         if ((0 != rc) || (NULL == peerSocket->tlsSocket)) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "httpserver failed to negotiate TLS with peer; closing socket\n");
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "httpserver failed to negotiate TLS with peer; closing socket\n");
           socketClose(peerSocket, &returnCode, &reasonCode);
           break;
         }
@@ -5491,7 +5491,7 @@ static int httpHandleTCP(STCBase *base,
       HttpConversation *conversation = (HttpConversation*)extension->protocolHandler;
 
       if (NULL == conversation) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "*** peerExtension protocolHandler is NULL ***\n");
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "*** peerExtension protocolHandler is NULL ***\n");
         /* we can't do a full conversation cleanup, just close the socket and unregister the socketExtension, leaks be damned */
         socketClose(peerExtension->socket, &returnCode,&reasonCode);
         handlerStatus = 8;
