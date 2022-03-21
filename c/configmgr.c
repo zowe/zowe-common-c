@@ -140,6 +140,13 @@ typedef int64_t ssize_t;
 
       curl https://api.github.com/repos/stedolan/jq/commits?per_page=5 > commits.json
 
+    --- 
+      1) top level call
+      2) The "zowe" global, eg. zowe.validate(json,schema) -> null | [ <validationException> ]
+      3) configmgr - make schema arg explicit and path
+      4) build file references "jdevlin"
+      5) semantic validation
+      6) $ {{ zowe.runtimeDirectory }}
       
 */
 

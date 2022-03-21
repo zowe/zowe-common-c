@@ -664,6 +664,7 @@ char* jsonBuildKey(JsonBuilder *b, const char *key, int len);
 #define JSON_MERGE_FLAG_TAKE_OVERRIDES     0x0004   /* len(merge) = len(a) */
 
 Json *jsonMerge(ShortLivedHeap *slh, Json *overrides, Json *base, int flags, int *statusPtr);
+Json *jsonCopy(ShortLivedHeap *slh, Json *value);
 
 /* JSON Pointers */
 

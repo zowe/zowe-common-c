@@ -90,6 +90,7 @@ typedef int64_t ssize_t;
 
 typedef struct JSValueSpec_tag {
   int      typeMask;
+  int      enumeratedValuesCount;
   Json   **enumeratedValues;
   Json    *constValue;
   char    *id;
@@ -100,9 +101,12 @@ typedef struct JSValueSpec_tag {
   bool     nullable;
   /* shared sub-schema definitions go here */
   hashtable *definitions;
-  /* Compositing */
+  /* Quantifying/Compositing */
+  int allOfCount;
   struct JSValueSpec_tag **allOf;
+  int anyOfCount;
   struct JSValueSpec_tag **anyOf;
+  int oneOfCount;
   struct JSValueSpec_tag **oneOf;
   struct JSValueSpec_tag *not;
 
@@ -126,7 +130,7 @@ typedef struct JSValueSpec_tag {
   bool exclusiveMaximum;
   bool exclusiveMinimum;
   double multipleOf;
-  bool isInteger;
+  /* bool isInteger; */
 
   /* for arrays */
   struct JSValueSpec_tag *itemSpec;
@@ -143,8 +147,6 @@ typedef struct JSValueSpec_tag {
 typedef struct AccessPathUnion_tag {
   int dummy;
 } AccessPathUnion;
-
-
 
 static void printAccessPath(FILE *out, AccessPath *path){
   for (int i=0; i<path->currentSize; i++){
@@ -210,7 +212,13 @@ static void validationThrow(JsonValidator *validator, int errorCode, char *forma
   longjmp(validator->recoveryData,1);
 }
 
-static ValidityException *noteValidityException(JsonValidator *validator, int invalidityCode, char *formatString, ...){
+static ValidityException *noteValidityException(JsonValidator *validator,
+                                                bool isSpeculating,
+                                                int invalidityCode,
+                                                char *formatString, ...){
+  if (isSpeculating){
+    return NULL;
+  }
   va_list argPointer;
   ValidityException *exception = (ValidityException*)safeMalloc(sizeof(ValidityException),"ValidityException");
   exception->code = invalidityCode;
@@ -250,11 +258,30 @@ static char *validatorAccessPath(JsonValidator *validator){
    this part is invalid enough such that further evaluation would probably confuse the user with 
    contradictory information. */
 
+typedef enum VResult_tag {
+  InvalidStop = 0,
+  ValidStop = 1,
+  InvalidContinue = 2,
+  ValidContinue = 3
+} VResult;
+
+static bool vResultValid(VResult r){
+  return (r == ValidStop) || (r == ValidContinue);
+}
+
+static VResult invertValidity(VResult r){
+  return (VResult)(((int)r)^0x1);
+}
+
 static bool validateType(JsonValidator *validator,
+                         bool isSpeculating,
                          int typeCode,
                          JSValueSpec *valueSpec){
+  if (validator->traceLevel >= 1){
+    printf("typeCode=%d shifted=0x%x mask=0x%x\n",typeCode,(1 << typeCode),valueSpec->typeMask);
+  }
   if (((1 << typeCode) & valueSpec->typeMask) == 0){
-    noteValidityException(validator,12,"type %d not permitted at %s",typeCode,validatorAccessPath(validator));
+    noteValidityException(validator,isSpeculating,12,"type %d not permitted at %s",typeCode,validatorAccessPath(validator));
     return false;
   } else {
     return true;
@@ -262,20 +289,24 @@ static bool validateType(JsonValidator *validator,
 }
 
 /* for mutual recursion */
-static bool validateJSON(JsonValidator *validator, Json *value, JSValueSpec *valueSpec);
+static VResult validateJSON(JsonValidator *validator, bool isSpeculating, Json *value, JSValueSpec *valueSpec);
 
-static bool validateJSONObject(JsonValidator *validator,
-                               JsonObject *object,
-                               JSValueSpec *valueSpec){
+static VResult validateJSONObject(JsonValidator *validator,
+                                  bool isSpeculating,
+                                  JsonObject *object,
+                                  JSValueSpec *valueSpec){
+  int invalidCount = 0;
   AccessPath *accessPath = validator->accessPath;
-  printf("validateJSONObject required=0x%p\n",valueSpec->required);
-  printAccessPath(stdout,accessPath);
-  fflush(stdout);
+  if (validator->traceLevel >= 1){
+    printf("validateJSONObject required=0x%p\n",valueSpec->required);
+    printAccessPath(stdout,accessPath);
+    fflush(stdout);
+  }
   if (valueSpec->required){
     for (int r=0; r<valueSpec->requiredCount; r++){
       char *requiredProperty = valueSpec->required[r];
       if (jsonObjectGetPropertyValue(object,requiredProperty) == NULL){
-        noteValidityException(validator,12,"missing required property '%s' at '%s'",
+        noteValidityException(validator,isSpeculating,12,"missing required property '%s' at '%s'",
                               requiredProperty,validatorAccessPath(validator));
       }
     }
@@ -286,8 +317,10 @@ static bool validateJSONObject(JsonValidator *validator,
   while (property){
     propertyCount++;
     char *propertyName = jsonPropertyGetKey(property);
-    printf("validate object pname=%s\n",propertyName);
-    fflush(stdout);
+    if (validator->traceLevel >= 1){
+      printf("validate object pname=%s\n",propertyName);
+      fflush(stdout);
+    }
     Json *propertyValue = jsonPropertyGetValue(property);
     JSValueSpec *propertySpec = (valueSpec->properties ?
                                  (JSValueSpec*)htGet(valueSpec->properties,propertyName) :
@@ -295,7 +328,10 @@ static bool validateJSONObject(JsonValidator *validator,
     accessPathPushName(accessPath,propertyName);
         
     if (propertySpec != NULL){
-      validateJSON(validator,propertyValue,propertySpec);
+      VResult propResult = validateJSON(validator,isSpeculating,propertyValue,propertySpec);
+      if (!vResultValid(propResult)){
+        invalidCount++;
+      }
     } else {
       if (validator->flags && VALIDATOR_WARN_ON_UNDEFINED_PROPERTIES){
         printf("*WARNING* unspecified property seen, '%s', and checking code is not complete, vspec->props=0x%p\n",
@@ -319,24 +355,28 @@ static bool validateJSONObject(JsonValidator *validator,
   if (valueSpec->validatorFlags & JS_VALIDATOR_MAX_PROPS){
     int64_t lim = valueSpec->minProperties;
     if (propertyCount > lim){
-      noteValidityException(validator,12,"too many properties, %d > MAX=%d at %s",
+      invalidCount++;
+      noteValidityException(validator,isSpeculating,12,"too many properties, %d > MAX=%d at %s",
                       propertyCount,lim,validatorAccessPath(validator));
     }
   }
   if (valueSpec->validatorFlags & JS_VALIDATOR_MIN_PROPS){
     int64_t lim = valueSpec->minProperties;
     if (propertyCount < lim){
-      noteValidityException(validator,12,"too few properties, %d < MIN=%d at %s",
+      invalidCount++;
+      noteValidityException(validator,isSpeculating,12,"too few properties, %d < MIN=%d at %s",
                             propertyCount,lim,validatorAccessPath(validator));
     }
   }
-  return true;
+  return (invalidCount > 0 ? InvalidContinue : ValidContinue);
 }
 
-bool validateJSONArray(JsonValidator *validator,
-                       JsonArray *array,
-                       JSValueSpec *valueSpec){
+static VResult validateJSONArray(JsonValidator *validator,
+                                 bool isSpeculating,
+                                 JsonArray *array,
+                                 JSValueSpec *valueSpec){
   AccessPath *accessPath = validator->accessPath;
+  int invalidCount = 0;
   //boolean uniqueItems;
   // Long maxContains;
   // Long minContains;
@@ -344,7 +384,8 @@ bool validateJSONArray(JsonValidator *validator,
   if (valueSpec->validatorFlags & JS_VALIDATOR_MAX_ITEMS){
     int64_t lim = valueSpec->maxItems;
     if (elementCount > lim){
-      noteValidityException(validator,12,
+      invalidCount++;
+      noteValidityException(validator,isSpeculating,12,
                             "too many array items, %d > MAX=%d at %s",
                             elementCount,lim,validatorAccessPath(validator));
     }
@@ -352,7 +393,8 @@ bool validateJSONArray(JsonValidator *validator,
   if (valueSpec->validatorFlags & JS_VALIDATOR_MIN_ITEMS){
     int64_t lim = valueSpec->minItems;
     if (elementCount < lim){
-      noteValidityException(validator,12,
+      invalidCount++;
+      noteValidityException(validator,isSpeculating,12,
                             "too few array ites, %d < MIN=%d at %s",
                             elementCount,lim,validatorAccessPath(validator));
     }
@@ -371,36 +413,45 @@ bool validateJSONArray(JsonValidator *validator,
     Json *itemValue = jsonArrayGetItem(array,i);
     accessPathPushIndex(accessPath,i);
     if (valueSpec->itemSpec != NULL){
-      validateJSON(validator,itemValue,valueSpec->itemSpec);
+      VResult elementStatus = validateJSON(validator,isSpeculating,itemValue,valueSpec->itemSpec);
+      if (!vResultValid(elementStatus)){
+        invalidCount++;
+      }
+
     }
     if (valueSpec->uniqueItems){
       long longHash = jsonLongHash(itemValue);
       if (lhtGet(uniquenessSet,longHash) != NULL){
-        noteValidityException(validator,12,"array uniqueItems violation %s is duplicate at %s",
+        invalidCount++;
+        noteValidityException(validator,isSpeculating,12,"array uniqueItems violation %s is duplicate at %s",
                               itemValue,i,validatorAccessPath(validator));
       }
     }
     accessPathPop(accessPath);
   }
-  return true;
+  return (invalidCount > 0 ? InvalidContinue : ValidContinue);
 }
 
-static bool validateJSONString(JsonValidator *validator,
-                               Json *string,
-                               JSValueSpec *valueSpec){
+static VResult validateJSONString(JsonValidator *validator,
+                                  bool isSpeculating,
+                                  Json *string,
+                                  JSValueSpec *valueSpec){
+  int invalidCount = 0;
   char *s = jsonAsString(string);
   int len = strlen(s);
   if (valueSpec->validatorFlags & JS_VALIDATOR_MAX_LENGTH){
     long lim = valueSpec->maxLength;
     if (len > lim){
-      noteValidityException(validator,12,"string too long, %d > MAX=%d at %s",
+      invalidCount++;
+      noteValidityException(validator,isSpeculating,12,"string too long, %d > MAX=%d at %s",
                             len,lim,validatorAccessPath(validator));
     }
   }
   if (valueSpec->validatorFlags & JS_VALIDATOR_MIN_LENGTH){
     long lim = valueSpec->minLength;
     if (len < lim){
-      noteValidityException(validator,12,"string too short, %d < MAX=%d at %s",
+      invalidCount++;
+      noteValidityException(validator,isSpeculating,12,"string too short, %d < MAX=%d at %s",
                             len,lim,validatorAccessPath(validator));
     }
   }
@@ -420,7 +471,8 @@ static bool validateJSONString(JsonValidator *validator,
     if (valueSpec->compiledPattern){
       int regexStatus = regexExec(valueSpec->compiledPattern,s,0,NULL,0);
       if (regexStatus != 0){
-        noteValidityException(validator,12,"string pattern match fail s='%s', pat='%s', at %s",
+        invalidCount++;
+        noteValidityException(validator,isSpeculating,12,"string pattern match fail s='%s', pat='%s', at %s",
                               s,valueSpec->pattern,validatorAccessPath(validator));
       }
     }
@@ -428,22 +480,25 @@ static bool validateJSONString(JsonValidator *validator,
   // String pattern; // ECMA-262 regex
   // prefix items
   // additionalProperties
-  return true;
+  return (invalidCount > 0 ? InvalidContinue : ValidContinue);
 }
 
-static bool validateJSONNumber(JsonValidator *validator,
-                               Json *doubleOrLegacyInt,
-                               JSValueSpec *valueSpec){
+static VResult validateJSONNumber(JsonValidator *validator,
+                                  bool isSpeculating,
+                                  Json *doubleOrLegacyInt,
+                                  JSValueSpec *valueSpec){
   // Number multipleOf; // can be a filled, and must be > 0
   // Number exclusiveMaximum;
   // Number exclusiveMinimum;
+  int invalidCount = 0;
   double d = (doubleOrLegacyInt->type == JSON_TYPE_NUMBER ?
               (double)jsonAsNumber(doubleOrLegacyInt) :
               jsonAsDouble(doubleOrLegacyInt));
   if (valueSpec->validatorFlags & JS_VALIDATOR_MAX){
     double lim = valueSpec->maximum;
     if (valueSpec->exclusiveMaximum ? (d >= lim) : (d > lim)){
-      noteValidityException(validator,12,"value too large, %f %s MAX=%f at %s",
+      invalidCount++;
+      noteValidityException(validator,isSpeculating,12,"value too large, %f %s MAX=%f at %s",
                             d,
                             (valueSpec->exclusiveMaximum ? ">=" : ">"),
                             lim,
@@ -453,27 +508,31 @@ static bool validateJSONNumber(JsonValidator *validator,
   if (valueSpec->validatorFlags & JS_VALIDATOR_MIN){
     double lim = valueSpec->minimum;
     if (valueSpec->exclusiveMinimum ? (d <= lim) : (d < lim)){
-      noteValidityException(validator,12,"value too small, %f %s MAX=%f at %s",
+      invalidCount++;
+      noteValidityException(validator,isSpeculating,12,"value too small, %f %s MAX=%f at %s",
                             d,
                             (valueSpec->exclusiveMinimum ? "<=" : "<"),
                             lim,
                             validatorAccessPath(validator));
     }
   }
-  return true;
+  return (invalidCount > 0 ? InvalidContinue : ValidContinue);
 }
 
-static bool validateJSONInteger(JsonValidator *validator,
-                                Json *value64,
-                                JSValueSpec *valueSpec){
+static VResult validateJSONInteger(JsonValidator *validator,
+                                   bool isSpeculating,
+                                   Json *value64,
+                                   JSValueSpec *valueSpec){
   // Number multipleOf; // can be a filled, and must be > 0
   // Number exclusiveMaximum;
   // Number exclusiveMinimum;
+  int invalidCount = 0;
   int64_t i = jsonAsInt64(value64);
   if (valueSpec->validatorFlags & JS_VALIDATOR_MAX){
     int64_t lim = (int64_t)valueSpec->maximum;
     if (valueSpec->exclusiveMaximum ? (i >= lim) : (i > lim)){
-      noteValidityException(validator,12,"value too large, %lld %s MAX=%lld at %s",
+      invalidCount++;
+      noteValidityException(validator,isSpeculating,12,"value too large, %lld %s MAX=%lld at %s",
                             i,
                             (valueSpec->exclusiveMaximum ? ">=" : ">"),
                             lim,
@@ -483,32 +542,35 @@ static bool validateJSONInteger(JsonValidator *validator,
   if (valueSpec->validatorFlags & JS_VALIDATOR_MIN){
     int64_t lim = (int64_t)valueSpec->minimum;
     if (valueSpec->exclusiveMinimum ? (i <= lim) : (i < lim)){
-      noteValidityException(validator,12,"value too small, %lld %s MAX=%lld at %s",
+      invalidCount++;
+      noteValidityException(validator,isSpeculating,12,"value too small, %lld %s MAX=%lld at %s",
                             i,
                             (valueSpec->exclusiveMinimum ? "<=" : "<"),
                             lim,
                             validatorAccessPath(validator));
     }
   }
-  return true;
+  return (invalidCount > 0 ? InvalidContinue : ValidContinue);
 }
 
-static JSValueSpec *resolveRef(JsonValidator *validator, JSValueSpec *valueSpec){
+static JSValueSpec *resolveRef(JsonValidator *validator, bool isSpeculating, JSValueSpec *valueSpec){
   char *ref = valueSpec->ref;
-  printf("resolveRef ref=%s\n",valueSpec->ref);
+  if (validator->traceLevel >= 1){
+    printf("resolveRef ref=%s\n",valueSpec->ref);
+  }
   if (!memcmp(ref,"#/$defs/",8)){   /* local resolution */
     int refLen = strlen(ref);
     int pos = 2;
     char *key = ref+8;
     JSValueSpec *topSchema = validator->schema->topValueSpec;
     if (topSchema->definitions == NULL){
-      noteValidityException(validator,12,"schema '%s' does not define shared '$defs'",
+      noteValidityException(validator,isSpeculating,12,"schema '%s' does not define shared '$defs'",
                             (topSchema->id ? topSchema->id : "<anonymous>"));
       return NULL; /* for the compiler, bless its heart */
     }
     JSValueSpec *resolvedSchema = htGet(topSchema->definitions,key);
     if (resolvedSchema == NULL){
-      noteValidityException(validator,12,"schema ref '%s' does not resolve against '$defs'",ref);
+      noteValidityException(validator,isSpeculating,12,"schema ref '%s' does not resolve against '$defs'",ref);
       return NULL;
     }
     return resolvedSchema;
@@ -517,55 +579,200 @@ static JSValueSpec *resolveRef(JsonValidator *validator, JSValueSpec *valueSpec)
        need to merge URL according W3 rules and pass to pluggable resolver that
        we hope this validator has.
      */
-    noteValidityException(validator,12,"external refs not yet implemented '%s' at %s",
+    noteValidityException(validator,isSpeculating,12,"external refs not yet implemented '%s' at %s",
                           valueSpec->ref,validatorAccessPath(validator));
     return NULL;
   }
 }
 
-static bool validateJSON(JsonValidator *validator, Json *value, JSValueSpec *valueSpec){
-  while (valueSpec->ref){
-    valueSpec = resolveRef(validator,valueSpec);
-    if (valueSpec == NULL){
-      return false;
-    }
-  }
-  printf("validate JSON value->type=%d\n",value->type);
-  fflush(stdout);
-  // type is string or array, does this mean to collapse ValueSpecTypes
-  // should we flag errors on out-of-bounds validation keywords for type keyword
+static VResult validateJSONSimple(JsonValidator *validator, bool isSpeculating, Json *value, JSValueSpec *valueSpec){
   if (jsonIsNull(value)){
-    return validateType(validator,JSTYPE_NULL,valueSpec);
+    return (validateType(validator,isSpeculating,JSTYPE_NULL,valueSpec) ?
+            ValidContinue : InvalidStop);
   } else if (jsonIsBoolean(value)){
-    return validateType(validator,JSTYPE_BOOLEAN,valueSpec);
+    printf("bool case\n");
+    return (validateType(validator,isSpeculating,JSTYPE_BOOLEAN,valueSpec) ?
+            ValidContinue : InvalidStop);
   } else if (jsonIsObject(value)){
-    return (validateType(validator,JSTYPE_OBJECT,valueSpec) &&
-            validateJSONObject(validator,jsonAsObject(value),valueSpec));
+    return (validateType(validator,isSpeculating,JSTYPE_OBJECT,valueSpec) ?
+            validateJSONObject(validator,isSpeculating,jsonAsObject(value),valueSpec) :
+            InvalidStop);
   } else if (jsonIsArray(value)){
-    return (validateType(validator,JSTYPE_ARRAY,valueSpec) &&
-            validateJSONArray(validator,jsonAsArray(value),valueSpec));
+    return (validateType(validator,isSpeculating,JSTYPE_ARRAY,valueSpec) ?
+            validateJSONArray(validator,isSpeculating,jsonAsArray(value),valueSpec) :
+            InvalidStop);
   } else if (jsonIsString(value)){
-    return (validateType(validator,JSTYPE_STRING,valueSpec) &&
-            validateJSONString(validator,value,valueSpec));
+    return (validateType(validator,isSpeculating,JSTYPE_STRING,valueSpec) ?
+            validateJSONString(validator,isSpeculating,value,valueSpec) :
+            InvalidStop);
   } else if (jsonIsNumber(value)){
     if (!jsonIsInt64(value)){
-      return (validateType(validator,JSTYPE_NUMBER,valueSpec) &&
-              validateJSONNumber(validator,value,valueSpec)); /* general, comparisons done as doubles */
+      return (validateType(validator,isSpeculating,JSTYPE_NUMBER,valueSpec) ?
+              validateJSONNumber(validator,isSpeculating,value,valueSpec) : /* general, comparisons done as doubles */
+              InvalidStop);
     } else {
-      return (validateType(validator,JSTYPE_INTEGER,valueSpec) &&
-              validateJSONInteger(validator,value,valueSpec));
+      return (validateType(validator,isSpeculating,JSTYPE_INTEGER,valueSpec) ?
+              validateJSONInteger(validator,isSpeculating,value,valueSpec) :
+              InvalidStop);
     }
     
   } else {
     printf("*** PANIC *** unhandled JS Value with type = %d\n",value->type);
+    return InvalidStop;
+  }
+}
+
+#define QUANT_ALL 1
+#define QUANT_ANY 2
+#define QUANT_ONE 3
+
+static VResult validateQuantifiedSpecs(JsonValidator *validator,
+                                       bool isSpeculating,
+                                       Json *value, JSValueSpec **valueSpecs,
+                                       int specCount, int quantType){
+  int validCount = 0;
+  
+  for (int i=0; i<specCount; i++){
+    JSValueSpec *valueSpec = valueSpecs[i];
+    VResult eltValid = validateJSON(validator,
+                                    isSpeculating | (quantType != QUANT_ALL),
+                                    value,valueSpec);
+    validCount += (vResultValid(eltValid) ? 1 : 0);
+    if (validator->traceLevel >= 1){
+      printf("vQS i=%d type=%d valid=%d vCount=%d\n",i,quantType,eltValid,validCount);
+    }
+    switch (quantType){
+    case QUANT_ALL:
+      if (!eltValid){
+        noteValidityException(validator,isSpeculating,12,"not allOf schemas at %s are valid",
+                              validatorAccessPath(validator));
+        return InvalidStop;
+      }
+      break;
+    case QUANT_ANY:
+      if (eltValid){
+        return ValidStop;
+      }
+    case QUANT_ONE:
+      if (validCount > 1){
+        noteValidityException(validator,isSpeculating,12,"more than oneOf schemas at %s are valid",
+                              validatorAccessPath(validator));
+        return InvalidStop;
+      } 
+      break;
+    }
+  }
+  switch (quantType){
+  case QUANT_ALL:
+    return ValidContinue;
+  case QUANT_ANY:
+    noteValidityException(validator,isSpeculating,12,"not anyOf schemas at %s are valid",
+                          validatorAccessPath(validator));
+
+    return ValidContinue;
+  case QUANT_ONE:
+    /* printf("quantOne vCount=%d\n",validCount); */
+    return (validCount == 1) ? ValidContinue : InvalidContinue;
+  default:
+    /* can't really get here */
+    return InvalidStop;
+  }
+}
+
+/* here, 
+   1) patProps
+   2) add'l props
+   commit
+*/
+
+static bool jsonEquals(Json *a, Json *b){
+  if (jsonIsArray(a) || jsonIsArray(b)){
     return false;
+  } else if (jsonIsObject(a) || jsonIsObject(b)){
+    return false;
+  } else if (jsonIsString(a)){
+    if (jsonIsString(b)){
+      char *aStr = jsonAsString(a);
+      char *bStr = jsonAsString(b);
+      return !strcmp(aStr,bStr);
+    } else {
+      return false;
+    }
+  } else {
+    return !memcmp(a,b,sizeof(Json));
+  }
+}
+
+static VResult validateJSON(JsonValidator *validator, bool isSpeculating,Json *value, JSValueSpec *valueSpec){
+  while (valueSpec->ref){
+    valueSpec = resolveRef(validator,isSpeculating,valueSpec);
+    if (valueSpec == NULL){
+      return InvalidStop;
+    }
+  }
+  if (validator->traceLevel >= 1){
+    printf("validate JSON value->type=%d specTypeMask=0x%x\n",value->type,valueSpec->typeMask);
+    fflush(stdout);
+  }
+  if (valueSpec->constValue){
+    bool eq = jsonEquals(value,valueSpec->constValue);
+    if (!eq){
+      noteValidityException(validator,isSpeculating,12,"unequal constant value at %s",
+                            validatorAccessPath(validator));
+      return InvalidStop;
+    } else {
+      return ValidContinue;
+    }
+  } else if (valueSpec->enumeratedValues){
+    bool matched = false;
+    for (int ee=0; ee<valueSpec->enumeratedValuesCount; ee++){
+      Json *enumValue = valueSpec->enumeratedValues[ee];
+      if (jsonEquals(value,enumValue)){
+        matched = true;
+        break;
+      }
+    }
+    if (!matched){
+      noteValidityException(validator,isSpeculating,12,"no matching enum value at %s",
+                            validatorAccessPath(validator));
+      return InvalidStop;
+    } else {
+      return ValidContinue;
+    }
+  } else {
+    /* type is string or array, does this mean to collapse ValueSpecTypes
+       should we flag errors on out-of-bounds validation keywords for type keyword */
+    VResult validity = validateJSONSimple(validator,isSpeculating,value,valueSpec);
+    /* here, mix in the quantified and compound */
+    if (!vResultValid(validity)) return validity;
+    if (valueSpec->allOf){
+      validity = validateQuantifiedSpecs(validator,isSpeculating,value,valueSpec->allOf,valueSpec->allOfCount,QUANT_ALL);
+    }
+    if (!vResultValid(validity)) return InvalidStop;
+    if (valueSpec->anyOf){
+      validity = validateQuantifiedSpecs(validator,isSpeculating,value,valueSpec->anyOf,valueSpec->anyOfCount,QUANT_ANY);
+    }
+    if (!vResultValid(validity)) return InvalidStop;
+    if (valueSpec->oneOf){
+      validity = validateQuantifiedSpecs(validator,isSpeculating,value,valueSpec->oneOf,valueSpec->oneOfCount,QUANT_ONE);
+    }
+    if (!vResultValid(validity)) return InvalidStop;
+    if (valueSpec->not){
+      validity = validateJSON(validator,true,value,valueSpec->not);
+      if (vResultValid(validity)){
+        noteValidityException(validator,isSpeculating,12,"negated schema at %s is valid",
+                              validatorAccessPath(validator));
+      }
+      validity = invertValidity(validity);
+    }
+    return validity;
   }
 }
 
 int jsonValidateSchema(JsonValidator *validator, Json *value, JsonSchema *schema){
   if (setjmp(validator->recoveryData) == 0) {  /* normal execution */
     validator->schema = schema;
-    validateJSON(validator,value,schema->topValueSpec);
+    VResult validity = validateJSON(validator,false,value,schema->topValueSpec);
     printf("after validate without throw, should show validation exceptions\n");
     fflush(stdout);
     if (validator->firstValidityException == NULL){
@@ -789,7 +996,11 @@ static JSValueSpec *makeValueSpec(JsonSchemaBuilder *builder,
   spec->title = title;
   for (int i=0; i<typeNameArrayLength; i++){
     int typeCode = getJSTypeForName(builder,typeNameArray[i]);
-    spec->typeMask |= (1 << typeCode);    
+    spec->typeMask |= (1 << typeCode);
+    if (typeCode == JSTYPE_NUMBER){
+      /* numbers allow integers, but not the converse */
+      spec->typeMask |= (1 << JSTYPE_INTEGER);
+    }
   }
   return spec;
 }
@@ -822,11 +1033,12 @@ static hashtable *getDefinitions(JsonSchemaBuilder *builder, JsonObject *object)
   } 
 }
 
-static JSValueSpec **getComposite(JsonSchemaBuilder *builder, JsonObject *object, char *key){
+static JSValueSpec **getComposite(JsonSchemaBuilder *builder, JsonObject *object, char *key, int *countPtr){
   AccessPath *accessPath = builder->accessPath;
   JsonArray *array = jsonObjectGetArray(object,key);
   if (array != NULL){
     int len = jsonArrayGetCount(array);
+    *countPtr = len;
     JSValueSpec **schemata = (JSValueSpec**)SLHAlloc(builder->slh,len*sizeof(JSValueSpec*));
     accessPathPushName(accessPath,key);
     for (int i=0; i<len; i++){
@@ -900,16 +1112,32 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
       return valueSpec;
     }
     valueSpec->definitions = getDefinitions(builder,object);
-    valueSpec->allOf = getComposite(builder,object,"allOf");
-    valueSpec->anyOf = getComposite(builder,object,"anyOf");
-    valueSpec->oneOf = getComposite(builder,object,"oneOf");
+    valueSpec->allOf = getComposite(builder,object,"allOf",&valueSpec->allOfCount);
+    valueSpec->anyOf = getComposite(builder,object,"anyOf",&valueSpec->anyOfCount);
+    valueSpec->oneOf = getComposite(builder,object,"oneOf",&valueSpec->oneOfCount);
     Json *notSpec = jsonObjectGetPropertyValue(object,"not");
     if (notSpec != NULL){
       accessPathPushName(accessPath,"not");
       valueSpec->not = build(builder,notSpec,false);
       accessPathPop(accessPath);
     }
+    Json *constValue = jsonObjectGetPropertyValue(object,"const");
+    JsonArray *enumValues = getArrayValue(builder,object,"enum");
+    if (constValue && enumValues){
+      schemaThrow(builder,12,"cannot specify both 'const' and 'enum' for the same schema");
+    }
+    if (constValue){
+      valueSpec->constValue = jsonCopy(builder->slh,constValue);
+    }
+    if (enumValues){
+      valueSpec->enumeratedValuesCount = jsonArrayGetCount(enumValues);
+      valueSpec->enumeratedValues = (Json**)SLHAlloc(builder->slh,valueSpec->enumeratedValuesCount*sizeof(Json*));
+      for (int ee=0; ee<valueSpec->enumeratedValuesCount; ee++){
+        valueSpec->enumeratedValues[ee] = jsonCopy(builder->slh,jsonArrayGetItem(enumValues,ee));
+      }
+    }
     /// valueSpec.not = getComposite(object,accessPath);
+    bool handledNumeric = false;
     for (int typeCode=0; typeCode<=JSTYPE_MAX; typeCode++){
       if ((1 << typeCode) & valueSpec->typeMask){
         switch (typeCode){
@@ -1025,23 +1253,25 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
         case JSTYPE_NUMBER:
         case JSTYPE_INTEGER:
           {
-            JSValueSpec *numericSpec = valueSpec;
-            // new JSNumericSpec(description,title,(jsType == JSType.INTEGER));
-            numericSpec->isInteger = (typeCode == JSTYPE_INTEGER);
-            numericSpec->multipleOf = getNumber(builder,object,"multipleOf",MISSING_FLOAT_VALIDATOR);
-            numericSpec->maximum = getNumber(builder,object,"maximum",MISSING_FLOAT_VALIDATOR);
-            numericSpec->exclusiveMaximum = getBooleanValue(builder,object,"exclusiveMaximum",false);
-            numericSpec->minimum = getNumber(builder,object,"minimum",MISSING_FLOAT_VALIDATOR);
-            numericSpec->exclusiveMinimum = getBooleanValue(builder,object,"exclusiveMinimum",false);
-            if (numericSpec->maximum != MISSING_FLOAT_VALIDATOR){
-              numericSpec->validatorFlags |= JS_VALIDATOR_MAX;
-            }
-            if (numericSpec->minimum != MISSING_FLOAT_VALIDATOR){
-              numericSpec->validatorFlags |= JS_VALIDATOR_MIN;
-            }
-            if (numericSpec->multipleOf != MISSING_FLOAT_VALIDATOR){
-              checkPositiveDouble(builder,numericSpec->multipleOf,"multipleOf");
-              numericSpec->validatorFlags |= JS_VALIDATOR_MULTOF;
+            if (!handledNumeric){
+              handledNumeric = true;
+              JSValueSpec *numericSpec = valueSpec;
+              // new JSNumericSpec(description,title,(jsType == JSType.INTEGER));
+              numericSpec->multipleOf = getNumber(builder,object,"multipleOf",MISSING_FLOAT_VALIDATOR);
+              numericSpec->maximum = getNumber(builder,object,"maximum",MISSING_FLOAT_VALIDATOR);
+              numericSpec->exclusiveMaximum = getBooleanValue(builder,object,"exclusiveMaximum",false);
+              numericSpec->minimum = getNumber(builder,object,"minimum",MISSING_FLOAT_VALIDATOR);
+              numericSpec->exclusiveMinimum = getBooleanValue(builder,object,"exclusiveMinimum",false);
+              if (numericSpec->maximum != MISSING_FLOAT_VALIDATOR){
+                numericSpec->validatorFlags |= JS_VALIDATOR_MAX;
+              }
+              if (numericSpec->minimum != MISSING_FLOAT_VALIDATOR){
+                numericSpec->validatorFlags |= JS_VALIDATOR_MIN;
+              }
+              if (numericSpec->multipleOf != MISSING_FLOAT_VALIDATOR){
+                checkPositiveDouble(builder,numericSpec->multipleOf,"multipleOf");
+                numericSpec->validatorFlags |= JS_VALIDATOR_MULTOF;
+              }
             }
           }
           break;

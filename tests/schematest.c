@@ -118,9 +118,7 @@ int main(int argc, char *argv[])
           printf("\n");
           fflush(stdout);
           JsonSchemaBuilder *builder = makeJsonSchemaBuilder(DEFAULT_JSON_SCHEMA_VERSION);
-          printf("ckpt.2\n");fflush(stdout);
           JsonSchema *schema = jsonBuildSchema(builder,schemaJSON);
-          printf("ckpt.3 schema=0x%p\n",schema);fflush(stdout);
           if (schema){
             JsonValidator *validator = makeJsonValidator();
             printf("Before Validate\n");fflush(stdout);

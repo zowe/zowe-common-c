@@ -2683,8 +2683,9 @@ static int mergeJson1(JsonMerger *merger, Json *parent, char *parentKey, Json *o
       return JSON_MERGE_STATUS_SUCCESS;
     }
   } else {
-    /* printf("merge scalar case parentKey=%s\n",(parentKey ? parentKey : "<noKey>"));
-       fflush(stdout);
+    /*
+      printf("merge scalar case parentKey=%s\n",(parentKey ? parentKey : "<noKey>"));
+      fflush(stdout);
     */
     copyJson(builder,parent,parentKey,overrides);
     return JSON_MERGE_STATUS_SUCCESS;
@@ -2704,6 +2705,14 @@ Json *jsonMerge(ShortLivedHeap *slh, Json *overrides, Json *base, int flags, int
   } else {
     return merger.builder.root;
   }
+}
+
+Json *jsonCopy(ShortLivedHeap *slh, Json *value){
+  JsonBuilder builder;
+  memset(&builder,0,sizeof(JsonBuilder));
+  builder.parser.slh = slh;
+  copyJson(&builder,NULL,NULL,value);
+  return builder.root;
 }
 
 /****** JSON Pointers ******************/

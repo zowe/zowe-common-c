@@ -63,6 +63,7 @@ typedef struct JsonValidator_tag {
   ValidityException *firstValidityException;
   ValidityException *lastValidityException;
   int         flags;
+  int         traceLevel;
   AccessPath *accessPath;
   jmp_buf     recoveryData;
 } JsonValidator;
