@@ -5355,7 +5355,7 @@ static void doHttpReadWork(HttpConversation *conversation, int readBufferSize){
   } 
   int requestStreamOK = processHttpFragment(parser,readBuffer,bytesRead);
   if (!requestStreamOK) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "Issue with parser status\n");
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "Issue with parser status %d\n", parser->httpReasonCode);
     conversation->shouldError = TRUE;
     conversation->httpErrorStatus = parser->httpReasonCode;
   }
