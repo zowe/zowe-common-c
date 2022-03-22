@@ -80,6 +80,10 @@ typedef struct CharsetOracle_tag {
 #define CHARSET_ORACLE_EBCDIC_FAMILY  0x10000
 #define CHARSET_ORACLE_UTF_FAMILY     0x20000
 
+/** A Charset oracle is a string digester that can guess charsets
+    based upon what it is fed.   It's heuristic, so YMMV.
+*/
+  
 CharsetOracle *makeCharsetOracle(void);
 
 void freeCharsetOracle(CharsetOracle *oracle);

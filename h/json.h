@@ -683,6 +683,7 @@ typedef struct JsonPointer_tag {
 } JsonPointer;
 
 JsonPointer *parseJsonPointer(char *s);
+void freeJsonPointer(JsonPointer *jp);
 void printJsonPointer(FILE *out, JsonPointer *jp);
 
 #endif	/* __JSON__ */

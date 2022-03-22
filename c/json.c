@@ -2671,7 +2671,7 @@ static int mergeJson1(JsonMerger *merger, Json *parent, char *parentKey, Json *o
           copyJson(builder,merged,NULL,jsonArrayGetItem(baseArray,i));
         }
         return JSON_MERGE_STATUS_SUCCESS;
-      case JSON_MERGE_FLAG_TAKE_OVERRIDES:     /* len(merge) = len(a) */
+      case JSON_MERGE_FLAG_TAKE_OVERRIDES:     /* len(merge) = len(o) */
       default: 
         for (i=0; i<sizeO; i++){
           copyJson(builder,merged,NULL,jsonArrayGetItem(overridesArray,i));
@@ -2733,8 +2733,12 @@ JsonPointer *parseJsonPointer(char *s){
   initEmbeddedArrayList(list,NULL);
   if (len == 0){
     return jp;
+  } else if (s[0] != '/'){
+    safeFree((char*)jp,sizeof(JsonPointer));
+    return NULL;
   }
   int pos = 1;
+  bool failed = false;
   while (pos < len){
     int nextSlash = indexOf(s,len,'/',pos);
     int end = (nextSlash == -1 ? len : nextSlash);
@@ -2759,11 +2763,12 @@ JsonPointer *parseJsonPointer(char *s){
         } else if (c == '1'){
           token[tPos++] = '/';
         } else {
-          token[tPos++] = '~';
-          token[tPos++] = c;
+          failed = true;
+          goto end;
         }
+        pendingTilde = false;
       } else {
-        if (i == '~'){
+        if (c == '~'){
           pendingTilde = true;
         } else {
           token[tPos++] = c;
@@ -2771,7 +2776,8 @@ JsonPointer *parseJsonPointer(char *s){
       }
     }
     if (pendingTilde){
-      token[tPos++] = '~';
+      failed = true;
+      goto end;
     }
     
     arrayListAdd(list,
@@ -2784,7 +2790,22 @@ JsonPointer *parseJsonPointer(char *s){
       pos = nextSlash + 1;
     }
   }
-  return jp;
+ end:
+  if (failed){
+    safeFree((char*)jp,sizeof(JsonPointer));
+    return NULL;
+  } else {
+    return jp;
+  }
+}
+
+void freeJsonPointer(JsonPointer *jp){
+  ArrayList *list = &jp->elements;
+  for (int i=0; i<list->size; i++){
+    JsonPointerElement *element = (JsonPointerElement*)arrayListElement(list,i);
+    safeFree((char*)element,sizeof(JsonPointerElement));
+  }
+  safeFree((char*)jp,sizeof(JsonPointerElement));
 }
 
 void printJsonPointer(FILE *out, JsonPointer *jp){

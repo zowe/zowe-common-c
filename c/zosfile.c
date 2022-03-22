@@ -785,7 +785,6 @@ int fileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int *reason
   reasonCodePtr = reasonCode;
 #endif
 
-  printf("BPXSTA on filename\n");
   dumpbuffer(filename,strlen(filename));
   BPXSTA(&nameLength,
          filename,
@@ -794,7 +793,6 @@ int fileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int *reason
          &returnValue,
          returnCode,
          reasonCodePtr);
-  printf("return ret=%d reason=%d\n",*returnCode,*reasonCode);
 
   if (fileTrace) {
     if(returnValue != 0) {

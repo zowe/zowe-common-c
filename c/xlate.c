@@ -79,6 +79,10 @@ char* a2e(char *buffer, int len)
   return buffer;
 }
 
+/** A Charset oracle is a string digester that can guess charsets
+    based upon what it is fed.   It's heuristic, so YMMV.
+*/
+
 
 CharsetOracle *makeCharsetOracle(void){
   CharsetOracle *oracle = (CharsetOracle*)safeMalloc(sizeof(CharsetOracle),"CharsetOracle");
