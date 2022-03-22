@@ -3,6 +3,9 @@
     "$id": "http//zowe.org/schemas/yaml-2.0.json",
     "type": "object",
     "required": [ "fruit", "beverage" ],
+    "additionalProperties": false,
+    "patternProperties": {
+      "^course.$": { "type": "number"}},
     "properties": {
         "fruit": {
             "allOf": [

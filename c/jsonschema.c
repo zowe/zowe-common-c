@@ -76,6 +76,19 @@ typedef int64_t ssize_t;
 #define JSTYPE_INTEGER 6
 #define JSTYPE_MAX 6
 
+static char *getJSTypeName(int type){
+  switch (type){
+  case JSTYPE_NULL: return "null";
+  case JSTYPE_BOOLEAN: return "boolean";
+  case JSTYPE_OBJECT: return "objct";
+  case JSTYPE_ARRAY: return "array";
+  case JSTYPE_STRING: return "string";
+  case JSTYPE_NUMBER: return "number";
+  case JSTYPE_INTEGER: return "integer";
+  default: return "unknown";
+  }
+}
+
 #define JS_VALIDATOR_MULTOF       0x00000001
 #define JS_VALIDATOR_MAX          0x00000002
 #define JS_VALIDATOR_MIN          0x00000004
@@ -87,6 +100,14 @@ typedef int64_t ssize_t;
 #define JS_VALIDATOR_MIN_PROPS    0x00000100
 #define JS_VALIDATOR_MAX_LENGTH   0x00000200
 #define JS_VALIDATOR_MIN_LENGTH   0x00000400
+
+typedef struct PatternProperty_tag {
+  char    *pattern;
+  regex_t *compiledPattern;
+  int      compilationError;
+  struct JSValueSpec_tag *valueSpec;
+  struct PatternProperty_tag *next;
+} PatternProperty;
 
 typedef struct JSValueSpec_tag {
   int      typeMask;
@@ -119,12 +140,17 @@ typedef struct JSValueSpec_tag {
   int64_t maxContains;
   int64_t minItems;
   int64_t maxItems;
+
+  /* for Objects */
   int64_t minProperties;
   int64_t maxProperties;
   int      requiredCount;
   char   **required;
   hashtable *properties;
   hashtable *dependentRequired;
+  bool       additionalProperties;
+  PatternProperty *firstPatternProperty;
+  PatternProperty *lastPatternProperty;
 
   /* for numbers */
   bool exclusiveMaximum;
@@ -281,11 +307,53 @@ static bool validateType(JsonValidator *validator,
     printf("typeCode=%d shifted=0x%x mask=0x%x\n",typeCode,(1 << typeCode),valueSpec->typeMask);
   }
   if (((1 << typeCode) & valueSpec->typeMask) == 0){
-    noteValidityException(validator,isSpeculating,12,"type %d not permitted at %s",typeCode,validatorAccessPath(validator));
+    noteValidityException(validator,isSpeculating,12,"type '%s' not permitted at %s",
+                          getJSTypeName(typeCode),validatorAccessPath(validator));
     return false;
   } else {
     return true;
   }
+}
+
+static regex_t *compileRegex(char *pattern, int *regexStatus){
+  regex_t *rx = regexAlloc();
+  int compStatus = regexComp(rx,pattern,REG_EXTENDED);
+  if (compStatus){
+    regexFree(rx);
+    *regexStatus = compStatus;
+    printf("*** WARNING *** pattern '%s' failed to compile with status %d\n",
+           pattern,compStatus);
+    return NULL;
+  } else {
+    *regexStatus = 0;
+    return rx;
+  }
+}
+
+static JSValueSpec *getPropertyValueSpec(JSValueSpec *valueSpec, char *propertyName){
+  JSValueSpec *propertyValueSpec = NULL;
+  if (valueSpec->properties){
+    propertyValueSpec = (JSValueSpec*)htGet(valueSpec->properties,propertyName);
+  }
+  if (propertyValueSpec != NULL){
+    return propertyValueSpec;
+  }
+  PatternProperty *patternProperty = valueSpec->firstPatternProperty;
+  while (patternProperty){
+    if (patternProperty->compilationError == 0){
+      if (patternProperty->compiledPattern == NULL){
+        patternProperty->compiledPattern = compileRegex(patternProperty->pattern,&patternProperty->compilationError);
+      }
+      if (patternProperty->compiledPattern){
+        int regexStatus = regexExec(patternProperty->compiledPattern,propertyName,0,NULL,0);
+        if (regexStatus == 0){
+          return patternProperty->valueSpec;
+        }
+      }
+    }
+    patternProperty = patternProperty->next;
+  }
+  return NULL;
 }
 
 /* for mutual recursion */
@@ -322,9 +390,7 @@ static VResult validateJSONObject(JsonValidator *validator,
       fflush(stdout);
     }
     Json *propertyValue = jsonPropertyGetValue(property);
-    JSValueSpec *propertySpec = (valueSpec->properties ?
-                                 (JSValueSpec*)htGet(valueSpec->properties,propertyName) :
-                                 NULL);
+    JSValueSpec *propertySpec = getPropertyValueSpec(valueSpec,propertyName);
     accessPathPushName(accessPath,propertyName);
         
     if (propertySpec != NULL){
@@ -333,7 +399,10 @@ static VResult validateJSONObject(JsonValidator *validator,
         invalidCount++;
       }
     } else {
-      if (validator->flags && VALIDATOR_WARN_ON_UNDEFINED_PROPERTIES){
+      if (valueSpec->additionalProperties == false){
+        noteValidityException(validator,isSpeculating,12,"unspecified additional property not allowed: '%s' at '%s'",
+                              propertyName,validatorAccessPath(validator));
+      } else if (validator->flags && VALIDATOR_WARN_ON_UNDEFINED_PROPERTIES){
         printf("*WARNING* unspecified property seen, '%s', and checking code is not complete, vspec->props=0x%p\n",
                propertyName,valueSpec->properties);
         fflush(stdout);
@@ -432,6 +501,7 @@ static VResult validateJSONArray(JsonValidator *validator,
   return (invalidCount > 0 ? InvalidContinue : ValidContinue);
 }
 
+
 static VResult validateJSONString(JsonValidator *validator,
                                   bool isSpeculating,
                                   Json *string,
@@ -457,16 +527,7 @@ static VResult validateJSONString(JsonValidator *validator,
   }
   if (valueSpec->pattern && (valueSpec->regexCompilationError == 0)){
     if (valueSpec->compiledPattern == NULL){
-      regex_t *rx = regexAlloc();
-      int compStatus = regexComp(rx,valueSpec->pattern,REG_EXTENDED);
-      if (compStatus){
-        regexFree(rx);
-        valueSpec->regexCompilationError = compStatus;
-        printf("*** WARNING *** pattern '%s' failed to compile with status %d\n",
-               valueSpec->pattern,compStatus);
-      } else {
-        valueSpec->compiledPattern = rx;
-      }
+      valueSpec->compiledPattern = compileRegex(valueSpec->pattern,&valueSpec->regexCompilationError);
     }
     if (valueSpec->compiledPattern){
       int regexStatus = regexExec(valueSpec->compiledPattern,s,0,NULL,0);
@@ -477,9 +538,6 @@ static VResult validateJSONString(JsonValidator *validator,
       }
     }
   }
-  // String pattern; // ECMA-262 regex
-  // prefix items
-  // additionalProperties
   return (invalidCount > 0 ? InvalidContinue : ValidContinue);
 }
 
@@ -590,7 +648,6 @@ static VResult validateJSONSimple(JsonValidator *validator, bool isSpeculating, 
     return (validateType(validator,isSpeculating,JSTYPE_NULL,valueSpec) ?
             ValidContinue : InvalidStop);
   } else if (jsonIsBoolean(value)){
-    printf("bool case\n");
     return (validateType(validator,isSpeculating,JSTYPE_BOOLEAN,valueSpec) ?
             ValidContinue : InvalidStop);
   } else if (jsonIsObject(value)){
@@ -678,12 +735,6 @@ static VResult validateQuantifiedSpecs(JsonValidator *validator,
     return InvalidStop;
   }
 }
-
-/* here, 
-   1) patProps
-   2) add'l props
-   commit
-*/
 
 static bool jsonEquals(Json *a, Json *b){
   if (jsonIsArray(a) || jsonIsArray(b)){
@@ -1033,6 +1084,38 @@ static hashtable *getDefinitions(JsonSchemaBuilder *builder, JsonObject *object)
   } 
 }
 
+static void addPatternProperties(JsonSchemaBuilder *builder, JSValueSpec *valueSpec, JsonObject *object){
+  JsonObject *patternObject = getObjectValue(builder,object,"patternProperties");
+  if (patternObject != NULL){
+    AccessPath *accessPath = builder->accessPath;
+    accessPathPushName(accessPath,"patternProperties");
+    JsonProperty *property = jsonObjectGetFirstProperty(patternObject);
+    while (property){
+      char *propertyName = jsonPropertyGetKey(property);
+      Json *propertyValue = jsonPropertyGetValue(property);
+      if (propertyValue == NULL){
+        schemaThrow(builder,12,"patternProperty %s is NULL, which is not allowed",propertyName);
+        return;
+      }
+      accessPathPushName(accessPath,propertyName);
+      PatternProperty *patternProperty = (PatternProperty*)SLHAlloc(builder->slh,sizeof(PatternProperty));
+      if (valueSpec->firstPatternProperty == NULL){
+        valueSpec->firstPatternProperty = patternProperty;
+        valueSpec->lastPatternProperty = patternProperty;
+      } else {
+        valueSpec->lastPatternProperty->next = patternProperty;
+        valueSpec->lastPatternProperty = patternProperty;
+      }
+      memset(patternProperty,0,sizeof(PatternProperty));
+      patternProperty->pattern = propertyName;
+      patternProperty->valueSpec = build(builder,propertyValue,false);
+      accessPathPop(accessPath);
+      property = jsonObjectGetNextProperty(property);
+    }
+    accessPathPop(accessPath);
+  }
+}
+
 static JSValueSpec **getComposite(JsonSchemaBuilder *builder, JsonObject *object, char *key, int *countPtr){
   AccessPath *accessPath = builder->accessPath;
   JsonArray *array = jsonObjectGetArray(object,key);
@@ -1112,6 +1195,8 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
       return valueSpec;
     }
     valueSpec->definitions = getDefinitions(builder,object);
+    valueSpec->additionalProperties = getBooleanValue(builder,object,"additionalProperties",true);
+    addPatternProperties(builder,valueSpec,object);
     valueSpec->allOf = getComposite(builder,object,"allOf",&valueSpec->allOfCount);
     valueSpec->anyOf = getComposite(builder,object,"anyOf",&valueSpec->anyOfCount);
     valueSpec->oneOf = getComposite(builder,object,"oneOf",&valueSpec->oneOfCount);

@@ -1,8 +1,10 @@
 {
     "fruit": "grape",
-    "vegetable": 14,
-    "beverage": "merlot",
-    "entree": "beef",
+    "vegetable": 33,
+    "beverage": "millstone",
     "carbs": "rice",
-    "dessert": 3
+    "dessert": 3,
+    "entree": "beef",
+    "course1": "cheese",
+
 }
