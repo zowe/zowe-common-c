@@ -7,6 +7,13 @@
 #include <setjmp.h>
 #endif
 
+#ifdef __ZOWE_OS_WINDOWS
+#include "winregex.h"
+#else
+#include "psxregex.h"
+#endif
+
+
 typedef struct JsonSchema_tag {
   ShortLivedHeap *slh;
   int             version;
@@ -54,6 +61,8 @@ typedef struct ValidityException_tag {
 
 #define VALIDATOR_WARN_ON_UNDEFINED_PROPERTIES 0x0001
 
+#define MAX_VALIDATOR_MATCHES 8
+
 typedef struct JsonValidator_tag {
   JsonSchema *schema;
   int         errorCode;
@@ -65,6 +74,12 @@ typedef struct JsonValidator_tag {
   int         flags;
   int         traceLevel;
   AccessPath *accessPath;
+  /* we use these pattern many times and manage the resources from here */
+  regmatch_t  matches[MAX_VALIDATOR_MATCHES];
+  regex_t    *httpRegex;
+  int         httpRegexError;
+  regex_t    *fileRegex;
+  int         fileRegexError;
   jmp_buf     recoveryData;
 } JsonValidator;
 

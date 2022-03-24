@@ -115,8 +115,11 @@ typedef struct JSValueSpec_tag {
   Json   **enumeratedValues;
   Json    *constValue;
   char    *id;
+  char    *hostName; /* from ID if set */
+  char    *fileName; /* from ID if set */
   char    *description;
   char    *title;
+  char    *anchor;
   char    *ref;
   bool     deprecated;
   bool     nullable;
@@ -133,6 +136,10 @@ typedef struct JSValueSpec_tag {
 
   /* optional validators have flag for presence */
   uint64_t validatorFlags;
+  /* only filled for top level JSValueSpecs, ie no parent, or $id is present */
+  hashtable *anchorTable;
+  /* everything with an ID under the top level */
+  hashtable *idTable; 
 
   double minimum;
   double maximum;
@@ -168,6 +175,9 @@ typedef struct JSValueSpec_tag {
   char *pattern;
   regex_t *compiledPattern;
   int      regexCompilationError;
+
+  /* back/up pointer */
+  struct JSValueSpec_tag *parent;
 } JSValueSpec;
 
 typedef struct AccessPathUnion_tag {
@@ -278,6 +288,26 @@ void freeJsonValidator(JsonValidator *validator){
 static char *validatorAccessPath(JsonValidator *validator){
   return makeAccessPathString(validator->accessPathBuffer,MAX_ACCESS_PATH,validator->accessPath);
 }
+
+static JSValueSpec *getTopLevelAncestor(JSValueSpec *valueSpec){
+  JSValueSpec *ancestor = valueSpec;
+  while (ancestor->parent){
+    if (ancestor->id != NULL){
+      return ancestor;
+    }
+    ancestor = ancestor->parent;
+  }
+  return ancestor;
+}
+
+static JSValueSpec *getOutermostAncestor(JSValueSpec *valueSpec){
+  JSValueSpec *ancestor = valueSpec;
+  while (ancestor->parent){
+    ancestor = ancestor->parent;
+  }
+  return ancestor;
+}
+
 
 /* The return types of these validators is bool to allow validator to signal whether to continue 
    to gather more validation exceptions in this part of the JSON tree/graph.  Returning false says
@@ -611,12 +641,93 @@ static VResult validateJSONInteger(JsonValidator *validator,
   return (invalidCount > 0 ? InvalidContinue : ValidContinue);
 }
 
+static char *httpPattern = "^(https?://[^/]+)/([^#]*)(#.*)?$";
+static char *filePattern = "^/([^#]*)(#.*)?$";
+
+static int httpMatch(JsonValidator *v, char *s){
+  if (v->httpRegexError){
+    return v->httpRegexError;
+  } else if (v->httpRegex == NULL){
+    v->httpRegex = compileRegex(httpPattern,&v->httpRegexError);
+  }
+  if (v->httpRegex){
+    return regexExec(v->httpRegex,s,MAX_VALIDATOR_MATCHES,v->matches,0);
+  } else {
+    return v->httpRegexError;
+  }
+}
+
+static int fileMatch(JsonValidator *v, char *s){
+  if (v->fileRegexError){
+    return v->fileRegexError;
+  } else if (v->fileRegex == NULL){
+    v->fileRegex = compileRegex(filePattern,&v->fileRegexError);
+  }
+  if (v->fileRegex){
+    return regexExec(v->fileRegex,s,MAX_VALIDATOR_MATCHES,v->matches,0);
+  } else {
+    return v->fileRegexError;
+  }
+}
+
+static JSValueSpec *getTopSchemaByName(JsonValidator *validator,
+                                       char *hostName, int hostNameLength,
+                                       char *fileName, int fileNameLength){
+  int len = hostNameLength+fileNameLength+8;
+  char *key = safeMalloc(len,"topSchemaKey");
+  snprintf(key,len,"%*.*s/%*.*s",
+           hostNameLength,hostNameLength,hostName,
+           fileNameLength,fileNameLength,fileName);
+  JSValueSpec *schema = htGet(validator->schema->topValueSpec->definitions,key);
+  if (validator->traceLevel >= 1){
+    printf("getTopSchema for key='%s' yields 0x%p\n",key,schema);
+  }
+  safeFree(key,len);
+  return schema;
+}
+
+static int matchLen(regmatch_t *match){
+  return (int)(match->rm_eo - match->rm_so);
+}
+
+static JSValueSpec *resolveCrossSchemaRef(JsonValidator *validator, bool isSpeculating,
+                                          JSValueSpec *referredTopSchema, char *ref, regmatch_t *anchorMatch){
+  if (anchorMatch->rm_so == -1){
+    return referredTopSchema;
+  } else if (referredTopSchema->anchorTable == NULL){
+    noteValidityException(validator,isSpeculating,12,"schema '%s' does not define any anchors for ref '%s'",
+                          (referredTopSchema->id ? referredTopSchema->id : "<anonymous>"),
+                          ref);
+    return NULL;
+  } else {
+    char *anchor = ref+anchorMatch->rm_so+1; /* +1 to skip the '#' char */
+    JSValueSpec *spec = (JSValueSpec*)htGet(referredTopSchema->anchorTable,anchor);
+    if (validator->traceLevel >= 1){
+      printf("anchor '%s' resolves to 0x%p\n",anchor,spec);
+    }
+    if (spec == NULL){
+      noteValidityException(validator,isSpeculating,12,"anchor schema ref '%s' does not resolve in referred schema",ref);
+    }
+    return spec;
+  }
+}
+
+
 static JSValueSpec *resolveRef(JsonValidator *validator, bool isSpeculating, JSValueSpec *valueSpec){
   char *ref = valueSpec->ref;
+  int refLen = strlen(ref);
+  int matchStatus = 0;
   if (validator->traceLevel >= 1){
     printf("resolveRef ref=%s\n",valueSpec->ref);
   }
-  if (!memcmp(ref,"#/$defs/",8)){   /* local resolution */
+  JSValueSpec *containingSpec = getTopLevelAncestor(valueSpec);
+  if (containingSpec == NULL){ /* this code is wrong if topLevel (parent chain) is no good */
+    printf("*** PANIC *** no top level\n");
+    return NULL;
+  }
+  
+  /* Case 1 local reference w/o anchor */
+  if (refLen >= 8 && !memcmp(ref,"#/$defs/",8)){   /* local resolution */
     int refLen = strlen(ref);
     int pos = 2;
     char *key = ref+8;
@@ -628,16 +739,60 @@ static JSValueSpec *resolveRef(JsonValidator *validator, bool isSpeculating, JSV
     }
     JSValueSpec *resolvedSchema = htGet(topSchema->definitions,key);
     if (resolvedSchema == NULL){
-      noteValidityException(validator,isSpeculating,12,"schema ref '%s' does not resolve against '$defs'",ref);
+      noteValidityException(validator,isSpeculating,12,"path schema ref '%s' does not resolve against '$defs'",ref);
+      return NULL;
+    } else {
+      return resolvedSchema;
+    }
+    /* Case 2, global URL reference */
+  } else if (refLen >= 10 && ((matchStatus = httpMatch(validator,ref)) == 0)){
+    regmatch_t domainMatch = validator->matches[1];
+    regmatch_t fileMatch = validator->matches[2];
+    regmatch_t anchorMatch = validator->matches[3];
+    JSValueSpec *referredTopSchema = getTopSchemaByName(validator,
+                                                        ref+domainMatch.rm_so,matchLen(&domainMatch),
+                                                        ref+fileMatch.rm_so,matchLen(&fileMatch));
+    if (referredTopSchema == NULL){
+      noteValidityException(validator,isSpeculating,12,"cross-domain schema not found for ref '%s'",ref);
+      return NULL;
+    } else {
+      return resolveCrossSchemaRef(validator,isSpeculating,referredTopSchema,ref,&anchorMatch);
+    }
+    /* Case 3, same-domain URL fragment (ie file) reference */
+  } else if (refLen >= 1 && ((matchStatus = fileMatch(validator,ref)) == 0)){
+    regmatch_t fileMatch = validator->matches[1];
+    regmatch_t anchorMatch = validator->matches[2];
+    JSValueSpec *referredTopSchema = getTopSchemaByName(validator,
+                                                        containingSpec->hostName,strlen(containingSpec->hostName),
+                                                        ref+fileMatch.rm_so,matchLen(&fileMatch));
+    if (referredTopSchema == NULL){
+      noteValidityException(validator,isSpeculating,12,"same-domain schema not found for ref '%s'",ref);
+      return NULL;
+    } else {
+      return resolveCrossSchemaRef(validator,isSpeculating,referredTopSchema,ref,&anchorMatch);
+    }
+    /* Case 4, just an anchor in same schema */
+  } else if (refLen >= 1 && ref[0] == '#'){
+    if (containingSpec->anchorTable == NULL){
+      noteValidityException(validator,isSpeculating,12,"schema '%s' does not define any anchors for ref '%s'",
+                            (containingSpec->id ? containingSpec->id : "<anonymous>"),
+                            ref);
       return NULL;
     }
-    return resolvedSchema;
+    JSValueSpec *resolvedSchema = (JSValueSpec*)htGet(containingSpec->anchorTable,ref+1);
+    if (resolvedSchema == NULL){
+      noteValidityException(validator,isSpeculating,12,"anchor schema ref '%s' does not resolve in containing schema",ref);
+      return NULL;
+    } else {
+      return resolvedSchema;
+    }
+    /* Other cases not known or supported */
   } else {
     /* notes, 
        need to merge URL according W3 rules and pass to pluggable resolver that
        we hope this validator has.
      */
-    noteValidityException(validator,isSpeculating,12,"external refs not yet implemented '%s' at %s",
+    noteValidityException(validator,isSpeculating,12,"bad or unimplemented ref at '%s' at %s",
                           valueSpec->ref,validatorAccessPath(validator));
     return NULL;
   }
@@ -701,7 +856,7 @@ static VResult validateQuantifiedSpecs(JsonValidator *validator,
     switch (quantType){
     case QUANT_ALL:
       if (!eltValid){
-        noteValidityException(validator,isSpeculating,12,"not allOf schemas at %s are valid",
+        noteValidityException(validator,isSpeculating,12,"not allOf schemas at '%s' are valid",
                               validatorAccessPath(validator));
         return InvalidStop;
       }
@@ -712,7 +867,7 @@ static VResult validateQuantifiedSpecs(JsonValidator *validator,
       }
     case QUANT_ONE:
       if (validCount > 1){
-        noteValidityException(validator,isSpeculating,12,"more than oneOf schemas at %s are valid",
+        noteValidityException(validator,isSpeculating,12,"more than oneOf schemas at '%s' are valid",
                               validatorAccessPath(validator));
         return InvalidStop;
       } 
@@ -723,7 +878,7 @@ static VResult validateQuantifiedSpecs(JsonValidator *validator,
   case QUANT_ALL:
     return ValidContinue;
   case QUANT_ANY:
-    noteValidityException(validator,isSpeculating,12,"not anyOf schemas at %s are valid",
+    noteValidityException(validator,isSpeculating,12,"not anyOf schemas at '%s' are valid",
                           validatorAccessPath(validator));
 
     return ValidContinue;
@@ -1032,9 +1187,39 @@ static char *getID(JsonSchemaBuilder *builder, JsonObject *o) {
 }
 
 /* forwarding for complex recursion */
-static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopLevel);
+static JSValueSpec *build(JsonSchemaBuilder *builder, JSValueSpec *parent, Json *jsValue, bool isTopLevel);
+
+static void indexByAnchor(JSValueSpec *valueSpec){
+  JSValueSpec *topLevelAncestor = getTopLevelAncestor(valueSpec);
+  if (topLevelAncestor->anchorTable == NULL){
+    topLevelAncestor->anchorTable = htCreate(257,stringHash,stringCompare,NULL,NULL);
+  }
+  htPut(topLevelAncestor->anchorTable,valueSpec->anchor,valueSpec);
+}
+
+static void indexByID(JSValueSpec *valueSpec){
+  JSValueSpec *outermostAncestor = getOutermostAncestor(valueSpec);
+  if (outermostAncestor->idTable == NULL){
+    outermostAncestor->idTable = htCreate(257,stringHash,stringCompare,NULL,NULL);
+  }
+  htPut(outermostAncestor->idTable,valueSpec->id,valueSpec);
+}
+
+static char *extractString(JsonSchemaBuilder *b, char *s, regmatch_t *match){
+  if (match->rm_so != -1){
+    int len = (int)(match->rm_eo - match->rm_so);
+    char *copy = SLHAlloc(b->slh,len+1);
+    memcpy(copy,s+match->rm_so,len);
+    copy[len] = 0;
+    return copy;
+  } else {
+    return NULL;
+  }
+}
+
 
 static JSValueSpec *makeValueSpec(JsonSchemaBuilder *builder,
+                                  JSValueSpec *parent,
                                   char *id,
                                   char *description,
                                   char *title,
@@ -1045,6 +1230,28 @@ static JSValueSpec *makeValueSpec(JsonSchemaBuilder *builder,
   spec->id = id;
   spec->description = description;
   spec->title = title;
+  spec->parent = parent;
+  /* parent must be set */
+  if (id){
+    indexByID(spec);
+    regmatch_t matches[10];
+
+    int regexStatus = 0;
+    regex_t *regex = compileRegex(httpPattern,&regexStatus);
+    if (regex){
+      int matchStatus = regexExec(regex,id,10,matches,0);
+      if (matchStatus){
+        fprintf(stderr,"id does not look like a URL: '%s', regexMatchStatus=%d\n",id,matchStatus);
+      } else {
+        spec->hostName = extractString(builder,id,&matches[1]);
+        spec->fileName = extractString(builder,id,&matches[2]);
+        printf("top schema found with ID=%s, host='%s' file='%s'\n",
+               id,spec->hostName,spec->fileName);
+      }
+      regexFree(regex);
+    } 
+    
+  }
   for (int i=0; i<typeNameArrayLength; i++){
     int typeCode = getJSTypeForName(builder,typeNameArray[i]);
     spec->typeMask |= (1 << typeCode);
@@ -1058,7 +1265,7 @@ static JSValueSpec *makeValueSpec(JsonSchemaBuilder *builder,
                                   
 
 /* Map<String,JSValueSpec>  */
-static hashtable *getDefinitions(JsonSchemaBuilder *builder, JsonObject *object){
+static hashtable *getDefinitions(JsonSchemaBuilder *builder, JSValueSpec *parent, JsonObject *object){
   AccessPath *accessPath = builder->accessPath;
   JsonObject *definitionsObject = getObjectValue(builder,object,"$defs");
   if (definitionsObject != NULL){
@@ -1073,7 +1280,7 @@ static hashtable *getDefinitions(JsonSchemaBuilder *builder, JsonObject *object)
         return NULL;
       }
       accessPathPushName(accessPath,propertyName);
-      htPut(definitionMap,propertyName,build(builder,propertyValue,false));
+      htPut(definitionMap,propertyName,build(builder,parent,propertyValue,false));
       accessPathPop(accessPath);
       property = jsonObjectGetNextProperty(property);
     }
@@ -1108,7 +1315,7 @@ static void addPatternProperties(JsonSchemaBuilder *builder, JSValueSpec *valueS
       }
       memset(patternProperty,0,sizeof(PatternProperty));
       patternProperty->pattern = propertyName;
-      patternProperty->valueSpec = build(builder,propertyValue,false);
+      patternProperty->valueSpec = build(builder,valueSpec,propertyValue,false);
       accessPathPop(accessPath);
       property = jsonObjectGetNextProperty(property);
     }
@@ -1116,7 +1323,8 @@ static void addPatternProperties(JsonSchemaBuilder *builder, JSValueSpec *valueS
   }
 }
 
-static JSValueSpec **getComposite(JsonSchemaBuilder *builder, JsonObject *object, char *key, int *countPtr){
+static JSValueSpec **getComposite(JsonSchemaBuilder *builder, JSValueSpec *parent,
+                                  JsonObject *object, char *key, int *countPtr){
   AccessPath *accessPath = builder->accessPath;
   JsonArray *array = jsonObjectGetArray(object,key);
   if (array != NULL){
@@ -1126,7 +1334,7 @@ static JSValueSpec **getComposite(JsonSchemaBuilder *builder, JsonObject *object
     accessPathPushName(accessPath,key);
     for (int i=0; i<len; i++){
       accessPathPushIndex(accessPath,i);
-      schemata[i] = build(builder,jsonArrayGetItem(array,i),false);
+      schemata[i] = build(builder,parent,jsonArrayGetItem(array,i),false);
       accessPathPop(accessPath);
     }
     accessPathPop(accessPath);
@@ -1143,7 +1351,7 @@ static char *allJSTypeNames[ALL_TYPES_COUNT] = { "null", "boolean", "object", "a
 #define MISSING_FLOAT_VALIDATOR -644212.639183
 
 /* This function is recursive for all places that can be filled by a sub schema within a schema */
-static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopLevel){
+static JSValueSpec *build(JsonSchemaBuilder *builder, JSValueSpec *parent, Json *jsValue, bool isTopLevel){
   AccessPath *accessPath = builder->accessPath;
   if (builder->traceLevel >= 2){
     printf("JSONSchema build\n");
@@ -1177,9 +1385,13 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
         
     char *description = getString(builder,object,"description",NULL);
     char *title = getString(builder,object,"title",NULL);
-    
-    JSValueSpec *valueSpec = makeValueSpec(builder,getID(builder,object),description,title,typeArray,typeArrayCount);
+    char *id = getID(builder,object);
+    JSValueSpec *valueSpec = makeValueSpec(builder,parent,id,description,title,typeArray,typeArrayCount);
     valueSpec->ref = getString(builder,object,"$ref",NULL);
+    valueSpec->anchor = getString(builder,object,"$anchor",NULL);
+    if (valueSpec->anchor){
+      indexByAnchor(valueSpec);
+    }
     if (valueSpec->ref){
       /* THe JSON Schema spec says that if a $ref is defined it will be the only thing looked at, so
          we short-cicuit here. 
@@ -1194,16 +1406,16 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
       */
       return valueSpec;
     }
-    valueSpec->definitions = getDefinitions(builder,object);
+    valueSpec->definitions = getDefinitions(builder,valueSpec,object);
     valueSpec->additionalProperties = getBooleanValue(builder,object,"additionalProperties",true);
     addPatternProperties(builder,valueSpec,object);
-    valueSpec->allOf = getComposite(builder,object,"allOf",&valueSpec->allOfCount);
-    valueSpec->anyOf = getComposite(builder,object,"anyOf",&valueSpec->anyOfCount);
-    valueSpec->oneOf = getComposite(builder,object,"oneOf",&valueSpec->oneOfCount);
+    valueSpec->allOf = getComposite(builder,valueSpec,object,"allOf",&valueSpec->allOfCount);
+    valueSpec->anyOf = getComposite(builder,valueSpec,object,"anyOf",&valueSpec->anyOfCount);
+    valueSpec->oneOf = getComposite(builder,valueSpec,object,"oneOf",&valueSpec->oneOfCount);
     Json *notSpec = jsonObjectGetPropertyValue(object,"not");
     if (notSpec != NULL){
       accessPathPushName(accessPath,"not");
-      valueSpec->not = build(builder,notSpec,false);
+      valueSpec->not = build(builder,valueSpec,notSpec,false);
       accessPathPop(accessPath);
     }
     Json *constValue = jsonObjectGetPropertyValue(object,"const");
@@ -1257,7 +1469,7 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
                   if (valueSpec->properties == NULL){
                     valueSpec->properties = htCreate(101,stringHash,stringCompare,NULL,NULL);
                   }
-                  htPut(valueSpec->properties,propertyName,build(builder,propertyValue,false));
+                  htPut(valueSpec->properties,propertyName,build(builder,valueSpec,propertyValue,false));
                   accessPathPop(accessPath);
                   property = jsonObjectGetNextProperty(property);
                 }
@@ -1302,7 +1514,7 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, Json *jsValue, bool isTopL
             Json *items = jsonObjectGetPropertyValue(object,"items");
             if (items != NULL){
               accessPathPushName(accessPath,"items");
-              arraySpec->itemSpec = build(builder,items,false);
+              arraySpec->itemSpec = build(builder,valueSpec,items,false);
               accessPathPop(accessPath);
             } else {
               // what does this default to or error
@@ -1397,7 +1609,7 @@ JsonSchema *jsonBuildSchema(JsonSchemaBuilder *builder, Json *jsValue){
       printf("after setjmp normal\n");
       fflush(stdout);
     }
-    JSValueSpec *topValueSpec = build(builder,jsValue,true);
+    JSValueSpec *topValueSpec = build(builder,NULL,jsValue,true);
     JsonSchema *schema = (JsonSchema*)SLHAlloc(builder->slh,sizeof(JsonSchema));
     schema->topValueSpec = topValueSpec;
     schema->version = builder->version;

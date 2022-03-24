@@ -84,7 +84,9 @@ int main(int argc, char *argv[])
     if (!strcmp(syntax,"json")){  
       memset(errorBuffer,0,errorBufferSize);
       json = jsonParseFile2(slh,filename,errorBuffer,errorBufferSize);
-      printf("json parsed json=0x%p, with error '%s'\n",json,errorBuffer);
+      if (json == NULL){
+        printf("json parsed json=0x%p, with error '%s'\n",json,errorBuffer);
+      }
       
     } else if (!strcmp(syntax,"yaml")){
       printf("yaml syntax case\n");
@@ -110,8 +112,10 @@ int main(int argc, char *argv[])
       if (schemaFilename){
         memset(errorBuffer,0,errorBufferSize);
         Json *schemaJSON = jsonParseFile2(slh,schemaFilename,errorBuffer,errorBufferSize);
-        printf("json parsed schema json=0x%p, with error '%s'\n",json,errorBuffer);
-        fflush(stdout);
+        if (schemaJSON == NULL){
+          printf("json parsed schema json=0x%p, with error '%s'\n",json,errorBuffer);
+          fflush(stdout);
+        }
         if (schemaJSON){
           printf("Regurgitating JSON Schema before digesting it for real\n");
           jsonPrint(p,schemaJSON);
