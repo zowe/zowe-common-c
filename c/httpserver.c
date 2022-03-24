@@ -1118,12 +1118,13 @@ void writeRequest(HttpRequest *request, Socket *socket){
 
   while (headerChain){
 
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "headerChain %s %s or %d\n",
-           headerChain->nativeName, 
+#ifdef DEBUG
+    printf("headerChain %s %s or %d\n",headerChain->nativeName, 
            (headerChain->nativeValue ? 
             headerChain->nativeValue :
             "<n/a>"), 
            headerChain->intValue);
+#endif
     
     if (headerChain->nativeValue){
       len = sprintf(line,"%s: %s",headerChain->nativeName, headerChain->nativeValue);
@@ -3523,7 +3524,9 @@ static int serviceLoop(Socket *socket){
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "looking for service for URI %s\n",request->uri);
       header = request->headerChain;
       while (header){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "  %s=%s\n",header->nativeName,header->nativeValue);
+#ifdef DEBUG        
+        printf("  %s=%s\n",header->nativeName,header->nativeValue);
+#endif
         header = header->next;
       }
       HttpService *service = findHttpService(NULL,request);
@@ -5282,7 +5285,9 @@ static void doHttpResponseWork(HttpConversation *conversation)
               firstRequest->uri,conversation);
       header = firstRequest->headerChain;
       while (header){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "  %s=%s\n",header->nativeName,header->nativeValue);
+#ifdef DEBUG        
+        printf("  %s=%s\n",header->nativeName,header->nativeValue);
+#endif
         header = header->next;
       }
       HttpService *service = findHttpService(conversation->server,firstRequest);

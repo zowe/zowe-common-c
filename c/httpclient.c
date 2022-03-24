@@ -159,7 +159,9 @@ static void addResponseHeader(HttpResponseParser *parser) {
   newHeader->value = copyString(parser->slh, parser->headerValue, parser->headerValueLength);
   newHeader->nativeValue = copyStringToNative(parser->slh, parser->headerValue, parser->headerValueLength);
 
-  zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "adding response header %s=%s\n", newHeader->nativeName, newHeader->nativeValue);
+#ifdef DEBUG
+  printf("adding response header %s=%s\n", newHeader->nativeName, newHeader->nativeValue);
+#endif
 
   /* pull out enough data for parsing the entity body */
   if (!compareIgnoringCase(newHeader->nativeName, "Transfer-Encoding", parser->headerNameLength)) {
@@ -902,9 +904,10 @@ static void writeRequestWithBody(HttpRequest *request, Socket *socket) {
   }
   headerChain = request->headerChain;
   while (headerChain) {
-    zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG3, "headerChain %s %s or %d\n", headerChain->name, 
-          (headerChain->nativeValue ? headerChain->nativeValue : "<n/a>"),
+#ifdef DEBUG
+    printf("headerChain %s %s or %d\n", headerChain->name, (headerChain->nativeValue ? headerChain->nativeValue : "<n/a>"),
            headerChain->intValue);
+#endif
 
     if (headerChain->nativeValue) {
       len = snprintf(line, 1024, "%s: %s", headerChain->nativeName, headerChain->nativeValue);
