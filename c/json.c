@@ -77,7 +77,7 @@ ssize_t write(int fd, const void *buf, size_t count);
 #  define SOURCE_CODE_CHARSET CCSID_UTF_8
 #endif
 
-#define DEBUG(...) /* fprintf(stderr, __VA_ARGS__) */
+#define JSON_DEBUG(...) /* fprintf(stderr, __VA_ARGS__) */
 #define DUMPBUF($b, $l) /* dumpBufferToStream($b, $l, stderr) */
 
 /* JOE ERROR() is a defined macro in windows, so it needs a more specific name here */
@@ -172,7 +172,7 @@ void jsonWriteBufferInternal(jsonPrinter *p, char *text, int len) {
   if (jsonShouldStopWriting(p)) {
     return;
   }
-  DEBUG("write buffer internal: text at %p, len %d\n", text, len);
+  JSON_DEBUG("write buffer internal: text at %p, len %d\n", text, len);
   DUMPBUF(text, len);
   if (p->isCustom) {
     p->customWrite(p, text, len);
@@ -312,11 +312,12 @@ writeBufferWithEscaping(jsonPrinter *p, size_t len, char text[len]) {
       JSONERROR("JSON: invalid UTF-8, rc %d\n", getCharErr);
       return -1;
     }
-    DEBUG("character at %p + %d, len %d, char %x\n", text, i, len, utf8Char);
+
+    JSON_DEBUG("character at %p + %d, len %d, char %x\n", text, i, len, utf8Char);
     if ((utf8Char <= effectiveControlCharBoundary) ||
         (utf8Char == UTF8_BACKSLASH) || 
         (utf8Char == UTF8_QUOTE)) {
-
+        
       chunkLen = i - 1 - currentChunkOffset;
       if (chunkLen > 0) {
         jsonWriteBufferInternal(p, text + currentChunkOffset, chunkLen);
@@ -377,7 +378,7 @@ void jsonConvertAndWriteBuffer(jsonPrinter *p, char *text, size_t len,
     if (inputCCSID != CCSID_UTF_8) {
       ssize_t newLen;
 
-      DEBUG("before conversion, len %d:\n", len);
+      JSON_DEBUG("before conversion, len %d:\n", len);
       DUMPBUF(text, len);
       newLen = convertToUtf8(p, len, text, inputCCSID);
       if (newLen < 0) {
@@ -385,7 +386,7 @@ void jsonConvertAndWriteBuffer(jsonPrinter *p, char *text, size_t len,
                   (int)newLen);
         return;
       }
-      DEBUG("utf8, len %d:\n", newLen);
+      JSON_DEBUG("utf8, len %d:\n", newLen);
       text = p->_conversionBuffer;
       len = newLen;
       DUMPBUF(text, len);
