@@ -64,11 +64,15 @@ typedef struct ValidityException_tag {
 #define MAX_VALIDATOR_MATCHES 8
 
 typedef struct JsonValidator_tag {
-  JsonSchema *schema;
-  int         errorCode;
-  char       *errorMessage;
-  int         errorMessageLength;
-  char        accessPathBuffer[MAX_ACCESS_PATH];
+  JsonSchema  *topSchema;
+  /* Other schemas that are referred to by the top and each other can be loaded into
+     one validator */
+  JsonSchema **otherSchemas;
+  int          otherSchemaCount;
+  int          errorCode;
+  char        *errorMessage;
+  int          errorMessageLength;
+  char         accessPathBuffer[MAX_ACCESS_PATH];
   ValidityException *firstValidityException;
   ValidityException *lastValidityException;
   int         flags;
@@ -89,7 +93,7 @@ typedef struct JsonValidator_tag {
 
 JsonSchemaBuilder *makeJsonSchemaBuilder(int version);
 void freeJsonSchemaBuilder(JsonSchemaBuilder *builder);
-JsonSchema *jsonBuildSchema(JsonSchemaBuilder *builder, Json *jsValue);
+JsonSchema *jsonBuildSchema(JsonSchemaBuilder *builder, Json *schemaJson);
 
 JsonValidator *makeJsonValidator();
 void freeJsonValidator(JsonValidator *validator);
@@ -98,7 +102,8 @@ void freeJsonValidator(JsonValidator *validator);
 #define JSON_VALIDATOR_HAS_EXCEPTIONS 4
 #define JSON_VALIDATOR_INTERNAL_FAILURE 8
 
-int jsonValidateSchema(JsonValidator *validator, Json *value, JsonSchema *schema);
+int jsonValidateSchema(JsonValidator *validator, Json *value, JsonSchema *topSchema,
+                       JsonSchema **otherSchemas, int otherSchemaCount);
 
 
 #endif 

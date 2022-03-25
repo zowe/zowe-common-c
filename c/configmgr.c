@@ -106,7 +106,9 @@ typedef int64_t ssize_t;
 
     configmgr -s "../tests/schemadata" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" validate
 
-    configmgr -t 2 -s "../tests/schemadata" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" validate
+    configmgr -t 2 -s "../tests/schemadata/zoweyaml.schema" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" validate
+
+    configmgr -t 1 -s "../tests/schemadata/zoweappserver.json:../tests/schemadata/zowebase.json:../tests/schemadata/zowecommon.json" -p "FILE(../tests/schemadata/bundle1.json)" validate
 
     configmgr -s "../tests/schemadata" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" extract "/zowe/setup/mvs/proclib"
 
@@ -166,7 +168,9 @@ typedef struct ConfigManager_tag {
   char *rootSchemaDirectory;
   ConfigPathElement *schemaPath;  /* maybe */
   ConfigPathElement *configPath;
-  JsonSchema *topSchema;
+  JsonSchema  *topSchema;
+  JsonSchema **otherSchemas;
+  int          otherSchemasCount;
   Json       *config;
   hashtable  *schemaCache;
   hashtable  *configCache;
@@ -444,12 +448,55 @@ static void jsonPrettyPrint(ConfigManager *mgr, Json *json){
   
 }
 
-#define ZOWE_SCHEMA_FILE "zoweyaml.schema"
+/* #define ZOWE_SCHEMA_FILE "zoweyaml.schema"  */
 
 void freeConfigManager(ConfigManager *mgr);
 
-ConfigManager *makeConfigManager(char *configPathArg, char *rootSchemaDirectory,
+static JsonSchema *loadOneSchema(ConfigManager *mgr, char *schemaFilePath){
+  int returnCode = 0;
+  int reasonCode = 0;
+  FileInfo yamlFileInfo;
+  trace(mgr,DEBUG,"before file info\n");
+  int infoStatus = fileInfo(schemaFilePath,&yamlFileInfo,&returnCode,&reasonCode);
+  if (infoStatus){
+    trace(mgr,INFO,"failed to get fileInfo of '%s', infoStatus=%d\n",schemaFilePath,infoStatus);
+    freeConfigManager(mgr);
+    return NULL;
+  }
+  char errorBuffer[1024];
+  trace(mgr,DEBUG,"before jsonParseFile info\n");
+  Json *jsonWithSchema = jsonParseFile2(mgr->slh,schemaFilePath,errorBuffer,1024);
+  if (jsonWithSchema == NULL){
+    trace(mgr,INFO,"failed to read JSON with base schema: %s\n",errorBuffer);
+    freeConfigManager(mgr);
+    return NULL;
+  }
+  if (mgr->traceLevel >= 1){
+    jsonPrettyPrint(mgr,jsonWithSchema);
+
+  }
+  JsonSchemaBuilder *builder = makeJsonSchemaBuilder(DEFAULT_JSON_SCHEMA_VERSION);
+  if (mgr->traceLevel >= 1){
+    printf("about to build schema for '%s'\n",schemaFilePath);fflush(stdout);
+  }
+  JsonSchema *schema = jsonBuildSchema(builder,jsonWithSchema);
+  if (schema == NULL){
+    printf("Schema Build for '%s' Failed: %s\n",schemaFilePath,builder->errorMessage);
+    freeJsonSchemaBuilder(builder); 
+    freeConfigManager(mgr);
+    return NULL;
+  } else {
+    trace(mgr,DEBUG,"JSON Schema built successfully\n");
+  }
+  freeJsonSchemaBuilder(builder);
+  return schema;
+}
+
+#define MAX_SCHEMAS 100
+
+ConfigManager *makeConfigManager(char *configPathArg, char *schemaPath,
                                  int traceLevel, FILE *traceOut){
+  printf("makeConfigMgr\n");fflush(stdout);
   ConfigManager *mgr = (ConfigManager*)safeMalloc(sizeof(ConfigManager),"ConfigManager");
 
   memset(mgr,0,sizeof(ConfigManager));
@@ -465,43 +512,40 @@ ConfigManager *makeConfigManager(char *configPathArg, char *rootSchemaDirectory,
     return NULL;
   }
   trace(mgr,DEBUG,"built config path\n");
-  
-  mgr->rootSchemaDirectory = rootSchemaDirectory;
-  char *zoweYamlPath = makeFullPath(mgr,rootSchemaDirectory,ZOWE_SCHEMA_FILE,true);
-  int returnCode = 0;
-  int reasonCode = 0;
-  FileInfo yamlFileInfo;
-  trace(mgr,DEBUG,"before file info\n");
-  int infoStatus = fileInfo(zoweYamlPath,&yamlFileInfo,&returnCode,&reasonCode);
-  if (infoStatus){
-    trace(mgr,INFO,"failed to get fileInfo of '%s', infoStatus=%d\n",zoweYamlPath,infoStatus);
-    freeConfigManager(mgr);
-    return NULL;
-  }
-  char errorBuffer[1024];
-  trace(mgr,DEBUG,"before jsonParseFile info\n");
-  Json *jsonWithSchema = jsonParseFile2(mgr->slh,zoweYamlPath,errorBuffer,1024);
-  if (jsonWithSchema == NULL){
-    trace(mgr,INFO,"failed to read JSON with base schema: %s\n",errorBuffer);
-    freeConfigManager(mgr);
-    return NULL;
-  }
-  if (mgr->traceLevel >= 1){
-    jsonPrettyPrint(mgr,jsonWithSchema);
 
+  mgr->otherSchemas = (JsonSchema**)SLHAlloc(mgr->slh,MAX_SCHEMAS*sizeof(JsonSchema));
+  mgr->rootSchemaDirectory = schemaPath; /* rootSchemaDirectory; */
+
+  int pos = 0;
+  int len = strlen(schemaPath);
+  int schemaCount = 0;
+  while (pos < len){
+    int nextColon = indexOf(schemaPath,len,':',pos);
+    int nextPos;
+    int pathElementLength = 0;
+
+    if (nextColon == -1){
+      nextPos = len;
+      pathElementLength = len - pos;
+    } else {
+      nextPos = nextColon+1;
+      pathElementLength = nextColon - pos;
+    }
+
+    char *schemaFilePath = substring(mgr,schemaPath,pos,pos+pathElementLength);
+
+    /* char *schemaFilePath = makeFullPath(mgr,rootSchemaDirectory,ZOWE_SCHEMA_FILE,true); */
+
+    if (schemaCount == 0){
+      mgr->topSchema = loadOneSchema(mgr,schemaFilePath);
+    } else {
+      mgr->otherSchemas[schemaCount-1] = loadOneSchema(mgr,schemaFilePath);
+    }
+
+    pos = nextPos;
+    schemaCount++;
   }
-  JsonSchemaBuilder *builder = makeJsonSchemaBuilder(DEFAULT_JSON_SCHEMA_VERSION);
-  JsonSchema *schema = jsonBuildSchema(builder,jsonWithSchema);
-  if (schema == NULL){
-    printf("Schema Build Failed: %s\n",builder->errorMessage);
-    freeJsonSchemaBuilder(builder); 
-    freeConfigManager(mgr);
-    return NULL;
-  } else {
-    trace(mgr,DEBUG,"JSON Schema built successfully\n");
-    mgr->topSchema = schema;
-  }
-  freeJsonSchemaBuilder(builder); 
+  mgr->otherSchemasCount = schemaCount-1;
   return mgr;
 }
 
@@ -521,8 +565,7 @@ static Json *readJson(ConfigManager *mgr, ConfigPathElement *pathElement){
     } else {
       trace(mgr,INFO,"WARNING, yaml read failed\n");
       return NULL;
-    }
-    
+    }  
   } else {
     trace(mgr,INFO,"WARNING, only simple file case yet implemented\n");
     return NULL;
@@ -793,14 +836,14 @@ static void showHelp(FILE *out){
   fprintf(out,"Usage:\n");
   fprintf(out,"  configmgr [options] <command> <args>\n");
   fprintf(out,"    options\n");
-  fprintf(out,"      -h             : show help\n");
-  fprintf(out,"      -t <level>     : enable tracing with level from 1-3\n");
-  fprintf(out,"      -o <outStream> : OUT|ERR , ERR is default\n");
-  fprintf(out,"      -s <path>      : root schema directory\n");
-  fprintf(out,"      -w <path>      : workspace directory\n");
-  fprintf(out,"      -c             : compact output for jq and extract commands\n");
-  fprintf(out,"      -r             : raw string output for jq and extract commands\n");
-  fprintf(out,"      -p <configPath>: list of colon-separated configPathElements - see below\n");
+  fprintf(out,"      -h                  : show help\n");
+  fprintf(out,"      -t <level>          : enable tracing with level from 1-3\n");
+  fprintf(out,"      -o <outStream>      : OUT|ERR , ERR is default\n");
+  fprintf(out,"      -s <path:path...>   : <topSchema>(:<referencedSchema)+\n");
+  fprintf(out,"      -w <path>           : workspace directory\n");
+  fprintf(out,"      -c                  : compact output for jq and extract commands\n");
+  fprintf(out,"      -r                  : raw string output for jq and extract commands\n");
+  fprintf(out,"      -p <configPath>     : list of colon-separated configPathElements - see below\n");
   fprintf(out,"    commands:\n");
   fprintf(out,"      extract <jsonPath>  : prints value to stdout\n");
   fprintf(out,"      validate            : just loads and validates merged configuration\n");
@@ -931,7 +974,7 @@ static void convertJsonArrayToEnv(FILE *out, const char *path, JsonArray *array)
 
 
 int main(int argc, char **argv){
-  char *rootSchemaDirectory = NULL;   // Read-only   ZOWE runtime_directory (maybe 
+  char *schemaPath = NULL;
   char *zoweWorkspaceHome = NULL; // Read-write      is there always a zowe.yaml in there
   char *configPath = NULL;
   char *command = NULL;
@@ -951,7 +994,7 @@ int main(int argc, char **argv){
       showHelp(traceOut);
       return 0;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-s")) != NULL){
-      rootSchemaDirectory = optionValue;
+      schemaPath = optionValue;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-t")) != NULL){
       traceArg = optionValue;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-o")) != NULL){
@@ -985,8 +1028,8 @@ int main(int argc, char **argv){
     }
   }
 
-  if (rootSchemaDirectory == NULL){
-    fprintf(traceOut,"Must specify root schema directory\n");
+  if (schemaPath == NULL){
+    fprintf(traceOut,"Must specify schema path with at least one schema");
     showHelp(traceOut);
     return 0;
   }
@@ -996,7 +1039,7 @@ int main(int argc, char **argv){
     return 0;
   }
 
-  ConfigManager *mgr = makeConfigManager(configPath,rootSchemaDirectory,traceLevel,traceOut);
+  ConfigManager *mgr = makeConfigManager(configPath,schemaPath,traceLevel,traceOut);
   if (mgr == NULL){
     trace(mgr,INFO,"Failed to build configmgr\n");
     return 0;
@@ -1023,8 +1066,10 @@ int main(int argc, char **argv){
     trace(mgr,INFO,"about to validate merged yamls as\n");
     jsonPrettyPrint(mgr,mgr->config);
     JsonValidator *validator = makeJsonValidator();
+    validator->traceLevel = mgr->traceLevel;
     trace(mgr,DEBUG,"Before Validate\n");
-    int validateStatus = jsonValidateSchema(validator,mgr->config,mgr->topSchema);
+    int validateStatus = jsonValidateSchema(validator,mgr->config,
+                                            mgr->topSchema,mgr->otherSchemas,mgr->otherSchemasCount);
     trace(mgr,INFO,"validate status = %d\n",validateStatus);
     switch (validateStatus){
     case JSON_VALIDATOR_NO_EXCEPTIONS:

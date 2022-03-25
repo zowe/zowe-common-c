@@ -50,8 +50,7 @@
      schematest yaml schemadata/example-zowe.yaml utf8 schemadata/zoweyaml.schema
  */
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]){
     int number;
     char *syntax = argv[1];
     char *filename = argv[2];
@@ -126,7 +125,7 @@ int main(int argc, char *argv[])
           if (schema){
             JsonValidator *validator = makeJsonValidator();
             printf("Before Validate\n");fflush(stdout);
-            int validateStatus = jsonValidateSchema(validator,json,schema);
+            int validateStatus = jsonValidateSchema(validator,json,schema,NULL,0);
             switch (validateStatus){
             case JSON_VALIDATOR_NO_EXCEPTIONS:
               printf("No validity Exceptions\n");

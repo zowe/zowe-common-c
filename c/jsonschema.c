@@ -678,9 +678,25 @@ static JSValueSpec *getTopSchemaByName(JsonValidator *validator,
   snprintf(key,len,"%*.*s/%*.*s",
            hostNameLength,hostNameLength,hostName,
            fileNameLength,fileNameLength,fileName);
-  JSValueSpec *schema = htGet(validator->schema->topValueSpec->definitions,key);
+  hashtable *definitionTable = validator->topSchema->topValueSpec->definitions;
+  JSValueSpec *schema = (definitionTable ? htGet(definitionTable,key) : NULL);
   if (validator->traceLevel >= 1){
-    printf("getTopSchema for key='%s' yields 0x%p\n",key,schema);
+    printf("getTopSchema for key='%s' yields 0x%p (from HT)\n",key,schema);
+  }
+  if (schema == NULL){
+    for (int i=0; i<validator->otherSchemaCount; i++){
+      JsonSchema *otherSchema = validator->otherSchemas[i];
+      JSValueSpec *otherTopSpec = otherSchema->topValueSpec;
+      
+      if (otherTopSpec->id && !strcmp(otherTopSpec->id,key)){
+        schema = otherTopSpec;
+        if (validator->traceLevel >= 1){
+          printf("getTopSchema for key='%s' yields 0x%p (from Other Schemas)\n",key,schema);
+        }
+        break;
+      }
+    }
+           
   }
   safeFree(key,len);
   return schema;
@@ -731,7 +747,7 @@ static JSValueSpec *resolveRef(JsonValidator *validator, bool isSpeculating, JSV
     int refLen = strlen(ref);
     int pos = 2;
     char *key = ref+8;
-    JSValueSpec *topSchema = validator->schema->topValueSpec;
+    JSValueSpec *topSchema = validator->topSchema->topValueSpec;
     if (topSchema->definitions == NULL){
       noteValidityException(validator,isSpeculating,12,"schema '%s' does not define shared '$defs'",
                             (topSchema->id ? topSchema->id : "<anonymous>"));
@@ -975,10 +991,13 @@ static VResult validateJSON(JsonValidator *validator, bool isSpeculating,Json *v
   }
 }
 
-int jsonValidateSchema(JsonValidator *validator, Json *value, JsonSchema *schema){
+int jsonValidateSchema(JsonValidator *validator, Json *value, JsonSchema *topSchema,
+                       JsonSchema **otherSchemas, int otherSchemaCount){
   if (setjmp(validator->recoveryData) == 0) {  /* normal execution */
-    validator->schema = schema;
-    VResult validity = validateJSON(validator,false,value,schema->topValueSpec);
+    validator->topSchema = topSchema;
+    validator->otherSchemas = otherSchemas;
+    validator->otherSchemaCount = otherSchemaCount;
+    VResult validity = validateJSON(validator,false,value,topSchema->topValueSpec);
     printf("after validate without throw, should show validation exceptions\n");
     fflush(stdout);
     if (validator->firstValidityException == NULL){
@@ -1245,8 +1264,6 @@ static JSValueSpec *makeValueSpec(JsonSchemaBuilder *builder,
       } else {
         spec->hostName = extractString(builder,id,&matches[1]);
         spec->fileName = extractString(builder,id,&matches[2]);
-        printf("top schema found with ID=%s, host='%s' file='%s'\n",
-               id,spec->hostName,spec->fileName);
       }
       regexFree(regex);
     } 
@@ -1577,7 +1594,7 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, JSValueSpec *parent, Json 
         }
         
       }
-    }// for (jsType...
+    }/*  for (jsType... */
     return valueSpec;
   } else {
     schemaThrow(builder,12,"top level schema must be an object");
@@ -1603,13 +1620,14 @@ void freeJsonSchemaBuilder(JsonSchemaBuilder *builder){
   safeFree((char*)builder,sizeof(JsonSchemaBuilder));
 }
 
-JsonSchema *jsonBuildSchema(JsonSchemaBuilder *builder, Json *jsValue){
+JsonSchema *jsonBuildSchema(JsonSchemaBuilder *builder,
+                            Json  *schemaJson){
   if (setjmp(builder->recoveryData) == 0) {  /* normal execution */
     if (builder->traceLevel >= 2){
       printf("after setjmp normal\n");
       fflush(stdout);
     }
-    JSValueSpec *topValueSpec = build(builder,NULL,jsValue,true);
+    JSValueSpec *topValueSpec = build(builder,NULL,schemaJson,true);
     JsonSchema *schema = (JsonSchema*)SLHAlloc(builder->slh,sizeof(JsonSchema));
     schema->topValueSpec = topValueSpec;
     schema->version = builder->version;

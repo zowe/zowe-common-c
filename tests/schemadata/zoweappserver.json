@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2019-09",
+  "$id": "https://zarf.org/schema/appserver",
+  "allOf": [
+    {
+      "$ref": "https://zowe.org/schema/base"
+    },
+    {
+      "$ref": "https://zowe.org/schema/common#zoweComponent"
+    },
+    {
+      "type": "object",
+      "required": [
+        "BB"
+      ],
+      "properties": {
+        "BB": {
+          "const": "FOO"
+        }
+      }
+    }
+  ],
+}
