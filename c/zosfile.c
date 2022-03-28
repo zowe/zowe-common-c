@@ -785,7 +785,6 @@ int fileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int *reason
   reasonCodePtr = reasonCode;
 #endif
 
-  dumpbuffer(filename,strlen(filename));
   BPXSTA(&nameLength,
          filename,
          &statsLength,

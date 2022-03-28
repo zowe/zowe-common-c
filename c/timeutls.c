@@ -464,10 +464,16 @@ int timeZoneDifferenceFor(int64 theTime)
 {
   /* There has to be a better way... */
   time_t base = (time_t) theTime;
-  struct tm local;
+  struct tm local = { 0 };
 #ifdef __ZOWE_OS_WINDOWS
   struct tm *tempTM = localtime(&base);
-  memcpy(&local,tempTM,sizeof(struct tm));
+  if (tempTM){
+    memcpy(&local,tempTM,sizeof(struct tm));
+  } else {
+    /* Nothing good to do here, and return value will be v.bad.
+       Garbage In, Garbage Out! 
+    */
+  }
 #else
   localtime_r(&base, &local);
 #endif

@@ -108,20 +108,15 @@ int supervisorMode(int enable){
 }
 
 int setKey(int key){
-#ifndef __ZOWE_COMP_XLCLANG  /* temp hack until Joe figures out what "&r" means */
-  int oldKey;
+  int shiftedKey = key << 4;
   __asm(" XR   2,2 \n"
-        " SLL  %1,4 \n"
         " MODESET KEYREG=(%1),SAVEKEY=(2) \n"
         " SRL  2,4 \n"
         " ST   2,%0 \n"
         :"=m"(oldKey)
-        :"&r"(key)
+        :"r"(shiftedKey)
         :"r2");
   return oldKey;
-#else
-  return 8;
-#endif
 }
 
 int64 getR12(void) {
@@ -278,7 +273,7 @@ OTCB *getOTCB(void) {
 
 ASCB *getASCB(void) {
   int *mem = (int*)0;
-  return (ASCB*)INT2PTR(mem[CURRENT_ASCB/4]);
+  return (ASCB*)INT2PTR((mem[CURRENT_ASCB/4])&0x7FFFFFFF);
 }
 
 ASXB *getASXB(void) {
@@ -1063,9 +1058,7 @@ static int safVerifyInternal(int options,
       fprintf(safTraceFile,"about to go call saf wrapper at 0x%p' verify block at 0x%p' acee 0x%p'\n",safWrapper,verifyRequest,
               (aceeHandle != NULL ? *aceeHandle : NULL));
       dumpbuffer((char*)safWrapper,sizeof(safp));
-#ifndef METTLE
       fprintf(safTraceFile,"verify:\n");
-#endif
       dumpbuffer((char*)verifyRequest,sizeof(safVerifyRequest));
     }
     safStatus = SAF(safWrapper,useSupervisorMode);

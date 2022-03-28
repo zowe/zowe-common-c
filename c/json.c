@@ -392,7 +392,12 @@ void jsonConvertAndWriteBuffer(jsonPrinter *p, char *text, size_t len,
       DUMPBUF(text, len);
     }
     if (escape) {
-      writeBufferWithEscaping(p, len, text);
+      ssize_t bytesWritten = writeBufferWithEscaping(p, len, text);
+      if (bytesWritten < 0){
+        JSONERROR("jsonConvertAndWriteBuffer() error: bytesWritten = %zd\n",
+                bytesWritten);
+        return;
+      }
     } else {
       jsonWriteBufferInternal(p, text, len);
     }
@@ -2728,7 +2733,6 @@ static JsonPointerElement *makePointerElement(char *token, int type){
 /* See RFC 6901 - absolute pointes only, so far */
 JsonPointer *parseJsonPointer(char *s){
   int len = strlen(s);
-  /* char *reduced = safeMalloc(len+1); */
   JsonPointer *jp = (JsonPointer*)safeMalloc(sizeof(JsonPointer),"JSONPointer");
   ArrayList *list = &(jp->elements);
   initEmbeddedArrayList(list,NULL);
