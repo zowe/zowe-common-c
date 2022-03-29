@@ -260,9 +260,9 @@ int addressSpaceCreateWithTerm(const ASParmString *startParmString,
                                void * __ptr32 termCallbackParm,
                                int *reasonCode) {
 
-  __packed union {
+  _Packed union {
     ASUserToken tokenValue;
-    __packed struct {
+    _Packed struct {
       ASCRETermCallback * __ptr32 termCallback;
       void * __ptr32 termCallbackParm;
     };

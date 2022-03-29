@@ -1,3 +1,14 @@
+/*
+  This program and the accompanying materials are
+  made available under the terms of the Eclipse Public License v2.0 which accompanies
+  this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
+  
+  SPDX-License-Identifier: EPL-2.0
+  
+  Copyright Contributors to the Zowe Project.
+*/
+
+
 #include <yaml.h> 
    /* #include <yaml_private.h> */
 
@@ -871,3 +882,13 @@ static void yaml2JS(yaml_document_t *document, ShortLivedHeap *slh){
   ByteOutputStream *bos = makeByteOutputStream(0x1000);
   yaml2JS1(bos,document,yaml_document_get_root_node(document),0,1);
 }
+
+/*
+  This program and the accompanying materials are
+  made available under the terms of the Eclipse Public License v2.0 which accompanies
+  this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
+  
+  SPDX-License-Identifier: EPL-2.0
+  
+  Copyright Contributors to the Zowe Project.
+*/

@@ -109,6 +109,7 @@ int supervisorMode(int enable){
 
 int setKey(int key){
   int shiftedKey = key << 4;
+  int oldKey;
   __asm(" XR   2,2 \n"
         " MODESET KEYREG=(%1),SAVEKEY=(2) \n"
         " SRL  2,4 \n"

@@ -1,5 +1,3 @@
-
-
 /*
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
@@ -143,17 +141,17 @@ int ejsEvalFile(EmbeddedJS *ejs, const char *filename, int loadMode){
     return ret;
 }
 
-static JSClassID js_joe_thingy_class_id;
+static JSClassID js_experiment_thingy_class_id;
 
-static void js_joe_thingy_finalizer(JSRuntime *rt, JSValue val){
+static void js_experiment_thingy_finalizer(JSRuntime *rt, JSValue val){
   /* JSSTDFile *s = JS_GetOpaque(val, js_std_file_class_id); */
-  printf("Joe Thingy Finalizer running\n");
+  printf("Experiment Thingy Finalizer running\n");
 }
 
 
-static JSClassDef js_joe_thingy_class = {
+static JSClassDef js_experiment_thingy_class = {
     "THINGY",
-    .finalizer = js_joe_thingy_finalizer,
+    .finalizer = js_experiment_thingy_finalizer,
 };
 
 /*
@@ -165,59 +163,59 @@ static JSClassDef js_joe_thingy_class = {
 
 */
 
-JSValue js_joe_thingy_three(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv){
+JSValue js_experiment_thingy_three(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv){
   return JS_NewInt32(ctx, 3);
 }
 
-static const JSCFunctionListEntry js_joe_thingy_proto_funcs[] = {
-    JS_CFUNC_DEF("three", 0, js_joe_thingy_three ),
+static const JSCFunctionListEntry js_experiment_thingy_proto_funcs[] = {
+    JS_CFUNC_DEF("three", 0, js_experiment_thingy_three ),
 };
 
-static JSValue js_joe_boop(JSContext *ctx, JSValueConst this_val,
+static JSValue js_experiment_boop(JSContext *ctx, JSValueConst this_val,
                            int argc, JSValueConst *argv)
 {
   printf("boop boop boop!!\n");
     return JS_UNDEFINED;
 }
 
-static const JSCFunctionListEntry js_joe_funcs[] = {
-    JS_CFUNC_DEF("boop", 0, js_joe_boop ),
+static const JSCFunctionListEntry js_experiment_funcs[] = {
+    JS_CFUNC_DEF("boop", 0, js_experiment_boop ),
 };
 
 
 
-static int js_joe_init(JSContext *ctx, JSModuleDef *m)
+static int js_experiment_init(JSContext *ctx, JSModuleDef *m)
 {
     JSValue proto;
     
     /* FILE class */
     /* the class ID is created once */
-    JS_NewClassID(&js_joe_thingy_class_id);
+    JS_NewClassID(&js_experiment_thingy_class_id);
     /* the class is created once per runtime */
-    JS_NewClass(JS_GetRuntime(ctx), js_joe_thingy_class_id, &js_joe_thingy_class);
+    JS_NewClass(JS_GetRuntime(ctx), js_experiment_thingy_class_id, &js_experiment_thingy_class);
     proto = JS_NewObject(ctx);
     JS_SetPropertyFunctionList(ctx,
                                proto,
-                               js_joe_thingy_proto_funcs,
-                               countof(js_joe_thingy_proto_funcs));
+                               js_experiment_thingy_proto_funcs,
+                               countof(js_experiment_thingy_proto_funcs));
     JS_SetClassProto(ctx,
-                     js_joe_thingy_class_id,
+                     js_experiment_thingy_class_id,
                      proto);
 
-    JS_SetModuleExportList(ctx, m, js_joe_funcs,
-                           countof(js_joe_funcs));
+    JS_SetModuleExportList(ctx, m, js_experiment_funcs,
+                           countof(js_experiment_funcs));
     return 0;
 }
 
 
-JSModuleDef *js_init_module_joe(JSContext *ctx, const char *module_name)
+JSModuleDef *js_init_module_experiment(JSContext *ctx, const char *module_name)
 {
     JSModuleDef *m;
-    m = JS_NewCModule(ctx, module_name, js_joe_init);
+    m = JS_NewCModule(ctx, module_name, js_experiment_init);
     if (!m){
         return NULL;
     }
-    JS_AddModuleExportList(ctx, m, js_joe_funcs, countof(js_joe_funcs));
+    JS_AddModuleExportList(ctx, m, js_experiment_funcs, countof(js_experiment_funcs));
     return m;
 }
 
@@ -239,7 +237,7 @@ static JSContext *makeEmbeddedJSContext(JSRuntime *rt)
     /* system modules */
     js_init_module_std(ctx, "std");
     js_init_module_os(ctx, "os");
-    js_init_module_joe(ctx, "joe");
+    js_init_module_experiment(ctx, "experiment");
     return ctx;
 }
 
@@ -687,7 +685,7 @@ EmbeddedJS *makeEmbeddedJS(EmbeddedJS *sharedRuntimeEJS){ /* can be NULL */
   /* loader for ES6 modules */
   JS_SetModuleLoaderFunc(embeddedJS->rt, NULL, js_module_loader, NULL);
   
-  if (false){ /* dump_unhandled_promise_rejection) { - JOE doe this later */
+  if (false){ /* dump_unhandled_promise_rejection) { - do this later */
     JS_SetHostPromiseRejectionTracker(embeddedJS->rt, js_std_promise_rejection_tracker,
                                       NULL);
   }
@@ -698,13 +696,22 @@ EmbeddedJS *makeEmbeddedJS(EmbeddedJS *sharedRuntimeEJS){ /* can be NULL */
   if (true){ /* load_std) {*/
     const char *str = "import * as std from 'std';\n"
       "import * as os from 'os';\n"
-      "import * as joe from 'joe';\n"
+      "import * as experiment from 'experiment';\n"
       "globalThis.std = std;\n"
       "globalThis.os = os;\n"
-      "globalThis.joe = joe;\n";
+      "globalThis.experiment = experiment;\n";
     JSValue throwaway = ejsEvalBuffer(embeddedJS, str, strlen(str), "<input>", JS_EVAL_TYPE_MODULE, &evalStatus);
   }
 
   return embeddedJS;
 }
 
+/*
+  This program and the accompanying materials are
+  made available under the terms of the Eclipse Public License v2.0 which accompanies
+  this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
+  
+  SPDX-License-Identifier: EPL-2.0
+  
+  Copyright Contributors to the Zowe Project.
+*/
