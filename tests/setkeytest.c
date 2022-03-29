@@ -33,6 +33,7 @@ int main(int argc, char **argv){
     printf("WITH PRIV: this ZOS has prefix 0x%x\n",prefix);
     setKey(oldKey);
     supervisorMode(false);
+    printf("oldKey was = %d\n",oldKey);
   } else{
     int prefix = getPrefix();
     printf("NO PRIV: this ZOS has prefix 0x%x\n",prefix);
