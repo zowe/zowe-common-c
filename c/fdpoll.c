@@ -13,6 +13,10 @@
 
 #endif
 
+/* xlclang and clang demand a prototype */
+
+int BPXPOL();
+
 int fdPoll(PollItem* fds, short nmqs, short nfds, int timeout, int *returnCode, int *reasonCode) {
   int returnValue;
   int *reasonCodePtr;

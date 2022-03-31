@@ -174,8 +174,8 @@ typedef struct ELXLIST_tag {
 
 #define CROSS_MEMORY_SERVER_MAX_CMD_TASK_NUM  30
 
-typedef struct CrossMemoryServerGlobalArea_tag;
-typedef struct CrossMemoryService_tag;
+struct CrossMemoryServerGlobalArea_tag;
+struct CrossMemoryService_tag;
 
 typedef int (CrossMemoryServiceFunction)(struct CrossMemoryServerGlobalArea_tag *globalArea, struct CrossMemoryService_tag *service, void *parm);
 

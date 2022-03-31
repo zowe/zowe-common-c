@@ -259,7 +259,7 @@ static ASCB *getASCBByASID(int asid){
   CVT *cvt = getCVT();
   ASVT *asvt = (ASVT*)cvt->cvtasvt;
   
-  ASCB *ascb = (ASCB*)asvt->asvtenty;
+  ASCB *ascb = (ASCB*)INT2PTR(asvt->asvtenty);
   while (ascb){
     if (ascb->ascbasid == asid){
       return ascb;
@@ -334,6 +334,7 @@ int walkTCBs(DiscoveryContext *context,
     TCB *firstTCB = (TCB*)getStructCopy(context,ascb,0,asxb->asxbftcb,sizeof(TCB));
     walkTCBs1(context,ascb,firstTCB,(TCB*)ANY_TCB,0,visitor,visitorContext,NULL);
   }
+  return 0;
 }
 
 
@@ -344,7 +345,7 @@ static void visitSSCTEntry(DiscoveryContext *context,
   if (context->ssctTraceLevel >= 1){
     dumpbuffer((char*)ssctChain,sizeof(SSCT));
   }
-  void *usr1 = (void*)ssctChain->ssctsuse;
+  void *usr1 = (void*)INT2PTR(ssctChain->ssctsuse);
   zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "user pointer at 0x%x COMMON?=%s\n",usr1,isPointerCommon(gda,usr1) ? "YES" : "NO");
   if (isPointerCommon(gda,usr1)){
     if (context->ssctTraceLevel >= 1){
@@ -449,7 +450,7 @@ static void ispfAnchorVisitor(DiscoveryContext *context,
            */
         if (tcbfsa[10] == *((int*)"ISPF")){
           /* printf("WOO HOO\n"); */
-          int *tldHandle = (int*)tcbfsa[6];
+          int *tldHandle = (int*)INT2PTR(tcbfsa[6]);
           int *tldPtr = (int*)((int*)getStructCopy(context,ascb,0,tldHandle,4))[0];
           /* printf("tldPtr=0x%x\n",tldPtr); */
           if (tldPtr){
@@ -738,6 +739,7 @@ int findSessions(DiscoveryContext *context,
       break;   /* if we ever get a good result, leave the while loop */
     }
   }
+  return 0;
 }
 
 /************************** ZOS Model Maintenance ********************************/
@@ -759,7 +761,7 @@ static void gatherStartedTasks(DiscoveryContext *context, ZOSModel *model){
   StartedTaskVisitor *userVisitor = model ? model->startedTaskVisitor : NULL;
   void* userVisitorData = model ? model->visitorsData : NULL;
 
-  ASCB *ascb = (ASCB*)asvt->asvtenty;
+  ASCB *ascb = (ASCB*)INT2PTR(asvt->asvtenty);
   while (ascb){
     char *jobname = getASCBJobname(ascb);
     char *jobnameCopy = SLHAlloc(context->slh,12);
@@ -818,13 +820,13 @@ static void scanTSBs(ZOSModel *model){
         zowedump(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG2,(char*)tsbxCopy,sizeof(IKTTSBX));
       }
       TSBInfo *tsbInfo = (TSBInfo*)SLHAlloc(model->tsbScanSLH,sizeof(TSBInfo));
-      tsbInfo->ascb = (ASCB*)(tsbCopy->tcbstatAndASCB & 0x00FFFFFF);
+      tsbInfo->ascb = (ASCB*)INT2PTR(tsbCopy->tcbstatAndASCB & 0x00FFFFFF);
       tsbInfo->tsb = tsbCopy;
       tsbInfo->tsbx = tsbxCopy;
       char     *luname = &(tsbCopy->tsbtrmid[0]);
       htPut(tsbTable,luname,tsbInfo);
 
-      tsb = (IKJTSB*)(tsbxCopy->flagAndFwdPointer&0xFFFFFF);
+      tsb = (IKJTSB*)INT2PTR(tsbxCopy->flagAndFwdPointer&0xFFFFFF);
     } else{
       tsb = NULL;
     }

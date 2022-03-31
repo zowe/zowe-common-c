@@ -49,6 +49,9 @@
 #include "charsets.h"
 #include "embeddedjs.h"
 
+#include "cutils.h"
+#include "quickjs-libc.h"
+
 #ifdef __ZOWE_OS_WINDOWS
 typedef int64_t ssize_t;
 #endif
@@ -74,10 +77,43 @@ static int convertFromNative(char *buf, size_t size) {
   return 0;
 }
 
-JSValue ejsEvalBuffer(EmbeddedJS *ejs,
-                      const void *buffer, int bufferLength,
-                      const char *filename, int eval_flags,
-                      int *statusPtr){
+struct trace_malloc_data {
+    uint8_t *base;
+};
+
+#define FILE_LOAD_AUTODETECT -1
+#define FILE_LOAD_GLOBAL      0 /* not module */
+#define FILE_LOAD_MODULE      1 
+
+struct EmbeddedJS_tag {
+  JSRuntime *rt;
+  JSContext *ctx;
+  struct trace_malloc_data trace_data; /*  = { NULL }; */
+  int optind;
+  char *expr; /*  = NULL; */
+  int interactivel; /*  = 0; */
+  int dump_memory; /* = 0; */
+  int trace_memory; /* = 0;*/
+  int empty_run; /* = 0; */
+  int loadMode; /* FILE_LOAD_AUTODETECT */
+  int load_std; /* = 0; */
+  int dump_unhandled_promise_rejection; /*  = 0; */
+  size_t memory_limit; /*  = 0; */
+  char *include_list[32];
+#ifdef CONFIG_BIGNUM
+  int load_jscalc;
+#endif
+  size_t stack_size; /* = 0; */
+};
+
+struct JSValueBox_tag {
+  JSValue value;
+};
+
+static JSValue ejsEvalBuffer1(EmbeddedJS *ejs,
+                              const void *buffer, int bufferLength,
+                              const char *filename, int eval_flags,
+                              int *statusPtr){
   JSContext *ctx = ejs->ctx;
   JSValue val;
   int ret;
@@ -104,15 +140,27 @@ JSValue ejsEvalBuffer(EmbeddedJS *ejs,
   return val;
 }
 
-void ejsFreeJSValue(EmbeddedJS *ejs, JSValue value){
-  JS_FreeValue(ejs->ctx, value);
+JSValueBox ejsEvalBuffer(EmbeddedJS *ejs,
+                         const void *buffer, int bufferLength,
+                         const char *filename, int eval_flags,
+                         int *statusPtr){
+  JSValue value = ejsEvalBuffer1(ejs,buffer,bufferLength,filename,eval_flags,statusPtr);
+  return *(JSValueBox*)(&value);
 }
 
-int ejsSetGlobalProperty(EmbeddedJS *ejs, const char *propertyName, JSValue value){
+void ejsFreeJSValue(EmbeddedJS *ejs, JSValueBox valueBox){
+  JS_FreeValue(ejs->ctx, *((JSValue*)&valueBox));
+}
+
+static int ejsSetGlobalProperty_internal(EmbeddedJS *ejs, const char *propertyName, JSValue value){
   JSContext *ctx = ejs->ctx;
   JSValue theGlobal = JS_GetGlobalObject(ctx);
 
   return JS_SetPropertyStr(ctx,theGlobal,propertyName,value);
+}
+
+int ejsSetGlobalProperty(EmbeddedJS *ejs, const char *propertyName, JSValueBox valueBox){
+  return ejsSetGlobalProperty_internal(ejs,propertyName,valueBox.value);
 }
 
 int ejsEvalFile(EmbeddedJS *ejs, const char *filename, int loadMode){
@@ -135,7 +183,7 @@ int ejsEvalFile(EmbeddedJS *ejs, const char *filename, int loadMode){
         eval_flags = JS_EVAL_TYPE_MODULE;
     else
         eval_flags = JS_EVAL_TYPE_GLOBAL;
-    JSValue evalResult = ejsEvalBuffer(ejs, buf, bufferLength, filename, eval_flags, &ret);
+    JSValue evalResult = ejsEvalBuffer1(ejs, buf, bufferLength, filename, eval_flags, &ret);
     js_free(ejs->ctx, buf);
     JS_FreeValue(ejs->ctx, evalResult);
     return ret;
@@ -411,11 +459,15 @@ static bool isZoweUnevaluated(Json *json){
   return false;
 }
 
-Json *ejsJSToJson(EmbeddedJS *ejs, JSValue value, ShortLivedHeap *slh){
+static Json *ejsJSToJson_internal(EmbeddedJS *ejs, JSValue value, ShortLivedHeap *slh){
   JsonBuilder *builder = makeJsonBuilder(slh);
   Json *json = jsToJson1(ejs,builder,NULL,NULL,value,0);
   freeJsonBuilder(builder,false);
   return json;
+}
+
+Json *ejsJSToJson(EmbeddedJS *ejs, JSValueBox valueBox, ShortLivedHeap *slh){
+  return ejsJSToJson_internal(ejs,valueBox.value,slh);
 }
 
 static JSValue jsonToJS1(EmbeddedJS *ejs, Json *json, bool hideUnevaluated){
@@ -492,8 +544,13 @@ static JSValue jsonToJS1(EmbeddedJS *ejs, Json *json, bool hideUnevaluated){
 
 
 
-JSValue ejsJsonToJS(EmbeddedJS *ejs, Json *json){
+static JSValue ejsJsonToJS_internal(EmbeddedJS *ejs, Json *json){
   return jsonToJS1(ejs,json,false);
+}
+
+JSValueBox ejsJsonToJS(EmbeddedJS *ejs, Json *json){
+  JSValue value = ejsJsonToJS_internal(ejs,json);
+  return *((JSValueBox*)&value);
 }
 
 char *json2JS(Json *json){
@@ -600,7 +657,7 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
       char convertedKey[keyLen+1];
       snprintf (convertedKey, keyLen + 1, "%.*s", (int)keyLen, key);
       convertFromNative(convertedKey, keyLen);
-      ejsSetGlobalProperty(ejs,convertedKey,ejsJsonToJS(ejs,value));
+      ejsSetGlobalProperty_internal(ejs,convertedKey,ejsJsonToJS_internal(ejs,value));
     }
     Json *sourceValue = jsonObjectGetPropertyValue(object,"source");
     if (sourceValue){
@@ -613,7 +670,7 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
       int evalStatus = 0;
       char embedded[] = "<embedded>";
       convertFromNative(embedded, sizeof(embedded));
-      JSValue output = ejsEvalBuffer(ejs,asciiSource,strlen(asciiSource),embedded,0,&evalStatus);
+      JSValue output = ejsEvalBuffer1(ejs,asciiSource,strlen(asciiSource),embedded,0,&evalStatus);
       if (evalStatus){
         printf("failed to evaluate '%s', status=%d\n",source,evalStatus);
       } else {
@@ -621,7 +678,7 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
            printf("evaluation succeeded\n");
            dumpbuffer((char*)&output,sizeof(JSValue));
         */
-        Json *evaluationResult = ejsJSToJson(ejs,output,evalContext->slh);
+        Json *evaluationResult = ejsJSToJson_internal(ejs,output,evalContext->slh);
         if (evaluationResult){
           if (keyInParent){
             setJsonProperty(jsonAsObject(parent),keyInParent,evaluationResult);
@@ -700,7 +757,7 @@ EmbeddedJS *makeEmbeddedJS(EmbeddedJS *sharedRuntimeEJS){ /* can be NULL */
       "globalThis.std = std;\n"
       "globalThis.os = os;\n"
       "globalThis.experiment = experiment;\n";
-    JSValue throwaway = ejsEvalBuffer(embeddedJS, str, strlen(str), "<input>", JS_EVAL_TYPE_MODULE, &evalStatus);
+    JSValue throwaway = ejsEvalBuffer1(embeddedJS, str, strlen(str), "<input>", JS_EVAL_TYPE_MODULE, &evalStatus);
   }
 
   return embeddedJS;

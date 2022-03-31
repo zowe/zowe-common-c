@@ -59,6 +59,7 @@
 #include "embeddedjs.h"
 #include "parsetools.h"
 #include "microjq.h"
+#include "configmgr.h"
 
 #ifdef __ZOWE_OS_WINDOWS
 typedef int64_t ssize_t;
@@ -98,7 +99,7 @@ typedef int64_t ssize_t;
 
     clang++ -c ../platform/windows/cppregex.cpp ../platform/windows/winregex.cpp
 
-    clang -I %QJS%\porting -I%YAML%/include -I %QJS% -I./src -I../h -I ../platform/windows -DCONFIG_VERSION=\"2021-03-27\" -Dstrdup=_strdup -D_CRT_SECURE_NO_WARNINGS -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 --rtlib=compiler-rt -o configmgr.exe configmgr.c embeddedjs.c %QJS%\quickjs.c %QJS%\cutils.c %QJS%\quickjs-libc.c %QJS%\libbf.c %QJS%\libregexp.c %QJS%\libunicode.c %QJS%\porting\winpthread.c %QJS%\porting\wintime.c %QJS%\porting\windirent.c %QJS%\porting\winunistd.c %YAML%/src/api.c %YAML%/src/reader.c %YAML%/src/scanner.c %YAML%/src/parser.c %YAML%/src/loader.c %YAML%/src/writer.c %YAML%/src/emitter.c %YAML%/src/dumper.c ../c/yaml2json.c ../c/microjq.c ../c/parsetools.c ../c/jsonschema.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c cppregex.o winregex.o
+    clang -I %QJS%\porting -I%YAML%/include -I %QJS% -I./src -I../h -I ../platform/windows -DCMGRTEST=1 -DCONFIG_VERSION=\"2021-03-27\" -Dstrdup=_strdup -D_CRT_SECURE_NO_WARNINGS -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 --rtlib=compiler-rt -o configmgr.exe configmgr.c embeddedjs.c %QJS%\quickjs.c %QJS%\cutils.c %QJS%\quickjs-libc.c %QJS%\libbf.c %QJS%\libregexp.c %QJS%\libunicode.c %QJS%\porting\winpthread.c %QJS%\porting\wintime.c %QJS%\porting\windirent.c %QJS%\porting\winunistd.c %YAML%/src/api.c %YAML%/src/reader.c %YAML%/src/scanner.c %YAML%/src/parser.c %YAML%/src/loader.c %YAML%/src/writer.c %YAML%/src/emitter.c %YAML%/src/dumper.c ../c/yaml2json.c ../c/microjq.c ../c/parsetools.c ../c/jsonschema.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c cppregex.o winregex.o
 
     configmgr "../tests/schemadata" "" "LIBRARY(FOO):DIR(BAR)" yak
 
@@ -110,7 +111,7 @@ typedef int64_t ssize_t;
 
     configmgr -t 1 -s "../tests/schemadata/zoweappserver.json:../tests/schemadata/zowebase.json:../tests/schemadata/zowecommon.json" -p "FILE(../tests/schemadata/bundle1.json)" validate
 
-    configmgr -s "../tests/schemadata" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" extract "/zowe/setup/mvs/proclib"
+    configmgr -s "../tests/schemadata/zoweappserver.json:../tests/schemadata/zowebase.json:../tests/schemadata/zowecommon.json" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowedefault.yaml)" extract "/zowe/setup/mvs/proclib"
 
     -- Compilation with XLCLang on ZOS -------------------------------------
  
@@ -155,29 +156,6 @@ typedef int64_t ssize_t;
 #define CONFIG_PATH_OMVS_FILE    0x0001
 #define CONFIG_PATH_OMVS_DIR     0x0002
 #define CONFIG_PATH_OMVS_LIBRARY 0x0004
-
-typedef struct ConfigPathElement_tag {
-  int    flags;
-  char  *name;
-  char  *data;
-  struct ConfigPathElement_tag *next;
-} ConfigPathElement;
-
-typedef struct ConfigManager_tag {
-  ShortLivedHeap *slh;
-  char *rootSchemaDirectory;
-  ConfigPathElement *schemaPath;  /* maybe */
-  ConfigPathElement *configPath;
-  JsonSchema  *topSchema;
-  JsonSchema **otherSchemas;
-  int          otherSchemasCount;
-  Json       *config;
-  hashtable  *schemaCache;
-  hashtable  *configCache;
-  int         traceLevel;
-  FILE       *traceOut;
-  EmbeddedJS *ejs;
-} ConfigManager;
 
 #ifdef __ZOWE_OS_WINDOWS
 static int stdoutFD(void){
@@ -496,7 +474,7 @@ static JsonSchema *loadOneSchema(ConfigManager *mgr, char *schemaFilePath){
 
 ConfigManager *makeConfigManager(char *configPathArg, char *schemaPath,
                                  int traceLevel, FILE *traceOut){
-  printf("makeConfigMgr\n");fflush(stdout);
+  fprintf(traceOut,"makeConfigMgr\n");fflush(traceOut);
   ConfigManager *mgr = (ConfigManager*)safeMalloc(sizeof(ConfigManager),"ConfigManager");
 
   memset(mgr,0,sizeof(ConfigManager));
@@ -618,7 +596,7 @@ static int overloadConfiguration(ConfigManager *mgr,
   }
 }
 
-static int loadConfigurations(ConfigManager *mgr){
+int loadConfigurations(ConfigManager *mgr){
   ConfigPathElement *pathElement = mgr->configPath;
   int overloadStatus = overloadConfiguration(mgr,pathElement,pathElement->next);
   if (overloadStatus){
@@ -686,9 +664,10 @@ static Json *jsonPointerDereference(Json *json, JsonPointer *jsonPointer, int *e
         return NULL;
       }
     } else {
-      printf("SSS\n");fflush(stdout);
-      printf("cannot dereference scalar\n");
-      fflush(stdout);
+      if (traceLevel >= 1){
+        printf("cannot dereference scalar\n");
+        fflush(stdout);
+      }
       return NULL;
     }
   }
@@ -963,17 +942,11 @@ static void convertJsonArrayToEnv(FILE *out, const char *path, JsonArray *array)
   }
 }
 
-/* 
-   Here:
-   1) Detect qascii or not
-   2) store in code
-   3) BPX routines do NOT tolerate qASCII like c-library 
-   4) fileInfo tag must be used on ZOS target to potentially preprocess input
-   5) maybe Leonty has done this for yaml (or not)
- */
-
-
+#ifdef CMGRTEST
 int main(int argc, char **argv){
+#else
+static int not_main(int argc, char **argv){
+#endif
   char *schemaPath = NULL;
   char *zoweWorkspaceHome = NULL; // Read-write      is there always a zowe.yaml in there
   char *configPath = NULL;
