@@ -602,7 +602,7 @@ static void initLogMessagePrefix(LogMessagePrefix *prefix) {
   ASCB *ascb = getASCB();
   char *jobName = getASCBJobname(ascb);
   TCB *tcb = getTCB();
-  snprintf(prefix->text, sizeof(prefix->text), "%22.22s %8.8s %08X(%04X) %08X  ", currentTime.text, jobName, ascb, ascb->ascbasid, tcb);
+  snprintf(prefix->text, sizeof(prefix->text), "%22.22s %8.8s %8p(%04X) %8p  ", currentTime.text, jobName, ascb, ascb->ascbasid, tcb);
   prefix->text[sizeof(prefix->text) - 1] = ' ';
 }
 
@@ -632,7 +632,7 @@ static void printWithPrefix(LoggingContext *context, LoggingComponent *component
     if (lineIdx == 0) {
       initLogMessagePrefix(&prefix);
     }
-    printf("%.*s%.*s\n", sizeof(prefix.text), prefix.text, nextLineLength, nextLine);
+    printf("%.*s%.*s\n", (int)sizeof(prefix.text), prefix.text, (int)nextLineLength, nextLine);
     nextLine += (nextLineLength + 1);
   }
 

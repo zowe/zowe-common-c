@@ -120,6 +120,28 @@
 #define BPXGPN BPX1GPN
 #endif
 
+/* Better compilers need these symbols to be declared as functions */
+int BPXRED();
+int BPXOPN();
+int BPXWRT();
+int BPXREN();
+int BPXCHR();
+int BPXCHM();
+int BPXCLO();
+int BPXLCO();
+int BPXSTA();
+int BPXUNL();
+int BPXOPD();
+int BPXMKD();
+int BPXRDD();
+int BPXRMD();
+int BPXCLD();
+int BPXUMK();
+int BPXFCT();
+int BPXLST();
+int BPXGGN();
+int BPXGPN();
+
 #define MAX_ENTRY_BUFFER_SIZE 2550
 #define MAX_NUM_ENTRIES       1000
 
@@ -454,8 +476,8 @@ int fileChangeTagPure(const char *fileName, int *returnCode, int *reasonCode,
 
 int fileChangeTag(const char *fileName, int *returnCode, int *reasonCode, int ccsid) {
   bool pure = true;
-  fileChangeTagPure(fileName, returnCode, reasonCode, ccsid, pure);
-  }
+  return fileChangeTagPure(fileName, returnCode, reasonCode, ccsid, pure);
+}
 
 int fileChangeTagPure(const char *fileName, int *returnCode, int *reasonCode,
                       int ccsid, bool pure) {

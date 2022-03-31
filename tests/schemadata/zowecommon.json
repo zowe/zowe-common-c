@@ -1,0 +1,28 @@
+{
+    "$schema": "https://json-schema.org/draft/2019-09",
+    "$id": "https://zowe.org/schema/common",
+    "$defs": {
+        "component": {
+            "type": "object",
+            "$anchor": "zoweComponent",
+            "required": [
+                "listenerPort"
+            ],
+            "properties": {
+                "listenerPort": {
+                    "$ref": "#zowePort"
+                }
+            }
+        },
+        "port": {
+            "$anchor": "zowePort",
+            "type": "integer",
+            "maximum": 65535
+        },
+        "zipCode": {
+            "$anchor": "zoweZip",
+            "type": "string",
+            "pattern": "^[0-9]{5}$"
+        }
+    }
+}

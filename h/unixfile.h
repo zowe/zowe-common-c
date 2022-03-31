@@ -269,8 +269,8 @@ typedef struct BPXYATT_tag {
   /* End of Version 1 */
   int     fileFormat:8;
   int     reserved2:24;
-  int     fileTagCCSID:16;
-  int     fileTagFlags:16;
+  unsigned int fileTagCCSID:16;
+  unsigned int fileTagFlags:16;
   char    reserved3[8];
   /* End of Version 2 */
   int64   accessTime2;

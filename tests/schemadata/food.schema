@@ -1,0 +1,42 @@
+{       
+    "name": "zowe_yaml_schema",
+    "$id": "http//zowe.org/schemas/yaml-2.0.json",
+    "type": "object",
+    "required": [ "fruit", "beverage" ],
+    "additionalProperties": false,
+    "patternProperties": {
+      "^course.$": { "type": "number"}},
+    "properties": {
+        "fruit": {
+            "allOf": [
+                { "type": "string" },
+                { "maxLength": 5 }
+            ]
+        },
+        "vegetable": {
+            "anyOf": [
+                { "type": "number",
+                  "minimum": 13 },
+                { "type": "string",
+                  "pattern": "^c.*$"}
+            ]
+        },
+        "entree": {
+            "const": "beef",
+        },
+        "carbs": {
+            "enum": [ "potato", "rice" ],
+        },
+        "beverage": {
+            "oneOf": [
+                { "type": "string",
+                  "pattern": "^.*k$"},
+                { "type": "string",
+                  "pattern": "^m.*$"}
+            ]
+        },
+        "dessert": {
+            "not": { "type": "boolean" }
+        }
+    }
+}

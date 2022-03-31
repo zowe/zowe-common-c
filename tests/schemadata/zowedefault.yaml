@@ -1,0 +1,27 @@
+zowe:
+
+  #-------------------------------------------------------------------------------
+  # These configurations are used by "zwe install" or "zwe init" commands.
+  #-------------------------------------------------------------------------------
+  setup:
+    # MVS data set related configurations
+    mvs:
+      xxx: "FOOBAR"
+      hlq: ${{ zowe.setup.mvs.xxx+".ZWEV2" }}
+      proclib: ${{ zowe.setup.mvs.hlq+".PROCLIB" }}
+      parmlib: IBMUSER.ZWEV2.CUST.PARMLIB
+      jcllib: IBMUSER.ZWEV2.CUST.JCLLIB
+      authLoadlib: 
+      authPluginLib: IBMUSER.ZWEV2.CUST.ZWESAPL
+
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # Certificate related configurations
+    #
+    # There are 5 configurations cases. Please choose one from below.
+
+    # >>>> Certificate setup scenario 1
+    # PKCS12 (keystore) with Zowe generate certificates.
+    certificate:
+      # Type of certificate storage. Valid values are: PKCS12 or JCERACFKS
+      type: PKCS12
+      pkcs12:

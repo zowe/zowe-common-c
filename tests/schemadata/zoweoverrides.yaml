@@ -1,0 +1,4 @@
+zowe:
+  setup:
+    mvs:
+      jcllib: ${{ zowe.setup.mvs.hlq + ".FRED" }}
