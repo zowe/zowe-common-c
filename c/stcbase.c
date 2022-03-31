@@ -107,11 +107,9 @@ int stcBaseMainLoop(STCBase *base, int selectTimeoutMillis)
   resetQueuedWorkEvent(base);
   while (!base->stopRequested)
   {
-#ifdef DEBUG
-    BASETRACE_ALWAYS("before main loop wait\n");
+    BASETRACE_VERBOSE("before main loop wait\n");
 #ifdef __ZOWE_OS_ZOS
-    BASETRACE_ALWAYS("MAIN_LOOP: tcb=0x%x qReadyECB=0x%x\n",getTCB(),base->qReadyECB);
-#endif
+    BASETRACE_VERBOSE("MAIN_LOOP: tcb=0x%x qReadyECB=0x%x\n",getTCB(),base->qReadyECB);
 #endif
     int readReady = FALSE;
     int readTheQueue = FALSE;
@@ -414,10 +412,8 @@ STCModule* stcRegisterModule(STCBase *base,
                              int  (*backgroundHandler)(struct STCBase_tag *base, struct STCModule_tag *stcModule, int selectStatus))
 {
   STCModule *module = (STCModule*)safeMalloc(sizeof(STCModule),"STC Module");
-#ifdef DEBUG
-  BASETRACE_ALWAYS("beginning register module at 0x%p, moduleID=%d, stcBase=0x%p\n",module,moduleID,base);
+  BASETRACE_VERBOSE("beginning register module at 0x%p, moduleID=%d, stcBase=0x%p\n",module,moduleID,base);
   fflush(stdout);
-#endif
   memset(module,0,sizeof(STCModule));
   memcpy(module->eyecatcher,"STCMODUL",8);
   module->id = moduleID;
@@ -637,8 +633,8 @@ static void extract(IEZCOM * __ptr32 * __ptr32 iezcom)
   parameters->listAddress = (Addr31)iezcom;
   parameters->fieldByte1 = 1;
   parameters->fieldByte2 = 0;
+  zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG3, "EXTRACT(2) parameters at 0x%p\n",parameters);
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "EXTRACT(2) parameters at 0x%p\n",parameters);
   dumpbuffer((char*)parameters,sizeof(ExtractParameters));
 #endif
   int parametersAsInt = (int)parameters;
@@ -656,8 +652,8 @@ static void extract(IEZCOM * __ptr32 * __ptr32 iezcom)
         :
         : "m"(parametersAsInt)
         : "r15");
+  zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG3, "EXTRACT parms after SVC\n");
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "EXTRACT parms after SVC\n");
   dumpbuffer((char*)parameters,sizeof(ExtractParameters));
 #endif
 }

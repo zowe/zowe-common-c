@@ -370,35 +370,25 @@ int fileWrite(UnixFile *file, const char *buffer, int desiredBytes,
 }
 
 int fileGetChar(UnixFile *file, int *returnCode, int *reasonCode) {
-#ifdef DEBUG
-  zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "bufferSize = %d\n",file->bufferSize);
-#endif
+  zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG3, "bufferSize = %d\n",file->bufferSize);
   if (file->bufferSize == 0){
-#ifdef DEBUG
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 1\n");
-#endif
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG3, "fgetc 1\n");
     *returnCode = 8;
     *reasonCode = 0xBFF;
     return -1;
   } else if (file->bufferPos < file->bufferFill){
-#ifdef DEBUG
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 2\n");
-#endif
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG3, "fgetc 2\n");
     return (int)(file->buffer[file->bufferPos++]);
   } else if (file->eofKnown){
-#ifdef DEBUG
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 3\n");
-#endif
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG3, "fgetc 3\n");
     return -1;
   } else{
     /* go after next buffer and pray */
-#ifdef DEBUG
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 4\n");
-#endif
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG3, "fgetc 4\n");
     int bytesRead = fileRead(file,file->buffer,file->bufferSize,returnCode,reasonCode);
     if (bytesRead >= 0) {
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG3, "got more data, bytesRead=%d wanted=%d\n",bytesRead,file->bufferSize);
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "got more data, bytesRead=%d wanted=%d\n",bytesRead,file->bufferSize);
       dumpbuffer(file->buffer,file->bufferSize);
 #endif
       if (bytesRead < file->bufferSize) { /* out of data after this read */
