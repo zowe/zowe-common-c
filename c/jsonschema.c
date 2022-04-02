@@ -1059,7 +1059,7 @@ static bool getBooleanValue(JsonSchemaBuilder *builder, JsonObject *object, char
   } else if (jsonIsBoolean(propertyValue)){
     return (bool)jsonAsBoolean(propertyValue);
   } else {
-    schemaThrow(builder,12,"property '%s' must contain a number, not %s",propertyName,propertyValue);
+    schemaThrow(builder,12,"property '%s' must contain a boolean, not %s",propertyName,propertyValue);
     return false; /* unreachable, but compiler doesn't know */
   }
 }
@@ -1287,7 +1287,7 @@ static hashtable *getDefinitions(JsonSchemaBuilder *builder, JSValueSpec *parent
   JsonObject *definitionsObject = getObjectValue(builder,object,"$defs");
   if (definitionsObject != NULL){
     hashtable *definitionMap = htCreate(101,stringHash,stringCompare,NULL,NULL);
-    accessPathPushName(accessPath,"definitions");
+    accessPathPushName(accessPath,"$defs");
     JsonProperty *property = jsonObjectGetFirstProperty(definitionsObject);
     while (property){
       char *propertyName = jsonPropertyGetKey(property);

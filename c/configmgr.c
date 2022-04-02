@@ -113,6 +113,8 @@ typedef int64_t ssize_t;
 
     configmgr -s "../tests/schemadata/zoweappserver.json:../tests/schemadata/zowebase.json:../tests/schemadata/zowecommon.json" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowedefault.yaml)" extract "/zowe/setup/mvs/proclib"
 
+    configmgr -t 1 -s "../tests/schemadata/bigschema.json" -p "FILE(../tests/schemadata/bigyaml.yaml)" validate
+
     -- Compilation with XLCLang on ZOS -------------------------------------
  
     export YAML="/u/zossteam/jdevlin/git2022/libyaml" 
@@ -438,7 +440,6 @@ static JsonSchema *loadOneSchema(ConfigManager *mgr, char *schemaFilePath){
   int infoStatus = fileInfo(schemaFilePath,&yamlFileInfo,&returnCode,&reasonCode);
   if (infoStatus){
     trace(mgr,INFO,"failed to get fileInfo of '%s', infoStatus=%d\n",schemaFilePath,infoStatus);
-    freeConfigManager(mgr);
     return NULL;
   }
   char errorBuffer[1024];
@@ -446,7 +447,6 @@ static JsonSchema *loadOneSchema(ConfigManager *mgr, char *schemaFilePath){
   Json *jsonWithSchema = jsonParseFile2(mgr->slh,schemaFilePath,errorBuffer,1024);
   if (jsonWithSchema == NULL){
     trace(mgr,INFO,"failed to read JSON with base schema: %s\n",errorBuffer);
-    freeConfigManager(mgr);
     return NULL;
   }
   if (mgr->traceLevel >= 1){
@@ -457,11 +457,11 @@ static JsonSchema *loadOneSchema(ConfigManager *mgr, char *schemaFilePath){
   if (mgr->traceLevel >= 1){
     printf("about to build schema for '%s'\n",schemaFilePath);fflush(stdout);
   }
+  builder->traceLevel = mgr->traceLevel;
   JsonSchema *schema = jsonBuildSchema(builder,jsonWithSchema);
   if (schema == NULL){
-    printf("Schema Build for '%s' Failed: %s\n",schemaFilePath,builder->errorMessage);
+    trace(mgr,INFO,"Schema Build for '%s' Failed: %s\n",schemaFilePath,builder->errorMessage);
     freeJsonSchemaBuilder(builder); 
-    freeConfigManager(mgr);
     return NULL;
   } else {
     trace(mgr,DEBUG,"JSON Schema built successfully\n");
@@ -474,7 +474,7 @@ static JsonSchema *loadOneSchema(ConfigManager *mgr, char *schemaFilePath){
 
 ConfigManager *makeConfigManager(char *configPathArg, char *schemaPath,
                                  int traceLevel, FILE *traceOut){
-  fprintf(traceOut,"makeConfigMgr\n");fflush(traceOut);
+  fprintf(traceOut,"makeConfigMgr traceOut=0x%p, size = %zu\n",traceOut,sizeof(ConfigManager));fflush(traceOut);
   ConfigManager *mgr = (ConfigManager*)safeMalloc(sizeof(ConfigManager),"ConfigManager");
 
   memset(mgr,0,sizeof(ConfigManager));
@@ -485,8 +485,8 @@ ConfigManager *makeConfigManager(char *configPathArg, char *schemaPath,
   mgr->ejs = ejs;
   trace(mgr,DEBUG,"before build config path\n");
   if (buildConfigPath(mgr,configPathArg)){
-    printf("built config path failed\n");fflush(stdout);
-    safeFree((char*)mgr,sizeof(ConfigManager));
+    fprintf(traceOut,"built config path failed\n");fflush(traceOut);
+    freeConfigManager(mgr);
     return NULL;
   }
   trace(mgr,DEBUG,"built config path\n");
@@ -514,10 +514,17 @@ ConfigManager *makeConfigManager(char *configPathArg, char *schemaPath,
 
     /* char *schemaFilePath = makeFullPath(mgr,rootSchemaDirectory,ZOWE_SCHEMA_FILE,true); */
 
+    JsonSchema *schema = loadOneSchema(mgr,schemaFilePath);
+    if (schema == NULL){
+      fprintf(traceOut,"build schema failed\n");fflush(traceOut);
+      freeConfigManager(mgr);
+      return NULL;
+    }
+
     if (schemaCount == 0){
-      mgr->topSchema = loadOneSchema(mgr,schemaFilePath);
+      mgr->topSchema = schema;
     } else {
-      mgr->otherSchemas[schemaCount-1] = loadOneSchema(mgr,schemaFilePath);
+      mgr->otherSchemas[schemaCount-1] = schema;
     }
 
     pos = nextPos;
@@ -532,7 +539,7 @@ ConfigManager *makeConfigManager(char *configPathArg, char *schemaPath,
 static Json *readJson(ConfigManager *mgr, ConfigPathElement *pathElement){
   char errorBuffer[YAML_ERROR_MAX];
   if (pathElement->flags & CONFIG_PATH_OMVS_FILE){
-    trace(mgr,DEBUG,"before read YAML file=%s\n",pathElement->data);
+    trace(mgr,DEBUG,"before read YAML mgr=0x%p file=%s\n",mgr,pathElement->data);
     yaml_document_t *doc = readYAML(pathElement->data,errorBuffer,YAML_ERROR_MAX);
     trace(mgr,DEBUG,"yaml doc at 0x%p\n",doc);
     if (doc){
@@ -1014,7 +1021,7 @@ static int not_main(int argc, char **argv){
 
   ConfigManager *mgr = makeConfigManager(configPath,schemaPath,traceLevel,traceOut);
   if (mgr == NULL){
-    trace(mgr,INFO,"Failed to build configmgr\n");
+    fprintf(traceOut,"Failed to build configmgr\n");
     return 0;
   }
   trace(mgr,DEBUG,"ConfigMgr built at 0x%p\n",mgr);
