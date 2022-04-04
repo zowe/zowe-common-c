@@ -82,6 +82,7 @@ xlclang \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
   -DNOIBMHTTP=1 \
+  -DCMGRTEST=1 \
   -I "${COMMON}/h" \
   -I "${COMMON}/platform/posix" \
   -I "${LIBYAML}/include" \

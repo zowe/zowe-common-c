@@ -73,11 +73,7 @@ zowe:
     # this should be the domain name of you Dynamic VIP Address (DVIPA)
     - rs28.rocketsoftware.com
 
-  externalPort: "62995"
-
-  environments:
-    # Example of a global environment variable for all components
-    # MY_ENV_VAR: my_env_val
+  externalPort: 62995
 
   # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   # Enable debug mode for zowe launch scripts
@@ -116,7 +112,7 @@ node:
 #-------------------------------------------------------------------------------
 zOSMF:
   host: rs28.rocketsoftware.com
-  port: "11443"
+  port: 11443
   applId: IZUDFLT
 
 

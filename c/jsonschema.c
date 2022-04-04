@@ -747,7 +747,7 @@ static JSValueSpec *resolveRef(JsonValidator *validator, bool isSpeculating, JSV
     int refLen = strlen(ref);
     int pos = 2;
     char *key = ref+8;
-    JSValueSpec *topSchema = validator->topSchema->topValueSpec;
+    JSValueSpec *topSchema = containingSpec;
     if (topSchema->definitions == NULL){
       noteValidityException(validator,isSpeculating,12,"schema '%s' does not define shared '$defs'",
                             (topSchema->id ? topSchema->id : "<anonymous>"));
