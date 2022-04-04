@@ -28,6 +28,7 @@
             "description": "Configuration properties for the app-server, as specified within a configuration file such as zowe.yaml",
             "type": "object",
             "additionalProperties": true,
+            "required": [ "productDir", "siteDir", "instanceDir" ],
             "properties": {
                 "node": {
                     "type": "object",

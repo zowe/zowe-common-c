@@ -199,6 +199,12 @@ components:
     port: 62911
     logLevels:
       _zsf.proxy: 2
+    productDir: "${{std.getenv('ZWE_zowe_runtimeDirectory')}}/components/app-server/share"
+    siteDir: "${{std.getenv('ZWE_zowe_workspaceDirectory')}}/app-server/site"
+    instanceDir: "${{std.getenv('ZWE_zowe_workspaceDirectory')}}/app-server"
+    groupsDir: "${{std.getenv('ZWE_zowe_workspaceDirectory')}}/app-server/groups"
+    usersDir: "${{std.getenv('ZWE_zowe_workspaceDirectory')}}/app-server/users"
+    pluginsDir: "${{std.getenv('ZWE_zowe_workspaceDirectory')}}/app-server/plugins"
 
   # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   zss:
