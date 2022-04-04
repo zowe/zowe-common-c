@@ -47,6 +47,7 @@
 #include "zowetypes.h"
 #include "alloc.h"
 #include "utils.h"
+#include "logging.h"
 #include "openprims.h"
 #include "bpxnet.h"
 #include "unixfile.h"
@@ -562,21 +563,9 @@ void freeConfigManager(ConfigManager *mgr){
   safeFree((char*)mgr,sizeof(ConfigManager));  
 }
 
-#define JSON_POINTER_TOO_DEEP 101
-#define JSON_POINTER_ARRAY_INDEX_NOT_INTEGER 102
-#define JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS 103
-
 #define ZCFG_ALLOC_HEAP 1
 #define ZCFG_ALLOC_SLH  2
 #define ZCFG_ALLOC_MEMCPY 3
-
-/* These eventually need ZWE unique messages */
-#define ZCFG_SUCCESS 0
-#define ZCFG_TYPE_MISMATCH 1
-#define ZCFG_EVAL_FAILURE 2
-#define ZCFG_POINTER_TOO_DEEP JSON_POINTER_TOO_DEEP
-#define ZCFG_POINTER_ARRAY_INDEX_NOT_INTEGER JSON_POINTER_ARRAY_INDEX_NOT_INTEGER 
-#define ZCFG_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS 
 
 
 /* need to collect violations as this goes */
@@ -681,38 +670,36 @@ static Json *jsonPointerDereference(Json *json, JsonPointer *jsonPointer, int *e
   return value;
 }
 
-int cfgGetStringJ(ConfigManager *mgr, Json **result, JsonPointer *jp){
-  int errorReason = 0;
-  Json *value = jsonPointerDereference(mgr->config,jp,&errorReason,mgr->traceLevel);
-  if (value){
-    if (jsonIsString(value)){
-      *result = value;
-      return ZCFG_SUCCESS;
+static Json *varargsDereference(Json *json, int argCount, va_list args, int *errorReason, int traceLevel){
+  bool innerTrace = true;
+  Json *value = json;
+  for (int i=0; i<argCount; i++){
+    if (jsonIsArray(value)){
+      JsonArray *array = jsonAsArray(value);
+      int index = va_arg(args,int);
+      int arraySize = jsonArrayGetCount(array);
+      if (index >= arraySize){
+	*errorReason = JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS;
+	return NULL;
+      }
+      value = jsonArrayGetItem(array,index);
+    } else if (jsonIsObject(value)){
+      JsonObject *object = jsonAsObject(value);
+      char *key = va_arg(args,char *);
+      value = jsonObjectGetPropertyValue(object,key);
+      if (value == NULL){
+        *errorReason = JSON_POINTER_TOO_DEEP;
+        return NULL;
+      }
     } else {
-      *result = NULL;
-      return ZCFG_TYPE_MISMATCH;
+      if (traceLevel >= 1){
+        printf("cannot dereference scalar\n");
+        fflush(stdout);
+      }
+      return NULL;
     }
-  } else {
-    *result = NULL;
-    return errorReason;
   }
-}
-
-int vcfgGetStringC(ConfigManager *mgr, char **value, int allocOptions, void *mem, va_list args){
-  return ZCFG_SUCCESS;
-}
-
-int cfgGetStringC(ConfigManager *mgr, char **value, int allocOptions, void *mem, ...){
-  va_list argPointer; 
-  va_start(argPointer,mem);
-  vcfgGetStringC(NULL,value,allocOptions,mem,argPointer);
-  va_end(argPointer);
-
-  return ZCFG_SUCCESS;
-}
-
-int cfgGetInstanceType(ConfigManager *mgr, int *type, int *subType, ...){
-  return 0;
+  return value;
 }
 
 /* like get string, but doesn't care about data types */
@@ -732,9 +719,86 @@ int cfgGetAnyJ(ConfigManager *mgr, Json **result, JsonPointer *jp){
   }
 }
 
-int cfgGetAny(ConfigManager *mgr, char *value, int allocOptions, void *mem, ...){
-  return 0;
+int cfgGetAnyC(ConfigManager *mgr, Json **result, int argCount, ...){
+  int errorReason = 0;
+  va_list argPointer; 
+  va_start(argPointer,argCount);
+  Json *value = varargsDereference(mgr->config,argCount,argPointer,&errorReason,mgr->traceLevel);
+  va_end(argPointer);
+
+  if (mgr->traceLevel >= 1){
+    printf("cfgGetAny: value=0x%p error=%d\n",value,errorReason);
+  }
+  if (value){
+    *result = value;
+    return ZCFG_SUCCESS;
+  } else {
+    *result = NULL;
+    return errorReason;
+  }
 }
+
+int cfgGetStringJ(ConfigManager *mgr, char **result, JsonPointer *jp){
+  Json *value = NULL;
+  int status = cfgGetAnyJ(mgr,&value,jp);
+  if (value){
+    if (jsonIsString(value)){
+      *result = jsonAsString(value);
+      return ZCFG_SUCCESS;
+    } else {
+      *result = NULL;
+      return ZCFG_TYPE_MISMATCH;
+    }
+  } else {
+    *result = NULL;
+    return ZCFG_SUCCESS;
+  }
+}
+
+int cfgGetStringC(ConfigManager *mgr, char **result, int argCount, ...){
+  int errorReason = 0;
+  va_list argPointer; 
+  va_start(argPointer,argCount);
+  Json *value = varargsDereference(mgr->config,argCount,argPointer,&errorReason,mgr->traceLevel);
+  va_end(argPointer);
+  if (errorReason){
+    return errorReason;
+  } else if (value){
+    if (jsonIsString(value)){
+      *result = jsonAsString(value);
+      return ZCFG_SUCCESS;
+    } else {
+      *result = NULL;
+      return ZCFG_TYPE_MISMATCH;
+    }
+  } else {
+    *result = NULL;
+    return ZCFG_POINTER_TOO_DEEP;
+  }
+}
+
+int cfgGetIntC(ConfigManager *mgr, int *result, int argCount, ...){
+  int errorReason = 0;
+  va_list argPointer; 
+  va_start(argPointer,argCount);
+  Json *value = varargsDereference(mgr->config,argCount,argPointer,&errorReason,mgr->traceLevel);
+  va_end(argPointer);
+  if (errorReason){
+    return errorReason;
+  } else if (value){
+    if (jsonIsNumber(value)){
+      *result = jsonAsNumber(value);
+      return ZCFG_SUCCESS;
+    } else {
+      *result = 0;
+      return ZCFG_TYPE_MISMATCH;
+    }
+  } else {
+    *result = 0;
+    return ZCFG_POINTER_TOO_DEEP;
+  }
+}
+
 
 static void extractText(ConfigManager *mgr, JsonPointer *jp, FILE *out){
   Json *value = NULL;
@@ -968,6 +1032,9 @@ static int not_main(int argc, char **argv){
     showHelp(traceOut);
     return 0;
   }
+  LoggingContext *logContext = makeLoggingContext();
+  logConfigureStandardDestinations(logContext);
+
   while (argx < argc){
     char *optionValue = NULL;
     if (getStringOption(argc,argv,&argx,"-h")){

@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2019-09/schema",
     "$id": "https://zowe.org/schema/app-server",
     "allOf": [
-        { "$ref": "/schema/base#" },
+        { "$ref": "/schema/base" },
         { "type": "object",
           "properties": {
               "components": {
@@ -12,7 +12,7 @@
                       "app-server": {
                           "allOf": [
                               { "$ref": "/schema/base#component" },
-                              { "$ref": "/schema/app-server-config#"}
+                              { "$ref": "/schema/app-server-config"}
                           ]
                       }
                   }
@@ -27,7 +27,6 @@
             "title": "app-server configuration",
             "description": "Configuration properties for the app-server, as specified within a configuration file such as zowe.yaml",
             "type": "object",
-            "required": [ "productDir", "siteDir", "instanceDir", "groupsDir", "usersDir", "pluginsDir", "dataserviceAuthentication", "node" ],
             "additionalProperties": true,
             "properties": {
                 "node": {

@@ -23,6 +23,7 @@
 #include "psxregex.h"
 #endif
 
+#include "json.h"
 
 typedef struct JsonSchema_tag {
   ShortLivedHeap *slh;
