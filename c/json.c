@@ -2591,7 +2591,7 @@ static void copyJson(JsonBuilder *builder, Json *parent, char *parentKey, Json *
     char *s = jsonAsString(json);
     jsonBuildString(builder,parent,parentKey,s,strlen(s),&errorCode);
   } else {
-    printf("*** PANIC *** unexpected json type %d\n",json->type);
+    JSONERROR("*** PANIC *** unexpected json type %d\n",json->type);
     return;
   }
 }
