@@ -5460,7 +5460,9 @@ static int httpHandleTCP(STCBase *base,
                                                         peerSocket->sd,
                                                         &(peerSocket->sslHandle)); /* RS_SSL_CONNECTION */
         if ((0 != rsStatus) || (NULL == peerSocket->sslHandle)) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "httpserver failed to negotiate TLS with peer; closing socket\n");
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, 
+		  "httpserver failed to negotiate TLS with peer; closing socket, rsStatus=%d skt.dbg.name=%s\n",
+		  rsStatus,(peerSocket ? peerSocket->debugName : "NONE"));
           socketClose(peerSocket, &returnCode, &reasonCode);
           break;
         }
@@ -5473,7 +5475,9 @@ static int httpHandleTCP(STCBase *base,
                                peerSocket->sd,
                                true);
         if ((0 != rc) || (NULL == peerSocket->tlsSocket)) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "httpserver failed to negotiate TLS with peer; closing socket\n");
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, 
+		  "httpserver failed to negotiate TLS with peer; closing socket, tlsInit.rc=%d skt.dbg.name=%s\n",
+		  rc,(peerSocket ? peerSocket->debugName : "NONE"));
           socketClose(peerSocket, &returnCode, &reasonCode);
           break;
         }

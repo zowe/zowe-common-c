@@ -1330,6 +1330,7 @@
                 "component": {
                     "type": "object",
                     "$anchor": "component",
+                    "required": [ "enabled" ],
                     "properties": {
                         "enabled": {
                             "type": "boolean",

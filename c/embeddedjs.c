@@ -121,18 +121,27 @@ static JSValue ejsEvalBuffer1(EmbeddedJS *ejs,
   if ((eval_flags & JS_EVAL_TYPE_MASK) == JS_EVAL_TYPE_MODULE) {
     /* for the modules, we compile then run to be able to set
        import.meta */
+    printf("before first eval\n");fflush(stdout);
     val = JS_Eval(ctx, buffer, bufferLength, filename,
                   eval_flags | JS_EVAL_FLAG_COMPILE_ONLY);
+    printf("after first eval exception=%d\n",JS_IsException(val));fflush(stdout);
     if (!JS_IsException(val)) {
+      printf("before set_import_meta\n");
       js_module_set_import_meta(ctx, val, TRUE, TRUE);
       val = JS_EvalFunction(ctx, val);
     }
   } else {
     val = JS_Eval(ctx, buffer, bufferLength, filename, eval_flags);
   }
+  printf("isException = %d\n",JS_IsException(val));
   if (JS_IsException(val)) {
-      js_std_dump_error(ctx);
-      ret = -1;
+    JSValue exception = JS_GetException(ctx);
+    const char *message = JS_ToCString(ctx, exception);
+    printf("exceptionMessage\n");
+    dumpbuffer(message,strlen(message));
+    JS_FreeCString(ctx,message);
+    JS_FreeValue(ctx, exception);
+    ret = -1;
   } else {
     ret = 0;
   }
@@ -255,6 +264,11 @@ static int js_experiment_init(JSContext *ctx, JSModuleDef *m)
     return 0;
 }
 
+static char asciiSTD[4] ={ 0x73, 0x74, 0x64, 0};
+static char asciiOS[3] ={ 0x6F, 0x73, 0};
+static char asciiExperiment[11] ={ 0x65, 0x78, 0x70, 0x65, 
+				   0x72, 0x69, 0x6d, 0x65, 
+				   0x6e, 0x74, 0};
 
 JSModuleDef *js_init_module_experiment(JSContext *ctx, const char *module_name)
 {
@@ -283,9 +297,9 @@ static JSContext *makeEmbeddedJSContext(JSRuntime *rt)
     }
 #endif
     /* system modules */
-    js_init_module_std(ctx, "std");
-    js_init_module_os(ctx, "os");
-    js_init_module_experiment(ctx, "experiment");
+    js_init_module_std(ctx, asciiSTD);
+    js_init_module_os(ctx, asciiOS);
+    js_init_module_experiment(ctx, asciiExperiment);
     return ctx;
 }
 
@@ -666,10 +680,13 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
       char asciiSource[sourceLen + 1];
       snprintf (asciiSource, sourceLen + 1, "%.*s", (int)sourceLen, source);
       convertFromNative(asciiSource, sourceLen);
-      /* printf("should evaluate: %s\n",source); */
+      printf("should evaluate: %s\n",source);
+      
       int evalStatus = 0;
       char embedded[] = "<embedded>";
       convertFromNative(embedded, sizeof(embedded));
+      printf("in ascii\n");
+      dumpbuffer(asciiSource,strlen(asciiSource));
       JSValue output = ejsEvalBuffer1(ejs,asciiSource,strlen(asciiSource),embedded,0,&evalStatus);
       if (evalStatus){
         printf("failed to evaluate '%s', status=%d\n",source,evalStatus);
@@ -751,13 +768,20 @@ EmbeddedJS *makeEmbeddedJS(EmbeddedJS *sharedRuntimeEJS){ /* can be NULL */
   int evalStatus = 0;
   /* make 'std' and 'os' visible to non module code */
   if (true){ /* load_std) {*/
-    const char *str = "import * as std from 'std';\n"
+    const char *source = "import * as std from 'std';\n"
       "import * as os from 'os';\n"
       "import * as experiment from 'experiment';\n"
       "globalThis.std = std;\n"
       "globalThis.os = os;\n"
       "globalThis.experiment = experiment;\n";
-    JSValue throwaway = ejsEvalBuffer1(embeddedJS, str, strlen(str), "<input>", JS_EVAL_TYPE_MODULE, &evalStatus);
+    size_t sourceLen = strlen(source);
+    char asciiSource[sourceLen + 1];
+    snprintf (asciiSource, sourceLen + 1, "%.*s", (int)sourceLen, source);
+    convertFromNative(asciiSource, sourceLen);
+    char input[] = "<input>";
+    convertFromNative(input, sizeof(input));
+      
+    JSValue throwaway = ejsEvalBuffer1(embeddedJS, asciiSource, strlen(asciiSource), input, JS_EVAL_TYPE_MODULE, &evalStatus);
   }
 
   return embeddedJS;
@@ -772,3 +796,4 @@ EmbeddedJS *makeEmbeddedJS(EmbeddedJS *sharedRuntimeEJS){ /* can be NULL */
   
   Copyright Contributors to the Zowe Project.
 */
+

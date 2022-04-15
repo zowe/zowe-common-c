@@ -48,11 +48,11 @@ zowe:
       storageClass:
 
   # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-  runtimeDirectory: /u/tsspg/zowe/test/2748
+  runtimeDirectory: /u/zossteam/jdevlin/zowe/runtime
 
-  logDirectory: /u/tsspg/zowe/inst/2.0.0/logs
+  logDirectory: /u/zossteam/jdevlin/zowe/logs
 
-  workspaceDirectory: /u/tsspg/zowe/inst/2.0.0/workspace
+  workspaceDirectory: /u/zossteam/jdevlin/zowe/workspace
 
   # Where extensions get symlinked on "zwe component install"
   extensionDirectory: /u/tsspg/zowe/extensions/2.0.0
@@ -85,8 +85,8 @@ zowe:
   certificate:
     keystore:
       type: PKCS12
-      file: /u/ts3215/cert/localhost/localhost.keystore.p12
-      password: password
+      file: /u/zossteam/jdevlin/git2022/zss/bin/localhost.keystore.p12
+      password: "password"
       alias: localhost
     truststore:
       type: PKCS12
@@ -199,46 +199,74 @@ components:
     port: 62911
     logLevels:
       _zsf.proxy: 2
-    productDir: "${{std.getenv('ZWE_zowe_runtimeDirectory')}}/components/app-server/share"
-    siteDir: "${{std.getenv('ZWE_zowe_workspaceDirectory')}}/app-server/site"
-    instanceDir: "${{std.getenv('ZWE_zowe_workspaceDirectory')}}/app-server"
-    groupsDir: "${{std.getenv('ZWE_zowe_workspaceDirectory')}}/app-server/groups"
-    usersDir: "${{std.getenv('ZWE_zowe_workspaceDirectory')}}/app-server/users"
-    pluginsDir: "${{std.getenv('ZWE_zowe_workspaceDirectory')}}/app-server/plugins"
+    productDir: "${{ zowe.runtimeDirectory }}/components/app-server/share"      
+    siteDir: "${{ zowe.workspaceDirectory }}/app-server/site"
+    instanceDir: "${{ zowe.workspaceDirectory }}/app-server"
+    groupsDir: "${{ zowe.workspaceDirectory }}/app-server/groups"
+    usersDir: "${{ zowe.workspaceDirectory }}/app-server/users"
+    pluginsDir: "${{ zowe.workspaceDirectory }}/app-server/plugins"
+    agent:
+      host: ${{ components.zss.agent.host }}
+      https: ${{ components.zss.port }}
 
   # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   zss:
     enabled: true
-    port: 62912
-    crossMemoryServerName: ZWESIS_STD
+    port: 8577
+    crossMemoryServerName: ZWESIS_JOE
     tls: true
     logLevels:
-      _zss.traceLevel: 5
-      _zss.alloc: 5
-      _zss.utils: 5
-      _zss.collections: 5
-      _zss.serialization: 5
-      _zss.zlparser: 5
-      _zss.zlcompiler: 5
-      _zss.zlruntime: 5
-      _zss.stcbase: 5
-      _zss.httpserver: 5
-      _zss.discovery: 5
-      _zss.cms: 5
-      _zss.lpa: 5
-      _zss.resetdataset: 5
-      _zss.restfile: 5
-      _zss.zos: 5
-      _zss.httpclient: 5
-      _zss.jwt: 5
-      _zss.mvdserver: 5
-      _zss.ctds: 5
-      _zss.security: 5
-      _zss.unixfile: 5
-      _zss.dataservice: 5
-      _zss.apimlstorage: 5
-      _zss.jwk: 5
-      _zss.httpAuthTrace: 5
+      _zss.traceLevel: 2
+      _zss.alloc: 2
+      _zss.utils: 2
+      _zss.collections: 2
+      _zss.serialization: 2
+      _zss.zlparser: 2
+      _zss.zlcompiler: 2
+      _zss.zlruntime: 2
+      _zss.stcbase: 2
+      _zss.httpserver: 4
+      _zss.discovery: 2
+      _zss.cms: 2
+      _zss.lpa: 2
+      _zss.resetdataset: 2
+      _zss.restfile: 2
+      _zss.zos: 2
+      _zss.httpclient: 2
+      _zss.jwt: 4
+      _zss.mvdserver: 2
+      _zss.ctds: 2
+      _zss.security: 2
+      _zss.unixfile: 2
+      _zss.dataservice: 2
+      _zss.apimlstorage: 2
+      _zss.jwk: 3
+      _zss.httpAuthTrace: 4
+      # per plugin starts here
+      com.zossteam.inzpect.debug: 3
+    agent:
+      mediationLayer:
+        enabled: true
+        cachingService:
+          enabled: false
+      https:
+        ipAddresses: 
+          - "172.29.122.164"
+        label: ${{ zowe.certificate.keystore.alias }}
+        # 1) currently assuming that multiple types of key stores are handled well by all, but if GSK does not see (2)
+        keyring: ${{ zowe.certificate.keystore.file }}
+        # 2) unless saf keyring, then ${{ zowe.setup.security.users.zowe}}/${{ zowe.certificate.ke
+        password: ${{ zowe.certificate.keystore.password }}
+      http:
+        ipAddresses: 
+          - "172.29.122.164"
+    node:
+      mediationLayer:
+        # Joe added this based on references in zss.c
+        enabled: true
+        server:
+          gatewayHostname: 172.29.97.39
+          gatewayPort: 10010
 
   # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   jobs-api:

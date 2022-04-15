@@ -18,6 +18,7 @@
 #include "json.h"
 #include "xml.h"
 #include "unixfile.h"
+#include "configmgr.h"
 #include "../jwt/jwt/jwt.h"
 
 /** \file 
@@ -134,6 +135,7 @@ typedef struct HttpResponse_tag{
   int             sessionTimeout;
 } HttpResponse;
 
+#define httpResponseServer(r) ((r)->conversation->server)
 
 typedef struct HttpTemplateTag_tag{
   char *placeName;
@@ -218,6 +220,10 @@ typedef struct HTTPServerConfig_tag {
   hashtable *userTimeouts;
   hashtable *groupTimeouts;
   int defaultTimeout;
+  /* The config manager is optional, but zss and other servers need 
+     a near-global way to get configuration data.
+     */
+  ConfigManager *configmgr;
 } HttpServerConfig;
 
 #define SESSION_TOKEN_COOKIE_NAME "jedHTTPSession"
@@ -233,6 +239,8 @@ typedef struct HttpServer_tag{
   hashtable        *loggingIdsByName; /* contains a map of pluginID -> loggingID */
   char             *cookieName; /* name of the cookie, or SESSION_TOKEN_COOKIE_NAME otherwise */ 
 } HttpServer;
+
+#define httpServerConfigManager(s) ((s)->config->configmgr)
 
 typedef struct WSReadMachine_tag{
   int  state;
