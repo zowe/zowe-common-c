@@ -107,7 +107,6 @@ typedef struct STCBase_tag{
   int         commandShutdownECB;
   void       *iezcom;                    /* this is really a mainframe-specific system command handler */
   SocketSet  *socketSet;
-  struct      HttpServer *httpServer;    /* this is more chicken-shitty than I would really like */
   STCModule  *modules[STC_MAX_MODULES];
 /*  int64       traceControlWord; replaced with logging context*/
 

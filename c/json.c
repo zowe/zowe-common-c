@@ -1694,6 +1694,29 @@ Json *jsonObjectGetPropertyValue(JsonObject *object, const char *key) {
   return property ? property->value : NULL;
 }
 
+Json *jsonObjectGetPropertyValueLoud(JsonObject *object, const char *key) {
+  JsonProperty *property = NULL;
+  for (property = jsonObjectGetFirstProperty(object); property != NULL; property = jsonObjectGetNextProperty(property)) {
+    printf("mkey='%s', pkey='%s'\n",key,property->key);
+    if (!strcmp(key, property->key)) {
+      printf("loud matched \n");
+      break;
+    }
+  }
+  Json *retval = property ? property->value : NULL;
+  printf("loud key='%s' ret=0x%p\n",key,retval);
+  printf("loud prop=0x%p\n",property);
+  return retval;
+}
+
+void jsonDumpObj(JsonObject *object){
+  JsonProperty *property = NULL;
+  for (property = jsonObjectGetFirstProperty(object); property != NULL; property = jsonObjectGetNextProperty(property)) {
+    printf("Prop = 0x%p k=0x%p v=0x%p\n",property,property->key,property->value);
+    printf("  key='%s' -> 0x%p (type=%d)\n",property->key,property->value,(property->value ? property->value->type : 0));
+  }
+}
+
 static void jsonArrayAddElement(JsonParser *parser, JsonArray *arr, Json *element) {
   if (arr->count == arr->capacity) {
     int newCapacity = arr->capacity * 2;

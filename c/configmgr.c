@@ -549,7 +549,11 @@ static Json *readJson(ConfigManager *mgr, ConfigPathElement *pathElement){
       }
       return yaml2JSON(doc,mgr->slh);
     } else {
-      trace(mgr,INFO,"WARNING, yaml read failed\n");
+      trace(mgr,INFO,"WARNING, yaml read failed, errorBuffer='%s'\n",errorBuffer);
+#ifdef __ZOWE_OS_ZOS
+      a2e(errorBuffer,YAML_ERROR_MAX);
+#endif
+      trace(mgr,INFO,"WARNING, yaml read failed, errorBuffer='%s'\n",errorBuffer);
       return NULL;
     }  
   } else {
@@ -600,11 +604,20 @@ int loadConfigurations(ConfigManager *mgr){
   } else {
     if (mgr->traceLevel >= 1){
       printf("config before template eval:\n");
+      fflush(stdout);
+      fflush(stderr);
       jsonPrettyPrint(mgr, mgr->config);
     }
     Json *evaluatedConfig = evaluateJsonTemplates(mgr->ejs,mgr->slh,mgr->config);
     if (evaluatedConfig){
       mgr->config = evaluatedConfig;
+      if (mgr->traceLevel >= 1){
+	printf("config after template eval:\n");
+	fflush(stdout);
+	fflush(stderr);
+	jsonPrettyPrint(mgr, mgr->config);
+      }
+
       return ZCFG_SUCCESS;
     } else {
       return ZCFG_EVAL_FAILURE;
@@ -621,13 +634,6 @@ int loadConfigurations(ConfigManager *mgr){
 
 /* zowe.setup.mvs.proclib */
 
-int cfgGetInt(ConfigManager *mgr, int *value, ...){  /* path elements which are strings and ints for array indexing */
-  return 0;
-}
-
-int cfgGetInt64(ConfigManager *mgr, int64 *value, ...){
-  return 0;
-}
 
 
 static Json *jsonPointerDereference(Json *json, JsonPointer *jsonPointer, int *errorReason, int traceLevel){
@@ -677,6 +683,9 @@ static Json *varargsDereference(Json *json, int argCount, va_list args, int *err
     if (jsonIsArray(value)){
       JsonArray *array = jsonAsArray(value);
       int index = va_arg(args,int);
+      if (traceLevel >= 1){
+	printf("vdref array i=%d ndx=%d\n",i,index);
+      }
       int arraySize = jsonArrayGetCount(array);
       if (index >= arraySize){
 	*errorReason = JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS;
@@ -686,10 +695,25 @@ static Json *varargsDereference(Json *json, int argCount, va_list args, int *err
     } else if (jsonIsObject(value)){
       JsonObject *object = jsonAsObject(value);
       char *key = va_arg(args,char *);
-      value = jsonObjectGetPropertyValue(object,key);
-      if (value == NULL){
+      if (traceLevel >= 1){
+	printf("vdref object i=%d k=%s\n",i,key);
+	fflush(stdout);
+      }
+      Json *newValue = jsonObjectGetPropertyValue(object,key);
+      if (newValue == NULL){
+	if (traceLevel >= 2){
+	  jsonObjectGetPropertyValueLoud(object,key);
+	  jsonPrinter *p = makeJsonPrinter(stdoutFD());
+	  jsonEnablePrettyPrint(p);
+	  jsonPrint(p,value);
+	  printf("\n");
+	  jsonDumpObj(object);
+	  fflush(stdout);
+	}
         *errorReason = JSON_POINTER_TOO_DEEP;
         return NULL;
+      } else{
+	value = newValue;
       }
     } else {
       if (traceLevel >= 1){
@@ -788,6 +812,28 @@ int cfgGetIntC(ConfigManager *mgr, int *result, int argCount, ...){
   } else if (value){
     if (jsonIsNumber(value)){
       *result = jsonAsNumber(value);
+      return ZCFG_SUCCESS;
+    } else {
+      *result = 0;
+      return ZCFG_TYPE_MISMATCH;
+    }
+  } else {
+    *result = 0;
+    return ZCFG_POINTER_TOO_DEEP;
+  }
+}
+
+int cfgGetBooleanC(ConfigManager *mgr, bool *result, int argCount, ...){
+  int errorReason = 0;
+  va_list argPointer; 
+  va_start(argPointer,argCount);
+  Json *value = varargsDereference(mgr->config,argCount,argPointer,&errorReason,mgr->traceLevel);
+  va_end(argPointer);
+  if (errorReason){
+    return errorReason;
+  } else if (value){
+    if (jsonIsBoolean(value)){
+      *result = jsonAsBoolean(value);
       return ZCFG_SUCCESS;
     } else {
       *result = 0;

@@ -65,10 +65,12 @@ int cfgGetStringJ(ConfigManager *mgr, char **result, JsonPointer *jp);
 /* Convenience getters for C Programmers, that don't require building paths, string allocation, etc */
 
 int cfgGetIntC(ConfigManager *mgr, int *result, int argCount, ...);
+int cfgGetBooleanC(ConfigManager *mgr, bool *result, int argCount, ...);
 
 /** result is null-terminated, when set, and not a copy */
 int cfgGetStringC(ConfigManager *mgr, char **result, int argCount, ...);
 
+#define cfgGetConfig(cmgr) ((cmgr)->config)
 
 #endif
 

@@ -275,7 +275,8 @@ Socket *tcpClient3(SocketAddress *socketAddress,
       /* EINPROGRESS is the expected return code here but we are just being careful by checking
          for EWOULDBLOCK as well
       */
-      if (status != 0){
+      if (returnValue){
+	int firstReturnCode = *returnCode;
         returnValue = 0;
         *returnCode  = 0;
         *reasonCode  = 0;
@@ -296,6 +297,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
             printf("BPXCLO for time out connect returnValue %d returnCode %d reasonCode %d\n",
                     returnValue, *returnCode, *reasonCode);
           }
+	
           return NULL;
         }
         *returnCode  = 0;
@@ -318,6 +320,9 @@ Socket *tcpClient3(SocketAddress *socketAddress,
         {
           returnValue = 0;
         }
+      } else{
+	/* all was good on 1st try, but why aren't we setting blocking mode here?
+	   seems inconsistent */
       }
     }
     else{

@@ -258,8 +258,6 @@ int convertCharset(char *input,
 #endif
 
   *conversionOutputLength = (((char*)parms.Targ_Buf_Ptr) - outputBuffer);
-  printf("inputLen=%d reasonCode = %d src=%d targ=%d\n",inputLength,parms.Reason_Code,parms.Src_CCSID,parms.Targ_CCSID);
-  fflush(stdout);
 
   if (parms.Return_Code){
     if (outputMode == CHARSET_OUTPUT_SAFE_MALLOC){
