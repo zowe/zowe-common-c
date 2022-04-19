@@ -230,7 +230,6 @@ Socket *tcpClient3(SocketAddress *socketAddress,
   int returnValue = 0;
   *returnCode = *reasonCode = 0;
   int *reasonCodePtr;
-  int status;
 
 #ifndef _LP64
   reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
@@ -275,11 +274,11 @@ Socket *tcpClient3(SocketAddress *socketAddress,
       /* EINPROGRESS is the expected return code here but we are just being careful by checking
          for EWOULDBLOCK as well
       */
-      if (status != 0){
+      if (returnValue != 0){
         returnValue = 0;
         *returnCode  = 0;
         *reasonCode  = 0;
-        status = tcpStatus(&tempSocket, timeoutInMillis, 1, returnCode, reasonCode);
+        int status = tcpStatus(&tempSocket, timeoutInMillis, 1, returnCode, reasonCode);
         if (status == SD_STATUS_TIMEOUT) {
           int sd = socketVector[0];
           if (socketTrace) {
