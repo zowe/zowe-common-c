@@ -482,7 +482,8 @@ ConfigManager *makeConfigManager(char *configPathArg, char *schemaPath,
   mgr->traceLevel = traceLevel;
   mgr->traceOut = traceOut;
   mgr->slh = makeShortLivedHeap(0x10000,0x100);
-  EmbeddedJS *ejs = makeEmbeddedJS(NULL);
+  EmbeddedJS *ejs = allocateEmbeddedJS(NULL);
+  configureEmbeddedJS(ejs,NULL,0);
   mgr->ejs = ejs;
   trace(mgr,DEBUG,"before build config path\n");
   if (buildConfigPath(mgr,configPathArg)){
@@ -1059,6 +1060,29 @@ static void convertJsonArrayToEnv(FILE *out, const char *path, JsonArray *array)
   }
 }
 
+/*
+  
+  JS-ification 
+
+  jsonSpec for higher-level foreign function interface with bignum function pointers 
+
+  configmgr to compile with xlclang??
+
+  globals
+    configs["<topLevelName>"] (rather than rooted in top level of each file)
+    config                    (the current config)
+    ConfigMgr - a "constructor"
+    and it's interfaces
+      setTraceLevel
+      makeConfiguration(<cname>)
+      extractJ(<cname>, "jqSpec")
+      extractJP(<cname>, p1, ... pn)
+         - can printing be fully separate? 
+         - is JQ even relevant for js interface
+      validdate() -> ValResult 
+      
+ */
+
 #ifdef CMGRTEST
 int main(int argc, char **argv){
 #else
@@ -1240,6 +1264,8 @@ static int not_main(int argc, char **argv){
   }
   return 0;
 }
+
+ 
 
 /*
   This program and the accompanying materials are

@@ -178,7 +178,7 @@ yaml_document_t *readYAML(const char *filename, char *errorBuf, size_t errorBufS
   do {
     if (!(document = (yaml_document_t*)safeMalloc(sizeof(yaml_document_t), "YAML Doc"))) {
       snprintf(errorBuf, errorBufSize, "failed to alloc memory for YAML doc");
-      break;      
+      break;
     }
     memset(document, 0, sizeof(yaml_document_t));
     if (!(file = fopen(filename, "rb"))) {

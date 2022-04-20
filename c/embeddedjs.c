@@ -100,10 +100,14 @@ struct EmbeddedJS_tag {
   int dump_unhandled_promise_rejection; /*  = 0; */
   size_t memory_limit; /*  = 0; */
   char *include_list[32];
+  LongHashtable *nativeModuleTable;
+  LongHashtable *nativeClassTable;
 #ifdef CONFIG_BIGNUM
   int load_jscalc;
 #endif
   size_t stack_size; /* = 0; */
+  void *userPointer;
+  ShortLivedHeap *fileEvalHeap;
 };
 
 struct JSValueBox_tag {
@@ -121,19 +125,15 @@ static JSValue ejsEvalBuffer1(EmbeddedJS *ejs,
   if ((eval_flags & JS_EVAL_TYPE_MASK) == JS_EVAL_TYPE_MODULE) {
     /* for the modules, we compile then run to be able to set
        import.meta */
-    printf("before first eval\n");fflush(stdout);
     val = JS_Eval(ctx, buffer, bufferLength, filename,
                   eval_flags | JS_EVAL_FLAG_COMPILE_ONLY);
-    printf("after first eval exception=%d\n",JS_IsException(val));fflush(stdout);
     if (!JS_IsException(val)) {
-      printf("before set_import_meta\n");
       js_module_set_import_meta(ctx, val, TRUE, TRUE);
       val = JS_EvalFunction(ctx, val);
     }
   } else {
     val = JS_Eval(ctx, buffer, bufferLength, filename, eval_flags);
   }
-  printf("isException = %d\n",JS_IsException(val));
   if (JS_IsException(val)) {
     JSValue exception = JS_GetException(ctx);
     const char *message = JS_ToCString(ctx, exception);
@@ -176,11 +176,15 @@ int ejsEvalFile(EmbeddedJS *ejs, const char *filename, int loadMode){
     uint8_t *buf;
     int ret, eval_flags;
     size_t bufferLength;
+    if (ejs->fileEvalHeap){
+      SLHFree(ejs->fileEvalHeap);
+    }
+    ejs->fileEvalHeap = makeShortLivedHeap(0x10000,0x100); /* hacky constants, I know */
     
     buf = js_load_file(ejs->ctx, &bufferLength, filename);
     if (!buf) {
         perror(filename);
-        exit(1);
+        return errno;
     }
 
     /* Beware of overly-expedient 3-valued logic here! */
@@ -200,6 +204,11 @@ int ejsEvalFile(EmbeddedJS *ejs, const char *filename, int loadMode){
 
 static JSClassID js_experiment_thingy_class_id;
 
+typedef struct CThingy_tag {
+  int a;
+  int b;
+} CThingy;
+
 static void js_experiment_thingy_finalizer(JSRuntime *rt, JSValue val){
   /* JSSTDFile *s = JS_GetOpaque(val, js_std_file_class_id); */
   printf("Experiment Thingy Finalizer running\n");
@@ -207,7 +216,7 @@ static void js_experiment_thingy_finalizer(JSRuntime *rt, JSValue val){
 
 
 static JSClassDef js_experiment_thingy_class = {
-    "THINGY",
+    "Thingy",
     .finalizer = js_experiment_thingy_finalizer,
 };
 
@@ -225,43 +234,358 @@ JSValue js_experiment_thingy_three(JSContext *ctx, JSValueConst this_val, int ar
 }
 
 static const JSCFunctionListEntry js_experiment_thingy_proto_funcs[] = {
-    JS_CFUNC_DEF("three", 0, js_experiment_thingy_three ),
+  JS_CFUNC_DEF("three", 0, js_experiment_thingy_three ),
+};
+
+static void *unsafeGetOpaque(JSValueConst obj){
+  JSObject *p;
+  if (JS_VALUE_GET_TAG(obj) != JS_TAG_OBJECT)
+    return NULL;
+  p = JS_VALUE_GET_OBJ(obj);
+  return NULL; /* p->u.opaque; */
+}
+
+static Json *ejsJSToJson_internal(EmbeddedJS *ejs, JSValue value, ShortLivedHeap *slh);
+static JSValue ejsJsonToJS_internal(EmbeddedJS *ejs, Json *json);
+
+typedef struct NativeClassInternals_tag {
+  char *asciiName;
+  EJSNativeClass *nativeClass;
+  JSClassID classID;
+  JSClassDef classDef;
+} NativeClassInternals;
+
+/* every one of these function pointer types takes the "this" pointer (a void *) first
+   I - int
+   S - read/write string
+   C - const (read only) char string
+   J - Json (always a fresh copy)
+   V - void (return type only)
+ */
+
+typedef int (FP_I)(void*);
+typedef int (FP_S)(void*);
+typedef int (FP_J)(void*);
+typedef int (FP_V)(void*);
+
+/* one-arg functions */
+typedef int (FP_I_I)(void *, int);
+typedef int (FP_I_S)(void *, char *);
+typedef int (FP_I_C)(void *, const char *);
+typedef int (FP_I_J)(void *, Json *);
+
+typedef int (FP_S_I)(void *, int);
+typedef int (FP_S_S)(void *, char *);
+typedef int (FP_S_C)(void *, const char *);
+typedef int (FP_S_J)(void *, Json *);
+
+typedef int (FP_J_I)(void *, int);
+typedef int (FP_J_S)(void *, char *);
+typedef int (FP_J_C)(void *, const char *);
+typedef int (FP_J_J)(void *, Json *);
+
+typedef int (FP_J_I)(void *, int);
+typedef int (FP_J_S)(void *, char *);
+typedef int (FP_J_C)(void *, const char *);
+typedef int (FP_J_J)(void *, Json *);
+
+/* 2-arg int-returning functions */
+typedef int (FP_I_I_I)(void *, int, int);
+typedef int (FP_I_I_S)(void *, int, char *);
+typedef int (FP_I_I_C)(void *, int, const char *);
+typedef int (FP_I_I_J)(void *, int, Json *);
+
+typedef int (FP_I_S_I)(void *, int, int);
+typedef int (FP_I_S_S)(void *, int, char *);
+typedef int (FP_I_S_C)(void *, int, const char *);
+typedef int (FP_I_S_J)(void *, int, Json *);
+
+typedef int (FP_I_C_I)(void *, int, int);
+typedef int (FP_I_C_S)(void *, int, char *);
+typedef int (FP_I_C_C)(void *, int, const char *);
+typedef int (FP_I_C_J)(void *, int, Json *);
+
+typedef int (FP_I_J_I)(void *, int, int);
+typedef int (FP_I_J_S)(void *, int, char *);
+typedef int (FP_I_J_C)(void *, int, const char *);
+typedef int (FP_I_J_J)(void *, int, Json *);
+
+/* 2-arg string-returning functions */
+typedef int (FP_S_I_I)(void *, int, int);
+typedef int (FP_S_I_S)(void *, int, char *);
+typedef int (FP_S_I_C)(void *, int, const char *);
+typedef int (FP_S_I_J)(void *, int, Json *);
+
+typedef int (FP_S_S_I)(void *, int, int);
+typedef int (FP_S_S_S)(void *, int, char *);
+typedef int (FP_S_S_C)(void *, int, const char *);
+typedef int (FP_S_S_J)(void *, int, Json *);
+
+typedef int (FP_S_C_I)(void *, int, int);
+typedef int (FP_S_C_S)(void *, int, char *);
+typedef int (FP_S_C_C)(void *, int, const char *);
+typedef int (FP_S_C_J)(void *, int, Json *);
+
+typedef int (FP_S_J_I)(void *, int, int);
+typedef int (FP_S_J_S)(void *, int, char *);
+typedef int (FP_S_J_C)(void *, int, const char *);
+typedef int (FP_S_J_J)(void *, int, Json *);
+
+/* 2-arg Json-returning functions */
+typedef int (FP_J_I_I)(void *, int, int);
+typedef int (FP_J_I_S)(void *, int, char *);
+typedef int (FP_J_I_C)(void *, int, const char *);
+typedef int (FP_J_I_J)(void *, int, Json *);
+
+typedef int (FP_J_S_I)(void *, int, int);
+typedef int (FP_J_S_S)(void *, int, char *);
+typedef int (FP_J_S_C)(void *, int, const char *);
+typedef int (FP_J_S_J)(void *, int, Json *);
+
+typedef int (FP_J_C_I)(void *, int, int);
+typedef int (FP_J_C_S)(void *, int, char *);
+typedef int (FP_J_C_C)(void *, int, const char *);
+typedef int (FP_J_C_J)(void *, int, Json *);
+
+typedef int (FP_J_J_I)(void *, int, int);
+typedef int (FP_J_J_S)(void *, int, char *);
+typedef int (FP_J_J_C)(void *, int, const char *);
+typedef int (FP_J_J_J)(void *, int, Json *);
+
+
+/* here Weds
+   change interface to be functions of: f(ejs, nativeStruct, argc boxedArgArray) -> box|Void
+   check arg compatibility with types, Json must be NULL, array or obj
+
+   only export the typedef, not struct
+*/
+
+struct EJSNativeInvocation_tag {
+  EmbeddedJS *ejs;
+  EJSNativeMethod *method;
+  int argc;
+  JSValueConst *argv;
+  JSValue returnValue;
+};
+
+/* all return non-0 for failure 
+*/
+
+int getArgSpecType(EJSNativeMethod *method, int index){
+  ArrayList *arguments = &method->arguments;
+  if (index < arguments->size){
+    EJSNativeArgument *argument = (EJSNativeArgument*)arrayListElement(arguments,index);
+    return argument->type;
+  } else {
+    return -1;
+  }
+}
+
+int ejsIntArg(EJSNativeInvocation *invocation,
+              int argIndex,
+              int *valuePtr){
+  if (argIndex < 0 || argIndex >= invocation->argc){
+    return EJS_INDEX_OUT_OF_RANGE;
+  }
+  JSValueConst arg = invocation->argv[argIndex];
+  EJSNativeMethod *method = invocation->method;
+  if (getArgSpecType(method,argIndex) != EJS_NATIVE_TYPE_INT32){
+    return EJS_TYPE_MISMATCH;
+  }
+  JS_ToInt32(invocation->ejs->ctx, valuePtr, arg);
+  return EJS_OK;
+}
+
+int ejsStringArg(EJSNativeInvocation *invocation,
+                 int argIndex,
+                 const char **valuePtr){
+  if (argIndex < 0 || argIndex >= invocation->argc){
+    return EJS_INDEX_OUT_OF_RANGE;
+  }
+  JSValueConst arg = invocation->argv[argIndex];
+  EJSNativeMethod *method = invocation->method;
+  if (getArgSpecType(method,argIndex) != EJS_NATIVE_TYPE_CONST_STRING){
+    return EJS_TYPE_MISMATCH;
+  }
+
+  size_t len;
+  *valuePtr = JS_ToCStringLen(invocation->ejs->ctx, &len, arg);
+  return EJS_OK;
+}
+
+int ejsJsonArg(EJSNativeInvocation *invocation,
+               int argIndex,
+               Json **valuePtr){
+  if (argIndex < 0 || argIndex >= invocation->argc){
+    return EJS_INDEX_OUT_OF_RANGE;
+  }
+  JSValueConst arg = invocation->argv[argIndex];
+  EJSNativeMethod *method = invocation->method;
+  if (getArgSpecType(method,argIndex) != EJS_NATIVE_TYPE_JSON){
+    return EJS_TYPE_MISMATCH;
+  }
+  *valuePtr = ejsJSToJson_internal(invocation->ejs,arg,invocation->ejs->fileEvalHeap);
+  return EJS_OK;
+}
+
+int ejsReturnInt(EJSNativeInvocation *invocation,
+                 int value){
+  EJSNativeMethod *method = invocation->method;
+  if (method->returnType != EJS_NATIVE_TYPE_INT32){
+    return EJS_TYPE_MISMATCH;
+  }
+  invocation->returnValue = JS_NewInt64(invocation->ejs->ctx,(int64_t)value);
+  return EJS_OK;
+}
+
+int ejsReturnJson(EJSNativeInvocation *invocation,
+                  Json *value){
+  EJSNativeMethod *method = invocation->method;
+  if (method->returnType != EJS_NATIVE_TYPE_JSON){
+    return EJS_TYPE_MISMATCH;
+  }
+  invocation->returnValue = ejsJsonToJS_internal(invocation->ejs,value);
+  return EJS_OK;
+}
+
+int ejsReturnString(EJSNativeInvocation *invocation,
+                    const char *value,
+                    bool needsFree){
+  EJSNativeMethod *method = invocation->method;
+  if (method->returnType != EJS_NATIVE_TYPE_CONST_STRING){
+    return EJS_TYPE_MISMATCH;
+  }
+  invocation->returnValue = JS_NewString(invocation->ejs->ctx, value); /* does this copy */
+  return EJS_OK;
+}
+
+JSValue ejsFunctionTrampoline(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv, int magic){
+  EmbeddedJS *ejs = (EmbeddedJS*)JS_GetContextOpaque(ctx);
+  
+  /* void *nativeStruct = unsafeGetOpaque(this_val); */
+  /* printf("ejsTrampoline, magic=%d, nativeStruct=0x%p, this_val:\n",magic,NULL); // nativeStruct);
+     dumpbuffer((char*)&this_val,sizeof(JSValue));
+  */
+  JSValue proto = JS_GetPrototype(ctx,this_val);
+  if (JS_IsException(proto)){
+    goto fail;
+  }
+  /*
+    printf("trampoline this_val proto is 0x%p\n",JS_VALUE_GET_PTR(proto));
+    dumpbuffer((char*)&proto,sizeof(JSValue));
+  */
+  void *protoPointer = JS_VALUE_GET_PTR(proto);
+  NativeClassInternals *classInternals = (NativeClassInternals*)lhtGet(ejs->nativeClassTable,(int64_t)protoPointer);
+  void *nativeStruct = JS_GetOpaque(this_val,classInternals->classID);
+  EJSNativeClass *nativeClass = classInternals->nativeClass;
+  EJSNativeMethod *method = arrayListElement(&nativeClass->instanceMethodFunctions,magic);
+  printf("ftramp got class name '%s' method # %d (%s) on native struct at 0x%p\n",
+         nativeClass->name,magic,method->name,nativeStruct);
+  fflush(stdout);
+  JS_FreeValue(ctx,proto);
+  ArrayList *nativeArgs = &method->arguments;
+  if (argc != nativeArgs->size){
+    printf("bad %s received %d args, required %d\n",method->name,argc,nativeArgs->size);
+  }
+  switch (method->returnType){
+  case EJS_NATIVE_TYPE_INT32:
+  case EJS_NATIVE_TYPE_CONST_STRING:
+  case EJS_NATIVE_TYPE_STRING:
+  case EJS_NATIVE_TYPE_JSON:
+  case EJS_NATIVE_TYPE_VOID:
+  default:
+    printf("unknown native function return type %d\n",method->returnType);
+  }
+
+  printf("***** COULD NOT DISPATCH NATIVE FUNCTION %s.%s\n",nativeClass->name,method->name);
+  return JS_EXCEPTION;
+ fail:
+  return JS_EXCEPTION;  
+}
+
+static const JSCFunctionListEntry ejsNativeProtoFuncs[] = {
+  JS_CFUNC_MAGIC_DEF("three", 0, ejsFunctionTrampoline, 0 ),
 };
 
 static JSValue js_experiment_boop(JSContext *ctx, JSValueConst this_val,
                            int argc, JSValueConst *argv)
 {
   printf("boop boop boop!!\n");
-    return JS_UNDEFINED;
+  return JS_UNDEFINED;
 }
 
 static const JSCFunctionListEntry js_experiment_funcs[] = {
     JS_CFUNC_DEF("boop", 0, js_experiment_boop ),
 };
 
+static JSValue thingy_ctor(JSContext *ctx, JSValueConst new_target,
+                           int argc, JSValueConst *argv){
+  JSValue obj = JS_UNDEFINED, proto;
+  CThingy *t1;
+  
+  /* create the object */
+  if (JS_IsUndefined(new_target)) {
+    printf("thingy ctor undefined\n");
+    proto = JS_GetClassProto(ctx, js_experiment_thingy_class_id);
+  } else {
+    proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+    if (JS_IsException(proto))
+      goto fail;
+    printf("thingy ctor proto is 0x%p\n",JS_VALUE_GET_PTR(proto));
+    dumpbuffer((char*)&proto,sizeof(JSValue));
+    
+  }
+  obj = JS_NewObjectProtoClass(ctx, proto, js_experiment_thingy_class_id);
+  JS_FreeValue(ctx, proto);
+  if (JS_IsException(obj))
+    goto fail;
+  t1 = js_mallocz(ctx, sizeof(CThingy));
+  if (!t1)
+    goto fail;
+  JS_SetOpaque(obj, t1);
+  return obj;
+ fail:
+  JS_FreeValue(ctx, obj);
+  return JS_EXCEPTION;
+}
 
 
 static int js_experiment_init(JSContext *ctx, JSModuleDef *m)
 {
-    JSValue proto;
-    
-    /* FILE class */
-    /* the class ID is created once */
-    JS_NewClassID(&js_experiment_thingy_class_id);
-    /* the class is created once per runtime */
-    JS_NewClass(JS_GetRuntime(ctx), js_experiment_thingy_class_id, &js_experiment_thingy_class);
-    proto = JS_NewObject(ctx);
-    JS_SetPropertyFunctionList(ctx,
-                               proto,
-                               js_experiment_thingy_proto_funcs,
-                               countof(js_experiment_thingy_proto_funcs));
-    JS_SetClassProto(ctx,
-                     js_experiment_thingy_class_id,
-                     proto);
-
-    JS_SetModuleExportList(ctx, m, js_experiment_funcs,
-                           countof(js_experiment_funcs));
-    return 0;
+  printf("js_experiment_init\n");
+  JSValue proto,obj;
+  
+  /* FILE class */
+  /* the class ID is created once */
+  JS_NewClassID(&js_experiment_thingy_class_id);
+  /* the class is created once per runtime */
+  JS_NewClass(JS_GetRuntime(ctx), js_experiment_thingy_class_id, &js_experiment_thingy_class);
+  proto = JS_NewObject(ctx);
+  /* this places "instance methods" */
+  printf("thingy proto is 0x%p\n",JS_VALUE_GET_PTR(proto));
+  dumpbuffer((char*)&proto,sizeof(JSValue));
+  JS_SetPropertyFunctionList(ctx,
+                             proto,
+                             js_experiment_thingy_proto_funcs,
+                             countof(js_experiment_thingy_proto_funcs));
+  
+  obj = JS_NewCFunction2(ctx,
+                         thingy_ctor,
+                         "Thingy",
+                         0, /* at least this many args */
+                         JS_CFUNC_constructor,
+                         0); /* not magic */
+  JS_SetConstructor(ctx, obj, proto);
+  
+  JS_SetClassProto(ctx,
+                   js_experiment_thingy_class_id,
+                   proto);
+  // How is js_new_std_file(JSContext *ctx, FILE *f, called in quickjs-libc?
+  JS_SetModuleExportList(ctx, m, js_experiment_funcs,
+                         countof(js_experiment_funcs));
+  JS_SetModuleExport(ctx, m, "Thingy", obj);
+  
+  return 0;
 }
 
 static char asciiSTD[4] ={ 0x73, 0x74, 0x64, 0};
@@ -272,35 +596,295 @@ static char asciiExperiment[11] ={ 0x65, 0x78, 0x70, 0x65,
 
 JSModuleDef *js_init_module_experiment(JSContext *ctx, const char *module_name)
 {
-    JSModuleDef *m;
-    m = JS_NewCModule(ctx, module_name, js_experiment_init);
-    if (!m){
-        return NULL;
-    }
-    JS_AddModuleExportList(ctx, m, js_experiment_funcs, countof(js_experiment_funcs));
-    return m;
+  printf("js_init_module_experiment\n");
+  JSModuleDef *m;
+  m = JS_NewCModule(ctx, module_name, js_experiment_init);
+  if (!m){
+    return NULL;
+  }
+  JS_AddModuleExportList(ctx, m, js_experiment_funcs, countof(js_experiment_funcs));
+  JS_AddModuleExport(ctx, m, "Thingy");
+  return m;
 }
 
+
+static void ejsNativeFinalizer(JSRuntime *rt, JSValue val){
+  printf("JOE Should write native finalizer\n");
+}
+
+static JSValue ejsNativeConstructorDispatcher(JSContext *ctx, JSValueConst new_target,
+                                              int argc, JSValueConst *argv){
+  JSValue obj = JS_UNDEFINED, proto;
+  void *nativeStruct;
+  
+  EmbeddedJS *ejs = (EmbeddedJS*)JS_GetContextOpaque(ctx);  
+  /* create the object */
+  if (JS_IsUndefined(new_target)) {
+    printf("'this' is expected in native constructor\n");
+    goto fail;
+  } else {
+    proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+    printf("native ctor proto is 0x%p\n",JS_VALUE_GET_PTR(proto));
+    dumpbuffer((char*)&proto,sizeof(JSValue));
+
+    if (JS_IsException(proto))
+      goto fail;
+  }
+  void *protoPointer = JS_VALUE_GET_PTR(proto);
+  NativeClassInternals *classInternals = (NativeClassInternals*)lhtGet(ejs->nativeClassTable,(int64_t)protoPointer);
+  if (!classInternals){
+    printf("could not get class internals in native ctor dispatch\n");
+  }
+  EJSNativeClass *nativeClass = classInternals->nativeClass;
+  obj = JS_NewObjectProtoClass(ctx, proto, classInternals->classID);
+  JS_FreeValue(ctx, proto);
+  if (JS_IsException(obj)){
+    goto fail;
+  }
+  EJSNativeInvocation invocation;
+  nativeStruct = nativeClass->nativeConstructor(nativeClass->userData, &invocation);
+  if (!nativeStruct){
+    goto fail;
+  }
+  printf("Made native opaque for class='%s' instanceAt 0x%p, nativeStruct at 0x%p\n",
+         nativeClass->name,JS_VALUE_GET_PTR(obj),nativeStruct);
+  JS_SetOpaque(obj, nativeStruct);
+  return obj;
+ fail:
+  JS_FreeValue(ctx, obj);
+  return JS_EXCEPTION;
+}
+
+static int buildNativePrototypeFunctions(JSContext *ctx,
+                                         EmbeddedJS *ejs,
+                                         JSValue prototype,
+                                         EJSNativeClass *nativeClass,
+                                         NativeClassInternals *nativClassInternals){
+  ArrayList *methods = &(nativeClass->instanceMethodFunctions);
+  int methodCount = methods->size;
+  JSCFunctionListEntry *functionList = (JSCFunctionListEntry*)safeMalloc(methodCount*sizeof(JSCFunctionListEntry),
+                                                                         "MethodFunctionsJSCFunctionListEntry");
+  if (!functionList){
+    return 8;
+  }
+  memset(functionList,0,methodCount*sizeof(JSCFunctionListEntry));
+  printf("building %d native functions of class='%s'\n",methodCount,nativeClass->name);
+  for (int i=0; i<methodCount; i++){
+    EJSNativeMethod *nativeMethod = (EJSNativeMethod*)arrayListElement(methods,i);
+    ArrayList *nativeArgs = &nativeMethod->arguments;
+    size_t mnameLen = strlen(nativeMethod->name);
+    nativeMethod->asciiName = safeMalloc(mnameLen + 1, "MethodAsciiName");
+    snprintf(nativeMethod->asciiName, mnameLen + 1, "%.*s", (int)mnameLen, nativeMethod->name);
+    convertToNative(nativeMethod->asciiName, mnameLen);
+
+    printf("  adding func %s() with %d args\n",nativeMethod->name,nativeArgs->size);
+    functionList[i].name = nativeMethod->asciiName;
+    functionList[i].prop_flags = JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE;
+    functionList[i].def_type = JS_DEF_CFUNC;
+    functionList[i].magic = (int16_t)i;
+    functionList[i].u.func.length = nativeArgs->size;
+    functionList[i].u.func.cproto = JS_CFUNC_generic_magic;
+    functionList[i].u.func.cfunc.generic_magic = ejsFunctionTrampoline;
+  }
+  JS_SetPropertyFunctionList(ctx,prototype,functionList,methodCount);
+  return 0;
+}
+
+static int initNativeModuleCallback(JSContext *ctx, JSModuleDef *m){
+  printf("initNativeModuleCallback \n");
+  fflush(stdout);
+  EmbeddedJS *ejs = (EmbeddedJS*)JS_GetContextOpaque(ctx);
+  EJSNativeModule *nativeModule = (EJSNativeModule*)lhtGet(ejs->nativeModuleTable,(int64_t)m);
+  ArrayList *classes = &(nativeModule->classes);
+  for (int i=0; i<classes->size; i++){
+    printf("initNativeModuleCallback loop i=%d\n",i);
+    fflush(stdout);
+    
+    EJSNativeClass *nativeClass = (EJSNativeClass*)arrayListElement(classes,i);
+    NativeClassInternals *nativeClassInternals = (NativeClassInternals*)safeMalloc(sizeof(NativeClassInternals),
+                                                                                   "NativeClassInternals");
+    printf("  inmc ckpt.0\n");fflush(stdout);
+    memset(nativeClassInternals,0,sizeof(NativeClassInternals));
+
+    printf("  inmc ckpt.1\n");fflush(stdout);
+    nativeClassInternals->asciiName = nativeClass->asciiName;
+    nativeClassInternals->classDef.class_name = nativeClassInternals->asciiName;
+    nativeClassInternals->classDef.finalizer = ejsNativeFinalizer;
+    nativeClassInternals->nativeClass = nativeClass;
+
+    printf("  inmc ckpt.2\n");fflush(stdout);
+    /* the class ID is created once */
+    JS_NewClassID(&nativeClassInternals->classID);
+    
+    printf("  inmc ckpt.2.5 classid=0x%x\n",(int)nativeClassInternals->classID);fflush(stdout);
+    /* the class is created once per runtime */
+    JS_NewClass(JS_GetRuntime(ctx), nativeClassInternals->classID, &nativeClassInternals->classDef);
+    printf("  inmc ckpt.3\n");fflush(stdout);
+    JSValue proto = JS_NewObject(ctx);
+    void *protoPointer = JS_VALUE_GET_PTR(proto);
+    lhtPut(ejs->nativeClassTable,(int64_t)protoPointer,nativeClassInternals);
+    buildNativePrototypeFunctions(ctx,ejs,proto,nativeClass,nativeClassInternals);
+
+    printf("  inmc ckpt.4\n");fflush(stdout);
+    
+    JSValue obj = JS_NewCFunction2(ctx,
+                                   ejsNativeConstructorDispatcher,
+                                   nativeClassInternals->asciiName,
+                                   0, /* at least this many args */
+                                   JS_CFUNC_constructor,
+                                   0); /* not magic */
+    JS_SetConstructor(ctx, obj, proto);
+    
+    JS_SetClassProto(ctx,
+                     nativeClassInternals->classID,
+                     proto);
+
+    printf("native module export class name %s\n",nativeClassInternals->asciiName);
+    fflush(stdout);
+    JS_SetModuleExport(ctx, m, nativeClassInternals->asciiName, obj);
+    /*
+    JS_SetModuleExportList(ctx, m, js_experiment_funcs,
+                           
+                           
+                           countof(js_experiment_funcs));
+    */
+  }
+  return 0;
+}
+
+
+JSModuleDef *ejsInitNativeModule(JSContext *ctx, EJSNativeModule *nativeModule){
+  printf("ejsInitNativeModule %s\n",nativeModule->name);
+  fflush(stdout);
+  EmbeddedJS *ejs = (EmbeddedJS*)JS_GetContextOpaque(ctx);
+  JSModuleDef *m;
+  /*
+    Here, need a closure or global to get back the particulars of this module, because per_module init functions
+    would have to see the qjs/qascii side of the code
+    
+    init is called with (JSContext *ctx, JSModuleDef *m) -> how to derive pointer to EJS or NativeModule
+
+    void *JS_GetContextOpaque(JSContext *ctx);
+    void JS_SetContextOpaque(JSContext *ctx, void *opaque);
+    
+    put array of modules in EJS including index by JSModuleDef to match
+
+    and then experiment with person class slot:age, method birthday() getAge internal CStruct with data
+  */
+  size_t nameLen = strlen(nativeModule->name);
+  char *asciiName = safeMalloc(nameLen + 1,"ModuleAsciiName");
+  snprintf(asciiName, nameLen + 1, "%.*s", (int)nameLen, nativeModule->name);
+  convertToNative(asciiName, nameLen);
+
+  ArrayList *classes = &(nativeModule->classes);
+  for (int i=0; i<classes->size; i++){
+    EJSNativeClass *nativeClass = (EJSNativeClass*)arrayListElement(classes,i);
+    size_t cnameLen = strlen(nativeClass->name);
+    nativeClass->asciiName = safeMalloc(cnameLen+1, "NativeAsciiClassName");
+    snprintf(nativeClass->asciiName, cnameLen + 1, "%.*s", (int)cnameLen, nativeClass->name);
+    convertToNative(nativeClass->asciiName, cnameLen);
+  }
+
+  printf("before NewCModule\n");
+  m = JS_NewCModule(ctx, asciiName, initNativeModuleCallback);
+  /* NOTE: we are trusting that the callback is NOT called anywhere in the call graph of NewCModule */
+  if (m){
+    lhtPut(ejs->nativeModuleTable,(int64_t)m,nativeModule);
+  }
+  printf("after NewCModule, m=0x%p\n",m);
+  if (!m){
+    return NULL;
+  } 
+  /* JS_AddModuleExportList(ctx, m, js_experiment_funcs, countof(js_experiment_funcs)); */
+
+  for (int i=0; i<classes->size; i++){
+    EJSNativeClass *nativeClass = (EJSNativeClass*)arrayListElement(classes,i);
+    JS_AddModuleExport(ctx, m, nativeClass->asciiName);    
+  }
+
+  return m;
+}
+
+EJSNativeModule *ejsMakeNativeModule(EmbeddedJS *ejs, char *moduleName){
+  EJSNativeModule *m = (EJSNativeModule*)safeMalloc(sizeof(EJSNativeModule),"EJSNativeModule");
+  memset(m,0,sizeof(EJSNativeModule));
+  m->name = moduleName;
+  initEmbeddedArrayList(&m->classes,NULL);
+  return m;
+}
+
+EJSNativeClass *ejsMakeNativeClass(EmbeddedJS *ejs, EJSNativeModule *module,
+                                   char *className,
+                                   void *(*nativeConstructor)(void *userData, EJSNativeInvocation *invocation),
+                                   void (*nativeFinalizer)(EmbeddedJS *ejs, void *userData, void *nativePointer),
+                                   void *userData){
+  EJSNativeClass *c = (EJSNativeClass*)safeMalloc(sizeof(EJSNativeClass),"EJSNativeClass");
+  memset(c,0,sizeof(EJSNativeClass));
+  c->name = className;
+  c->nativeConstructor = nativeConstructor;
+  c->nativeFinalizer = nativeFinalizer;
+  c->userData = userData;
+  initEmbeddedArrayList(&c->instanceMethodFunctions,NULL);
+  initEmbeddedArrayList(&c->staticMethodFunctions,NULL);
+  arrayListAdd(&module->classes,c);
+  return c;
+}
+
+EJSNativeMethod *ejsMakeNativeMethod(EmbeddedJS *ejs, EJSNativeClass *clazz, char *methodName,
+                                     int returnType,
+                                     void *functionPointer){
+  EJSNativeMethod *m = (EJSNativeMethod*)safeMalloc(sizeof(EJSNativeMethod),"EJSNativeMethod");
+  memset(m,0,sizeof(EJSNativeMethod));
+  m->name = methodName;
+  m->returnType = returnType;
+  m->functionPointer = functionPointer;
+  printf("native method %s fp=0x%p\n",methodName,functionPointer);
+  initEmbeddedArrayList(&m->arguments,NULL);
+  arrayListAdd(&clazz->instanceMethodFunctions,m);
+  return m;
+}
+
+void ejsAddMethodArg(EmbeddedJS *ejs, EJSNativeMethod *method, char *name, int type){
+  EJSNativeArgument *arg = (EJSNativeArgument*)safeMalloc(sizeof(EJSNativeArgument),"EJSNativeArgument");
+  memset(arg,0,sizeof(EJSNativeArgument));
+  arg->name = name;
+  arg->type = type;
+  arrayListAdd(&method->arguments,arg);
+}
+
+void ejsSetMethodVarargType(EmbeddedJS *ejs, EJSNativeMethod *method, char *name, int type){
+  printf("write me!\n");
+}
+
+
+
 /* also used to initialize the worker context */
-static JSContext *makeEmbeddedJSContext(JSRuntime *rt)
-{
-    JSContext *ctx;
-    ctx = JS_NewContext(rt);
-    if (!ctx)
-        return NULL;
+static JSContext *makeEmbeddedJSContext(JSRuntime *rt){
+  JSContext *ctx;
+  ctx = JS_NewContext(rt);
+  if (!ctx)
+    return NULL;
 #ifdef CONFIG_BIGNUM
-    if (bignum_ext) {
-        JS_AddIntrinsicBigFloat(ctx);
-        JS_AddIntrinsicBigDecimal(ctx);
-        JS_AddIntrinsicOperators(ctx);
-        JS_EnableBignumExt(ctx, TRUE);
-    }
+  if (bignum_ext) {
+    JS_AddIntrinsicBigFloat(ctx);
+    JS_AddIntrinsicBigDecimal(ctx);
+    JS_AddIntrinsicOperators(ctx);
+    JS_EnableBignumExt(ctx, TRUE);
+  }
 #endif
-    /* system modules */
-    js_init_module_std(ctx, asciiSTD);
-    js_init_module_os(ctx, asciiOS);
-    js_init_module_experiment(ctx, asciiExperiment);
-    return ctx;
+  return ctx;
+}
+
+static void initContextModules(JSContext *ctx, EJSNativeModule **nativeModules, int nativeModuleCount){    
+  /* system modules */
+  printf("before init std\n");
+  js_init_module_std(ctx, asciiSTD);
+  js_init_module_os(ctx, asciiOS);
+  js_init_module_experiment(ctx, asciiExperiment);
+  printf("after init experiment\n");
+  for (int i=0; i<nativeModuleCount; i++){
+    ejsInitNativeModule(ctx, nativeModules[i]);
+  }
 }
 
 /*
@@ -730,10 +1314,7 @@ Json *evaluateJsonTemplates(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
   }
 }
 
-
-
-
-EmbeddedJS *makeEmbeddedJS(EmbeddedJS *sharedRuntimeEJS){ /* can be NULL */
+EmbeddedJS *allocateEmbeddedJS(EmbeddedJS *sharedRuntimeEJS /* can be NULL */){
   EmbeddedJS *embeddedJS = (EmbeddedJS*)safeMalloc(sizeof(EmbeddedJS),"EmbeddedJS");
   memset(embeddedJS,0,sizeof(EmbeddedJS));
   if (sharedRuntimeEJS){
@@ -742,6 +1323,13 @@ EmbeddedJS *makeEmbeddedJS(EmbeddedJS *sharedRuntimeEJS){ /* can be NULL */
     JSRuntime *rt = JS_NewRuntime();
     embeddedJS->rt = rt;
   }
+  embeddedJS->nativeClassTable = lhtCreate(257,NULL);
+  embeddedJS->nativeModuleTable = lhtCreate(101,NULL); 
+  return embeddedJS;
+}
+
+bool configureEmbeddedJS(EmbeddedJS *embeddedJS, 
+                         EJSNativeModule **nativeModules, int nativeModuleCount){
   /* 
      JS_SetMemoryLimit(rt, memory_limit);
      JS_SetMaxStackSize(rt, stack_size);
@@ -749,13 +1337,19 @@ EmbeddedJS *makeEmbeddedJS(EmbeddedJS *sharedRuntimeEJS){ /* can be NULL */
   js_std_set_worker_new_context_func(makeEmbeddedJSContext);
   js_std_init_handlers(embeddedJS->rt);
   JSContext *ctx = makeEmbeddedJSContext(embeddedJS->rt);
-  embeddedJS->ctx = ctx;
   if (!ctx) {
     fprintf(stderr, "qjs: cannot allocate JS context\n");
-    exit(2);
+    safeFree((char*)embeddedJS,sizeof(EmbeddedJS));
+    return false;
   }
+  /* Establish bijection between EJS and QJS top-level structures */
+  embeddedJS->ctx = ctx;
+  JS_SetContextOpaque(ctx,embeddedJS);
+  printf("configEJS embeddedJS=0x%p ctxOpaque=0x%p\n",
+         embeddedJS,JS_GetContextOpaque(ctx));
+  /* how to do this workers, is still not well explored */
+  initContextModules(ctx,nativeModules,nativeModuleCount);
 
-  
   /* loader for ES6 modules */
   JS_SetModuleLoaderFunc(embeddedJS->rt, NULL, js_module_loader, NULL);
   
@@ -770,21 +1364,22 @@ EmbeddedJS *makeEmbeddedJS(EmbeddedJS *sharedRuntimeEJS){ /* can be NULL */
   if (true){ /* load_std) {*/
     const char *source = "import * as std from 'std';\n"
       "import * as os from 'os';\n"
-      "import * as experiment from 'experiment';\n"
+      /*  "import * as experiment from 'experiment';\n" */
+      /*       "import * as FFI1 from 'FFI1';\n" */
       "globalThis.std = std;\n"
       "globalThis.os = os;\n"
-      "globalThis.experiment = experiment;\n";
+      /* "globalThis.experiment = experiment;\n"; */
+      ;
     size_t sourceLen = strlen(source);
     char asciiSource[sourceLen + 1];
     snprintf (asciiSource, sourceLen + 1, "%.*s", (int)sourceLen, source);
     convertFromNative(asciiSource, sourceLen);
     char input[] = "<input>";
     convertFromNative(input, sizeof(input));
-      
+    printf("before eval buffer in configure\n");
     JSValue throwaway = ejsEvalBuffer1(embeddedJS, asciiSource, strlen(asciiSource), input, JS_EVAL_TYPE_MODULE, &evalStatus);
   }
-
-  return embeddedJS;
+  return true;
 }
 
 /*
