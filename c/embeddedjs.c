@@ -487,18 +487,29 @@ JSValue ejsFunctionTrampoline(JSContext *ctx, JSValueConst this_val, int argc, J
   if (argc != nativeArgs->size){
     printf("bad %s received %d args, required %d\n",method->name,argc,nativeArgs->size);
   }
-  switch (method->returnType){
-  case EJS_NATIVE_TYPE_INT32:
-  case EJS_NATIVE_TYPE_CONST_STRING:
-  case EJS_NATIVE_TYPE_STRING:
-  case EJS_NATIVE_TYPE_JSON:
-  case EJS_NATIVE_TYPE_VOID:
-  default:
-    printf("unknown native function return type %d\n",method->returnType);
+  EJSNativeInvocation invocation;
+  invocation.ejs = ejs;
+  invocation.method = method;
+  invocation.argc = argc;
+  invocation.argv = argv;
+  int ffStatus = method->functionPointer(nativeStruct,&invocation);
+  if (ffStatus){
+    printf("failed to evaluation native function %s()\n",method->name);
+    goto fail;
+  } else {
+    switch (method->returnType){
+    case EJS_NATIVE_TYPE_INT32:
+    case EJS_NATIVE_TYPE_CONST_STRING:
+    case EJS_NATIVE_TYPE_STRING:
+    case EJS_NATIVE_TYPE_JSON:
+      return invocation.returnValue;
+    case EJS_NATIVE_TYPE_VOID:
+    return JS_UNDEFINED;
+    default:
+      printf("unknown native function return type %d\n",method->returnType);
+      goto fail;
+    }
   }
-
-  printf("***** COULD NOT DISPATCH NATIVE FUNCTION %s.%s\n",nativeClass->name,method->name);
-  return JS_EXCEPTION;
  fail:
   return JS_EXCEPTION;  
 }
@@ -832,7 +843,8 @@ EJSNativeClass *ejsMakeNativeClass(EmbeddedJS *ejs, EJSNativeModule *module,
 
 EJSNativeMethod *ejsMakeNativeMethod(EmbeddedJS *ejs, EJSNativeClass *clazz, char *methodName,
                                      int returnType,
-                                     void *functionPointer){
+                                     EJSForeignFunction *functionPointer){
+  /* int (*functionPointer)(void *nativeStruct, EJSNativeInvocation *invocation)){ */
   EJSNativeMethod *m = (EJSNativeMethod*)safeMalloc(sizeof(EJSNativeMethod),"EJSNativeMethod");
   memset(m,0,sizeof(EJSNativeMethod));
   m->name = methodName;
