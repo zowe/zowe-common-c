@@ -202,17 +202,20 @@ static EJSNativeModule *makeFFITestData(EmbeddedJS *ejs){
   EJSNativeClass *person = ejsMakeNativeClass(ejs,module,"Person",makePerson,freePerson,NULL);
   EJSNativeMethod *haveBirthday = ejsMakeNativeMethod(ejs,person,"haveBirthday",
                                                       EJS_NATIVE_TYPE_INT32,
-                                                      personHaveBirthday);
+                                                      (EJSForeignFunction*)personHaveBirthday);
   EJSNativeMethod *age = ejsMakeNativeMethod(ejs,person,"age",
                                              EJS_NATIVE_TYPE_INT32,
-                                             personAge);
+                                             (EJSForeignFunction*)personAge);
+  EJSNativeMethod *name = ejsMakeNativeMethod(ejs,person,"name",
+                                              EJS_NATIVE_TYPE_CONST_STRING,
+                                              (EJSForeignFunction*)personGetName);
   EJSNativeMethod *setShoeSize = ejsMakeNativeMethod(ejs,person,"setShoeSize",
                                                      EJS_NATIVE_TYPE_VOID,
-                                                     personSetShoeSize);
+                                                     (EJSForeignFunction*)personSetShoeSize);
   ejsAddMethodArg(ejs,setShoeSize,"newSize",EJS_NATIVE_TYPE_INT32);
   EJSNativeMethod *getShoeSize = ejsMakeNativeMethod(ejs,person,"getShoeSize",
                                                      EJS_NATIVE_TYPE_INT32,
-                                                     personGetShoeSize);
+                                                     (EJSForeignFunction*)personGetShoeSize);
   
   return module;
 }

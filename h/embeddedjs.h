@@ -47,11 +47,14 @@ typedef struct EJSNativeArgument_tag {
   int type;
 } EJSNativeArgument;
 
+typedef int (EJSForeignFunction)(void *nativeStruct, EJSNativeInvocation *nativeInvocation);
+
 typedef struct EJSNativeMethod_tag {
   char *name;
   char *asciiName;
   struct EJSNativeClass_tag *clazz; /* C++ reserved word justifiable paranoia */
-  void *functionPointer;
+  EJSForeignFunction *functionPointer;
+  /* int (*functionPointer)(void *nativeStruct, EJSNativeInvocation *invocation); */
   ArrayList arguments;
   int returnType;
 } EJSNativeMethod;
@@ -82,7 +85,7 @@ EJSNativeClass *ejsMakeNativeClass(EmbeddedJS *ejs, EJSNativeModule *module,
 
 EJSNativeMethod *ejsMakeNativeMethod(EmbeddedJS *ejs, EJSNativeClass *clazz, char *methodName,
                                      int returnType,
-                                     void *functionPointer);
+                                     EJSForeignFunction *f);
 
 void ejsAddMethodArg(EmbeddedJS *ejs, EJSNativeMethod *method, char *name, int type);
 
