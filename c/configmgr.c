@@ -267,6 +267,23 @@ typedef struct Configlet_tag {
 } Configlet;
 
 
+typedef struct ConfigPathElement_tag{
+  int    flags;
+  char  *name;
+  char  *data;
+  struct ConfigPathElement_tag *next;
+} ConfigPathElement;
+
+struct CFGConfig_tag {
+  const char *name;
+  ConfigPathElement *schemaPath;  /* maybe */
+  ConfigPathElement *configPath;
+  JsonSchema  *topSchema;
+  JsonSchema **otherSchemas;
+  int          otherSchemasCount;
+  Json        *configData;
+  struct CFGConfig_tag *next;
+};
 
 /* 
    zwe install doesn't set up to clone well HA
@@ -319,16 +336,16 @@ static char *extractMatch(ConfigManager *mgr, char *s, regmatch_t *match){
   return substring(mgr,s,(int)match->rm_so,(int)match->rm_eo);
 }
 
-ConfigPathElement *makePathElement(ConfigManager *mgr, int flags, char *name, char *data){
+static ConfigPathElement *makePathElement(ConfigManager *mgr, CFGConfig *config, int flags, char *name, char *data){
   ConfigPathElement *element = (ConfigPathElement*)SLHAlloc(mgr->slh,sizeof(ConfigPathElement));
   memset(element,0,sizeof(ConfigPathElement));
   element->flags = flags;
   element->name = name;
   element->data = data;
-  if (mgr->configPath == NULL){
-    mgr->configPath = element;
+  if (config->configPath == NULL){
+    config->configPath = element;
   } else {
-    ConfigPathElement *tail = mgr->configPath;
+    ConfigPathElement *tail = config->configPath;
     while (tail->next){
       tail = tail->next;
     }
@@ -337,7 +354,7 @@ ConfigPathElement *makePathElement(ConfigManager *mgr, int flags, char *name, ch
   return element;
 }
 
-static bool addPathElement(ConfigManager *mgr, char *pathElementArg){
+static bool addPathElement(ConfigManager *mgr, CFGConfig *config, char *pathElementArg){
   ConfigPathElement *element = (ConfigPathElement*)SLHAlloc(mgr->slh,sizeof(ConfigPathElement));
   memset(element,0,sizeof(ConfigPathElement));
 
@@ -368,7 +385,7 @@ static bool addPathElement(ConfigManager *mgr, char *pathElementArg){
     } else {
       return false; /* internal logic error */
     }
-    makePathElement(mgr,flags,pathElementArg,elementData);
+    makePathElement(mgr,config,flags,pathElementArg,elementData);
     return true;
   } else {
     trace(mgr,DEBUG,"unhandled path element '%s'\n",pathElementArg);
@@ -377,7 +394,7 @@ static bool addPathElement(ConfigManager *mgr, char *pathElementArg){
 
 }
 
-static int buildConfigPath(ConfigManager *mgr, char *configPathArg){
+static int buildConfigPath(ConfigManager *mgr, CFGConfig *config, char *configPathArg){
   int pos = 0;
   int len = strlen(configPathArg);
   while (pos < len){
@@ -400,7 +417,7 @@ static int buildConfigPath(ConfigManager *mgr, char *configPathArg){
 
     trace(mgr,DEBUG2,"ckpt.3\n");
 
-    bool status = addPathElement(mgr,pathElementArg);
+    bool status = addPathElement(mgr,config,pathElementArg);
 
     if (status == false){
       trace(mgr,INFO,"path building failed\n");
@@ -411,10 +428,25 @@ static int buildConfigPath(ConfigManager *mgr, char *configPathArg){
   return 0;
 }
 
-static void printConfigPath(ConfigManager *mgr){
-  /* Thurs AM */
-  trace(mgr,INFO,"Path Elements: mgr=0x%p\n",mgr);
-  ConfigPathElement *element = mgr->configPath;
+static CFGConfig *getConfig(ConfigManager *mgr, const char *configName){
+  CFGConfig *config = mgr->firstConfig;
+  while (config){
+    if (!strcmp(config->name,configName)){
+      return config;
+    }
+  }
+  return NULL;
+}
+
+static void printConfigPath(ConfigManager *mgr, const char *configName){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (!config){
+    fprintf(mgr->traceOut,"No Configuration named '%s'\n",configName);
+    return;
+  }
+
+  trace(mgr,INFO,"Path Elements: config=0x%p\n",config);
+  ConfigPathElement *element = config->configPath;
   while (element){
     trace(mgr,INFO,"  %04X %s\n",element->flags,element->name);
     element = element->next;
@@ -433,7 +465,7 @@ static void jsonPrettyPrint(ConfigManager *mgr, Json *json){
 
 void freeConfigManager(ConfigManager *mgr);
 
-static JsonSchema *loadOneSchema(ConfigManager *mgr, char *schemaFilePath){
+static JsonSchema *loadOneSchema(ConfigManager *mgr, CFGConfig *config, char *schemaFilePath){
   int returnCode = 0;
   int reasonCode = 0;
   FileInfo yamlFileInfo;
@@ -473,67 +505,88 @@ static JsonSchema *loadOneSchema(ConfigManager *mgr, char *schemaFilePath){
 
 #define MAX_SCHEMAS 100
 
-ConfigManager *makeConfigManager(char *configPathArg, char *schemaPath,
-                                 int traceLevel, FILE *traceOut){
-  fprintf(traceOut,"makeConfigMgr traceOut=0x%p, size = %zu\n",traceOut,sizeof(ConfigManager));fflush(traceOut);
+ConfigManager *makeConfigManager(){
   ConfigManager *mgr = (ConfigManager*)safeMalloc(sizeof(ConfigManager),"ConfigManager");
 
   memset(mgr,0,sizeof(ConfigManager));
-  mgr->traceLevel = traceLevel;
-  mgr->traceOut = traceOut;
+  mgr->traceLevel = 0;
+  mgr->traceOut = stderr;
   mgr->slh = makeShortLivedHeap(0x10000,0x100);
   EmbeddedJS *ejs = allocateEmbeddedJS(NULL);
-  configureEmbeddedJS(ejs,NULL,0);
+  configureEmbeddedJS(ejs,NULL,0,0,NULL);
   mgr->ejs = ejs;
-  trace(mgr,DEBUG,"before build config path\n");
-  if (buildConfigPath(mgr,configPathArg)){
-    fprintf(traceOut,"built config path failed\n");fflush(traceOut);
-    freeConfigManager(mgr);
-    return NULL;
-  }
-  trace(mgr,DEBUG,"built config path\n");
+  return mgr;
+}
 
-  mgr->otherSchemas = (JsonSchema**)SLHAlloc(mgr->slh,MAX_SCHEMAS*sizeof(JsonSchema));
-  mgr->rootSchemaDirectory = schemaPath; /* rootSchemaDirectory; */
+int cfgLoadSchemas(ConfigManager *mgr, const char *configName, char *schemaList){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (!config){
+    return ZCFG_UNKNOWN_CONFIG_NAME;
+  }
+  config->otherSchemas = (JsonSchema**)SLHAlloc(mgr->slh,MAX_SCHEMAS*sizeof(JsonSchema));
 
   int pos = 0;
-  int len = strlen(schemaPath);
+  int len = strlen(schemaList);
   int schemaCount = 0;
   while (pos < len){
-    int nextColon = indexOf(schemaPath,len,':',pos);
+    int nextColon = indexOf(schemaList,len,':',pos);
     int nextPos;
-    int pathElementLength = 0;
+    int listElementLength = 0;
 
     if (nextColon == -1){
       nextPos = len;
-      pathElementLength = len - pos;
+      listElementLength = len - pos;
     } else {
       nextPos = nextColon+1;
-      pathElementLength = nextColon - pos;
+      listElementLength = nextColon - pos;
     }
 
-    char *schemaFilePath = substring(mgr,schemaPath,pos,pos+pathElementLength);
+    char *schemaFilePath = substring(mgr,schemaList,pos,pos+listElementLength);
 
-    /* char *schemaFilePath = makeFullPath(mgr,rootSchemaDirectory,ZOWE_SCHEMA_FILE,true); */
-
-    JsonSchema *schema = loadOneSchema(mgr,schemaFilePath);
+    JsonSchema *schema = loadOneSchema(mgr,config,schemaFilePath);
     if (schema == NULL){
-      fprintf(traceOut,"build schema failed\n");fflush(traceOut);
-      freeConfigManager(mgr);
-      return NULL;
+      fprintf(mgr->traceOut,"build schema failed\n");fflush(mgr->traceOut);
+      return ZCFG_BAD_JSON_SCHEMA;
     }
 
     if (schemaCount == 0){
-      mgr->topSchema = schema;
+      config->topSchema = schema;
     } else {
-      mgr->otherSchemas[schemaCount-1] = schema;
+      config->otherSchemas[schemaCount-1] = schema;
     }
 
     pos = nextPos;
     schemaCount++;
   }
-  mgr->otherSchemasCount = schemaCount-1;
-  return mgr;
+  config->otherSchemasCount = schemaCount-1;
+  return ZCFG_SUCCESS;
+}
+
+void cfgSetTraceLevel(ConfigManager *mgr, int traceLevel){
+  mgr->traceLevel = traceLevel;
+}
+
+int cfgGetTraceLevel(ConfigManager *mgr){
+  return mgr->traceLevel;
+}
+
+void cfgSetTraceStream(ConfigManager *mgr, FILE *traceOut){
+  mgr->traceOut = traceOut;
+}
+
+static int cfgSetConfigPath(ConfigManager *mgr, const char *configName, char *configPathArg){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (!config){
+    return ZCFG_UNKNOWN_CONFIG_NAME;
+  }
+
+  trace(mgr,DEBUG,"before build config path\n");
+  if (buildConfigPath(mgr,config,configPathArg)){
+    fprintf(mgr->traceOut,"built config path failed\n");fflush(mgr->traceOut);
+    return ZCFG_BAD_CONFIG_PATH;
+  }
+  trace(mgr,DEBUG,"built config path\n");
+  return ZCFG_SUCCESS;
 }
 
 #define YAML_ERROR_MAX 1024
@@ -563,6 +616,47 @@ static Json *readJson(ConfigManager *mgr, ConfigPathElement *pathElement){
   }
 }
 
+static CFGConfig *addConfig(ConfigManager *mgr, const char *configName){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (config){
+    return config;
+  }
+  CFGConfig *newConfig = (CFGConfig*)safeMalloc(sizeof(CFGConfig),"CFGConfig");
+  memset(newConfig,0,sizeof(CFGConfig));
+  newConfig->name = configName;
+  if (mgr->firstConfig){
+    mgr->lastConfig->next = newConfig;
+    mgr->lastConfig = newConfig;
+  } else {
+    mgr->firstConfig = newConfig;
+    mgr->lastConfig = newConfig;
+  }
+  return newConfig;
+}
+
+Json *cfgGetConfigData(ConfigManager *mgr, const char *configName){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (config){
+    return config->configData;
+  } else {
+    return NULL;
+  }
+}
+
+int cfgValidate(ConfigManager *mgr, JsonValidator *validator, const char *configName){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (!config){
+    return ZCFG_UNKNOWN_CONFIG_NAME;
+  }
+  int validateStatus = jsonValidateSchema(validator,
+                                          config->configData,
+                                          config->topSchema,
+                                          config->otherSchemas,
+                                          config->otherSchemasCount);
+  return validateStatus;
+}
+
+  
 void freeConfigManager(ConfigManager *mgr){
   SLHFree(mgr->slh);
   safeFree((char*)mgr,sizeof(ConfigManager));  
@@ -575,31 +669,36 @@ void freeConfigManager(ConfigManager *mgr){
 
 /* need to collect violations as this goes */
 static int overloadConfiguration(ConfigManager *mgr,
+                                 CFGConfig *config,
                                  ConfigPathElement *pathElement,
                                  ConfigPathElement *pathTail){
   if (pathTail == NULL){
     trace(mgr, DEBUG2, "at end of config path\n");
-    mgr->config = readJson(mgr,pathElement);
-    trace(mgr, DEBUG2, "mgr->config = 0x%p\n", mgr->config);
+    config->configData = readJson(mgr,pathElement);
+    trace(mgr, DEBUG2, "mgr->config = 0x%p\n", config);
     return 0; /* success */
   } else {
     Json *overlay = readJson(mgr,pathElement);
-    int rhsStatus = overloadConfiguration(mgr,pathTail,pathTail->next);
+    int rhsStatus = overloadConfiguration(mgr,config,pathTail,pathTail->next);
     trace(mgr, DEBUG2, "read the overlay with json=0x%p and status=%d\n",overlay,rhsStatus);
     if (rhsStatus){
       return rhsStatus; /* don't merge if we couldn't load what's to the right in the list */
     }
     int mergeStatus = 0;
-    mgr->config = jsonMerge(mgr->slh,overlay,mgr->config,
-                            JSON_MERGE_FLAG_CONCATENATE_ARRAYS,
-                            &mergeStatus);
+    config->configData = jsonMerge(mgr->slh,overlay,config->configData,
+                                   JSON_MERGE_FLAG_CONCATENATE_ARRAYS,
+                                   &mergeStatus);
     return mergeStatus;
   }
 }
 
-int loadConfigurations(ConfigManager *mgr){
-  ConfigPathElement *pathElement = mgr->configPath;
-  int overloadStatus = overloadConfiguration(mgr,pathElement,pathElement->next);
+int loadConfigurations(ConfigManager *mgr, const char *configName){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (!config){
+    return ZCFG_UNKNOWN_CONFIG_NAME;
+  }
+  ConfigPathElement *pathElement = config->configPath;
+  int overloadStatus = overloadConfiguration(mgr,config,pathElement,pathElement->next);
   if (overloadStatus){
     return overloadStatus;
   } else {
@@ -607,18 +706,17 @@ int loadConfigurations(ConfigManager *mgr){
       printf("config before template eval:\n");
       fflush(stdout);
       fflush(stderr);
-      jsonPrettyPrint(mgr, mgr->config);
+      jsonPrettyPrint(mgr, config->configData);
     }
-    Json *evaluatedConfig = evaluateJsonTemplates(mgr->ejs,mgr->slh,mgr->config);
+    Json *evaluatedConfig = evaluateJsonTemplates(mgr->ejs,mgr->slh,config->configData);
     if (evaluatedConfig){
-      mgr->config = evaluatedConfig;
+      config->configData = evaluatedConfig;
       if (mgr->traceLevel >= 1){
 	printf("config after template eval:\n");
 	fflush(stdout);
 	fflush(stderr);
-	jsonPrettyPrint(mgr, mgr->config);
+	jsonPrettyPrint(mgr, config->configData);
       }
-
       return ZCFG_SUCCESS;
     } else {
       return ZCFG_EVAL_FAILURE;
@@ -729,9 +827,13 @@ static Json *varargsDereference(Json *json, int argCount, va_list args, int *err
 
 /* like get string, but doesn't care about data types */
 
-int cfgGetAnyJ(ConfigManager *mgr, Json **result, JsonPointer *jp){
+int cfgGetAnyJ(ConfigManager *mgr, const char *configName, Json **result, JsonPointer *jp){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (!config){
+    return ZCFG_UNKNOWN_CONFIG_NAME;
+  }
   int errorReason = 0;
-  Json *value = jsonPointerDereference(mgr->config,jp,&errorReason,mgr->traceLevel);
+  Json *value = jsonPointerDereference(config->configData,jp,&errorReason,mgr->traceLevel);
   if (mgr->traceLevel >= 1){
     printf("cfgGetAny: value=0x%p error=%d\n",value,errorReason);
   }
@@ -744,11 +846,15 @@ int cfgGetAnyJ(ConfigManager *mgr, Json **result, JsonPointer *jp){
   }
 }
 
-int cfgGetAnyC(ConfigManager *mgr, Json **result, int argCount, ...){
+int cfgGetAnyC(ConfigManager *mgr, const char *configName, Json **result, int argCount, ...){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (!config){
+    return ZCFG_UNKNOWN_CONFIG_NAME;
+  }
   int errorReason = 0;
   va_list argPointer; 
   va_start(argPointer,argCount);
-  Json *value = varargsDereference(mgr->config,argCount,argPointer,&errorReason,mgr->traceLevel);
+  Json *value = varargsDereference(config->configData,argCount,argPointer,&errorReason,mgr->traceLevel);
   va_end(argPointer);
 
   if (mgr->traceLevel >= 1){
@@ -763,9 +869,13 @@ int cfgGetAnyC(ConfigManager *mgr, Json **result, int argCount, ...){
   }
 }
 
-int cfgGetStringJ(ConfigManager *mgr, char **result, JsonPointer *jp){
+int cfgGetStringJ(ConfigManager *mgr, const char *configName, char **result, JsonPointer *jp){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (!config){
+    return ZCFG_UNKNOWN_CONFIG_NAME;
+  }
   Json *value = NULL;
-  int status = cfgGetAnyJ(mgr,&value,jp);
+  int status = cfgGetAnyJ(mgr,configName,&value,jp);
   if (value){
     if (jsonIsString(value)){
       *result = jsonAsString(value);
@@ -780,11 +890,15 @@ int cfgGetStringJ(ConfigManager *mgr, char **result, JsonPointer *jp){
   }
 }
 
-int cfgGetStringC(ConfigManager *mgr, char **result, int argCount, ...){
+int cfgGetStringC(ConfigManager *mgr, const char *configName, char **result, int argCount, ...){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (!config){
+    return ZCFG_UNKNOWN_CONFIG_NAME;
+  }
   int errorReason = 0;
   va_list argPointer; 
   va_start(argPointer,argCount);
-  Json *value = varargsDereference(mgr->config,argCount,argPointer,&errorReason,mgr->traceLevel);
+  Json *value = varargsDereference(config->configData,argCount,argPointer,&errorReason,mgr->traceLevel);
   va_end(argPointer);
   if (errorReason){
     return errorReason;
@@ -802,11 +916,15 @@ int cfgGetStringC(ConfigManager *mgr, char **result, int argCount, ...){
   }
 }
 
-int cfgGetIntC(ConfigManager *mgr, int *result, int argCount, ...){
+int cfgGetIntC(ConfigManager *mgr, const char *configName, int *result, int argCount, ...){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (!config){
+    return ZCFG_UNKNOWN_CONFIG_NAME;
+  }
   int errorReason = 0;
   va_list argPointer; 
   va_start(argPointer,argCount);
-  Json *value = varargsDereference(mgr->config,argCount,argPointer,&errorReason,mgr->traceLevel);
+  Json *value = varargsDereference(config->configData,argCount,argPointer,&errorReason,mgr->traceLevel);
   va_end(argPointer);
   if (errorReason){
     return errorReason;
@@ -824,11 +942,15 @@ int cfgGetIntC(ConfigManager *mgr, int *result, int argCount, ...){
   }
 }
 
-int cfgGetBooleanC(ConfigManager *mgr, bool *result, int argCount, ...){
+int cfgGetBooleanC(ConfigManager *mgr, const char *configName, bool *result, int argCount, ...){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (!config){
+    return ZCFG_UNKNOWN_CONFIG_NAME;
+  }
   int errorReason = 0;
   va_list argPointer; 
   va_start(argPointer,argCount);
-  Json *value = varargsDereference(mgr->config,argCount,argPointer,&errorReason,mgr->traceLevel);
+  Json *value = varargsDereference(config->configData,argCount,argPointer,&errorReason,mgr->traceLevel);
   va_end(argPointer);
   if (errorReason){
     return errorReason;
@@ -847,9 +969,9 @@ int cfgGetBooleanC(ConfigManager *mgr, bool *result, int argCount, ...){
 }
 
 
-static void extractText(ConfigManager *mgr, JsonPointer *jp, FILE *out){
+static void extractText(ConfigManager *mgr, const char *configName, JsonPointer *jp, FILE *out){
   Json *value = NULL;
-  int status = cfgGetAnyJ(mgr,&value,jp);
+  int status = cfgGetAnyJ(mgr,configName,&value,jp);
   if (status){
     fprintf(out,"error not found, reason=%d",status);
   } else {
@@ -1083,12 +1205,173 @@ static void convertJsonArrayToEnv(FILE *out, const char *path, JsonArray *array)
       
  */
 
-#ifdef CMGRTEST
-int main(int argc, char **argv){
-#else
-static int not_main(int argc, char **argv){
-#endif
-  char *schemaPath = NULL;
+static void *makeConfigManagerWrapper(void *userData, EJSNativeInvocation *invocation){
+  return makeConfigManager();
+}
+
+static void freeConfigManagerWrapper(EmbeddedJS *ejs, void *userData, void *nativePointer){
+  freeConfigManager((ConfigManager*)nativePointer);
+}
+
+static int setTraceLevelWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  int traceLevel = 0;
+  ejsIntArg(invocation,0,&traceLevel);
+  cfgSetTraceLevel(mgr,traceLevel);
+  return EJS_OK;
+}
+
+static int getTraceLevelWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  ejsReturnInt(invocation,cfgGetTraceLevel(mgr));
+  return EJS_OK;
+}
+
+static int addConfigWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  const char *configName = NULL;
+  ejsStringArg(invocation,0,&configName);
+  addConfig(mgr,configName);
+  ejsReturnInt(invocation,ZCFG_SUCCESS);
+  return EJS_OK;
+}
+
+static int loadSchemasWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  const char *configName = NULL;
+  ejsStringArg(invocation,0,&configName);
+  const char *schemaList = NULL;
+  ejsStringArg(invocation,1,&schemaList);
+  int status = cfgLoadSchemas(mgr,configName,(char*)schemaList);
+  printf("loadSchemas ret = %d\n",status);
+  fflush(stdout);
+  ejsReturnInt(invocation,status);
+  return EJS_OK;
+}
+
+static int setConfigPathWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  const char *configName = NULL;
+  ejsStringArg(invocation,0,&configName);
+  const char *configPath = NULL;
+  ejsStringArg(invocation,1,&configPath);
+  int configPathStatus = cfgSetConfigPath(mgr,configName,(char*)configPath);
+  ejsReturnInt(invocation,configPathStatus);
+  return EJS_OK;
+}
+
+static int loadConfigurationsWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  const char *configName = NULL;
+  ejsStringArg(invocation,0,&configName);
+  int loadStatus = loadConfigurations(mgr,configName);
+  ejsReturnInt(invocation,loadStatus);
+  return EJS_OK;
+}
+
+static char *extractString(JsonBuilder *b, char *s){
+  int len = strlen(s);
+  char *copy = SLHAlloc(b->parser.slh,len+1);
+  memcpy(copy,s,len);
+  copy[len] = 0;
+  return copy;
+}
+
+static int validateWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  const char *configName = NULL;
+  ejsStringArg(invocation,0,&configName);
+  JsonValidator *validator = makeJsonValidator();
+  EmbeddedJS *ejs = ejsGetEnvironment(invocation);
+  JsonBuilder *builder = ejsMakeJsonBuilder(ejs);
+  validator->traceLevel = mgr->traceLevel;
+  int errorCode = 0;
+  Json *result = jsonBuildObject(builder,NULL,NULL,&errorCode);
+  trace(mgr,DEBUG,"Before Validate\n");
+  int validateStatus = cfgValidate(mgr,validator,configName);
+  switch (validateStatus){
+  case JSON_VALIDATOR_NO_EXCEPTIONS:
+    jsonBuildBool(builder,result,"ok",true,&errorCode);
+    break;
+  case JSON_VALIDATOR_HAS_EXCEPTIONS:
+    {
+      jsonBuildBool(builder,result,"ok",true,&errorCode);
+      ValidityException *e = validator->firstValidityException;
+      Json *exceptions = jsonBuildArray(builder,result,"exceptions",&errorCode);
+      printf("JOE adding exceptions to result\n");
+      while (e){
+        char *exception = extractString(builder,e->message);
+        printf("  exception: %s\n",exception);
+        jsonBuildString(builder,exceptions,NULL,exception,strlen(exception),&errorCode);
+        e = e->next;
+      }
+    }
+    break;
+  case JSON_VALIDATOR_INTERNAL_FAILURE:
+    jsonBuildBool(builder,result,"ok",false,&errorCode);
+    break;
+  }
+  jsonBuildInt(builder,result,"shoeSize",11,&errorCode);
+  freeJsonValidator(validator);
+  ejsReturnJson(invocation,result);
+  return EJS_OK;
+}
+
+static int getConfigDataWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  const char *configName = NULL;
+  ejsStringArg(invocation,0,&configName);
+  Json *data = cfgGetConfigData(mgr,configName);
+  ejsReturnJson(invocation,data);
+  return EJS_OK;
+}
+
+
+static EJSNativeModule *exportConfigManagerToEJS(EmbeddedJS *ejs){
+  EJSNativeModule *module = ejsMakeNativeModule(ejs,"Configuration");
+  EJSNativeClass *configmgr = ejsMakeNativeClass(ejs,module,"ConfigManager",
+                                                 makeConfigManagerWrapper,
+                                                 freeConfigManagerWrapper,
+                                                 NULL);
+  EJSNativeMethod *setTraceLevel = ejsMakeNativeMethod(ejs,configmgr,"setTraceLevel",
+                                                       EJS_NATIVE_TYPE_VOID,
+                                                       (EJSForeignFunction*)setTraceLevelWrapper);
+  ejsAddMethodArg(ejs,setTraceLevel,"traceLevel",EJS_NATIVE_TYPE_INT32);
+  EJSNativeMethod *getTraceLevel = ejsMakeNativeMethod(ejs,configmgr,"getTraceLevel",
+                                                       EJS_NATIVE_TYPE_INT32,
+                                                       (EJSForeignFunction*)getTraceLevelWrapper);
+  EJSNativeMethod *addConfig = ejsMakeNativeMethod(ejs,configmgr,"addConfig",
+                                                   EJS_NATIVE_TYPE_INT32,
+                                                   (EJSForeignFunction*)addConfigWrapper);
+  ejsAddMethodArg(ejs,addConfig,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+
+  EJSNativeMethod *setConfigPath = ejsMakeNativeMethod(ejs,configmgr,"setConfigPath",
+                                                       EJS_NATIVE_TYPE_INT32,
+                                                       (EJSForeignFunction*)setConfigPathWrapper);
+  ejsAddMethodArg(ejs,setConfigPath,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+  ejsAddMethodArg(ejs,setConfigPath,"configPath",EJS_NATIVE_TYPE_CONST_STRING);
+  
+  EJSNativeMethod *loadSchemas = ejsMakeNativeMethod(ejs,configmgr,"loadSchemas",
+                                                     EJS_NATIVE_TYPE_INT32,
+                                                     (EJSForeignFunction*)loadSchemasWrapper);
+  ejsAddMethodArg(ejs,loadSchemas,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+  ejsAddMethodArg(ejs,loadSchemas,"schemaList",EJS_NATIVE_TYPE_CONST_STRING);
+
+  EJSNativeMethod *loadConfiguration = ejsMakeNativeMethod(ejs,configmgr,"loadConfiguration",
+                                                          EJS_NATIVE_TYPE_INT32,
+                                                          (EJSForeignFunction*)loadConfigurationsWrapper);
+  ejsAddMethodArg(ejs,loadConfiguration,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+
+  EJSNativeMethod *getConfigData = ejsMakeNativeMethod(ejs,configmgr,"getConfigData",
+                                                       EJS_NATIVE_TYPE_JSON,
+                                                       (EJSForeignFunction*)getConfigDataWrapper);
+  ejsAddMethodArg(ejs,getConfigData,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+
+  EJSNativeMethod *validate = ejsMakeNativeMethod(ejs,configmgr,"validate",
+                                                  EJS_NATIVE_TYPE_JSON,
+                                                  (EJSForeignFunction*)validateWrapper);
+  ejsAddMethodArg(ejs,validate,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+  
+  
+
+  
+  return module;
+}
+
+static int simpleMain(int argc, char **argv){
+  char *schemaList = NULL;
   char *zoweWorkspaceHome = NULL; // Read-write      is there always a zowe.yaml in there
   char *configPath = NULL;
   char *command = NULL;
@@ -1111,7 +1394,7 @@ static int not_main(int argc, char **argv){
       showHelp(traceOut);
       return 0;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-s")) != NULL){
-      schemaPath = optionValue;
+      schemaList = optionValue;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-t")) != NULL){
       traceArg = optionValue;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-o")) != NULL){
@@ -1145,8 +1428,8 @@ static int not_main(int argc, char **argv){
     }
   }
 
-  if (schemaPath == NULL){
-    fprintf(traceOut,"Must specify schema path with at least one schema");
+  if (schemaList == NULL){
+    fprintf(traceOut,"Must specify schema list with at least one schema");
     showHelp(traceOut);
     return 0;
   }
@@ -1156,11 +1439,23 @@ static int not_main(int argc, char **argv){
     return 0;
   }
 
-  ConfigManager *mgr = makeConfigManager(configPath,schemaPath,traceLevel,traceOut);
-  if (mgr == NULL){
-    fprintf(traceOut,"Failed to build configmgr\n");
+  ConfigManager *mgr = makeConfigManager();
+  const char *configName = "only";
+  cfgSetTraceLevel(mgr,traceLevel);
+  cfgSetTraceStream(mgr,traceOut);
+  CFGConfig *config = addConfig(mgr,configName);
+  int schemaLoadStatus = cfgLoadSchemas(mgr,configName,schemaList);
+  if (schemaLoadStatus){
+    fprintf(traceOut,"Failed to load schemas rsn=%d\n",schemaLoadStatus);
     return 0;
   }
+
+  int configPathStatus = cfgSetConfigPath(mgr,configName,configPath);
+  if (schemaLoadStatus){
+    fprintf(traceOut,"Problems with config path rsn=%d\n",configPathStatus);
+    return 0;
+  }
+
   trace(mgr,DEBUG,"ConfigMgr built at 0x%p\n",mgr);
 
 
@@ -1172,21 +1467,20 @@ static int not_main(int argc, char **argv){
   command = argv[argx++];
   trace(mgr,DEBUG,"command = %s\n",command);
   if (mgr->traceLevel >= 1){
-    printConfigPath(mgr);
+    printConfigPath(mgr,configName);
   }
-  int loadStatus = loadConfigurations(mgr);
+  int loadStatus = loadConfigurations(mgr,configName);
   if (loadStatus){
     trace(mgr,INFO,"Failed to load configuration, element may be bad, or less likey a bad merge\n");
   }
   trace(mgr,DEBUG,"configuration parms are loaded\n");
   if (!strcmp(command,"validate")){ /* just a testing mode */
     trace(mgr,INFO,"about to validate merged yamls as\n");
-    jsonPrettyPrint(mgr,mgr->config);
+    jsonPrettyPrint(mgr,cfgGetConfigData(mgr,configName));
     JsonValidator *validator = makeJsonValidator();
     validator->traceLevel = mgr->traceLevel;
     trace(mgr,DEBUG,"Before Validate\n");
-    int validateStatus = jsonValidateSchema(validator,mgr->config,
-                                            mgr->topSchema,mgr->otherSchemas,mgr->otherSchemasCount);
+    int validateStatus = cfgValidate(mgr,validator,configName);
     trace(mgr,INFO,"validate status = %d\n",validateStatus);
     switch (validateStatus){
     case JSON_VALIDATOR_NO_EXCEPTIONS:
@@ -1221,7 +1515,7 @@ static int not_main(int argc, char **argv){
       if (jqTree){
         int flags = ((jqCompact ? 0 : JQ_FLAG_PRINT_PRETTY)|
                      (jqRaw     ? JQ_FLAG_RAW_STRINGS : 0));
-        int evalStatus = evalJQ(mgr->config,jqTree,stdout,flags,mgr->traceLevel);
+        int evalStatus = evalJQ(cfgGetConfigData(mgr,configName),jqTree,stdout,flags,mgr->traceLevel);
         if (evalStatus != 0){
           trace(mgr, INFO,"micro jq eval problem %d\n",evalStatus);
         }
@@ -1243,7 +1537,7 @@ static int not_main(int argc, char **argv){
         printJsonPointer(mgr->traceOut,jp);
         fflush(mgr->traceOut);
       }
-      extractText(mgr,jp,stdout);
+      extractText(mgr,configName,jp,stdout);
       printf("\n");
       fflush(stdout);
     }
@@ -1252,7 +1546,7 @@ static int not_main(int argc, char **argv){
       trace(mgr, INFO, "env command requires an env file path\n");
     } else {
       char *outputPath = argv[argx++];
-      Json *config = mgr->config;
+      Json *config = cfgGetConfigData(mgr,configName);
       FILE *out = fopen(outputPath, "w");
       if (out) {
         convertJsonToEnv(out, ZWE_PREFIX, config);
@@ -1265,6 +1559,26 @@ static int not_main(int argc, char **argv){
   return 0;
 }
 
+
+
+#ifdef CMGRTEST
+int main(int argc, char **argv){
+  if (argc >= 3 && !strcmp("-script",argv[1])){
+    char *filename = argv[2];
+    EJSNativeModule *modules[1];
+    EmbeddedJS *ejs = allocateEmbeddedJS(NULL);
+    modules[0] = exportConfigManagerToEJS(ejs);
+    configureEmbeddedJS(ejs,modules,1,argc,argv);
+    printf("configured EJS, and starting script_______________________________________________\n");
+    fflush(stdout);
+    fflush(stderr);
+    int evalStatus = ejsEvalFile(ejs,filename,EJS_LOAD_IS_MODULE);
+    printf("Done with EJS: File eval returns %d_______________________________________________\n",evalStatus);
+  } else {
+    return simpleMain(argc,argv);
+  }
+}
+#endif
  
 
 /*
