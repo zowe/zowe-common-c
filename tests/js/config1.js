@@ -25,7 +25,6 @@ var loadAndExtract = function(){
     cmgr.setTraceLevel(0);
     let configName = "theConfig";
     let status = 0;
-    console.log("ckpt1");
     let configPath = getArg("-p");
     let schemaList = getArg("-s");
     if (!configPath){
@@ -58,9 +57,8 @@ var loadAndExtract = function(){
         return;
     }
 
-    let validation = cmgr.validate(configName);
+    let validation = cmgr.validate(configName); // { ok: <bool> ( exceptions: <array> )? }
     console.log("validator ran to completion "+validation.ok);
-    console.log("validator shoeSize "+validation.shoeSize);
     if (validation.ok){
         if (validation.exceptions){
             console.log("validation found invalid JSON Schema data");

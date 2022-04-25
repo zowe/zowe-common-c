@@ -1291,10 +1291,8 @@ static int validateWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
       jsonBuildBool(builder,result,"ok",true,&errorCode);
       ValidityException *e = validator->firstValidityException;
       Json *exceptions = jsonBuildArray(builder,result,"exceptions",&errorCode);
-      printf("JOE adding exceptions to result\n");
       while (e){
         char *exception = extractString(builder,e->message);
-        printf("  exception: %s\n",exception);
         jsonBuildString(builder,exceptions,NULL,exception,strlen(exception),&errorCode);
         e = e->next;
       }
