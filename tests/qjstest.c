@@ -229,7 +229,7 @@ int main(int argc, char **argv){
   EJSNativeModule *modules[1];
   EmbeddedJS *ejs = allocateEmbeddedJS(NULL);
   modules[0] = makeFFITestData(ejs);
-  configureEmbeddedJS(ejs,modules,1);
+  configureEmbeddedJS(ejs,modules,1,argc,argv);
 
   int evalStatus = ejsEvalFile(ejs,filename,EJS_LOAD_IS_MODULE);
   printf("File eval returns %d\n",evalStatus);

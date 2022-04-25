@@ -108,6 +108,7 @@ struct EmbeddedJS_tag {
   size_t stack_size; /* = 0; */
   void *userPointer;
   ShortLivedHeap *fileEvalHeap;
+  int traceLevel;
 };
 
 struct JSValueBox_tag {
@@ -137,7 +138,7 @@ static JSValue ejsEvalBuffer1(EmbeddedJS *ejs,
   if (JS_IsException(val)) {
     JSValue exception = JS_GetException(ctx);
     const char *message = JS_ToCString(ctx, exception);
-    printf("exceptionMessage\n");
+    printf("EJS exceptionMessage\n");
     dumpbuffer(message,strlen(message));
     JS_FreeCString(ctx,message);
     JS_FreeValue(ctx, exception);
@@ -479,9 +480,11 @@ JSValue ejsFunctionTrampoline(JSContext *ctx, JSValueConst this_val, int argc, J
   void *nativeStruct = JS_GetOpaque(this_val,classInternals->classID);
   EJSNativeClass *nativeClass = classInternals->nativeClass;
   EJSNativeMethod *method = arrayListElement(&nativeClass->instanceMethodFunctions,magic);
-  printf("ftramp got class name '%s' method # %d (%s) on native struct at 0x%p\n",
-         nativeClass->name,magic,method->name,nativeStruct);
-  fflush(stdout);
+  if (ejs->traceLevel >= 1){
+    printf("ftramp got class name '%s' method # %d (%s) on native struct at 0x%p\n",
+           nativeClass->name,magic,method->name,nativeStruct);
+    fflush(stdout);
+  }
   JS_FreeValue(ctx,proto);
   ArrayList *nativeArgs = &method->arguments;
   if (argc != nativeArgs->size){
@@ -607,7 +610,6 @@ static char asciiExperiment[11] ={ 0x65, 0x78, 0x70, 0x65,
 
 JSModuleDef *js_init_module_experiment(JSContext *ctx, const char *module_name)
 {
-  printf("js_init_module_experiment\n");
   JSModuleDef *m;
   m = JS_NewCModule(ctx, module_name, js_experiment_init);
   if (!m){
@@ -620,7 +622,7 @@ JSModuleDef *js_init_module_experiment(JSContext *ctx, const char *module_name)
 
 
 static void ejsNativeFinalizer(JSRuntime *rt, JSValue val){
-  printf("JOE Should write native finalizer\n");
+  /*  printf("JOE Should write native finalizer\n"); */
 }
 
 static JSValue ejsNativeConstructorDispatcher(JSContext *ctx, JSValueConst new_target,
@@ -631,12 +633,14 @@ static JSValue ejsNativeConstructorDispatcher(JSContext *ctx, JSValueConst new_t
   EmbeddedJS *ejs = (EmbeddedJS*)JS_GetContextOpaque(ctx);  
   /* create the object */
   if (JS_IsUndefined(new_target)) {
-    printf("'this' is expected in native constructor\n");
+    printf("*** EJS PANIC *** 'this' is expected in native constructor\n");
     goto fail;
   } else {
     proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-    printf("native ctor proto is 0x%p\n",JS_VALUE_GET_PTR(proto));
-    dumpbuffer((char*)&proto,sizeof(JSValue));
+    if (ejs->traceLevel >= 2){
+      printf("native ctor proto is 0x%p\n",JS_VALUE_GET_PTR(proto));
+      dumpbuffer((char*)&proto,sizeof(JSValue));
+    }
 
     if (JS_IsException(proto))
       goto fail;
@@ -644,7 +648,8 @@ static JSValue ejsNativeConstructorDispatcher(JSContext *ctx, JSValueConst new_t
   void *protoPointer = JS_VALUE_GET_PTR(proto);
   NativeClassInternals *classInternals = (NativeClassInternals*)lhtGet(ejs->nativeClassTable,(int64_t)protoPointer);
   if (!classInternals){
-    printf("could not get class internals in native ctor dispatch\n");
+    printf("*** EJS PANIC *** could not get class internals in native ctor dispatch\n");
+    goto fail;
   }
   EJSNativeClass *nativeClass = classInternals->nativeClass;
   obj = JS_NewObjectProtoClass(ctx, proto, classInternals->classID);
@@ -657,8 +662,10 @@ static JSValue ejsNativeConstructorDispatcher(JSContext *ctx, JSValueConst new_t
   if (!nativeStruct){
     goto fail;
   }
-  printf("Made native opaque for class='%s' instanceAt 0x%p, nativeStruct at 0x%p\n",
-         nativeClass->name,JS_VALUE_GET_PTR(obj),nativeStruct);
+  if (ejs->traceLevel >= 1){
+    printf("Made native opaque for class='%s' instanceAt 0x%p, nativeStruct at 0x%p\n",
+           nativeClass->name,JS_VALUE_GET_PTR(obj),nativeStruct);
+  }
   JS_SetOpaque(obj, nativeStruct);
   return obj;
  fail:
@@ -679,7 +686,9 @@ static int buildNativePrototypeFunctions(JSContext *ctx,
     return 8;
   }
   memset(functionList,0,methodCount*sizeof(JSCFunctionListEntry));
-  printf("building %d native functions of class='%s'\n",methodCount,nativeClass->name);
+  if (ejs->traceLevel >= 1){
+    printf("building %d native functions of class='%s'\n",methodCount,nativeClass->name);
+  }
   for (int i=0; i<methodCount; i++){
     EJSNativeMethod *nativeMethod = (EJSNativeMethod*)arrayListElement(methods,i);
     ArrayList *nativeArgs = &nativeMethod->arguments;
@@ -688,7 +697,9 @@ static int buildNativePrototypeFunctions(JSContext *ctx,
     snprintf(nativeMethod->asciiName, mnameLen + 1, "%.*s", (int)mnameLen, nativeMethod->name);
     convertToNative(nativeMethod->asciiName, mnameLen);
 
-    printf("  adding func %s() with %d args\n",nativeMethod->name,nativeArgs->size);
+    if (ejs->traceLevel >= 1){
+      printf("  adding func %s() with %d args\n",nativeMethod->name,nativeArgs->size);
+    }
     functionList[i].name = nativeMethod->asciiName;
     functionList[i].prop_flags = JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE;
     functionList[i].def_type = JS_DEF_CFUNC;
@@ -702,41 +713,31 @@ static int buildNativePrototypeFunctions(JSContext *ctx,
 }
 
 static int initNativeModuleCallback(JSContext *ctx, JSModuleDef *m){
-  printf("initNativeModuleCallback \n");
-  fflush(stdout);
   EmbeddedJS *ejs = (EmbeddedJS*)JS_GetContextOpaque(ctx);
   EJSNativeModule *nativeModule = (EJSNativeModule*)lhtGet(ejs->nativeModuleTable,(int64_t)m);
   ArrayList *classes = &(nativeModule->classes);
   for (int i=0; i<classes->size; i++){
-    printf("initNativeModuleCallback loop i=%d\n",i);
-    fflush(stdout);
     
     EJSNativeClass *nativeClass = (EJSNativeClass*)arrayListElement(classes,i);
     NativeClassInternals *nativeClassInternals = (NativeClassInternals*)safeMalloc(sizeof(NativeClassInternals),
                                                                                    "NativeClassInternals");
-    printf("  inmc ckpt.0\n");fflush(stdout);
     memset(nativeClassInternals,0,sizeof(NativeClassInternals));
 
-    printf("  inmc ckpt.1\n");fflush(stdout);
     nativeClassInternals->asciiName = nativeClass->asciiName;
     nativeClassInternals->classDef.class_name = nativeClassInternals->asciiName;
     nativeClassInternals->classDef.finalizer = ejsNativeFinalizer;
     nativeClassInternals->nativeClass = nativeClass;
 
-    printf("  inmc ckpt.2\n");fflush(stdout);
     /* the class ID is created once */
     JS_NewClassID(&nativeClassInternals->classID);
     
-    printf("  inmc ckpt.2.5 classid=0x%x\n",(int)nativeClassInternals->classID);fflush(stdout);
     /* the class is created once per runtime */
     JS_NewClass(JS_GetRuntime(ctx), nativeClassInternals->classID, &nativeClassInternals->classDef);
-    printf("  inmc ckpt.3\n");fflush(stdout);
     JSValue proto = JS_NewObject(ctx);
     void *protoPointer = JS_VALUE_GET_PTR(proto);
     lhtPut(ejs->nativeClassTable,(int64_t)protoPointer,nativeClassInternals);
     buildNativePrototypeFunctions(ctx,ejs,proto,nativeClass,nativeClassInternals);
 
-    printf("  inmc ckpt.4\n");fflush(stdout);
     
     JSValue obj = JS_NewCFunction2(ctx,
                                    ejsNativeConstructorDispatcher,
@@ -750,8 +751,10 @@ static int initNativeModuleCallback(JSContext *ctx, JSModuleDef *m){
                      nativeClassInternals->classID,
                      proto);
 
-    printf("native module export class name %s\n",nativeClassInternals->asciiName);
-    fflush(stdout);
+    if (ejs->traceLevel >= 1){
+      printf("native module export class name %s\n",nativeClassInternals->asciiName);
+      fflush(stdout);
+    }
     JS_SetModuleExport(ctx, m, nativeClassInternals->asciiName, obj);
     /*
     JS_SetModuleExportList(ctx, m, js_experiment_funcs,
@@ -765,9 +768,11 @@ static int initNativeModuleCallback(JSContext *ctx, JSModuleDef *m){
 
 
 JSModuleDef *ejsInitNativeModule(JSContext *ctx, EJSNativeModule *nativeModule){
-  printf("ejsInitNativeModule %s\n",nativeModule->name);
-  fflush(stdout);
   EmbeddedJS *ejs = (EmbeddedJS*)JS_GetContextOpaque(ctx);
+  if (ejs->traceLevel >= 1){
+    printf("ejsInitNativeModule %s\n",nativeModule->name);
+    fflush(stdout);
+  }
   JSModuleDef *m;
   /*
     Here, need a closure or global to get back the particulars of this module, because per_module init functions
@@ -796,13 +801,17 @@ JSModuleDef *ejsInitNativeModule(JSContext *ctx, EJSNativeModule *nativeModule){
     convertToNative(nativeClass->asciiName, cnameLen);
   }
 
-  printf("before NewCModule\n");
+  if (ejs->traceLevel >= 1){
+    printf("before NewCModule\n");
+  }
   m = JS_NewCModule(ctx, asciiName, initNativeModuleCallback);
   /* NOTE: we are trusting that the callback is NOT called anywhere in the call graph of NewCModule */
   if (m){
     lhtPut(ejs->nativeModuleTable,(int64_t)m,nativeModule);
   }
-  printf("after NewCModule, m=0x%p\n",m);
+  if (ejs->traceLevel >= 1){
+    printf("after NewCModule, m=0x%p\n",m);
+  }
   if (!m){
     return NULL;
   } 
@@ -850,7 +859,9 @@ EJSNativeMethod *ejsMakeNativeMethod(EmbeddedJS *ejs, EJSNativeClass *clazz, cha
   m->name = methodName;
   m->returnType = returnType;
   m->functionPointer = functionPointer;
-  printf("native method %s fp=0x%p\n",methodName,functionPointer);
+  if (ejs->traceLevel >= 1){
+    printf("native method %s fp=0x%p\n",methodName,functionPointer);
+  }
   initEmbeddedArrayList(&m->arguments,NULL);
   arrayListAdd(&clazz->instanceMethodFunctions,m);
   return m;
@@ -889,11 +900,11 @@ static JSContext *makeEmbeddedJSContext(JSRuntime *rt){
 
 static void initContextModules(JSContext *ctx, EJSNativeModule **nativeModules, int nativeModuleCount){    
   /* system modules */
-  printf("before init std\n");
+  /* printf("before init std\n");*/
   js_init_module_std(ctx, asciiSTD);
   js_init_module_os(ctx, asciiOS);
   js_init_module_experiment(ctx, asciiExperiment);
-  printf("after init experiment\n");
+  /* printf("after init experiment\n");*/
   for (int i=0; i<nativeModuleCount; i++){
     ejsInitNativeModule(ctx, nativeModules[i]);
   }
@@ -1121,10 +1132,10 @@ static JSValue jsonToJS1(EmbeddedJS *ejs, Json *json, bool hideUnevaluated){
                 snprintf (convertedKey, keyLen + 1, "%.*s", (int)keyLen, key);
                 /* printf ("about to convert key '%s'\n", convertedKey); */
                 convertFromNative(convertedKey, keyLen);
-          JS_SetPropertyStr(ctx,
-                            object,
-                            convertedKey,
-                            jsonToJS1(ejs,jsonPropertyGetValue(property),hideUnevaluated));
+                JS_SetPropertyStr(ctx,
+                                  object,
+                                  convertedKey,
+                                  jsonToJS1(ejs,jsonPropertyGetValue(property),hideUnevaluated));
               }
         }
         return object;
@@ -1340,8 +1351,28 @@ EmbeddedJS *allocateEmbeddedJS(EmbeddedJS *sharedRuntimeEJS /* can be NULL */){
   return embeddedJS;
 }
 
+static char *copyFromNative(char *source, ShortLivedHeap *slh){
+  size_t sourceLen = strlen(source);
+  char *dest = (slh ? SLHAlloc(slh,sourceLen+1) : safeMalloc(sourceLen+1,"copyFromNative"));
+  snprintf (dest, sourceLen + 1, "%.*s", (int)sourceLen, source);
+  convertFromNative(dest, sourceLen);
+  return dest;
+}
+
+static char **copyArrayFromNative(int sourceCount, char **sourceArray, ShortLivedHeap *slh){
+  char **copy = (slh ?
+                 (char**)SLHAlloc(slh,sourceCount*sizeof(char*)) :
+                 (char**)safeMalloc(sourceCount*sizeof(char*),"copyArrayFromNative"));
+  for (int i=0; i<sourceCount; i++){
+    copy[i] = copyFromNative(sourceArray[i],slh);
+  }
+  return copy;
+}
+
+
 bool configureEmbeddedJS(EmbeddedJS *embeddedJS, 
-                         EJSNativeModule **nativeModules, int nativeModuleCount){
+                         EJSNativeModule **nativeModules, int nativeModuleCount,
+                         int argc, char **argv){
   /* 
      JS_SetMemoryLimit(rt, memory_limit);
      JS_SetMaxStackSize(rt, stack_size);
@@ -1357,8 +1388,10 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
   /* Establish bijection between EJS and QJS top-level structures */
   embeddedJS->ctx = ctx;
   JS_SetContextOpaque(ctx,embeddedJS);
-  printf("configEJS embeddedJS=0x%p ctxOpaque=0x%p\n",
-         embeddedJS,JS_GetContextOpaque(ctx));
+  if (embeddedJS->traceLevel >= 1){
+    printf("configEJS embeddedJS=0x%p ctxOpaque=0x%p\n",
+           embeddedJS,JS_GetContextOpaque(ctx));
+  }
   /* how to do this workers, is still not well explored */
   initContextModules(ctx,nativeModules,nativeModuleCount);
 
@@ -1369,7 +1402,7 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
     JS_SetHostPromiseRejectionTracker(embeddedJS->rt, js_std_promise_rejection_tracker,
                                       NULL);
   }
-  js_std_add_helpers(ctx, 0, NULL); /* argc - optind, argv + optind); */
+  js_std_add_helpers(ctx, argc, copyArrayFromNative(argc, argv, NULL));
 
   int evalStatus = 0;
   /* make 'std' and 'os' visible to non module code */
@@ -1388,10 +1421,20 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
     convertFromNative(asciiSource, sourceLen);
     char input[] = "<input>";
     convertFromNative(input, sizeof(input));
-    printf("before eval buffer in configure\n");
+    if (embeddedJS->traceLevel >= 1){
+      printf("before eval buffer in configure\n");
+    }
     JSValue throwaway = ejsEvalBuffer1(embeddedJS, asciiSource, strlen(asciiSource), input, JS_EVAL_TYPE_MODULE, &evalStatus);
   }
   return true;
+}
+
+EmbeddedJS *ejsGetEnvironment(EJSNativeInvocation *invocation){
+  return invocation->ejs;
+}
+
+JsonBuilder *ejsMakeJsonBuilder(EmbeddedJS *ejs){
+  return makeJsonBuilder(ejs->fileEvalHeap);
 }
 
 /*

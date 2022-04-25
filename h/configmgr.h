@@ -14,22 +14,12 @@
 #include "jsonschema.h"
 #include "embeddedjs.h"
 
-typedef struct ConfigPathElement_tag{
-  int    flags;
-  char  *name;
-  char  *data;
-  struct ConfigPathElement_tag *next;
-} ConfigPathElement;
+typedef struct CFGConfig_tag CFGConfig;
 
 typedef struct ConfigManager_tag{
   ShortLivedHeap *slh;
-  char *rootSchemaDirectory;
-  ConfigPathElement *schemaPath;  /* maybe */
-  ConfigPathElement *configPath;
-  JsonSchema  *topSchema;
-  JsonSchema **otherSchemas;
-  int          otherSchemasCount;
-  Json       *config;
+  CFGConfig *firstConfig;
+  CFGConfig *lastConfig;
   hashtable  *schemaCache;
   hashtable  *configCache;
   int         traceLevel;
@@ -46,31 +36,40 @@ typedef struct ConfigManager_tag{
 #define ZCFG_SUCCESS 0
 #define ZCFG_TYPE_MISMATCH 1
 #define ZCFG_EVAL_FAILURE 2
+#define ZCFG_UNKNOWN_CONFIG_NAME 3
+#define ZCFG_BAD_CONFIG_PATH 4
+#define ZCFG_BAD_JSON_SCHEMA 5
 #define ZCFG_POINTER_TOO_DEEP JSON_POINTER_TOO_DEEP
 #define ZCFG_POINTER_ARRAY_INDEX_NOT_INTEGER JSON_POINTER_ARRAY_INDEX_NOT_INTEGER 
 #define ZCFG_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS 
 
 
-ConfigManager *makeConfigManager(char *configPathArg, char *schemaPath,
-                                 int traceLevel, FILE *traceOut);
+ConfigManager *makeConfigManager();
+bool cfgMakeConfig(char *configName,
+                   char *configPathArg,
+                   char *schemaPath);
+
+int cfgGetTraceLevel(ConfigManager *mgr);
+void cfgSetTraceLevel(ConfigManager *mgr, int traceLevel);
+void cfgSetTraceStream(ConfigManager *mgr, FILE *traceOut);
 
 void freeConfigManager(ConfigManager *mgr);
 
-int loadConfigurations(ConfigManager *mgr);
+int loadConfigurations(ConfigManager *mgr, const char *configName);
 
 /* Json-oriented value getters */
 
-int cfgGetStringJ(ConfigManager *mgr, char **result, JsonPointer *jp);
+int cfgGetStringJ(ConfigManager *mgr, const char *configName, char **result, JsonPointer *jp);
 
 /* Convenience getters for C Programmers, that don't require building paths, string allocation, etc */
 
-int cfgGetIntC(ConfigManager *mgr, int *result, int argCount, ...);
-int cfgGetBooleanC(ConfigManager *mgr, bool *result, int argCount, ...);
+int cfgGetIntC(ConfigManager *mgr, const char *configName, int *result, int argCount, ...);
+int cfgGetBooleanC(ConfigManager *mgr, const char *configName, bool *result, int argCount, ...);
 
 /** result is null-terminated, when set, and not a copy */
-int cfgGetStringC(ConfigManager *mgr, char **result, int argCount, ...);
+int cfgGetStringC(ConfigManager *mgr, const char *configName, char **result, int argCount, ...);
 
-#define cfgGetConfig(cmgr) ((cmgr)->config)
+Json *cfgGetConfigData(ConfigManager *mgr, const char *configName);
 
 #endif
 

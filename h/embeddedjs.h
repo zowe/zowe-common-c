@@ -112,6 +112,8 @@ int ejsReturnString(EJSNativeInvocation *invocation,
 int ejsReturnJson(EJSNativeInvocation *invocation,
                   Json *value);
 
+EmbeddedJS *ejsGetEnvironment(EJSNativeInvocation *invocation);
+
 
 /* usually pass NULL as arg unless trying to build complex embedded JS 
    application that can run multiple threads or other multitasking.
@@ -120,7 +122,10 @@ int ejsReturnJson(EJSNativeInvocation *invocation,
 */
 EmbeddedJS *allocateEmbeddedJS(EmbeddedJS *sharedRuntimeEJS); /* can be NULL */
 bool configureEmbeddedJS(EmbeddedJS *ejs,
-                         EJSNativeModule **nativeModules, int nativeModuleCount);
+                         EJSNativeModule **nativeModules, int nativeModuleCount,
+                         int argc, char **argv);
+
+JsonBuilder *ejsMakeJsonBuilder(EmbeddedJS *ejs);
 
 
 Json *ejsJSToJson(EmbeddedJS *ejs, JSValueBox value, ShortLivedHeap *slh);
