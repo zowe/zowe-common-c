@@ -1059,6 +1059,7 @@ static void showHelp(FILE *out){
   fprintf(out,"  configmgr [options] <command> <args>\n");
   fprintf(out,"    options\n");
   fprintf(out,"      -h                  : show help\n");
+  fprintf(out,"      -script <path>      : quickjs-compatible javascript file to run with configmgr utilities\n");
   fprintf(out,"      -t <level>          : enable tracing with level from 1-3\n");
   fprintf(out,"      -o <outStream>      : OUT|ERR , ERR is default\n");
   fprintf(out,"      -s <path:path...>   : <topSchema>(:<referencedSchema)+\n");
