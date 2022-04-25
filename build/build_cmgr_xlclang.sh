@@ -18,23 +18,36 @@ echo "Building configmgr..."
 # These paths assume that the build is run from /zss/deps/zowe-common-c/builds
 
 
-
 mkdir -p "${WORKING_DIR}/tmp-configmgr" && cd "$_"
 
+MAJOR=0
+MINOR=3
+PATCH=0
+VERSION="\"${MAJOR}.${MINOR}.${PATCH}\""
+date_stamp=$(date +%Y%m%d)
+
 COMMON="../.."
-QUICKJS="../../../../../quickjs"
-LIBYAML="../../../../../libyaml"
+
+QUICKJS="${COMMON}/deps/configmgr/quickjs"
+QUICKJS_LOCATION="git@github.com:joenemo/quickjs-portable.git"
+QUICKJS_BRANCH="0.9.0"
+
+LIBYAML="${COMMON}/deps/configmgr/libyaml"
+LIBYAML_LOCATION="git@github.com:yaml/libyaml.git"
+LIBYAML_BRANCH="0.2.5"
+
+DEPS="QUICKJS LIBYAML"
+
+for dep in $( echo $DEPS ); do
+  eval directory="\$${dep}"
+  echo "Check if dir exist=$directory"
+  if [ ! -d "$directory" ]; then
+    eval echo Clone: \$${dep}_LOCATION @ \$${dep}_BRANCH to \$${dep}
+    eval git clone --branch "\$${dep}_BRANCH" "\$${dep}_LOCATION" "\$${dep}"
+  fi
+done
 
 rm -f "${COMMON}/bin/configmgr"
-
-MAJOR=0
-MINOR=2
-PATCH=5
-VERSION="\"${MAJOR}.${MINOR}.${PATCH}\""
-
-#if [ ! -d "${LIBYAML}" ]; then
-#  git clone git@github.com:yaml/libyaml.git
-#fi
 
 # export _C89_ACCEPTABLE_RC=4
 
