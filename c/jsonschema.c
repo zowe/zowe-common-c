@@ -998,8 +998,6 @@ int jsonValidateSchema(JsonValidator *validator, Json *value, JsonSchema *topSch
     validator->otherSchemas = otherSchemas;
     validator->otherSchemaCount = otherSchemaCount;
     VResult validity = validateJSON(validator,false,value,topSchema->topValueSpec);
-    printf("after validate without throw, should show validation exceptions\n");
-    fflush(stdout);
     if (validator->firstValidityException == NULL){
       return JSON_VALIDATOR_NO_EXCEPTIONS;
     } else {
