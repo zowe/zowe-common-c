@@ -52,6 +52,7 @@
 #include "bpxnet.h"
 #include "unixfile.h"
 #include "charsets.h"
+#include "xlate.h"
 #include "collections.h"
 #include "json.h"
 #include "jsonschema.h"
