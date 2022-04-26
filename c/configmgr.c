@@ -1384,8 +1384,6 @@ static int simpleMain(int argc, char **argv){
     showHelp(traceOut);
     return 0;
   }
-  LoggingContext *logContext = makeLoggingContext();
-  logConfigureStandardDestinations(logContext);
 
   while (argx < argc){
     char *optionValue = NULL;
@@ -1562,6 +1560,8 @@ static int simpleMain(int argc, char **argv){
 
 #ifdef CMGRTEST
 int main(int argc, char **argv){
+  LoggingContext *logContext = makeLoggingContext();
+  logConfigureStandardDestinations(logContext);
   if (argc >= 3 && !strcmp("-script",argv[1])){
     char *filename = argv[2];
     EJSNativeModule *modules[1];
