@@ -336,7 +336,7 @@ int ejsStringArg(EJSNativeInvocation *invocation,
   *valuePtr = nativeString;
   /* currently leaking until placed in invocation cleanups */
 #else
-  *valuePtr = cstr;
+  *valuePtr = cString;
 #endif
   return EJS_OK;
 }
