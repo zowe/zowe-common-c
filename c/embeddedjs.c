@@ -138,8 +138,14 @@ static JSValue ejsEvalBuffer1(EmbeddedJS *ejs,
   if (JS_IsException(val)) {
     JSValue exception = JS_GetException(ctx);
     const char *message = JS_ToCString(ctx, exception);
-    printf("EJS exceptionMessage\n");
+    
+    size_t messageLen = strlen(message);
+    char nativeMessage[messageLen+1];
+    snprintf(nativeMessage, messageLen + 1, "%.*s", (int)messageLen, message);
+    convertToNative(nativeMessage,(int)messageLen);
+    printf("EJS exceptionMessage:\n%s\n",nativeMessage);
     dumpbuffer(message,strlen(message));
+
     JS_FreeCString(ctx,message);
     JS_FreeValue(ctx, exception);
     ret = -1;
@@ -174,18 +180,24 @@ int ejsSetGlobalProperty(EmbeddedJS *ejs, const char *propertyName, JSValueBox v
 }
 
 int ejsEvalFile(EmbeddedJS *ejs, const char *filename, int loadMode){
-    uint8_t *buf;
+    char *buf;
     int ret, eval_flags;
     size_t bufferLength;
     if (ejs->fileEvalHeap){
       SLHFree(ejs->fileEvalHeap);
     }
     ejs->fileEvalHeap = makeShortLivedHeap(0x10000,0x100); /* hacky constants, I know */
-    
-    buf = js_load_file(ejs->ctx, &bufferLength, filename);
+    size_t sourceLen = strlen(filename);
+    char asciiFilename[sourceLen + 1];
+    snprintf (asciiFilename, sourceLen + 1, "%.*s", (int)sourceLen, filename);
+    convertFromNative(asciiFilename, sourceLen);
+ 
+    buf = (char*)js_load_file(ejs->ctx, &bufferLength, asciiFilename);
     if (!buf) {
         perror(filename);
         return errno;
+    } else{
+      convertFromNative(buf,(int)bufferLength);
     }
 
     /* Beware of overly-expedient 3-valued logic here! */
@@ -256,6 +268,14 @@ typedef struct NativeClassInternals_tag {
   JSClassDef classDef;
 } NativeClassInternals;
 
+#define MAX_CLEANUPS 10
+
+#define CLEANUP_STRING 1
+
+typedef struct InvocationCleanup_tag{
+  void *pointer;
+  int   type;
+} InvocationCleanup;
 
 struct EJSNativeInvocation_tag {
   EmbeddedJS *ejs;
@@ -263,6 +283,8 @@ struct EJSNativeInvocation_tag {
   int argc;
   JSValueConst *argv;
   JSValue returnValue;
+  int cleanupCount;
+  InvocationCleanup cleanups[MAX_CLEANUPS];
 };
 
 /* all return non-0 for failure 
@@ -306,7 +328,16 @@ int ejsStringArg(EJSNativeInvocation *invocation,
   }
 
   size_t len;
-  *valuePtr = JS_ToCStringLen(invocation->ejs->ctx, &len, arg);
+  const char *cString = JS_ToCStringLen(invocation->ejs->ctx, &len, arg);
+#ifdef __ZOWE_OS_ZOS
+  char *nativeString = safeMalloc((int)len+1,"EJSStringArg");
+  memcpy(nativeString,cString,len+1);
+  convertToNative(nativeString,len);
+  *valuePtr = nativeString;
+  /* currently leaking until placed in invocation cleanups */
+#else
+  *valuePtr = cstr;
+#endif
   return EJS_OK;
 }
 
@@ -387,6 +418,7 @@ JSValue ejsFunctionTrampoline(JSContext *ctx, JSValueConst this_val, int argc, J
     printf("bad %s received %d args, required %d\n",method->name,argc,nativeArgs->size);
   }
   EJSNativeInvocation invocation;
+  memset(&invocation,0,sizeof(EJSNativeInvocation));
   invocation.ejs = ejs;
   invocation.method = method;
   invocation.argc = argc;
@@ -428,6 +460,9 @@ static const JSCFunctionListEntry js_experiment_funcs[] = {
     JS_CFUNC_DEF("boop", 0, js_experiment_boop ),
 };
 
+static char asciiPrototype[10] = { 0x70, 0x72, 0x6f, 0x74, 0x6f,
+				   0x74, 0x79, 0x70, 0x65, 0};
+
 static JSValue thingy_ctor(JSContext *ctx, JSValueConst new_target,
                            int argc, JSValueConst *argv){
   JSValue obj = JS_UNDEFINED, proto;
@@ -438,7 +473,7 @@ static JSValue thingy_ctor(JSContext *ctx, JSValueConst new_target,
     printf("thingy ctor undefined\n");
     proto = JS_GetClassProto(ctx, js_experiment_thingy_class_id);
   } else {
-    proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+    proto = JS_GetPropertyStr(ctx, new_target, asciiPrototype);
     if (JS_IsException(proto))
       goto fail;
     printf("thingy ctor proto is 0x%p\n",JS_VALUE_GET_PTR(proto));
@@ -532,7 +567,7 @@ static JSValue ejsNativeConstructorDispatcher(JSContext *ctx, JSValueConst new_t
     printf("*** EJS PANIC *** 'this' is expected in native constructor\n");
     goto fail;
   } else {
-    proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+    proto = JS_GetPropertyStr(ctx, new_target, asciiPrototype);
     if (ejs->traceLevel >= 2){
       printf("native ctor proto is 0x%p\n",JS_VALUE_GET_PTR(proto));
       dumpbuffer((char*)&proto,sizeof(JSValue));
@@ -544,7 +579,7 @@ static JSValue ejsNativeConstructorDispatcher(JSContext *ctx, JSValueConst new_t
   void *protoPointer = JS_VALUE_GET_PTR(proto);
   NativeClassInternals *classInternals = (NativeClassInternals*)lhtGet(ejs->nativeClassTable,(int64_t)protoPointer);
   if (!classInternals){
-    printf("*** EJS PANIC *** could not get class internals in native ctor dispatch\n");
+    printf("*** EJS PANIC *** could not get class internals in native ctor dispatch protoPointer=0x%p\n",protoPointer);
     goto fail;
   }
   EJSNativeClass *nativeClass = classInternals->nativeClass;
@@ -554,6 +589,7 @@ static JSValue ejsNativeConstructorDispatcher(JSContext *ctx, JSValueConst new_t
     goto fail;
   }
   EJSNativeInvocation invocation;
+  memset(&invocation,0,sizeof(EJSNativeInvocation));
   nativeStruct = nativeClass->nativeConstructor(nativeClass->userData, &invocation);
   if (!nativeStruct){
     goto fail;
@@ -591,7 +627,7 @@ static int buildNativePrototypeFunctions(JSContext *ctx,
     size_t mnameLen = strlen(nativeMethod->name);
     nativeMethod->asciiName = safeMalloc(mnameLen + 1, "MethodAsciiName");
     snprintf(nativeMethod->asciiName, mnameLen + 1, "%.*s", (int)mnameLen, nativeMethod->name);
-    convertToNative(nativeMethod->asciiName, mnameLen);
+    convertFromNative(nativeMethod->asciiName, mnameLen);
 
     if (ejs->traceLevel >= 1){
       printf("  adding func %s() with %d args\n",nativeMethod->name,nativeArgs->size);
@@ -631,6 +667,7 @@ static int initNativeModuleCallback(JSContext *ctx, JSModuleDef *m){
     JS_NewClass(JS_GetRuntime(ctx), nativeClassInternals->classID, &nativeClassInternals->classDef);
     JSValue proto = JS_NewObject(ctx);
     void *protoPointer = JS_VALUE_GET_PTR(proto);
+    printf("JOE putting proto pointer for '%s' as proto=0x%p, nCI=0x%p\n",nativeClass->name,protoPointer,nativeClassInternals);
     lhtPut(ejs->nativeClassTable,(int64_t)protoPointer,nativeClassInternals);
     buildNativePrototypeFunctions(ctx,ejs,proto,nativeClass,nativeClassInternals);
 
@@ -686,7 +723,7 @@ JSModuleDef *ejsInitNativeModule(JSContext *ctx, EJSNativeModule *nativeModule){
   size_t nameLen = strlen(nativeModule->name);
   char *asciiName = safeMalloc(nameLen + 1,"ModuleAsciiName");
   snprintf(asciiName, nameLen + 1, "%.*s", (int)nameLen, nativeModule->name);
-  convertToNative(asciiName, nameLen);
+  convertFromNative(asciiName, nameLen);
 
   ArrayList *classes = &(nativeModule->classes);
   for (int i=0; i<classes->size; i++){
@@ -694,7 +731,7 @@ JSModuleDef *ejsInitNativeModule(JSContext *ctx, EJSNativeModule *nativeModule){
     size_t cnameLen = strlen(nativeClass->name);
     nativeClass->asciiName = safeMalloc(cnameLen+1, "NativeAsciiClassName");
     snprintf(nativeClass->asciiName, cnameLen + 1, "%.*s", (int)cnameLen, nativeClass->name);
-    convertToNative(nativeClass->asciiName, cnameLen);
+    convertFromNative(nativeClass->asciiName, cnameLen);
   }
 
   if (ejs->traceLevel >= 1){
@@ -1265,6 +1302,38 @@ static char **copyArrayFromNative(int sourceCount, char **sourceArray, ShortLive
   return copy;
 }
 
+#define MAX_PRINT_ELT_SIZE 0x10000
+
+static JSValue js_native_print(JSContext *ctx, JSValueConst this_val,
+			       int argc, JSValueConst *argv) {
+  int i;
+  const char *str;
+  size_t len;
+  char *native = safeMalloc(MAX_PRINT_ELT_SIZE,"native print");
+  
+  for(i = 0; i < argc; i++){
+    if (i != 0){
+      putchar(' ');
+    }
+    str = JS_ToCStringLen(ctx, &len, argv[i]);
+    if (!str){
+      safeFree(native,MAX_PRINT_ELT_SIZE);
+      return JS_EXCEPTION;
+    }
+    size_t printLen = min(len,MAX_PRINT_ELT_SIZE);
+    memcpy(native,str,printLen);
+    convertToNative(native,printLen);
+    fwrite(native, 1, printLen, stdout);
+    JS_FreeCString(ctx, str);
+  }
+  putchar('\n');
+  safeFree(native,MAX_PRINT_ELT_SIZE);
+  return JS_UNDEFINED;
+}
+
+static char asciiConsole[8] = { 0x63, 0x6f, 0x6e, 0x73, 0x6f, 0x6c, 0x65, 0x00 };
+static char asciiLog[4] = { 0x6c, 0x6f, 0x67, 0x00};
+
 
 bool configureEmbeddedJS(EmbeddedJS *embeddedJS, 
                          EJSNativeModule **nativeModules, int nativeModuleCount,
@@ -1299,6 +1368,15 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
                                       NULL);
   }
   js_std_add_helpers(ctx, argc, copyArrayFromNative(argc, argv, NULL));
+#ifdef __ZOWE_OS_ZOS
+  JSValue global_obj = JS_GetGlobalObject(ctx);
+  JSValue console = JS_GetPropertyStr(ctx, global_obj, asciiConsole);
+  if (embeddedJS->traceLevel >= 1){
+    printf("found console to override log method = 0x%p\n",JS_VALUE_GET_PTR(console));
+  }
+  JS_SetPropertyStr(ctx, console, asciiLog,
+		    JS_NewCFunction(ctx, js_native_print, asciiLog, 1));
+#endif
 
   int evalStatus = 0;
   /* make 'std' and 'os' visible to non module code */
