@@ -132,27 +132,29 @@ static void ejsDumpObject(JSContext *ctx, FILE *f, JSValueConst val)
     }
 }
 
+static char asciiStack[6] ={ 0x73, 0x74, 0x61, 0x63, 0x6b, 0x00};
+
 static void ejsDumpError(JSContext *ctx, JSValueConst exception_val)
 {
   JSValue val;
   BOOL is_error;
   
   is_error = JS_IsError(ctx, exception_val);
-  printf("is_error %d\n",is_error);
   
   ejsDumpObject(ctx, stderr, exception_val);
   if (is_error) {
-    val = JS_GetPropertyStr(ctx, exception_val, "stack");
+    val = JS_GetPropertyStr(ctx, exception_val, asciiStack);
     if (!JS_IsUndefined(val)) {
       ejsDumpObject(ctx, stderr, val);
-    }
+    } 
     JS_FreeValue(ctx, val);
   }
 }
 
 static JSValue ejsEvalBuffer1(EmbeddedJS *ejs,
                               const void *buffer, int bufferLength,
-                              const char *filename, int eval_flags,
+                              const char *filename,   /* expects ascii */
+                              int eval_flags,
                               int *statusPtr){
   JSContext *ctx = ejs->ctx;
   JSValue val;
@@ -246,7 +248,7 @@ int ejsEvalFile(EmbeddedJS *ejs, const char *filename, int loadMode){
         eval_flags = JS_EVAL_TYPE_MODULE;
     else
         eval_flags = JS_EVAL_TYPE_GLOBAL;
-    JSValue evalResult = ejsEvalBuffer1(ejs, buf, bufferLength, filename, eval_flags, &ret);
+    JSValue evalResult = ejsEvalBuffer1(ejs, buf, bufferLength, asciiFilename, eval_flags, &ret);
     js_free(ejs->ctx, buf);
     JS_FreeValue(ejs->ctx, evalResult);
     return ret;
