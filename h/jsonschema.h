@@ -88,6 +88,7 @@ typedef struct JsonValidator_tag {
   ValidityException *lastValidityException;
   int         flags;
   int         traceLevel;
+  FILE       *traceOut;
   AccessPath *accessPath;
   /* we use these pattern many times and manage the resources from here */
   regmatch_t  matches[MAX_VALIDATOR_MATCHES];
