@@ -115,6 +115,41 @@ struct JSValueBox_tag {
   JSValue value;
 };
 
+static void ejsDumpObject(JSContext *ctx, FILE *f, JSValueConst val)
+{
+    const char *str;
+    
+    str = JS_ToCString(ctx, val);
+    if (str) {
+      size_t copyLen = strlen(str);
+      char copy[copyLen+1];
+      snprintf(copy, copyLen + 1, "%.*s", (int)copyLen, str);
+      convertToNative(copy,(int)copyLen);
+      fprintf(f, "%s\n", copy);
+      JS_FreeCString(ctx, str);
+    } else {
+      fprintf(f, "[exception]\n");
+    }
+}
+
+static void ejsDumpError(JSContext *ctx, JSValueConst exception_val)
+{
+  JSValue val;
+  BOOL is_error;
+  
+  is_error = JS_IsError(ctx, exception_val);
+  printf("is_error %d\n",is_error);
+  
+  ejsDumpObject(ctx, stderr, exception_val);
+  if (is_error) {
+    val = JS_GetPropertyStr(ctx, exception_val, "stack");
+    if (!JS_IsUndefined(val)) {
+      ejsDumpObject(ctx, stderr, val);
+    }
+    JS_FreeValue(ctx, val);
+  }
+}
+
 static JSValue ejsEvalBuffer1(EmbeddedJS *ejs,
                               const void *buffer, int bufferLength,
                               const char *filename, int eval_flags,
@@ -143,9 +178,11 @@ static JSValue ejsEvalBuffer1(EmbeddedJS *ejs,
     char nativeMessage[messageLen+1];
     snprintf(nativeMessage, messageLen + 1, "%.*s", (int)messageLen, message);
     convertToNative(nativeMessage,(int)messageLen);
-    printf("EJS exceptionMessage:\n%s\n",nativeMessage);
-    dumpbuffer(message,strlen(message));
-
+    if (ejs->traceLevel >= 1){
+      printf("EJS exceptionMessage:\n%s\n",nativeMessage);
+      dumpbuffer(message,strlen(message));
+    }
+    ejsDumpError(ctx,exception);
     JS_FreeCString(ctx,message);
     JS_FreeValue(ctx, exception);
     ret = -1;
