@@ -435,6 +435,7 @@ static CFGConfig *getConfig(ConfigManager *mgr, const char *configName){
     if (!strcmp(config->name,configName)){
       return config;
     }
+    config = config->next;
   }
   return NULL;
 }
