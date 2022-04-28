@@ -480,7 +480,8 @@ static JsonSchema *loadOneSchema(ConfigManager *mgr, CFGConfig *config, char *sc
   trace(mgr,DEBUG,"before jsonParseFile info\n");
   Json *jsonWithSchema = jsonParseFile2(mgr->slh,schemaFilePath,errorBuffer,1024);
   if (jsonWithSchema == NULL){
-    trace(mgr,INFO,"failed to read JSON with base schema: %s\n",errorBuffer);
+    trace(mgr,INFO,"ZWExxxxxE: JSON Schema file (in '%s') has syntax error: %s\n",
+	  schemaFilePath,errorBuffer);
     return NULL;
   }
   if (mgr->traceLevel >= 1){

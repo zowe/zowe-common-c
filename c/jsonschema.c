@@ -80,7 +80,7 @@ static char *getJSTypeName(int type){
   switch (type){
   case JSTYPE_NULL: return "null";
   case JSTYPE_BOOLEAN: return "boolean";
-  case JSTYPE_OBJECT: return "objct";
+  case JSTYPE_OBJECT: return "object";
   case JSTYPE_ARRAY: return "array";
   case JSTYPE_STRING: return "string";
   case JSTYPE_NUMBER: return "number";
