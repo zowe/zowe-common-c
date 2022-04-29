@@ -41,6 +41,10 @@ static regex_t *compileRegex(char *pattern, int *regexStatus){
 
     clang -I%YAML%/include -I./src -I../h -I ../platform/windows -Dstrdup=_strdup -D_CRT_SECURE_NO_WARNINGS -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 -o pattest.exe pattest.c ../c/timeutls.c ../c/utils.c ../c/alloc.c cppregex.o winregex.o
 
+    On ZOS
+
+    xlclang -q64 -D_OPEN_SYS_FILE_EXT=1 -D_XOPEN_SOURCE=600 -D_OPEN_THREADS=1 -DSUBPOOL=132 "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN')" -I ../h -I ../platform/posix -Wbitwise-op-parentheses -o pattest pattest.c ../c/zos.c ../c/timeutls.c ../c/utils.c ../c/alloc.c ../platform/posix/psxregex.c
+
  */
 
 #define MAX_MATCHES 10
