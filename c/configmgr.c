@@ -435,6 +435,7 @@ static CFGConfig *getConfig(ConfigManager *mgr, const char *configName){
     if (!strcmp(config->name,configName)){
       return config;
     }
+    config = config->next;
   }
   return NULL;
 }
@@ -480,7 +481,8 @@ static JsonSchema *loadOneSchema(ConfigManager *mgr, CFGConfig *config, char *sc
   trace(mgr,DEBUG,"before jsonParseFile info\n");
   Json *jsonWithSchema = jsonParseFile2(mgr->slh,schemaFilePath,errorBuffer,1024);
   if (jsonWithSchema == NULL){
-    trace(mgr,INFO,"failed to read JSON with base schema: %s\n",errorBuffer);
+    trace(mgr,INFO,"ZWExxxxxE: JSON Schema file (in '%s') has syntax error: %s\n",
+	  schemaFilePath,errorBuffer);
     return NULL;
   }
   if (mgr->traceLevel >= 1){
@@ -1556,7 +1558,25 @@ static int simpleMain(int argc, char **argv){
   return 0;
 }
 
+/* a diagnostic function that can be used if other logging initialization bugs come up */
+static void ensureLE64(){
+  char *realCAA = NULL;
 
+  char *laa = *(char * __ptr32 * __ptr32)0x04B8;
+  printf("LAA at 0x%p\n",laa);
+  dumpbuffer((char*)laa,0x180);
+  char *lca = *(char **)(laa + 88);
+  printf("LCA at 0%p\n",lca);
+  dumpbuffer((char*)lca,0x358);
+  realCAA = *(char **)(lca + 8);
+  printf("realCAA = 0x%p\n",realCAA);
+  dumpbuffer(realCAA,0x450);
+  /* 
+     memset(realCAA+0x2A0,0,8);
+     printf("realCAA again = 0x%p\n",realCAA);
+     dumpbuffer(realCAA,0x450);
+     */
+}
 
 #ifdef CMGRTEST
 int main(int argc, char **argv){

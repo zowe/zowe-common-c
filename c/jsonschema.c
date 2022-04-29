@@ -80,7 +80,7 @@ static char *getJSTypeName(int type){
   switch (type){
   case JSTYPE_NULL: return "null";
   case JSTYPE_BOOLEAN: return "boolean";
-  case JSTYPE_OBJECT: return "objct";
+  case JSTYPE_OBJECT: return "object";
   case JSTYPE_ARRAY: return "array";
   case JSTYPE_STRING: return "string";
   case JSTYPE_NUMBER: return "number";
@@ -88,6 +88,15 @@ static char *getJSTypeName(int type){
   default: return "unknown";
   }
 }
+
+static void trace(JsonValidator *validator, char *formatString, ...){
+  va_list argPointer; 
+  va_start(argPointer,formatString);
+  vfprintf(validator->traceOut,formatString,argPointer);
+  va_end(argPointer);
+  fflush(validator->traceOut);
+}
+
 
 #define JS_VALIDATOR_MULTOF       0x00000001
 #define JS_VALIDATOR_MAX          0x00000002
@@ -277,6 +286,7 @@ JsonValidator *makeJsonValidator(void){
   memset(validator,0,sizeof(JsonValidator));
   validator->accessPath = (AccessPath*)safeMalloc(sizeof(AccessPath),"JsonValidatorAccessPath");
   validator->accessPath->currentSize = 0;
+  validator->traceOut = stderr;
   return validator;
 }
 
@@ -334,7 +344,7 @@ static bool validateType(JsonValidator *validator,
                          int typeCode,
                          JSValueSpec *valueSpec){
   if (validator->traceLevel >= 1){
-    printf("typeCode=%d shifted=0x%x mask=0x%x\n",typeCode,(1 << typeCode),valueSpec->typeMask);
+    trace(validator,"typeCode=%d shifted=0x%x mask=0x%x\n",typeCode,(1 << typeCode),valueSpec->typeMask);
   }
   if (((1 << typeCode) & valueSpec->typeMask) == 0){
     noteValidityException(validator,isSpeculating,12,"type '%s' not permitted at %s",
@@ -396,9 +406,9 @@ static VResult validateJSONObject(JsonValidator *validator,
   int invalidCount = 0;
   AccessPath *accessPath = validator->accessPath;
   if (validator->traceLevel >= 1){
-    printf("validateJSONObject required=0x%p\n",valueSpec->required);
-    printAccessPath(stdout,accessPath);
-    fflush(stdout);
+    trace(validator,"validateJSONObject required=0x%p\n",valueSpec->required);
+    printAccessPath(validator->traceOut,accessPath);
+    fflush(validator->traceOut);
   }
   if (valueSpec->required){
     for (int r=0; r<valueSpec->requiredCount; r++){
@@ -416,8 +426,7 @@ static VResult validateJSONObject(JsonValidator *validator,
     propertyCount++;
     char *propertyName = jsonPropertyGetKey(property);
     if (validator->traceLevel >= 1){
-      printf("validate object pname=%s\n",propertyName);
-      fflush(stdout);
+      trace(validator,"validate object pname=%s\n",propertyName);
     }
     Json *propertyValue = jsonPropertyGetValue(property);
     JSValueSpec *propertySpec = getPropertyValueSpec(valueSpec,propertyName);
@@ -433,9 +442,8 @@ static VResult validateJSONObject(JsonValidator *validator,
         noteValidityException(validator,isSpeculating,12,"unspecified additional property not allowed: '%s' at '%s'",
                               propertyName,validatorAccessPath(validator));
       } else if (validator->flags && VALIDATOR_WARN_ON_UNDEFINED_PROPERTIES){
-        printf("*WARNING* unspecified property seen, '%s', and checking code is not complete, vspec->props=0x%p\n",
+        trace(validator,"*WARNING* unspecified property seen, '%s', and checking code is not complete, vspec->props=0x%p\n",
                propertyName,valueSpec->properties);
-        fflush(stdout);
       }
       if (valueSpec->properties){ 
         /* htDump(valueSpec->properties); */
@@ -447,7 +455,7 @@ static VResult validateJSONObject(JsonValidator *validator,
   
   // Interdependencies
   if (valueSpec->dependentRequired != NULL){
-    printf("*WARNING* depenentRequired not yet implemented\n");
+    trace(validator,"*WARNING* depenentRequired not yet implemented\n");
   }
 
   
@@ -681,7 +689,7 @@ static JSValueSpec *getTopSchemaByName(JsonValidator *validator,
   hashtable *definitionTable = validator->topSchema->topValueSpec->definitions;
   JSValueSpec *schema = (definitionTable ? htGet(definitionTable,key) : NULL);
   if (validator->traceLevel >= 1){
-    printf("getTopSchema for key='%s' yields 0x%p (from HT)\n",key,schema);
+    trace(validator,"getTopSchema for key='%s' yields 0x%p (from HT)\n",key,schema);
   }
   if (schema == NULL){
     for (int i=0; i<validator->otherSchemaCount; i++){
@@ -691,7 +699,7 @@ static JSValueSpec *getTopSchemaByName(JsonValidator *validator,
       if (otherTopSpec->id && !strcmp(otherTopSpec->id,key)){
         schema = otherTopSpec;
         if (validator->traceLevel >= 1){
-          printf("getTopSchema for key='%s' yields 0x%p (from Other Schemas)\n",key,schema);
+          trace(validator,"getTopSchema for key='%s' yields 0x%p (from Other Schemas)\n",key,schema);
         }
         break;
       }
@@ -719,7 +727,7 @@ static JSValueSpec *resolveCrossSchemaRef(JsonValidator *validator, bool isSpecu
     char *anchor = ref+anchorMatch->rm_so+1; /* +1 to skip the '#' char */
     JSValueSpec *spec = (JSValueSpec*)htGet(referredTopSchema->anchorTable,anchor);
     if (validator->traceLevel >= 1){
-      printf("anchor '%s' resolves to 0x%p\n",anchor,spec);
+      trace(validator,"anchor '%s' resolves to 0x%p\n",anchor,spec);
     }
     if (spec == NULL){
       noteValidityException(validator,isSpeculating,12,"anchor schema ref '%s' does not resolve in referred schema",ref);
@@ -734,11 +742,11 @@ static JSValueSpec *resolveRef(JsonValidator *validator, bool isSpeculating, JSV
   int refLen = strlen(ref);
   int matchStatus = 0;
   if (validator->traceLevel >= 1){
-    printf("resolveRef ref=%s\n",valueSpec->ref);
+    trace(validator,"resolveRef ref=%s\n",valueSpec->ref);
   }
   JSValueSpec *containingSpec = getTopLevelAncestor(valueSpec);
   if (containingSpec == NULL){ /* this code is wrong if topLevel (parent chain) is no good */
-    printf("*** PANIC *** no top level\n");
+    trace(validator,"*** PANIC *** no top level\n");
     return NULL;
   }
   
@@ -845,7 +853,7 @@ static VResult validateJSONSimple(JsonValidator *validator, bool isSpeculating, 
     }
     
   } else {
-    printf("*** PANIC *** unhandled JS Value with type = %d\n",value->type);
+    trace(validator,"*** PANIC *** unhandled JS Value with type = %d\n",value->type);
     return InvalidStop;
   }
 }
@@ -867,7 +875,7 @@ static VResult validateQuantifiedSpecs(JsonValidator *validator,
                                     value,valueSpec);
     validCount += (vResultValid(eltValid) ? 1 : 0);
     if (validator->traceLevel >= 1){
-      printf("vQS i=%d type=%d valid=%d vCount=%d\n",i,quantType,eltValid,validCount);
+      trace(validator,"vQS i=%d type=%d valid=%d vCount=%d\n",i,quantType,eltValid,validCount);
     }
     switch (quantType){
     case QUANT_ALL:
@@ -899,7 +907,7 @@ static VResult validateQuantifiedSpecs(JsonValidator *validator,
 
     return ValidContinue;
   case QUANT_ONE:
-    /* printf("quantOne vCount=%d\n",validCount); */
+    /* trace(validator,"quantOne vCount=%d\n",validCount); */
     return (validCount == 1) ? ValidContinue : InvalidContinue;
   default:
     /* can't really get here */
@@ -926,6 +934,10 @@ static bool jsonEquals(Json *a, Json *b){
 }
 
 static VResult validateJSON(JsonValidator *validator, bool isSpeculating,Json *value, JSValueSpec *valueSpec){
+  if (validator->traceLevel >= 2){
+    trace(validator,"validateJSON top, value=0x%p, spec=0x%p value->type=%d, spec->mask=0x%x, ref=0x%p\n",
+	  value,valueSpec,value->type,valueSpec->typeMask,valueSpec->ref);
+  }
   while (valueSpec->ref){
     valueSpec = resolveRef(validator,isSpeculating,valueSpec);
     if (valueSpec == NULL){
@@ -933,8 +945,7 @@ static VResult validateJSON(JsonValidator *validator, bool isSpeculating,Json *v
     }
   }
   if (validator->traceLevel >= 1){
-    printf("validate JSON value->type=%d specTypeMask=0x%x\n",value->type,valueSpec->typeMask);
-    fflush(stdout);
+    trace(validator,"validate JSON value->type=%d specTypeMask=0x%x\n",value->type,valueSpec->typeMask);
   }
   if (valueSpec->constValue){
     bool eq = jsonEquals(value,valueSpec->constValue);
@@ -1004,8 +1015,7 @@ int jsonValidateSchema(JsonValidator *validator, Json *value, JsonSchema *topSch
       return JSON_VALIDATOR_HAS_EXCEPTIONS;
     }
   } else {
-    printf("validation failed '%s'\n",validator->errorMessage);
-    fflush(stdout);
+    trace(validator,"validation failed '%s'\n",validator->errorMessage);
     return JSON_VALIDATOR_INTERNAL_FAILURE;
   }
 }
