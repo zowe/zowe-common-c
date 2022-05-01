@@ -60,14 +60,30 @@ typedef struct JsonSchemaBuilder_tag {
 #endif
 } JsonSchemaBuilder;
 
+
+/* The return types of these validators is bool to allow validator to signal whether to continue 
+   to gather more validation exceptions in this part of the JSON tree/graph.  Returning false says
+   this part is invalid enough such that further evaluation would probably confuse the user with 
+   contradictory information. */
+typedef enum VResult_tag {
+  InvalidStop = 0,
+  ValidStop = 1,
+  InvalidContinue = 2,
+  ValidContinue = 3
+} VResult;
+
+
 #define MAX_ACCESS_PATH 1024
 
 #define MAX_VALIDITY_EXCEPTION_MSG 1024
 
 typedef struct ValidityException_tag {
   int code;
+  VResult result;
   struct ValidityException_tag *next;
   char message[MAX_VALIDITY_EXCEPTION_MSG];
+  struct ValidityException_tag *firstChild;
+  struct ValidityException_tag *nextSibling;
 } ValidityException;
 
 #define VALIDATOR_WARN_ON_UNDEFINED_PROPERTIES 0x0001
@@ -97,6 +113,7 @@ typedef struct JsonValidator_tag {
   regex_t    *fileRegex;
   int         fileRegexError;
   jmp_buf     recoveryData;
+  ShortLivedHeap *evalHeap;
 } JsonValidator;
 
 #define JSON_SCHEMA_DRAFT_4 400
