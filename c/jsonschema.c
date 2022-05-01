@@ -89,7 +89,10 @@ static char *getJSTypeName(int type){
   }
 }
 
-static void trace(JsonValidator *validator, char *formatString, ...){
+static void trace(JsonValidator *validator, int depth, char *formatString, ...){
+  for (int i=0; i<depth; i++){
+    fprintf(validator->traceOut,"  ");
+  }
   va_list argPointer; 
   va_start(argPointer,formatString);
   vfprintf(validator->traceOut,formatString,argPointer);
@@ -165,6 +168,7 @@ typedef struct JSValueSpec_tag {
   hashtable *properties;
   hashtable *dependentRequired;
   bool       additionalProperties;
+  bool       unevaluatedProperties;
   PatternProperty *firstPatternProperty;
   PatternProperty *lastPatternProperty;
 
@@ -204,7 +208,8 @@ static void printAccessPath(FILE *out, AccessPath *path){
   fprintf(out,"\n");
 }
 
-static char *makeAccessPathString(char *buffer, int bufferLen, AccessPath *path){
+static char *fillAccessPathString(char *buffer, int bufferLen, AccessPath *path){
+  memset(buffer,0,bufferLen);
   int pos = 0;
   for (int i=0; i<path->currentSize; i++){
     if (pos + 100 >= bufferLen){
@@ -257,6 +262,8 @@ static void validationThrow(JsonValidator *validator, int errorCode, char *forma
   longjmp(validator->recoveryData,1);
 }
 
+
+
 static ValidityException *noteValidityException(JsonValidator *validator,
                                                 bool isSpeculating,
                                                 int invalidityCode,
@@ -296,7 +303,7 @@ void freeJsonValidator(JsonValidator *validator){
 }
 
 static char *validatorAccessPath(JsonValidator *validator){
-  return makeAccessPathString(validator->accessPathBuffer,MAX_ACCESS_PATH,validator->accessPath);
+  return fillAccessPathString(validator->accessPathBuffer,MAX_ACCESS_PATH,validator->accessPath);
 }
 
 static JSValueSpec *getTopLevelAncestor(JSValueSpec *valueSpec){
@@ -318,19 +325,6 @@ static JSValueSpec *getOutermostAncestor(JSValueSpec *valueSpec){
   return ancestor;
 }
 
-
-/* The return types of these validators is bool to allow validator to signal whether to continue 
-   to gather more validation exceptions in this part of the JSON tree/graph.  Returning false says
-   this part is invalid enough such that further evaluation would probably confuse the user with 
-   contradictory information. */
-
-typedef enum VResult_tag {
-  InvalidStop = 0,
-  ValidStop = 1,
-  InvalidContinue = 2,
-  ValidContinue = 3
-} VResult;
-
 static bool vResultValid(VResult r){
   return (r == ValidStop) || (r == ValidContinue);
 }
@@ -339,12 +333,31 @@ static VResult invertValidity(VResult r){
   return (VResult)(((int)r)^0x1);
 }
 
+static char *vResultName(VResult r){
+  switch (r){
+  case InvalidStop: return "IS";
+  case ValidStop: return "VS";
+  case InvalidContinue: return "IC";
+  case ValidContinue: return "VC";
+  default: return "??";
+  }
+}
+
+static VResult vResultMin(VResult a, VResult b){
+  int aNum = (int)a;
+  int bNum = (int)b;
+  int minValid = min((aNum&1),(bNum&1));
+  int minContinue = min((aNum&2),(bNum&2));
+  return (VResult)(minContinue|minValid);
+}
+
 static bool validateType(JsonValidator *validator,
                          bool isSpeculating,
                          int typeCode,
-                         JSValueSpec *valueSpec){
+                         JSValueSpec *valueSpec,
+                         int depth){
   if (validator->traceLevel >= 1){
-    trace(validator,"typeCode=%d shifted=0x%x mask=0x%x\n",typeCode,(1 << typeCode),valueSpec->typeMask);
+    trace(validator,depth,"typeCode=%d shifted=0x%x mask=0x%x\n",typeCode,(1 << typeCode),valueSpec->typeMask);
   }
   if (((1 << typeCode) & valueSpec->typeMask) == 0){
     noteValidityException(validator,isSpeculating,12,"type '%s' not permitted at %s",
@@ -396,26 +409,168 @@ static JSValueSpec *getPropertyValueSpec(JSValueSpec *valueSpec, char *propertyN
   return NULL;
 }
 
+/*
+  each JsonObject in the tree has a set of evaluated properties
+  that grows and shrinks as validation rules run.
+
+  for each value object only things seen in this traversal (lateness, deepness) are considered "evaluated"
+
+  try to dump the evaluated set for each validateOBject
+
+  each JSValueSpec evaluation has a set of (obj,pname) pairs that have been evaluated in its recursive descent
+    this a large-ish but well-defined construction
+    this is also true for (array,index)
+
+  Sunday
+
+  the speculation feature is wrong
+    invalidations should be in a tree and everything that is checked should be placed under a parent
+    so, pass a subInvalidations bucket into each recursive call, and if failing the current level, add those children
+  
+*/
+
+typedef struct PropertyEvalRecord_tag {
+  char *name;
+  struct PropertyEvalRecord_tag *next;
+} PropertyEvalRecord;
+
+typedef struct ObjectEvalRecord_tag {
+  JsonObject *object;
+  PropertyEvalRecord *properties;
+  struct ObjectEvalRecord_tag *next;
+} ObjectEvalRecord;
+
+typedef struct EvalSet_tag {
+  ObjectEvalRecord *objectRecords;
+  struct EvalSet_tag *next;
+} EvalSet;
+
+static PropertyEvalRecord *getPropertyEvalRecord(ObjectEvalRecord *objectRecord, char *propertyName){
+  PropertyEvalRecord *record = objectRecord->properties;
+  while (record){
+    if (!strcmp(record->name,propertyName)){
+      return record;
+    }
+    record = record->next;
+  }
+  return NULL;
+}
+
+static ObjectEvalRecord *getObjectEvalRecord(EvalSet *evalSet, JsonObject *object){
+  ObjectEvalRecord *record = evalSet->objectRecords;
+  while (record){
+    if (record->object == object){
+      return record;
+    }
+    record = record->next;
+  }
+  return NULL;
+}
+
+static void addPropertyToObjectRecord(JsonValidator *validator,
+                                      ObjectEvalRecord *objectEvalRecord,
+                                      char *propertyName){
+  if (!getPropertyEvalRecord(objectEvalRecord,propertyName)){
+    PropertyEvalRecord *record = (PropertyEvalRecord*)SLHAlloc(validator->evalHeap,sizeof(PropertyEvalRecord));
+    record->name = propertyName;
+    record->next = objectEvalRecord->properties;
+    objectEvalRecord->properties = record;
+  }
+}
+
+static EvalSet *extendEvalSets(JsonValidator *validator, EvalSet *evalSets){
+  EvalSet *newSet = (EvalSet*)SLHAlloc(validator->evalHeap,sizeof(EvalSet));
+  newSet->objectRecords = NULL;
+  newSet->next = evalSets;
+  return newSet;
+}
+
+static void notePropertyEvaluation(JsonValidator *validator, EvalSet *evalSetList, JsonObject *object, char *propertyName){
+  EvalSet *evalSet = evalSetList;
+  /* add to *ALL* eval sets */
+  while (evalSet){
+    ObjectEvalRecord *objectEvalRecord = getObjectEvalRecord(evalSet,object);
+    if (objectEvalRecord == NULL){
+      objectEvalRecord = (ObjectEvalRecord*)SLHAlloc(validator->evalHeap,sizeof(ObjectEvalRecord));
+      objectEvalRecord->object = object;
+      objectEvalRecord->properties = NULL;
+      objectEvalRecord->next = evalSet->objectRecords;
+      evalSet->objectRecords = objectEvalRecord;
+    }
+    addPropertyToObjectRecord(validator,objectEvalRecord,propertyName);
+    evalSet = evalSet->next;
+  }
+}
+
+static void traceEvalSets(JsonValidator *validator, int depth, EvalSet *evalSetList){
+  EvalSet *evalSet = evalSetList;
+  while (evalSet){
+    trace(validator,depth,"EvalSet 0x%p\n",evalSet);
+    ObjectEvalRecord *objectRecord = evalSet->objectRecords;
+    while (objectRecord){
+      trace(validator,depth+1,"For JsonObj=0x%p:",objectRecord->object);
+      PropertyEvalRecord *propertyRecord = objectRecord->properties;
+      while (propertyRecord){
+        trace(validator,0," '%s'",propertyRecord->name);
+        propertyRecord = propertyRecord->next;
+      }
+      trace(validator,0,"\n");
+      objectRecord = objectRecord->next;
+    }
+    evalSet = evalSet->next;
+  }
+}
+
+static bool hasBeenEvaluated(EvalSet *evalSet, JsonObject *object, char *propertyName){
+  ObjectEvalRecord *objectRecord = evalSet->objectRecords;
+  while (objectRecord){
+    if (objectRecord->object == object){
+      PropertyEvalRecord *propertyRecord = objectRecord->properties;
+      while (propertyRecord){
+        if (!strcmp(propertyRecord->name,propertyName)){
+          return true;
+        }
+        propertyRecord = propertyRecord->next;
+      }
+    }
+    objectRecord = objectRecord->next;
+  }
+  return false;
+}
+
 /* for mutual recursion */
-static VResult validateJSON(JsonValidator *validator, bool isSpeculating, Json *value, JSValueSpec *valueSpec);
+static VResult validateJSON(JsonValidator *validator, bool isSpeculating, Json *value, JSValueSpec *valueSpec, int depth,
+                            EvalSet *evalSetList);
 
 static VResult validateJSONObject(JsonValidator *validator,
                                   bool isSpeculating,
                                   JsonObject *object,
-                                  JSValueSpec *valueSpec){
+                                  JSValueSpec *valueSpec,
+                                  int depth,
+                                  EvalSet *evalSetList){
   int invalidCount = 0;
   AccessPath *accessPath = validator->accessPath;
   if (validator->traceLevel >= 1){
-    trace(validator,"validateJSONObject required=0x%p\n",valueSpec->required);
-    printAccessPath(validator->traceOut,accessPath);
+    trace(validator,depth,"validateJSONObject required=[");
+    for (int r=0; r<valueSpec->requiredCount; r++){
+      trace(validator,0,"\"%s\", ",valueSpec->required[r]);
+    }
+    trace(validator,0,"]\n"); /* 0 because is line fragment */
+    trace(validator,depth,"accessPath (top is blank):\n");
+    printAccessPath(stdout,accessPath);
     fflush(validator->traceOut);
   }
   if (valueSpec->required){
     for (int r=0; r<valueSpec->requiredCount; r++){
       char *requiredProperty = valueSpec->required[r];
-      if (jsonObjectGetPropertyValue(object,requiredProperty) == NULL){
+      Json *propertyValue = jsonObjectGetPropertyValue(object,requiredProperty);
+      if (validator->traceLevel >= 1){
+        trace(validator,depth,"  req prop check on '%s': 0x%p\n",requiredProperty,propertyValue);
+      }
+      if (propertyValue == NULL){
         noteValidityException(validator,isSpeculating,12,"missing required property '%s' at '%s'",
                               requiredProperty,validatorAccessPath(validator));
+        invalidCount++;
       }
     }
   }
@@ -426,14 +581,15 @@ static VResult validateJSONObject(JsonValidator *validator,
     propertyCount++;
     char *propertyName = jsonPropertyGetKey(property);
     if (validator->traceLevel >= 1){
-      trace(validator,"validate object pname=%s\n",propertyName);
+      trace(validator,depth,"validate object pname=%s\n",propertyName);
     }
     Json *propertyValue = jsonPropertyGetValue(property);
     JSValueSpec *propertySpec = getPropertyValueSpec(valueSpec,propertyName);
     accessPathPushName(accessPath,propertyName);
-        
+    /* fprintf(validator->traceOut,"PUSH %s, pthsz=%d\n",propertyName,validator->accessPath->currentSize); */
     if (propertySpec != NULL){
-      VResult propResult = validateJSON(validator,isSpeculating,propertyValue,propertySpec);
+      VResult propResult = validateJSON(validator,isSpeculating,propertyValue,propertySpec,depth+1,evalSetList);
+      notePropertyEvaluation(validator,evalSetList,object,propertyName);
       if (!vResultValid(propResult)){
         invalidCount++;
       }
@@ -441,8 +597,25 @@ static VResult validateJSONObject(JsonValidator *validator,
       if (valueSpec->additionalProperties == false){
         noteValidityException(validator,isSpeculating,12,"unspecified additional property not allowed: '%s' at '%s'",
                               propertyName,validatorAccessPath(validator));
+        invalidCount++;
+      } else if (valueSpec->unevaluatedProperties == false){
+        if (validator->traceLevel >= 1){
+          trace(validator,depth,"Is '%s' in the following eval sets for obj=0x%p myEvalSet=0x%p\n",propertyName,object,evalSetList);
+          traceEvalSets(validator,depth+1,evalSetList);
+        }
+        EvalSet *ourEvalSet = evalSetList; /* The first evalSet in the list must contain the evaluation of any property 
+                                              at this "level" in the schema evalution.  It's kinda complex.
+                                           */
+        if (!hasBeenEvaluated(ourEvalSet,object,propertyName)){
+          if (validator->traceLevel >= 1){
+            trace(validator,depth,"Invalid object on unevaluated property '%s'\n",propertyName);
+          }
+          noteValidityException(validator,isSpeculating,12,"unevaluated property not allowed: '%s' at '%s'",
+                                propertyName,validatorAccessPath(validator));
+          invalidCount++;
+        }
       } else if (validator->flags && VALIDATOR_WARN_ON_UNDEFINED_PROPERTIES){
-        trace(validator,"*WARNING* unspecified property seen, '%s', and checking code is not complete, vspec->props=0x%p\n",
+        trace(validator,depth,"*WARNING* unspecified property seen, '%s', and checking code is not complete, vspec->props=0x%p\n",
                propertyName,valueSpec->properties);
       }
       if (valueSpec->properties){ 
@@ -450,12 +623,13 @@ static VResult validateJSONObject(JsonValidator *validator,
       }
     }
     accessPathPop(accessPath);
+    /* fprintf(validator->traceOut,"POP %s, pthsz=%d\n",propertyName,validator->accessPath->currentSize); */
     property = jsonObjectGetNextProperty(property);
   }
   
   // Interdependencies
   if (valueSpec->dependentRequired != NULL){
-    trace(validator,"*WARNING* depenentRequired not yet implemented\n");
+    trace(validator,depth,"*WARNING* depenentRequired not yet implemented\n");
   }
 
   
@@ -481,7 +655,9 @@ static VResult validateJSONObject(JsonValidator *validator,
 static VResult validateJSONArray(JsonValidator *validator,
                                  bool isSpeculating,
                                  JsonArray *array,
-                                 JSValueSpec *valueSpec){
+                                 JSValueSpec *valueSpec,
+                                 int depth,
+                                 EvalSet *evalSetList){
   AccessPath *accessPath = validator->accessPath;
   int invalidCount = 0;
   //boolean uniqueItems;
@@ -520,7 +696,7 @@ static VResult validateJSONArray(JsonValidator *validator,
     Json *itemValue = jsonArrayGetItem(array,i);
     accessPathPushIndex(accessPath,i);
     if (valueSpec->itemSpec != NULL){
-      VResult elementStatus = validateJSON(validator,isSpeculating,itemValue,valueSpec->itemSpec);
+      VResult elementStatus = validateJSON(validator,isSpeculating,itemValue,valueSpec->itemSpec,depth+1,evalSetList);
       if (!vResultValid(elementStatus)){
         invalidCount++;
       }
@@ -543,7 +719,8 @@ static VResult validateJSONArray(JsonValidator *validator,
 static VResult validateJSONString(JsonValidator *validator,
                                   bool isSpeculating,
                                   Json *string,
-                                  JSValueSpec *valueSpec){
+                                  JSValueSpec *valueSpec,
+                                  int depth){
   int invalidCount = 0;
   char *s = jsonAsString(string);
   int len = strlen(s);
@@ -582,7 +759,8 @@ static VResult validateJSONString(JsonValidator *validator,
 static VResult validateJSONNumber(JsonValidator *validator,
                                   bool isSpeculating,
                                   Json *doubleOrLegacyInt,
-                                  JSValueSpec *valueSpec){
+                                  JSValueSpec *valueSpec,
+                                  int depth){
   // Number multipleOf; // can be a filled, and must be > 0
   // Number exclusiveMaximum;
   // Number exclusiveMinimum;
@@ -618,7 +796,8 @@ static VResult validateJSONNumber(JsonValidator *validator,
 static VResult validateJSONInteger(JsonValidator *validator,
                                    bool isSpeculating,
                                    Json *value64,
-                                   JSValueSpec *valueSpec){
+                                   JSValueSpec *valueSpec,
+                                   int depth){
   // Number multipleOf; // can be a filled, and must be > 0
   // Number exclusiveMaximum;
   // Number exclusiveMinimum;
@@ -680,7 +859,8 @@ static int fileMatch(JsonValidator *v, char *s){
 
 static JSValueSpec *getTopSchemaByName(JsonValidator *validator,
                                        char *hostName, int hostNameLength,
-                                       char *fileName, int fileNameLength){
+                                       char *fileName, int fileNameLength,
+                                       int depth){
   int len = hostNameLength+fileNameLength+8;
   char *key = safeMalloc(len,"topSchemaKey");
   snprintf(key,len,"%*.*s/%*.*s",
@@ -689,7 +869,7 @@ static JSValueSpec *getTopSchemaByName(JsonValidator *validator,
   hashtable *definitionTable = validator->topSchema->topValueSpec->definitions;
   JSValueSpec *schema = (definitionTable ? htGet(definitionTable,key) : NULL);
   if (validator->traceLevel >= 1){
-    trace(validator,"getTopSchema for key='%s' yields 0x%p (from HT)\n",key,schema);
+    trace(validator,depth,"getTopSchema for key='%s' yields 0x%p (from HT)\n",key,schema);
   }
   if (schema == NULL){
     for (int i=0; i<validator->otherSchemaCount; i++){
@@ -699,7 +879,7 @@ static JSValueSpec *getTopSchemaByName(JsonValidator *validator,
       if (otherTopSpec->id && !strcmp(otherTopSpec->id,key)){
         schema = otherTopSpec;
         if (validator->traceLevel >= 1){
-          trace(validator,"getTopSchema for key='%s' yields 0x%p (from Other Schemas)\n",key,schema);
+          trace(validator,depth,"getTopSchema for key='%s' yields 0x%p (from Other Schemas)\n",key,schema);
         }
         break;
       }
@@ -715,7 +895,8 @@ static int matchLen(regmatch_t *match){
 }
 
 static JSValueSpec *resolveCrossSchemaRef(JsonValidator *validator, bool isSpeculating,
-                                          JSValueSpec *referredTopSchema, char *ref, regmatch_t *anchorMatch){
+                                          JSValueSpec *referredTopSchema, char *ref, regmatch_t *anchorMatch,
+                                          int depth){
   if (anchorMatch->rm_so == -1){
     return referredTopSchema;
   } else if (referredTopSchema->anchorTable == NULL){
@@ -727,7 +908,7 @@ static JSValueSpec *resolveCrossSchemaRef(JsonValidator *validator, bool isSpecu
     char *anchor = ref+anchorMatch->rm_so+1; /* +1 to skip the '#' char */
     JSValueSpec *spec = (JSValueSpec*)htGet(referredTopSchema->anchorTable,anchor);
     if (validator->traceLevel >= 1){
-      trace(validator,"anchor '%s' resolves to 0x%p\n",anchor,spec);
+      trace(validator,depth,"anchor '%s' resolves to 0x%p\n",anchor,spec);
     }
     if (spec == NULL){
       noteValidityException(validator,isSpeculating,12,"anchor schema ref '%s' does not resolve in referred schema",ref);
@@ -737,16 +918,16 @@ static JSValueSpec *resolveCrossSchemaRef(JsonValidator *validator, bool isSpecu
 }
 
 
-static JSValueSpec *resolveRef(JsonValidator *validator, bool isSpeculating, JSValueSpec *valueSpec){
+static JSValueSpec *resolveRef(JsonValidator *validator, bool isSpeculating, JSValueSpec *valueSpec, int depth){
   char *ref = valueSpec->ref;
   int refLen = strlen(ref);
   int matchStatus = 0;
   if (validator->traceLevel >= 1){
-    trace(validator,"resolveRef ref=%s\n",valueSpec->ref);
+    trace(validator,depth,"resolveRef ref=%s\n",valueSpec->ref);
   }
   JSValueSpec *containingSpec = getTopLevelAncestor(valueSpec);
   if (containingSpec == NULL){ /* this code is wrong if topLevel (parent chain) is no good */
-    trace(validator,"*** PANIC *** no top level\n");
+    trace(validator,depth,"*** PANIC *** no top level\n");
     return NULL;
   }
   
@@ -775,12 +956,13 @@ static JSValueSpec *resolveRef(JsonValidator *validator, bool isSpeculating, JSV
     regmatch_t anchorMatch = validator->matches[3];
     JSValueSpec *referredTopSchema = getTopSchemaByName(validator,
                                                         ref+domainMatch.rm_so,matchLen(&domainMatch),
-                                                        ref+fileMatch.rm_so,matchLen(&fileMatch));
+                                                        ref+fileMatch.rm_so,matchLen(&fileMatch),
+                                                        depth);
     if (referredTopSchema == NULL){
       noteValidityException(validator,isSpeculating,12,"cross-domain schema not found for ref '%s'",ref);
       return NULL;
     } else {
-      return resolveCrossSchemaRef(validator,isSpeculating,referredTopSchema,ref,&anchorMatch);
+      return resolveCrossSchemaRef(validator,isSpeculating,referredTopSchema,ref,&anchorMatch,depth);
     }
     /* Case 3, same-domain URL fragment (ie file) reference */
   } else if (refLen >= 1 && ((matchStatus = fileMatch(validator,ref)) == 0)){
@@ -788,12 +970,12 @@ static JSValueSpec *resolveRef(JsonValidator *validator, bool isSpeculating, JSV
     regmatch_t anchorMatch = validator->matches[2];
     JSValueSpec *referredTopSchema = getTopSchemaByName(validator,
                                                         containingSpec->hostName,strlen(containingSpec->hostName),
-                                                        ref+fileMatch.rm_so,matchLen(&fileMatch));
+                                                        ref+fileMatch.rm_so,matchLen(&fileMatch),depth);
     if (referredTopSchema == NULL){
       noteValidityException(validator,isSpeculating,12,"same-domain schema not found for ref '%s'",ref);
       return NULL;
     } else {
-      return resolveCrossSchemaRef(validator,isSpeculating,referredTopSchema,ref,&anchorMatch);
+      return resolveCrossSchemaRef(validator,isSpeculating,referredTopSchema,ref,&anchorMatch,depth);
     }
     /* Case 4, just an anchor in same schema */
   } else if (refLen >= 1 && ref[0] == '#'){
@@ -822,38 +1004,39 @@ static JSValueSpec *resolveRef(JsonValidator *validator, bool isSpeculating, JSV
   }
 }
 
-static VResult validateJSONSimple(JsonValidator *validator, bool isSpeculating, Json *value, JSValueSpec *valueSpec){
+static VResult validateJSONSimple(JsonValidator *validator, bool isSpeculating,
+                                  Json *value, JSValueSpec *valueSpec, int depth, EvalSet *evalSetList){
   if (jsonIsNull(value)){
-    return (validateType(validator,isSpeculating,JSTYPE_NULL,valueSpec) ?
+    return (validateType(validator,isSpeculating,JSTYPE_NULL,valueSpec,depth+1) ?
             ValidContinue : InvalidStop);
   } else if (jsonIsBoolean(value)){
-    return (validateType(validator,isSpeculating,JSTYPE_BOOLEAN,valueSpec) ?
+    return (validateType(validator,isSpeculating,JSTYPE_BOOLEAN,valueSpec,depth+1) ?
             ValidContinue : InvalidStop);
   } else if (jsonIsObject(value)){
-    return (validateType(validator,isSpeculating,JSTYPE_OBJECT,valueSpec) ?
-            validateJSONObject(validator,isSpeculating,jsonAsObject(value),valueSpec) :
+    return (validateType(validator,isSpeculating,JSTYPE_OBJECT,valueSpec,depth+1) ?
+            validateJSONObject(validator,isSpeculating,jsonAsObject(value),valueSpec,depth+1,evalSetList) :
             InvalidStop);
   } else if (jsonIsArray(value)){
-    return (validateType(validator,isSpeculating,JSTYPE_ARRAY,valueSpec) ?
-            validateJSONArray(validator,isSpeculating,jsonAsArray(value),valueSpec) :
+    return (validateType(validator,isSpeculating,JSTYPE_ARRAY,valueSpec,depth+1) ?
+            validateJSONArray(validator,isSpeculating,jsonAsArray(value),valueSpec,depth+1,evalSetList) :
             InvalidStop);
   } else if (jsonIsString(value)){
-    return (validateType(validator,isSpeculating,JSTYPE_STRING,valueSpec) ?
-            validateJSONString(validator,isSpeculating,value,valueSpec) :
+    return (validateType(validator,isSpeculating,JSTYPE_STRING,valueSpec,depth+1) ?
+            validateJSONString(validator,isSpeculating,value,valueSpec,depth+1) :
             InvalidStop);
   } else if (jsonIsNumber(value)){
     if (!jsonIsInt64(value)){
-      return (validateType(validator,isSpeculating,JSTYPE_NUMBER,valueSpec) ?
-              validateJSONNumber(validator,isSpeculating,value,valueSpec) : /* general, comparisons done as doubles */
+      return (validateType(validator,isSpeculating,JSTYPE_NUMBER,valueSpec,depth+1) ?
+              validateJSONNumber(validator,isSpeculating,value,valueSpec,depth+1) : /* general, comparisons done as doubles */
               InvalidStop);
     } else {
-      return (validateType(validator,isSpeculating,JSTYPE_INTEGER,valueSpec) ?
-              validateJSONInteger(validator,isSpeculating,value,valueSpec) :
+      return (validateType(validator,isSpeculating,JSTYPE_INTEGER,valueSpec,depth+1) ?
+              validateJSONInteger(validator,isSpeculating,value,valueSpec,depth+1) :
               InvalidStop);
     }
     
   } else {
-    trace(validator,"*** PANIC *** unhandled JS Value with type = %d\n",value->type);
+    trace(validator,depth,"*** PANIC *** unhandled JS Value with type = %d\n",value->type);
     return InvalidStop;
   }
 }
@@ -862,21 +1045,30 @@ static VResult validateJSONSimple(JsonValidator *validator, bool isSpeculating, 
 #define QUANT_ANY 2
 #define QUANT_ONE 3
 
+static char *vqsTypeName(int x){
+  switch (x){
+  case QUANT_ALL: return "allOf";
+  case QUANT_ANY: return "anyOf";
+  case QUANT_ONE: return "oneOf";
+  default: return "unknownQuantifier";
+  }
+}
+
 static VResult validateQuantifiedSpecs(JsonValidator *validator,
                                        bool isSpeculating,
                                        Json *value, JSValueSpec **valueSpecs,
-                                       int specCount, int quantType){
+                                       int specCount, int quantType, int depth, EvalSet *evalSetList){
   int validCount = 0;
   
   for (int i=0; i<specCount; i++){
     JSValueSpec *valueSpec = valueSpecs[i];
+    if (validator->traceLevel >= 1){
+      trace(validator,depth,"vQS start i=%d spcltg?=%d, type=%s vCount=%d\n",i,isSpeculating,vqsTypeName(quantType),validCount);
+    }
     VResult eltValid = validateJSON(validator,
                                     isSpeculating | (quantType != QUANT_ALL),
-                                    value,valueSpec);
+                                    value,valueSpec,depth+1,evalSetList);
     validCount += (vResultValid(eltValid) ? 1 : 0);
-    if (validator->traceLevel >= 1){
-      trace(validator,"vQS i=%d type=%d valid=%d vCount=%d\n",i,quantType,eltValid,validCount);
-    }
     switch (quantType){
     case QUANT_ALL:
       if (!eltValid){
@@ -897,7 +1089,11 @@ static VResult validateQuantifiedSpecs(JsonValidator *validator,
       } 
       break;
     }
+    if (validator->traceLevel >= 1){
+      trace(validator,depth,"vQS end i=%d spcltg?=%d type=%s valid=%d vCount=%d\n",i,isSpeculating,vqsTypeName(quantType),eltValid,validCount);
+    }
   }
+  
   switch (quantType){
   case QUANT_ALL:
     return ValidContinue;
@@ -908,6 +1104,10 @@ static VResult validateQuantifiedSpecs(JsonValidator *validator,
     return ValidContinue;
   case QUANT_ONE:
     /* trace(validator,"quantOne vCount=%d\n",validCount); */
+    if (validCount == 0){
+      noteValidityException(validator,isSpeculating,12,"not oneOf schemas at '%s' are valid, 0 are",
+                            validatorAccessPath(validator),validCount);
+    }
     return (validCount == 1) ? ValidContinue : InvalidContinue;
   default:
     /* can't really get here */
@@ -933,19 +1133,23 @@ static bool jsonEquals(Json *a, Json *b){
   }
 }
 
-static VResult validateJSON(JsonValidator *validator, bool isSpeculating,Json *value, JSValueSpec *valueSpec){
+
+static VResult validateJSON(JsonValidator *validator, bool isSpeculating,Json *value, JSValueSpec *valueSpec, int depth,
+                            EvalSet *evalSetList){
+  evalSetList = extendEvalSets(validator,evalSetList);
   if (validator->traceLevel >= 2){
-    trace(validator,"validateJSON top, value=0x%p, spec=0x%p value->type=%d, spec->mask=0x%x, ref=0x%p\n",
-	  value,valueSpec,value->type,valueSpec->typeMask,valueSpec->ref);
+    trace(validator,depth,"validateJSON top, value=0x%p, spec=0x%p value->type=%d, spec->mask=0x%x, ref=0x%p pthsz=%d\n",
+	  value,valueSpec,value->type,valueSpec->typeMask,valueSpec->ref,validator->accessPath->currentSize);
+    trace(validator,depth,"path: %s\n",validatorAccessPath(validator));
   }
   while (valueSpec->ref){
-    valueSpec = resolveRef(validator,isSpeculating,valueSpec);
+    valueSpec = resolveRef(validator,isSpeculating,valueSpec,depth);
     if (valueSpec == NULL){
       return InvalidStop;
     }
   }
   if (validator->traceLevel >= 1){
-    trace(validator,"validate JSON value->type=%d specTypeMask=0x%x\n",value->type,valueSpec->typeMask);
+    trace(validator,depth,"validate JSON value->type=%d specTypeMask=0x%x\n",value->type,valueSpec->typeMask);
   }
   if (valueSpec->constValue){
     bool eq = jsonEquals(value,valueSpec->constValue);
@@ -973,51 +1177,78 @@ static VResult validateJSON(JsonValidator *validator, bool isSpeculating,Json *v
       return ValidContinue;
     }
   } else {
+    hashtable *evaluatedProperties = htCreate(101,stringHash,stringCompare,NULL,NULL);
     /* type is string or array, does this mean to collapse ValueSpecTypes
        should we flag errors on out-of-bounds validation keywords for type keyword */
-    VResult validity = validateJSONSimple(validator,isSpeculating,value,valueSpec);
     /* here, mix in the quantified and compound */
-    if (!vResultValid(validity)) return validity;
+    VResult allOfValidity = ValidContinue;
+    VResult anyOfValidity = ValidContinue;
+    VResult oneOfValidity = ValidContinue;
+    VResult notValidity = ValidContinue;
+    
     if (valueSpec->allOf){
-      validity = validateQuantifiedSpecs(validator,isSpeculating,value,valueSpec->allOf,valueSpec->allOfCount,QUANT_ALL);
+      allOfValidity = validateQuantifiedSpecs(validator,isSpeculating,
+                                              value,valueSpec->allOf,valueSpec->allOfCount,QUANT_ALL,
+                                              depth+1,evalSetList);
     }
-    if (!vResultValid(validity)) return InvalidStop;
+    
     if (valueSpec->anyOf){
-      validity = validateQuantifiedSpecs(validator,isSpeculating,value,valueSpec->anyOf,valueSpec->anyOfCount,QUANT_ANY);
+      anyOfValidity = validateQuantifiedSpecs(validator,isSpeculating,
+                                              value,valueSpec->anyOf,valueSpec->anyOfCount,QUANT_ANY,
+                                              depth+1,evalSetList);
     }
-    if (!vResultValid(validity)) return InvalidStop;
     if (valueSpec->oneOf){
-      validity = validateQuantifiedSpecs(validator,isSpeculating,value,valueSpec->oneOf,valueSpec->oneOfCount,QUANT_ONE);
+      oneOfValidity = validateQuantifiedSpecs(validator,isSpeculating,
+                                              value,valueSpec->oneOf,valueSpec->oneOfCount,QUANT_ONE,
+                                              depth+1,evalSetList);
     }
-    if (!vResultValid(validity)) return InvalidStop;
     if (valueSpec->not){
-      validity = validateJSON(validator,true,value,valueSpec->not);
+      VResult validity = validateJSON(validator,true,value,valueSpec->not,depth+1,evalSetList);
       if (vResultValid(validity)){
         noteValidityException(validator,isSpeculating,12,"negated schema at %s is valid",
                               validatorAccessPath(validator));
       }
-      validity = invertValidity(validity);
+      notValidity = invertValidity(validity);
     }
-    return validity;
+    VResult simpleValidity = validateJSONSimple(validator,isSpeculating,value,valueSpec,depth+1,evalSetList);
+    VResult totalValidity = vResultMin(allOfValidity,
+                                       vResultMin(anyOfValidity,
+                                                  vResultMin(oneOfValidity,
+                                                             vResultMin(notValidity,simpleValidity))));
+    if (validator->traceLevel >= 1){
+      trace(validator,depth,"summing validity all=%s, any=%s, one=%s, not=%s simple=%s -> combined=%s\n",
+            vResultName(allOfValidity),
+            vResultName(anyOfValidity),
+            vResultName(oneOfValidity),
+            vResultName(notValidity),
+            vResultName(simpleValidity),
+            vResultName(totalValidity));
+    }
+    htDestroy(evaluatedProperties);
+    return totalValidity;
   }
 }
 
 int jsonValidateSchema(JsonValidator *validator, Json *value, JsonSchema *topSchema,
                        JsonSchema **otherSchemas, int otherSchemaCount){
+  int result = 0;
   if (setjmp(validator->recoveryData) == 0) {  /* normal execution */
     validator->topSchema = topSchema;
     validator->otherSchemas = otherSchemas;
     validator->otherSchemaCount = otherSchemaCount;
-    VResult validity = validateJSON(validator,false,value,topSchema->topValueSpec);
+    validator->evalHeap = makeShortLivedHeap(0x10000, 100);
+    VResult validity = validateJSON(validator,false,value,topSchema->topValueSpec,0,NULL);
     if (validator->firstValidityException == NULL){
-      return JSON_VALIDATOR_NO_EXCEPTIONS;
+      result = JSON_VALIDATOR_NO_EXCEPTIONS;
     } else {
-      return JSON_VALIDATOR_HAS_EXCEPTIONS;
+      result = JSON_VALIDATOR_HAS_EXCEPTIONS;
     }
   } else {
-    trace(validator,"validation failed '%s'\n",validator->errorMessage);
-    return JSON_VALIDATOR_INTERNAL_FAILURE;
+    trace(validator,0,"validation failed '%s'\n",validator->errorMessage);
+    result = JSON_VALIDATOR_INTERNAL_FAILURE;
   }
+  SLHFree(validator->evalHeap);
+  return result;
 }
 
 
@@ -1433,6 +1664,7 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, JSValueSpec *parent, Json 
     }
     valueSpec->definitions = getDefinitions(builder,valueSpec,object);
     valueSpec->additionalProperties = getBooleanValue(builder,object,"additionalProperties",true);
+    valueSpec->unevaluatedProperties = getBooleanValue(builder,object,"unevaluatedProperties",true);
     addPatternProperties(builder,valueSpec,object);
     valueSpec->allOf = getComposite(builder,valueSpec,object,"allOf",&valueSpec->allOfCount);
     valueSpec->anyOf = getComposite(builder,valueSpec,object,"anyOf",&valueSpec->anyOfCount);
