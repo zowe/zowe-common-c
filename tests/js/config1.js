@@ -20,6 +20,17 @@ var getArg = function(key){
     return null;
 }
 
+var showExceptions = function(e,depth){
+    let blanks = "                                                                 ";
+    let subs = e.subExceptions;
+    console.log(blanks.substring(0,depth*2)+e.message);
+    if (subs){
+        for (const sub of subs){
+            showExceptions(sub,depth+1);
+        }
+    }
+}
+
 var loadAndExtract = function(){
     let cmgr = new ConfigManager();
     cmgr.setTraceLevel(0);
@@ -60,11 +71,9 @@ var loadAndExtract = function(){
     let validation = cmgr.validate(configName); // { ok: <bool> ( exceptions: <array> )? }
     console.log("validator ran to completion "+validation.ok);
     if (validation.ok){
-        if (validation.exceptions){
+        if (validation.exceptionTree){
             console.log("validation found invalid JSON Schema data");
-            for (let i=0; i<validation.exceptions.length; i++){
-                console.log("    "+validation.exceptions[i]);
-            }
+            showExceptions(validation.exceptionTree,0);
         } else {
             console.log("no exceptions seen");
             let theConfig = cmgr.getConfigData(configName);
