@@ -58,6 +58,8 @@ typedef int64_t ssize_t;
 
 #ifdef __ZOWE_OS_ZOS
 
+#include "porting/polyfill.h"
+
 int __atoe_l(char *bufferptr, int leng);
 int __etoa_l(char *bufferptr, int leng);
 
@@ -253,6 +255,48 @@ int ejsEvalFile(EmbeddedJS *ejs, const char *filename, int loadMode){
     JS_FreeValue(ejs->ctx, evalResult);
     return ret;
 }
+
+/* zos module */
+
+static JSValue zosChangeTag(JSContext *ctx, JSValueConst this_val,
+                            int argc, JSValueConst *argv){
+  size_t len;
+  const char *pathname = JS_ToCStringLen(ctx, &len, argv[0]);
+  if (!pathname){
+    return JS_EXCEPTION;
+  }
+  int ccsidInt = 0;
+  JS_ToInt32(ctx, &ccsidInt, argv[1]);
+  unsigned short ccsid = (unsigned short)ccsidInt;
+#ifdef __ZOWE_OS_ZOS
+  int status = tagFile(pathname, ccsid);
+#else
+  int status = -1;
+#endif
+  return JS_NewInt64(ctx,(int64_t)status);
+}
+
+static const JSCFunctionListEntry zosFunctions[] = {
+  JS_CFUNC_DEF("changeTag", 2, zosChangeTag),
+};
+
+
+static int ejsInitZOSCallback(JSContext *ctx, JSModuleDef *m){
+  JS_SetModuleExportList(ctx, m, zosFunctions, countof(zosFunctions));
+  return 0;
+}
+
+JSModuleDef *ejsInitModuleZOS(JSContext *ctx, const char *module_name){
+  JSModuleDef *m;
+  m = JS_NewCModule(ctx, module_name, ejsInitZOSCallback);
+  if (!m){
+    return NULL;
+  }
+  JS_AddModuleExportList(ctx, m, zosFunctions, countof(zosFunctions));
+
+  return m;
+}
+
 
 static JSClassID js_experiment_thingy_class_id;
 
@@ -489,7 +533,7 @@ static const JSCFunctionListEntry ejsNativeProtoFuncs[] = {
 };
 
 static JSValue js_experiment_boop(JSContext *ctx, JSValueConst this_val,
-                           int argc, JSValueConst *argv)
+                                  int argc, JSValueConst *argv)
 {
   printf("boop boop boop!!\n");
   return JS_UNDEFINED;
@@ -577,6 +621,7 @@ static char asciiOS[3] ={ 0x6F, 0x73, 0};
 static char asciiExperiment[11] ={ 0x65, 0x78, 0x70, 0x65, 
 				   0x72, 0x69, 0x6d, 0x65, 
 				   0x6e, 0x74, 0};
+static char asciiZOS[4] = { 0x7a, 0x6F, 0x73, 0};
 
 JSModuleDef *js_init_module_experiment(JSContext *ctx, const char *module_name)
 {
@@ -876,6 +921,7 @@ static void initContextModules(JSContext *ctx, EJSNativeModule **nativeModules, 
   js_init_module_std(ctx, asciiSTD);
   js_init_module_os(ctx, asciiOS);
   js_init_module_experiment(ctx, asciiExperiment);
+  ejsInitModuleZOS(ctx, asciiZOS);
   /* printf("after init experiment\n");*/
   for (int i=0; i<nativeModuleCount; i++){
     ejsInitNativeModule(ctx, nativeModules[i]);
