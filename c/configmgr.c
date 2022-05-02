@@ -117,6 +117,8 @@ typedef int64_t ssize_t;
 
     configmgr -t 1 -s "../tests/schemadata/bigschema.json" -p "FILE(../tests/schemadata/bigyaml.yaml)" validate
 
+    configmgr -t 1 -s "../tests/schemadata/subClassSchema.json" -p "FILE(../tests/schemadata/subclasses1.json)" validate
+
     -- Compilation with XLCLang on ZOS -------------------------------------
  
     export YAML="/u/zossteam/jdevlin/git2022/libyaml" 
@@ -1275,6 +1277,21 @@ static char *extractString(JsonBuilder *b, char *s){
   return copy;
 }
 
+static void copyValidityException(JsonBuilder *b, Json *parent, char *key, ValidityException *exception){
+  int errorCode = 0;
+  Json *o = jsonBuildObject(b,parent,key,&errorCode);
+  char *message = extractString(b,exception->message);
+  jsonBuildString(b,o,"message",message,strlen(message),&errorCode);
+  ValidityException *child = exception->firstChild;
+  if (child){
+    Json *a = jsonBuildArray(b,o,"subExceptions",&errorCode);
+    while (child){
+      copyValidityException(b,a,NULL,child);
+      child = child->nextSibling;
+    }
+  }
+}
+
 static int validateWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
   const char *configName = NULL;
   ejsStringArg(invocation,0,&configName);
@@ -1293,13 +1310,8 @@ static int validateWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
   case JSON_VALIDATOR_HAS_EXCEPTIONS:
     {
       jsonBuildBool(builder,result,"ok",true,&errorCode);
-      ValidityException *e = validator->firstValidityException;
-      Json *exceptions = jsonBuildArray(builder,result,"exceptions",&errorCode);
-      while (e){
-        char *exception = extractString(builder,e->message);
-        jsonBuildString(builder,exceptions,NULL,exception,strlen(exception),&errorCode);
-        e = e->next;
-      }
+      ValidityException *e = validator->topValidityException;
+      copyValidityException(builder,result,"exceptionTree",e);
     }
     break;
   case JSON_VALIDATOR_INTERNAL_FAILURE:
@@ -1366,10 +1378,19 @@ static EJSNativeModule *exportConfigManagerToEJS(EmbeddedJS *ejs){
                                                   (EJSForeignFunction*)validateWrapper);
   ejsAddMethodArg(ejs,validate,"configName",EJS_NATIVE_TYPE_CONST_STRING);
   
-  
-
-  
   return module;
+}
+
+static void traceValidityException(ConfigManager *mgr, int depth, ValidityException *exception){
+  for (int i=0; i<depth; i++){
+    fprintf(mgr->traceOut,"  ");
+  }
+  fprintf(mgr->traceOut,"%s\n",exception->message);
+  ValidityException *child = exception->firstChild;
+  while (child){
+    traceValidityException(mgr,depth+1,child);
+    child = child->nextSibling;
+  }
 }
 
 static int simpleMain(int argc, char **argv){
@@ -1489,11 +1510,7 @@ static int simpleMain(int argc, char **argv){
     case JSON_VALIDATOR_HAS_EXCEPTIONS:
       {
         trace(mgr,INFO,"Validity Exceptions:\n");
-        ValidityException *e = validator->firstValidityException;
-        while (e){
-          trace(mgr,INFO,"  %s\n",e->message);
-          e = e->next;
-        }
+        traceValidityException(mgr,0,validator->topValidityException);
       }
       break;
     case JSON_VALIDATOR_INTERNAL_FAILURE:

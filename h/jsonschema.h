@@ -65,11 +65,16 @@ typedef struct JsonSchemaBuilder_tag {
    to gather more validation exceptions in this part of the JSON tree/graph.  Returning false says
    this part is invalid enough such that further evaluation would probably confuse the user with 
    contradictory information. */
-typedef enum VResult_tag {
+typedef enum VStatus_tag {
   InvalidStop = 0,
   ValidStop = 1,
   InvalidContinue = 2,
   ValidContinue = 3
+} VStatus;
+
+typedef struct VResult_tag {
+  VStatus status;
+  struct ValidityException_tag *exception;
 } VResult;
 
 
@@ -80,8 +85,7 @@ typedef enum VResult_tag {
 typedef struct ValidityException_tag {
   int code;
   VResult result;
-  struct ValidityException_tag *next;
-  char message[MAX_VALIDITY_EXCEPTION_MSG];
+  char *message;
   struct ValidityException_tag *firstChild;
   struct ValidityException_tag *nextSibling;
 } ValidityException;
@@ -100,8 +104,7 @@ typedef struct JsonValidator_tag {
   char        *errorMessage;
   int          errorMessageLength;
   char         accessPathBuffer[MAX_ACCESS_PATH];
-  ValidityException *firstValidityException;
-  ValidityException *lastValidityException;
+  ValidityException *topValidityException;
   int         flags;
   int         traceLevel;
   FILE       *traceOut;
@@ -117,7 +120,9 @@ typedef struct JsonValidator_tag {
 } JsonValidator;
 
 #define JSON_SCHEMA_DRAFT_4 400
-#define DEFAULT_JSON_SCHEMA_VERSION JSON_SCHEMA_DRAFT_4
+#define JSON_SCHEMA_DRAFT_7 700
+#define JSON_SCHEMA_DRAFT_2019 201909
+#define DEFAULT_JSON_SCHEMA_VERSION JSON_SCHEMA_DRAFT_2019
 
 
 JsonSchemaBuilder *makeJsonSchemaBuilder(int version);
