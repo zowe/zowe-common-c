@@ -32,20 +32,7 @@ jobs:
       - name: '[Prep 1] Checkout'
         uses: actions/checkout@v2
 
-      - name: '[Prep 2] Setup jFrog CLI'
-        uses: jfrog/setup-jfrog-cli@v2
-        env:
-          JF_ARTIFACTORY_1: ${{ secrets.JF_ARTIFACTORY_TOKEN }}
-
-      - name: '[Prep 3] Set date'
-        id: date
-        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
-
-      - name: '[Prep 4] Set version'
-        id: version
-        run: echo "::set-output name=version::$(cat build/configmgr_version.txt)"
-
-      - name '[Dep 1] Libyaml'
+      - name: '[Dep 1] Libyaml'
         uses: actions/checkout@v3
         with:
           repository: yaml/libyaml
@@ -58,6 +45,19 @@ jobs:
           repository: joenemo/quickjs-portable
           path: deps/configmgr/quickjs
           ref: '0.9.0'
+
+      - name: '[Prep 2] Setup jFrog CLI'
+        uses: jfrog/setup-jfrog-cli@v2
+        env:
+          JF_ARTIFACTORY_1: ${{ secrets.JF_ARTIFACTORY_TOKEN }}
+
+      - name: '[Prep 3] Set date'
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
+      - name: '[Prep 4] Set version'
+        id: version
+        run: echo "::set-output name=version::$(cat build/configmgr_version.txt)"
 
       - name: '[Prep 5] Prepare workflow'
         uses: zowe-actions/shared-actions/prepare-workflow@main
