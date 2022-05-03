@@ -17,6 +17,7 @@
 static char *httpPattern = "^(https?://[^/]+)/([^#]*)(#.*)?$";
 /* static char *httpPattern = "^https?://([^/]+)/([^#]*)(#.*)?$"; */
 static char *filePattern = "^/([^#]*)(#.*)?$";
+static char *semverPattern = "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$";
 static int regexError = 0;
 static regex_t *regex = NULL;
 
@@ -58,6 +59,8 @@ int main(int argc, char **argv){
     pattern = httpPattern;
   } else if (!strcmp(patName,"file")){
     pattern = filePattern;
+  } else if (!strcmp(patName,"semver")){
+    pattern = semverPattern;
   } else {
     printf("no pattern for '%s'\n",patName);
     return 0;
@@ -65,7 +68,10 @@ int main(int argc, char **argv){
 
   regex = compileRegex(pattern,&regexError);
   if (regexError){
-    printf("bad pattern error=%d\n",regexError);
+    printf("bad pattern error=%d regeror\n",regexError);
+    char errorBuffer[1000];
+    size_t len = regerror(regexError, regex, errorBuffer, 1000);
+    printf("  info: %s\n",errorBuffer);
     return 0;
   } else {
     regmatch_t matches[MAX_MATCHES];
