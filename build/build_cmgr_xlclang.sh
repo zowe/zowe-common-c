@@ -41,6 +41,8 @@ for part in ${VERSION}; do
 done
 IFS=$OLDIFS
 
+VERSION="\"${VERSION}\""
+
 
 QUICKJS="${COMMON}/deps/configmgr/quickjs"
 QUICKJS_LOCATION="git@github.com:joenemo/quickjs-portable.git"
@@ -52,7 +54,6 @@ LIBYAML_BRANCH="0.2.5"
 
 DEPS="QUICKJS LIBYAML"
 
-OLDIFS=$IFS
 IFS=" "
 for dep in ${DEPS}; do
   eval directory="\$${dep}"
