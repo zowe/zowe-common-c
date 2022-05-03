@@ -29,18 +29,12 @@ VERSION=$(cat ../configmgr_version.txt)
 
 echo "In ${TMP_DIR}, version=${VERSION}"
 
-# Set comma as delimiter
-IFSBACK=$IFS
-IFS='.'
-
 # Split version into parts
-read -a versionparts <<< "$VERSION"
+readarray -d . -t versionparts <<< "$VERSION"
 
 MAJOR=${versionparts[0]}
 MINOR=${versionparts[1]}
 PATCH=${versionparts[2]}
-
-IFS=$IFSBACK
 
 
 QUICKJS="${COMMON}/deps/configmgr/quickjs"
