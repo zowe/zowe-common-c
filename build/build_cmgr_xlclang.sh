@@ -25,7 +25,9 @@ COMMON="../.."
 
 date_stamp=$(date +%Y%m%d)
 
-VERSION=$(cat ./configmgr_version.txt)
+VERSION=$(cat ../configmgr_version.txt)
+
+echo "In ${TMP_DIR}, version=${VERSION}"
 
 # Set comma as delimiter
 IFSBACK=$IFS
