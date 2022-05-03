@@ -44,9 +44,24 @@ jobs:
       - name: '[Prep 4] Set version'
         id: version
         run: echo "::set-output name=version::$(cat build/configmgr_version.txt)"
-      
-      - name: '[Prep 3] Prepare workflow'
+
+      - name '[Dep 1] Libyaml'
+        uses: actions/checkout@v3
+        with:
+          repository: yaml/libyaml
+          path: deps/configmgr/libyaml
+          ref: '0.2.5'
+
+      - name: '[Dep 2] Quickjs'
+        uses: actions/checkout@v3
+        with:
+          repository: joenemo/quickjs-portable
+          path: deps/configmgr/quickjs
+          ref: '0.9.0'
+
+      - name: '[Prep 5] Prepare workflow'
         uses: zowe-actions/shared-actions/prepare-workflow@main
+      
 
       - name: '[Packaging] Make pax'
         uses: zowe-actions/shared-actions/make-pax@main
