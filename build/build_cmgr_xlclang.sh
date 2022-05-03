@@ -36,7 +36,7 @@ for part in ${VERSION}; do
   elif [ -z "$MINOR" ]; then
     MINOR=$part
   else
-    PATH=$part
+    PATCH=$part
   fi
 done
 IFS=$OLDIFS
