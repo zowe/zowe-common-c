@@ -27,14 +27,21 @@ COMMON="../.."
 
 VERSION=$(cat ../configmgr_version.txt)
 
-echo "In ${TMP_DIR}, version=${VERSION}"
-
 # Split version into parts
-readarray -d . -t versionparts <<< "$VERSION"
-
-MAJOR=${versionparts[0]}
-MINOR=${versionparts[1]}
-PATCH=${versionparts[2]}
+OLDIFS=$IFS
+IFS="."
+index=0
+for part in ${VERSION}; do
+  if [ "$index" = "0" ]; then
+    MAJOR=$part
+  elif [ "$index" = "1"]; then
+    MINOR=$part
+  else
+    PATH=$part
+  fi
+  index=`expr $index + 1`
+done
+IFS=$OLDIFS
 
 
 QUICKJS="${COMMON}/deps/configmgr/quickjs"
