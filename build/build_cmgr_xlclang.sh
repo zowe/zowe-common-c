@@ -30,16 +30,14 @@ VERSION=$(cat ../configmgr_version.txt)
 # Split version into parts
 OLDIFS=$IFS
 IFS="."
-index=0
 for part in ${VERSION}; do
-  if [ "$index" = "0" ]; then
+  if [ -z "$MAJOR" ]; then
     MAJOR=$part
-  elif [ "$index" = "1" ]; then
+  elif [ -z "$MINOR" ]; then
     MINOR=$part
   else
     PATH=$part
   fi
-  index=`expr $index + 1`
 done
 IFS=$OLDIFS
 
