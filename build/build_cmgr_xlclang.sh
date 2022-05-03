@@ -17,13 +17,13 @@ echo "Building configmgr..."
 
 # These paths assume that the build is run from /zss/deps/zowe-common-c/builds
 
-TMP_DIR=".pax/configmgr/prepare-workspace.sh"
+date_stamp=$(date +%Y%m%d)
+
+TMP_DIR="${WORKING_DIR}/tmp-${date_stamp}"
 
 mkdir -p "${TMP_DIR}" && cd "${TMP_DIR}"
 
 COMMON="../.."
-
-date_stamp=$(date +%Y%m%d)
 
 VERSION=$(cat ../configmgr_version.txt)
 
