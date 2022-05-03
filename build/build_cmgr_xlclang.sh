@@ -52,7 +52,9 @@ LIBYAML_BRANCH="0.2.5"
 
 DEPS="QUICKJS LIBYAML"
 
-for dep in $( echo $DEPS ); do
+OLDIFS=$IFS
+IFS=" "
+for dep in ${DEPS}; do
   eval directory="\$${dep}"
   echo "Check if dir exist=$directory"
   if [ ! -d "$directory" ]; then
@@ -60,6 +62,7 @@ for dep in $( echo $DEPS ); do
     eval git clone --branch "\$${dep}_BRANCH" "\$${dep}_LOCATION" "\$${dep}"
   fi
 done
+IFS=$OLDIFS
 
 rm -f "${COMMON}/bin/configmgr"
 
