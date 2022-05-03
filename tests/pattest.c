@@ -68,7 +68,10 @@ int main(int argc, char **argv){
 
   regex = compileRegex(pattern,&regexError);
   if (regexError){
-    printf("bad pattern error=%d\n",regexError);
+    printf("bad pattern error=%d regeror\n",regexError);
+    char errorBuffer[1000];
+    size_t len = regerror(regexError, regex, errorBuffer, 1000);
+    printf("  info: %s\n",errorBuffer);
     return 0;
   } else {
     regmatch_t matches[MAX_MATCHES];

@@ -258,6 +258,22 @@ int ejsEvalFile(EmbeddedJS *ejs, const char *filename, int loadMode){
 
 /* zos module */
 
+static JSValue makeObjectAndErrorArray(JSContext *ctx,
+				       JSValue obj,
+				       int err){
+  JSValue arr;
+  if (JS_IsException(obj))
+    return obj;
+  arr = JS_NewArray(ctx);
+  if (JS_IsException(arr))
+    return JS_EXCEPTION;
+  JS_DefinePropertyValueUint32(ctx, arr, 0, obj,
+			       JS_PROP_C_W_E);
+  JS_DefinePropertyValueUint32(ctx, arr, 1, JS_NewInt32(ctx, err),
+			       JS_PROP_C_W_E);
+  return arr;
+}
+
 static JSValue zosChangeTag(JSContext *ctx, JSValueConst this_val,
                             int argc, JSValueConst *argv){
   size_t len;
@@ -265,6 +281,10 @@ static JSValue zosChangeTag(JSContext *ctx, JSValueConst this_val,
   if (!pathname){
     return JS_EXCEPTION;
   }
+  /* 
+     Since target function is QASCII, do NOT convert the path 
+   */
+
   int ccsidInt = 0;
   JS_ToInt32(ctx, &ccsidInt, argv[1]);
   unsigned short ccsid = (unsigned short)ccsidInt;
@@ -273,15 +293,188 @@ static JSValue zosChangeTag(JSContext *ctx, JSValueConst this_val,
 #else
   int status = -1;
 #endif
+  JS_FreeCString(ctx,pathname);
   return JS_NewInt64(ctx,(int64_t)status);
 }
 
+static JSValue zosChangeExtAttr(JSContext *ctx, JSValueConst this_val,
+				int argc, JSValueConst *argv){
+  size_t len;
+  const char *pathname = JS_ToCStringLen(ctx, &len, argv[0]);
+  if (!pathname){
+    return JS_EXCEPTION;
+  }
+  /* 
+     Since target function is QASCII, do NOT convert the path 
+   */
+
+  int extattrInt = 0;
+  JS_ToInt32(ctx, &extattrInt, argv[1]);
+  unsigned char extattr = (unsigned char)extattrInt;
+  int onOffInt = JS_ToBool(ctx, argv[2]);
+#ifdef __ZOWE_OS_ZOS
+  int status = changeExtendedAttributes(pathname, extattr, onOffInt ? true : false);
+#else
+  int status = -1;
+#endif
+  JS_FreeCString(ctx,pathname);
+  return JS_NewInt64(ctx,(int64_t)status);
+}
+
+static void ejsDefinePropertyValueStr(JSContext *ctx, JSValueConst obj, 
+				      const char *propertyName, JSValue value, int flags){
+  int len = strlen(propertyName);
+  char asciiName[len+1];
+  memcpy(asciiName,propertyName,len+1);
+  convertFromNative(asciiName,len);
+  JS_DefinePropertyValueStr(ctx, obj, asciiName, value, flags);
+}
+  
+
+static JSValue zosChangeStreamCCSID(JSContext *ctx, JSValueConst this_val,
+				    int argc, JSValueConst *argv){
+  int fd;
+  JS_ToInt32(ctx, &fd, argv[0]);
+
+  int ccsidInt = 0;
+  JS_ToInt32(ctx, &ccsidInt, argv[1]);
+  unsigned short ccsid = (unsigned short)ccsidInt;
+#ifdef __ZOWE_OS_ZOS
+  int status = convertOpenStream(fd, ccsid);
+#else
+  int status = -1;
+#endif
+  return JS_NewInt64(ctx,(int64_t)status);
+}
+
+/* return [obj, errcode] */
+static JSValue zosStat(JSContext *ctx, JSValueConst this_val,
+		       int argc, JSValueConst *argv){
+  const char *path;
+  int err, res;
+  struct stat st;
+  JSValue obj;
+  size_t len;
+
+  path = JS_ToCStringLen(ctx, &len, argv[0]);
+  if (!path){
+    return JS_EXCEPTION;
+  }
+
+  char pathNative[len+1];
+  memcpy(pathNative,path,len+1);
+  convertToNative(pathNative,len);
+
+  res = stat(pathNative, &st);
+  
+  JS_FreeCString(ctx, path);
+  if (res < 0){
+    err = errno;
+    obj = JS_NULL;
+  } else{
+    err = 0;
+    obj = JS_NewObject(ctx);
+    if (JS_IsException(obj)){
+      return JS_EXCEPTION;
+    }
+    ejsDefinePropertyValueStr(ctx, obj, "dev",
+			      JS_NewInt64(ctx, st.st_dev),
+			      JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "ino",
+			      JS_NewInt64(ctx, st.st_ino),
+			      JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "mode",
+			      JS_NewInt32(ctx, st.st_mode),
+			      JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "nlink",
+			      JS_NewInt64(ctx, st.st_nlink),
+			      JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "uid",
+			      JS_NewInt64(ctx, st.st_uid),
+			      JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "gid",
+			      JS_NewInt64(ctx, st.st_gid),
+			      JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "rdev",
+			      JS_NewInt64(ctx, st.st_rdev),
+			      JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "size",
+			      JS_NewInt64(ctx, st.st_size),
+			      JS_PROP_C_W_E);
+#if !defined(_WIN32)
+    ejsDefinePropertyValueStr(ctx, obj, "blocks",
+			      JS_NewInt64(ctx, st.st_blocks),
+			      JS_PROP_C_W_E);
+#endif
+#if defined(_WIN32) || defined(__MVS__) /* JOENemo */
+    ejsDefinePropertyValueStr(ctx, obj, "atime",
+			      JS_NewInt64(ctx, (int64_t)st.st_atime * 1000),
+			      JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "mtime",
+			      JS_NewInt64(ctx, (int64_t)st.st_mtime * 1000),
+			      JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "ctime",
+			      JS_NewInt64(ctx, (int64_t)st.st_ctime * 1000),
+			      JS_PROP_C_W_E);
+#elif defined(__APPLE__)
+    ejsDefinePropertyValueStr(ctx, obj, "atime",
+			      JS_NewInt64(ctx, timespec_to_ms(&st.st_atimespec)),
+			      JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "mtime",
+			      JS_NewInt64(ctx, timespec_to_ms(&st.st_mtimespec)),
+			      JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "ctime",
+			      JS_NewInt64(ctx, timespec_to_ms(&st.st_ctimespec)),
+			      JS_PROP_C_W_E);
+#else
+    ejsDefinePropertyValueStr(ctx, obj, "atime",
+			      JS_NewInt64(ctx, timespec_to_ms(&st.st_atim)),
+			      JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "mtime",
+			      JS_NewInt64(ctx, timespec_to_ms(&st.st_mtim)),
+			      JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "ctime",
+			      JS_NewInt64(ctx, timespec_to_ms(&st.st_ctim)),
+			      JS_PROP_C_W_E);
+#endif
+    /* Non-standard, not-even-close-to-standard attributes. */
+#ifdef __ZOWE_OS_ZOS
+    ejsDefinePropertyValueStr(ctx, obj, "extattrs",
+			      JS_NewInt64(ctx, (int64_t)st.st_genvalue&EXTATTR_MASK),
+			      JS_PROP_C_W_E);
+#endif
+  }
+  return makeObjectAndErrorArray(ctx, obj, err);
+}
+
+static const char changeTagASCII[10] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65, 
+					0x54, 0x61, 0x67, 0x00};
+static const char changeExtAttrASCII[14] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65, 
+					    0x45, 0x78, 0x74, 0x41, 0x74, 0x74, 0x72, 0x00};
+static const char changeStreamCCSIDASCII[18] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65, 
+						0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x43, 0x43, 0x53, 0x49, 0x44, 0x00};
+static const char zstatASCII[6] ={ 0x7A, 0x73, 0x74, 0x61, 0x74, 0};
+
+static const char EXTATTR_SHARELIB_ASCII[17] = { 0x45, 0x58, 0x54, 0x41, 0x54, 0x54, 0x52, 0x5f,
+						 0x53, 0x48, 0x41, 0x52, 0x45, 0x4c, 0x49, 0x42, 0x0};
+
+static const char EXTATTR_PROGCTL_ASCII[16] = { 0x45, 0x58, 0x54, 0x41, 0x54, 0x54, 0x52, 0x5f,
+						0x50, 0x52, 0x4f, 0x47, 0x43, 0x54, 0x4c, 0x00};
+
 static const JSCFunctionListEntry zosFunctions[] = {
-  JS_CFUNC_DEF("changeTag", 2, zosChangeTag),
+  JS_CFUNC_DEF(changeTagASCII, 2, zosChangeTag),
+  JS_CFUNC_DEF(changeExtAttrASCII, 3, zosChangeExtAttr),
+  JS_CFUNC_DEF(changeStreamCCSIDASCII, 2, zosChangeStreamCCSID),
+  JS_CFUNC_DEF(zstatASCII, 1, zosStat),
+  JS_PROP_INT32_DEF(EXTATTR_SHARELIB_ASCII, EXTATTR_SHARELIB, JS_PROP_CONFIGURABLE ),
+  JS_PROP_INT32_DEF(EXTATTR_PROGCTL_ASCII, EXTATTR_PROGCTL, JS_PROP_CONFIGURABLE ),
+  /* ALSO, "cp" with magic ZOS-unix see fopen not fileOpen */
 };
 
 
 static int ejsInitZOSCallback(JSContext *ctx, JSModuleDef *m){
+
+  /* JSValue = proto = JS_NewObject(ctx); */
   JS_SetModuleExportList(ctx, m, zosFunctions, countof(zosFunctions));
   return 0;
 }
@@ -1419,6 +1612,40 @@ static JSValue js_native_print(JSContext *ctx, JSValueConst this_val,
 static char asciiConsole[8] = { 0x63, 0x6f, 0x6e, 0x73, 0x6f, 0x6c, 0x65, 0x00 };
 static char asciiLog[4] = { 0x6c, 0x6f, 0x67, 0x00};
 
+JSModuleDef *ejsModuleLoader(JSContext *ctx,
+			     const char *module_name, void *opaque) {
+  JSModuleDef *m;
+
+  if (has_suffix(module_name, ".so")){
+    m = js_module_loader(ctx, module_name, NULL);
+  } else{
+    size_t buf_len;
+    uint8_t *buf;
+    JSValue func_val;
+    
+    buf = js_load_file(ctx, &buf_len, module_name);
+    if (!buf){
+      JS_ThrowReferenceError(ctx, "could not load module filename '%s'",
+			     module_name);
+      return NULL;
+    } else {
+      convertFromNative((char*)buf, (int)buf_len);
+    }
+
+    /* compile the module */
+    func_val = JS_Eval(ctx, (char *)buf, buf_len, module_name,
+		       JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+    js_free(ctx, buf);
+    if (JS_IsException(func_val))
+      return NULL;
+    /* XXX: could propagate the exception */
+    js_module_set_import_meta(ctx, func_val, TRUE, FALSE);
+    /* the module is already referenced, so we must free it */
+    m = JS_VALUE_GET_PTR(func_val);
+    JS_FreeValue(ctx, func_val);
+  }
+  return m;
+}
 
 bool configureEmbeddedJS(EmbeddedJS *embeddedJS, 
                          EJSNativeModule **nativeModules, int nativeModuleCount,
@@ -1446,7 +1673,7 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
   initContextModules(ctx,nativeModules,nativeModuleCount);
 
   /* loader for ES6 modules */
-  JS_SetModuleLoaderFunc(embeddedJS->rt, NULL, js_module_loader, NULL);
+  JS_SetModuleLoaderFunc(embeddedJS->rt, NULL, ejsModuleLoader, NULL);
   
   if (false){ /* dump_unhandled_promise_rejection) { - do this later */
     JS_SetHostPromiseRejectionTracker(embeddedJS->rt, js_std_promise_rejection_tracker,
