@@ -20,13 +20,25 @@ echo "Building configmgr..."
 
 mkdir -p "${WORKING_DIR}/tmp-configmgr" && cd "$_"
 
-MAJOR=0
-MINOR=3
-PATCH=0
-VERSION="\"${MAJOR}.${MINOR}.${PATCH}\""
+COMMON="../.."
+
 date_stamp=$(date +%Y%m%d)
 
-COMMON="../.."
+VERSION=$(cat ./configmgr_version.txt)
+
+# Set comma as delimiter
+IFSBACK=$IFS
+IFS='.'
+
+# Split version into parts
+read -a versionparts <<< "$VERSION"
+
+MAJOR=${versionparts[0]}
+MINOR=${versionparts[1]}
+PATCH=${versionparts[2]}
+
+IFS=$IFSBACK
+
 
 QUICKJS="${COMMON}/deps/configmgr/quickjs"
 QUICKJS_LOCATION="git@github.com:joenemo/quickjs-portable.git"
