@@ -17,7 +17,7 @@ SCRIPT_NAME=$(basename "$0")
 SCRIPT_DIR=$(pwd)
 
 # build
-echo "$SCRIPT_NAME build zss ..."
+echo "$SCRIPT_NAME build configmgr ..."
 STEPLIB=CBC.SCCNCMP "$SCRIPT_DIR/content/build/build_cmgr_xlclang.sh"
 
 # clean up content folder
