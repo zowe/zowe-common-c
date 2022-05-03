@@ -34,7 +34,7 @@ index=0
 for part in ${VERSION}; do
   if [ "$index" = "0" ]; then
     MAJOR=$part
-  elif [ "$index" = "1"]; then
+  elif [ "$index" = "1" ]; then
     MINOR=$part
   else
     PATH=$part
