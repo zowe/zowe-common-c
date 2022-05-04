@@ -53,7 +53,7 @@ jobs:
 
       - name: '[Prep 3] Set date'
         id: date
-        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+        run: echo "::set-output name=date::$(date +'%Y%m%d%S')"
 
       - name: '[Prep 4] Set version'
         id: version
