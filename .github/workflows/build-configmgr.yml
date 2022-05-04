@@ -59,7 +59,12 @@ jobs:
         id: version
         run: echo "::set-output name=version::$(cat build/configmgr_version.txt)"
 
-      - name: '[Prep 5] Prepare workflow'
+      - name: '[Prep 5] Set branchname'
+        id: branch
+        run: echo "::set-output name=branch::${GITHUB_REF#refs/heads/}"
+
+
+      - name: '[Prep 6] Prepare workflow'
         uses: zowe-actions/shared-actions/prepare-workflow@main
       
 
@@ -78,6 +83,7 @@ jobs:
         with:
           artifacts: |
             .pax/configmgr/configmgr.pax
-          publish-target-path-pattern: configmgr/${{ steps.version.output.version }}-${{ github.head_ref }}-${{ github.run_number }}-${{ steps.date.output.date }}
+          publish-target-path-pattern: configmgr/${{ steps.version.output.version }}-${{ steps.branch.output.branch }}
+          publish-target-file-pattern: configmgr-${{ steps.version.output.version }}-${{ steps.date.output.date }}.pax
           perform-release: ${{ github.event.inputs.PERFORM_RELEASE }}
  
