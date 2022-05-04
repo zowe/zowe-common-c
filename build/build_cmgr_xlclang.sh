@@ -165,7 +165,7 @@ xlclang \
 #  exit 8
 #fi
 
-rm -f "${TMP_DIR}"
+rm -rf "${TMP_DIR}"
 
 
 # This program and the accompanying materials are
