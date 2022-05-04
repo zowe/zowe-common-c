@@ -17,7 +17,7 @@ echo "Building configmgr..."
 
 # These paths assume that the build is run from /zss/deps/zowe-common-c/builds
 
-date_stamp=$(date +%Y%m%d)
+date_stamp=$(date +%Y%m%d%S)
 
 TMP_DIR="${WORKING_DIR}/tmp-${date_stamp}"
 
