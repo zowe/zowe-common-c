@@ -21,11 +21,11 @@ echo "$SCRIPT_NAME build configmgr ..."
 STEPLIB=CBC.SCCNCMP "$SCRIPT_DIR/content/build/build_cmgr_xlclang.sh"
 
 # clean up content folder
-#echo "$SCRIPT_NAME cleaning up pax folder ..."
-#cd "$SCRIPT_DIR"
-#mv content bak && mkdir -p content
+echo "$SCRIPT_NAME cleaning up pax folder ..."
+cd "$SCRIPT_DIR"
+mv content bak && mkdir -p content
 
 # move real files to the content folder
-#echo "$SCRIPT_NAME coping files should be in pax ..."
-#cd "$SCRIPT_DIR/content"
-#cp ../bak/bin/configmgr .
+echo "$SCRIPT_NAME coping files should be in pax ..."
+cd "$SCRIPT_DIR/content"
+cp ../bak/bin/configmgr .
