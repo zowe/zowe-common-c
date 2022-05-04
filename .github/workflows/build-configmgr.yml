@@ -83,7 +83,7 @@ jobs:
         with:
           artifacts: |
             .pax/configmgr/configmgr.pax
-          publish-target-path-pattern: configmgr/${{ steps.version.output.version }}-${{ steps.branch.output.branch }}
-          publish-target-file-pattern: configmgr-${{ steps.version.output.version }}-${{ steps.date.output.date }}.pax
+          publish-target-path-pattern: configmgr/${{ steps.version.outputs.version }}-${{ steps.branch.outputs.branch }}
+          publish-target-file-pattern: configmgr-${{ steps.version.outputs.version }}-${{ steps.date.outputs.date }}.pax
           perform-release: ${{ github.event.inputs.PERFORM_RELEASE }}
  
