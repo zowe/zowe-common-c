@@ -17,24 +17,55 @@ echo "Building configmgr..."
 
 # These paths assume that the build is run from /zss/deps/zowe-common-c/builds
 
+date_stamp=$(date +%Y%m%d%S)
 
+TMP_DIR="${WORKING_DIR}/tmp-${date_stamp}"
 
-mkdir -p "${WORKING_DIR}/tmp-configmgr" && cd "$_"
+mkdir -p "${TMP_DIR}" && cd "${TMP_DIR}"
 
 COMMON="../.."
-QUICKJS="../../../../../quickjs"
-LIBYAML="../../../../../libyaml"
+
+VERSION=$(cat ../configmgr_version.txt)
+
+# Split version into parts
+OLDIFS=$IFS
+IFS="."
+for part in ${VERSION}; do
+  if [ -z "$MAJOR" ]; then
+    MAJOR=$part
+  elif [ -z "$MINOR" ]; then
+    MINOR=$part
+  else
+    PATCH=$part
+  fi
+done
+IFS=$OLDIFS
+
+VERSION="\"${VERSION}\""
+
+
+QUICKJS="${COMMON}/deps/configmgr/quickjs"
+QUICKJS_LOCATION="git@github.com:joenemo/quickjs-portable.git"
+QUICKJS_BRANCH="0.9.0"
+
+LIBYAML="${COMMON}/deps/configmgr/libyaml"
+LIBYAML_LOCATION="git@github.com:yaml/libyaml.git"
+LIBYAML_BRANCH="0.2.5"
+
+DEPS="QUICKJS LIBYAML"
+
+IFS=" "
+for dep in ${DEPS}; do
+  eval directory="\$${dep}"
+  echo "Check if dir exist=$directory"
+  if [ ! -d "$directory" ]; then
+    eval echo Clone: \$${dep}_LOCATION @ \$${dep}_BRANCH to \$${dep}
+    eval git clone --branch "\$${dep}_BRANCH" "\$${dep}_LOCATION" "\$${dep}"
+  fi
+done
+IFS=$OLDIFS
 
 rm -f "${COMMON}/bin/configmgr"
-
-MAJOR=0
-MINOR=2
-PATCH=5
-VERSION="\"${MAJOR}.${MINOR}.${PATCH}\""
-
-#if [ ! -d "${LIBYAML}" ]; then
-#  git clone git@github.com:yaml/libyaml.git
-#fi
 
 # export _C89_ACCEPTABLE_RC=4
 
@@ -133,6 +164,8 @@ xlclang \
 #  echo "Build failed"
 #  exit 8
 #fi
+
+rm -rf "${TMP_DIR}"
 
 
 # This program and the accompanying materials are
