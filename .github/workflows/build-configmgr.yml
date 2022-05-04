@@ -83,7 +83,7 @@ jobs:
         with:
           artifacts: |
             .pax/configmgr/configmgr.pax
-          publish-target-path-pattern: configmgr/${{ steps.version.outputs.version }}-${{ steps.branch.outputs.branch }}
+          publish-target-path-pattern: libs-snapshot-local/org/zowe/configmgr/${{ steps.version.outputs.version }}-${{ steps.branch.outputs.branch }}
           publish-target-file-pattern: configmgr-${{ steps.version.outputs.version }}-${{ steps.date.outputs.date }}.pax
           perform-release: ${{ github.event.inputs.PERFORM_RELEASE }}
  
