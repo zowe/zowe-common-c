@@ -17,7 +17,7 @@
 #define POLLRERR         0x0020
 #define POLLRPRI         0x0010
 #define POLLRWRBAND      0x0008
-
+#define POLLRWRNORM      0x0004
 #define POLLROUT         0x0004
 #define POLLRIN          0x0003
 #define POLLRRDBAND      0x0002

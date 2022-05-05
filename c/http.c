@@ -30,6 +30,7 @@
 
 #ifndef __ZOWE_OS_WINDOWS
 #include <time.h>
+#else
 #include <winsock2.h>
 #endif
 

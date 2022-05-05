@@ -49,6 +49,7 @@ bool cfgMakeConfig(char *configName,
                    char *configPathArg,
                    char *schemaPath);
 
+CFGConfig *addConfig(ConfigManager *mgr, const char *configName);
 int cfgGetTraceLevel(ConfigManager *mgr);
 void cfgSetTraceLevel(ConfigManager *mgr, int traceLevel);
 void cfgSetTraceStream(ConfigManager *mgr, FILE *traceOut);

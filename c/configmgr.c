@@ -621,7 +621,7 @@ static Json *readJson(ConfigManager *mgr, ConfigPathElement *pathElement){
   }
 }
 
-static CFGConfig *addConfig(ConfigManager *mgr, const char *configName){
+CFGConfig *addConfig(ConfigManager *mgr, const char *configName){
   CFGConfig *config = getConfig(mgr,configName);
   if (config){
     return config;
