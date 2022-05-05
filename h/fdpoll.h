@@ -17,7 +17,7 @@
 #define POLLRERR         0x0020
 #define POLLRPRI         0x0010
 #define POLLRWRBAND      0x0008
-#define POLLRWRNORM      0x0004
+
 #define POLLROUT         0x0004
 #define POLLRIN          0x0003
 #define POLLRRDBAND      0x0002
@@ -30,7 +30,9 @@ typedef struct PollItem_tag {
 } PollItem;
 
 #elif defined(__ZOWE_OS_LINUX)
+
 #include <poll.h>
+
 typedef struct pollfd PollItem;
 
 #define POLLEIN  POLLIN
@@ -38,6 +40,25 @@ typedef struct pollfd PollItem;
 #define POLLEOUT POLLOUT
 #define POLLROUT POLLOUT
 #define POLLRHUP POLLHUP
+
+#elif defined(__ZOWE_OS_WINDOWS)
+
+#include <winsock2.h>
+
+#define POLLEWRNORM POLLWRNORM 
+#define POLLRWRNORM POLLWRNORM
+
+/* Note:
+
+   typedef struct pollfd {
+     SOCKET fd;
+     SHORT  events;
+     SHORT  revents;
+   } WSAPOLLFD, *PWSAPOLLFD, *LPWSAPOLLFD;
+
+*/
+
+typedef WSAPOLLFD PollItem;
 
 #else
 #error Unknown OS

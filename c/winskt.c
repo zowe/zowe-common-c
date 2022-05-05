@@ -78,6 +78,12 @@ void freeSocketAddr(SocketAddress *address){
   safeFree((char*)address,sizeof(SocketAddress));
 }
 
+/* SD or, on windows the handle */
+int getSocketDebugID(Socket *s){
+  return (int)s->windowsSocket;
+}
+
+
 /*--5---10---15---20---25---30---35---40---45---50---55---60---65---70---75---*/
 
 #define SO_ERROR    0x1007
@@ -505,10 +511,11 @@ Socket *udpPeer(SocketAddress *socketAddress,
   }
 }
 
-Socket *tcpServer(InetAddr *addr, /* usually NULL/0 */
-                  int port,
-                  int *returnCode,
-                  int *reasonCode){
+Socket *tcpServer2(InetAddr *addr,
+                   int port,
+                   int tlsFlags,
+                   int *returnCode,
+                   int *reasonCode){
   int socketVector[2];
   int status;
 
@@ -578,6 +585,15 @@ Socket *tcpServer(InetAddr *addr, /* usually NULL/0 */
   }
   
 }
+
+
+Socket *tcpServer(InetAddr *addr, /* usually NULL/0 */
+                  int port,
+                  int *returnCode,
+                  int *reasonCode){
+  return tcpServer2(addr, port, 0, returnCode, reasonCode);
+}
+
 
 /*--5---10---15---20---25---30---35---40---45---50---55---60---65---70---75---*/
 
@@ -994,6 +1010,26 @@ int fileInfoUnixCreationTime(const FileInfo *info){
   return info->st_ctime;
 }
 
+int fileInfoUnixModificationTime(const FileInfo *info){
+  return info->st_mtime;
+}
+
+int fileUnixMode(const FileInfo *info) {
+  return info->st_mode;
+}
+
+int fileInfoOwnerGID(const FileInfo *info) {
+  return info->st_gid;
+}
+
+int fileInfoOwnerUID(const FileInfo *info) {
+  return info->st_uid;
+}
+
+int fileGetINode(const FileInfo *info) {
+  return info->st_ino;
+}
+
 UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonCode){
   printf("d0.0\n");
   fflush(stdout);
@@ -1124,6 +1160,33 @@ int socketSetRemove(SocketSet *set, Socket *socket){
   set->revisionNumber++;
   return 0;
 }
+
+/* Temp home for windows users and groups */
+
+/*
+  https://social.msdn.microsoft.com/Forums/WINDOWS/en-US/dde0d103-7c21-4dfa-9266-754e59f0a11e/geteuid-and-getpwuid?forum=windowssdk
+
+  id command
+
+  
+  "id -u"
+  "id -g"  group
+  "id -G"  all groups
+
+   wmic useraccount
+
+   Crypto stuff
+   
+   mscat.h
+
+   https://github.com/cygwin/cygwin/tree/master/newlib/libm/common
+
+   https://github.com/cygwin/cygwin/blob/8050ef207494e6d227e968cc7e5850153f943320/newlib/libc/unix/getpwent.c
+
+   https://www.cygwin.com/cygwin-ug-net/cygwin-ug-net.pdf
+
+   https://github.com/dscho/msys/blob/master/msys/packages/sh-utils/2.0/src/id.c
+*/
 
 /*
   This program and the accompanying materials are

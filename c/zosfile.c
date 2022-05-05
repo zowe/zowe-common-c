@@ -919,10 +919,15 @@ int fileInfoUnixCreationTime(const FileInfo *info) {
   return info->creationTime;   /* unix time */
 }
 
+int fileInfoUnixModificationTime(const FileInfo *info){
+  return info->lastModificationTime;
+}
+
 int fileEOF(const UnixFile *file) {
   return ((file->bufferPos >= file->bufferFill) && file->eofKnown);
 }
 
+/* why is this not 9 bits, and first flag not 0x01 */
 int fileUnixMode(const FileInfo *info) {
   return ((info->flags2 & 0x0f) << 8) | (info->flags3 & 0xff);
 }

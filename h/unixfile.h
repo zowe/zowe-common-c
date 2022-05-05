@@ -481,11 +481,19 @@ int setFileInfoCCSID(int ccsid);
 #endif
 int fileInfoCCSID(const FileInfo *info);
 int fileInfoUnixCreationTime(const FileInfo *info);
+int fileInfoUnixModificationTime(const FileInfo *info);
+/**
+   
+ */
 int fileUnixMode(const FileInfo *info);
 int fileEOF(const UnixFile *file);
 int fileGetINode(const FileInfo *file);
 int fileGetDeviceID(const FileInfo *file);
+int fileInfoOwnerGID(const FileInfo *file);
+int fileInfoOwnerUID(const FileInfo *file);
+
 int fileClose(UnixFile *file, int *returnCode, int *reasonCode);
+
 
 int directoryMake(const char *pathName, int mode, int *returnCode, int *reasonCode);
 int directoryDelete(const char *pathName, int *returnCode, int *reasonCode);

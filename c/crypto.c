@@ -85,7 +85,7 @@ int digestContextInit(DigestContext *context, CryptoDigestType digestType){
     return CRYPTO_GENERAL_FAILURE;
   }
 
-  printf("halgorithm handle=0x%x\n",hAlgorithm);
+  printf("halgorithm handle=0x%p\n",hAlgorithm);
   fflush(stdout);
   /* calculate the size of the buffer to hold the hash object 
      
@@ -111,7 +111,7 @@ int digestContextInit(DigestContext *context, CryptoDigestType digestType){
     wprintf(L"**** Error 0x%x returned by BCryptGetProperty\n", status);
     return CRYPTO_GENERAL_FAILURE;
   }
-  printf("cbHashObject=%d cbData=%d\n",cbHashObject,cbData);
+  printf("cbHashObject=%d cbData=%d\n",(int)cbHashObject,(int)cbData);
   fflush(stdout);
 
   /* allocate the hash object on the heap */
@@ -160,7 +160,7 @@ int digestContextInit(DigestContext *context, CryptoDigestType digestType){
 }
     
 int digestContextUpdate(DigestContext *context, char *data, int length){
-  if(!NT_SUCCESS(BCryptHashData(context->hHash,data,length,0))){
+  if(!NT_SUCCESS(BCryptHashData(context->hHash,(unsigned char *)data,length,0))){
     return CRYPTO_GENERAL_FAILURE;
   } else {
     return CRYPTO_SUCCESS;
@@ -170,7 +170,7 @@ int digestContextUpdate(DigestContext *context, char *data, int length){
 int digestContextFinish(DigestContext *context, char *outputDigestBuffer){
   /* close the hash */
   if(!NT_SUCCESS(BCryptFinishHash(context->hHash, 
-                                  outputDigestBuffer,
+                                  (unsigned char *)outputDigestBuffer,
                                   context->outputHashLength,
                                   0))){
     return CRYPTO_GENERAL_FAILURE;
