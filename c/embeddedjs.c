@@ -461,6 +461,12 @@ static const char EXTATTR_SHARELIB_ASCII[17] = { 0x45, 0x58, 0x54, 0x41, 0x54, 0
 static const char EXTATTR_PROGCTL_ASCII[16] = { 0x45, 0x58, 0x54, 0x41, 0x54, 0x54, 0x52, 0x5f,
 						0x50, 0x52, 0x4f, 0x47, 0x43, 0x54, 0x4c, 0x00};
 
+#ifndef __ZOWE_OS_ZOS
+/* stub the constants that non-ZOS does not define */
+#define EXTATTR_SHARELIB 1
+#define EXTATTR_PROGCTL 1
+#endif
+
 static const JSCFunctionListEntry zosFunctions[] = {
   JS_CFUNC_DEF(changeTagASCII, 2, zosChangeTag),
   JS_CFUNC_DEF(changeExtAttrASCII, 3, zosChangeExtAttr),

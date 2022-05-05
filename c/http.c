@@ -30,6 +30,7 @@
 
 #ifndef __ZOWE_OS_WINDOWS
 #include <time.h>
+#include <winsock2.h>
 #endif
 
 #endif /* METTLE */
@@ -209,7 +210,11 @@ int writeFully(Socket *socket, char *buffer, int len){
        */
       if (WRITE_FORCE && (returnCode == EAGAIN || returnCode == EWOULDBLOCK)) {
         PollItem item = {0};
+#ifndef __ZOWE_OS_WINDOWS
         item.fd = socket->sd;
+#else
+        item.fd = socket->windowsSocket;
+#endif  
         item.events = POLLEWRNORM;
         returnCode = 0;
         reasonCode = 0;

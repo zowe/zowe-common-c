@@ -76,6 +76,7 @@ typedef struct STCModule_tag {
   void *data;
   int  (*tcpHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *module, Socket *socket);  /* module ID's need to replace HTTP protocol ID's */
   int  (*udpHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *module, Socket *socket);
+  int  (*pipeHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *module, Socket *socket);
   int  (*workElementHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *stcModule, WorkElementPrefix *prefix);
   int  (*backgroundHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *stcModule, int selectReturnCode);
 } STCModule;
@@ -88,6 +89,7 @@ typedef struct STCBase_tag{
   RLEAnchor  *rleAnchor;
 #elif defined(__ZOWE_OS_WINDOWS)
   HANDLE      qReadyEvent;
+  RLEAnchor  *rleAnchor;
 #elif defined(__ZOWE_OS_AIX)
   void      **eventSockets;
   RLEAnchor  *rleAnchor;

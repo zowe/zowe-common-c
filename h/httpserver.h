@@ -369,7 +369,11 @@ typedef struct WSSession_tag {
 //      B) If the compare-and-swap fails, restart from 1).
 
 typedef union HttpConversationSerialize_tag {
+#ifdef __ZOWE_OS_WINDOWS
+  _Atomic unsigned int serializedData;
+#else
   unsigned int       serializedData;
+#endif
   struct {
     char               shouldClose;    
     int                considerCloseEnqueued : 1;

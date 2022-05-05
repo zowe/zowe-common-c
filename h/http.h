@@ -143,7 +143,7 @@ typedef struct HttpRequest_tag{
   char *queryString; /* NULL if no "?" in URL */
   int  queryStringLen;
   char *fragmentIdentifier; /* NULL if no '#' in URL */
-  /* Map parameters; /* set to Collections.EMPTY_MAP if no params. */
+  /* Map parameters; */ /* set to Collections.EMPTY_MAP if no params. */
   int authenticated;
   int isWebSocket;
   char *username;
@@ -192,6 +192,7 @@ typedef struct WSMessage_tag{
 char *copyString(ShortLivedHeap *slh, char *s, int len);
 char *copyStringToNative(ShortLivedHeap *slh, char *s, int len);
 char* destructivelyNativize(char *s);
+void asciify(char *s, int len);
 
 int headerMatch(HttpHeader *header, char *s);
 
