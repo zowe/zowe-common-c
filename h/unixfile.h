@@ -152,7 +152,7 @@ typedef struct BPXYSTAT_tag{
   int      ownerGID;
   int64    fileSize;
   int      lastAccessTime;  /* unix seconds for these time valus */
-  int      lastModficationTime;
+  int      lastModificationTime;
   int      lastFileStatusChangeTime;
   short    majorNumber; /* if special */
   short    minorNumber;

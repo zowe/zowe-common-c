@@ -54,6 +54,9 @@
 
 #ifdef __ZOWE_OS_WINDOWS
 typedef int64_t ssize_t;
+#else 
+#include <sys/ipc.h>
+#include <sys/msg.h>
 #endif
 
 #ifdef __ZOWE_OS_ZOS
@@ -447,6 +450,52 @@ static JSValue zosStat(JSContext *ctx, JSValueConst this_val,
   return makeObjectAndErrorArray(ctx, obj, err);
 }
 
+#define READ_BUFFER_SIZE 0x1000
+
+static int copyFile(char *source, char *readMode, char *destination, char *writeMode){
+  FILE *in = NULL;
+  FILE *out = NULL;
+  char *data = NULL;
+  int ret = 0;
+  in = fopen(source, readMode);
+  if (in == NULL){
+    printf("open source failed on '%s'\n",source);
+    ret = errno;
+    goto end;
+  }
+  out = fopen(destination, writeMode);
+  if (out == NULL){
+    printf("open dest failed, d='%s', mode='%s'\n",destination,writeMode);
+    ret = errno;
+    goto end;
+  }
+  data = safeMalloc(READ_BUFFER_SIZE,"copyFiles");
+  while (!feof(in)){
+    int bytesRead = fread(data,1,READ_BUFFER_SIZE,in);
+    if (bytesRead > 0){
+      int bytesWritten = fwrite(data,1,bytesRead,out);
+      if (bytesWritten < bytesRead){
+	ret = -1;
+	goto end;
+      }
+    } else{
+      ret = -1;
+      goto end;
+    }
+  }
+end:
+  if (data){
+    safeFree(data,READ_BUFFER_SIZE);
+  }
+  if (in){
+    fclose(in);
+  }
+  if (out){
+    fclose(out);
+  }
+  return ret;
+}
+
 static const char changeTagASCII[10] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65, 
 					0x54, 0x61, 0x67, 0x00};
 static const char changeExtAttrASCII[14] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65, 
@@ -495,6 +544,68 @@ JSModuleDef *ejsInitModuleZOS(JSContext *ctx, const char *module_name){
 
   return m;
 }
+
+/*** POSIX Module - low level services not in the QuickJS os module.  ***/
+
+#ifndef __ZOWE_OS_WINDOWS
+
+static JSValue posixMessageSend(JSContext *ctx, JSValueConst this_val,
+				int argc, JSValueConst *argv){
+  return JS_EXCEPTION;
+}
+
+static JSValue posixMessageReceive(JSContext *ctx, JSValueConst this_val,
+				   int argc, JSValueConst *argv){
+  return JS_EXCEPTION;
+}
+
+static JSValue posixMessageControl(JSContext *ctx, JSValueConst this_val,
+				   int argc, JSValueConst *argv){
+  return JS_EXCEPTION;
+}
+
+static JSValue posixMessageGet(JSContext *ctx, JSValueConst this_val,
+			       int argc, JSValueConst *argv){
+  return JS_EXCEPTION;
+}
+
+static char msgsndASCII[7] ={ 0x6d, 0x73, 0x67, 0x73, 0x6e, 0x64,  0x00};
+static char msgrcvASCII[7] ={ 0x6d, 0x73, 0x67, 0x72, 0x63, 0x76,  0x00};
+static char msgctlASCII[7] ={ 0x6d, 0x73, 0x67, 0x63, 0x74, 0x6c,  0x00};
+static char msggetASCII[7] ={ 0x6d, 0x73, 0x67, 0x67, 0x65, 0x74,  0x00};
+
+static char IPC_PRIVATE_ASCII[12] ={ 0x49, 0x50, 0x43, 0x5f, 0x50, 0x52, 0x49, 0x56, 0x41, 0x54, 0x45,  0x00};
+static char IPC_CREAT_ASCII[10] ={ 0x49, 0x50, 0x43, 0x5f, 0x43, 0x52, 0x45, 0x41, 0x54,  0x00};
+static char IPC_EXCL_ASCII[9] = { 0x49, 0x50, 0x43, 0x5f, 0x45, 0x58, 0x43, 0x4c,  0x00};
+
+
+static const JSCFunctionListEntry posixFunctions[] = {
+  JS_CFUNC_DEF(msgsndASCII, 4, posixMessageSend),
+  JS_CFUNC_DEF(msgrcvASCII, 5, posixMessageReceive),
+  JS_CFUNC_DEF(msgctlASCII, 3, posixMessageControl),
+  JS_CFUNC_DEF(msggetASCII, 2, posixMessageGet),
+  JS_PROP_INT32_DEF(IPC_PRIVATE_ASCII, IPC_PRIVATE, JS_PROP_CONFIGURABLE ),
+  JS_PROP_INT32_DEF(IPC_CREAT_ASCII, IPC_CREAT, JS_PROP_CONFIGURABLE ),
+  JS_PROP_INT32_DEF(IPC_EXCL_ASCII, IPC_EXCL, JS_PROP_CONFIGURABLE ),
+};
+
+static int ejsInitPOSIXCallback(JSContext *ctx, JSModuleDef *m){
+  JS_SetModuleExportList(ctx, m, posixFunctions, countof(posixFunctions));
+  return 0;
+}
+
+JSModuleDef *ejsInitModulePOSIX(JSContext *ctx, const char *module_name){
+  JSModuleDef *m;
+  m = JS_NewCModule(ctx, module_name, ejsInitPOSIXCallback);
+  if (!m){
+    return NULL;
+  }
+  JS_AddModuleExportList(ctx, m, posixFunctions, countof(posixFunctions));
+
+  return m;
+}
+
+#endif /* __ZOWE_OS_WINDOWS */
 
 
 static JSClassID js_experiment_thingy_class_id;
