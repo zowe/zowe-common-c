@@ -445,6 +445,13 @@ static JSValue zosStat(JSContext *ctx, JSValueConst this_val,
     ejsDefinePropertyValueStr(ctx, obj, "extattrs",
 			      JS_NewInt64(ctx, (int64_t)st.st_genvalue&EXTATTR_MASK),
 			      JS_PROP_C_W_E);
+    struct file_tag *tagInfo = &st.st_tag;
+    ejsDefinePropertyValueStr(ctx, obj, "isText",
+			      JS_NewBool(ctx, tagInfo->ft_txtflag),
+			      JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "ccsid",
+			      JS_NewInt64(ctx, (int64_t)(tagInfo->ft_ccsid)),
+			      JS_PROP_C_W_E);
 #endif
   }
   return makeObjectAndErrorArray(ctx, obj, err);

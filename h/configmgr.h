@@ -44,7 +44,7 @@ typedef struct ConfigManager_tag{
 #define ZCFG_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS 
 
 
-ConfigManager *makeConfigManager();
+ConfigManager *makeConfigManager(void);
 bool cfgMakeConfig(char *configName,
                    char *configPathArg,
                    char *schemaPath);
@@ -53,6 +53,8 @@ CFGConfig *addConfig(ConfigManager *mgr, const char *configName);
 int cfgGetTraceLevel(ConfigManager *mgr);
 void cfgSetTraceLevel(ConfigManager *mgr, int traceLevel);
 void cfgSetTraceStream(ConfigManager *mgr, FILE *traceOut);
+int cfgSetConfigPath(ConfigManager *mgr, const char *configName, char *configPathArg);
+int cfgLoadSchemas(ConfigManager *mgr, const char *configName, char *schemaList);
 
 void freeConfigManager(ConfigManager *mgr);
 
