@@ -940,6 +940,14 @@ int fileGetDeviceID(const FileInfo *info) {
   return info->deviceID;
 }
 
+int fileInfoOwnerGID(const FileInfo *info){
+  return info->ownerGID;
+}
+
+int fileInfoOwnerUID(const FileInfo *info){
+  return info->ownerUID;
+}
+
 UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonCode) {
   int nameLength = strlen(directoryName);
   int *reasonCodePtr;
