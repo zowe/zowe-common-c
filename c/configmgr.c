@@ -579,7 +579,7 @@ void cfgSetTraceStream(ConfigManager *mgr, FILE *traceOut){
   mgr->traceOut = traceOut;
 }
 
-static int cfgSetConfigPath(ConfigManager *mgr, const char *configName, char *configPathArg){
+int cfgSetConfigPath(ConfigManager *mgr, const char *configName, char *configPathArg){
   CFGConfig *config = getConfig(mgr,configName);
   if (!config){
     return ZCFG_UNKNOWN_CONFIG_NAME;
