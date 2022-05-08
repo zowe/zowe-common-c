@@ -154,7 +154,7 @@ int setSocketTrace(int toWhat) {
   return was;
 }
 
-void sleep(int seconds){
+unsigned int sleep(unsigned int seconds){
   int returnValue;
   int *returnValuePtr;
   
@@ -164,6 +164,7 @@ void sleep(int seconds){
   returnValuePtr = &returnValue;
 #endif
   BPXSLP(seconds,returnValuePtr); 
+  return returnValue;
 }
 
 void bpxSleep(int seconds)
@@ -363,6 +364,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
     } else{
       Socket *socket = (Socket*)safeMalloc(sizeof(Socket),"Socket");
       socket->sd = socketVector[0];
+      socket->pipeOutputSD = 0;  /* nothing, not a reference to STDIN */
       sprintf(socket->debugName,"SD=%d",socket->sd);
       socket->isServer = 0;
       socket->tlsFlags = tlsFlags;
@@ -392,6 +394,16 @@ Socket *tcpClient(SocketAddress *socketAddress,
   return tcpClient2(socketAddress,-1,returnCode,reasonCode);
 }
 
+Socket *makePipeBasedSyntheticSocket(int protocol, int inputFD, int outputFD){
+  Socket *socket = (Socket*)safeMalloc(sizeof(Socket),"Socket");
+  socket->sd = inputFD;
+  socket->pipeOutputSD = outputFD;
+  sprintf(socket->debugName,"PIPE(%d,%d)",inputFD,outputFD);
+  socket->isServer = 0;
+  socket->tlsFlags = 0;
+  socket->protocol = protocol;
+  return socket;
+}
 
 void socketFree(Socket *socket){
   safeFree((char*)socket,sizeof(Socket));
@@ -1080,7 +1092,9 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
 int socketWrite(Socket *socket, const char *buffer, int desiredBytes, 
 	       int *returnCode, int *reasonCode){
   int status = 0;
-  int sd = socket->sd;
+  int sd = (IS_SYNTHETIC_PIPE(socket->protocol) ?
+            socket->pipeOutputSD :
+            socket->sd);
   int returnValue = 0;
   *returnCode = *reasonCode = 0;
   int *reasonCodePtr;

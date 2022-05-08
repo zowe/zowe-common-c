@@ -1519,19 +1519,24 @@ HttpServer *makeHttpServerInner(STCBase *base,
                                 char *cookieName,
                                 int *returnCode, int *reasonCode){
   //logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
-
+  Socket *listenerSocket = NULL;
+  /* if "noTCP" is true, this server only receives IO thru tunnelling */
+  bool noTCP = false;
   SessionTokenKey sessionTokenKey = {0};
   if (initSessionTokenKey(&sessionTokenKey) != 0) {
     return NULL;
   }
-
-  Socket *listenerSocket = tcpServer2(addr,port,tlsFlags,returnCode,reasonCode);
-  if (listenerSocket == NULL){
-    return NULL;
-  }
+  if (addr != NULL && port != HTTP_DISABLE_TCP_PORT){
+    listenerSocket = tcpServer2(addr,port,tlsFlags,returnCode,reasonCode);
+    if (listenerSocket == NULL){
+      return NULL;
+    }
 #ifdef USE_ZOWE_TLS
-  listenerSocket->tlsEnvironment = tlsEnv;
+    listenerSocket->tlsEnvironment = tlsEnv;
 #endif // USE_ZOWE_TLS
+  } else{
+    noTCP = true;
+  }
   HttpServer *server = (HttpServer*)safeMalloc31(sizeof(HttpServer),"HTTP Server");
   memset(server,0,sizeof(HttpServer));
   server->base = base;
@@ -1546,13 +1551,11 @@ HttpServer *makeHttpServerInner(STCBase *base,
   server->serverInstanceUID = (uint64)getFineGrainedTime();
   stcRegisterSocketExtension(base, listenerSocketExtension, STC_MODULE_JEDHTTP);
 
-#ifdef __ZOWE_OS_WINDOWS
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "ListenerSocket on SocketHandle=0x%x\n",listenerSocket->windowsSocket);
-#else
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "ListenerSocket on SD=%d\n",listenerSocket->sd);
-#endif
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "ListenerSocket on SD/WinSock=0x%x\n",
+	  (listenerSocket ? getSocketDebugID(listenerSocket) : 0));
 
   server->config = (HttpServerConfig*)safeMalloc31(sizeof(HttpServerConfig),"HttpServerConfig");
+  server->syntheticPipeSockets = htCreate(4001, NULL, NULL, NULL, NULL);
   server->properties = htCreate(4001,stringHash,stringCompare,NULL,NULL);
   memset(server->config,0,sizeof(HttpServerConfig));
 
@@ -1563,6 +1566,26 @@ HttpServer *makeHttpServerInner(STCBase *base,
 
   return server;
 }
+
+int httpServerEnablePipes(HttpServer *server,
+			  int fromDispatcherFD,
+			  int toDispatcherFD){
+  Socket *pipeSocket = makePipeBasedSyntheticSocket(IPPROTO_SYNTHETIC_PIPE_DEMULTIPLEXER,
+						    fromDispatcherFD,toDispatcherFD);
+  /* pipe tracking and the arguments to makeSExt() */
+  SocketExtension *pipeExtension = makeSocketExtension(pipeSocket,
+                                                       server->slh,
+                                                       FALSE, /* allocateInSLH */
+                                                       server,
+                                                       READ_BUFFER_SIZE);
+  pipeSocket->userData = pipeExtension;
+  stcRegisterSocketExtension(server->base, pipeExtension, STC_MODULE_JEDHTTP);
+  
+  server->singleUserMode = true; /* this should be somewhere else some day */
+  
+  return 0;
+}
+
 
 HttpServer *makeHttpServer2(STCBase *base,
                            InetAddr *addr,
@@ -2501,8 +2524,102 @@ int isLowerCasePasswordAllowed(){
 }
 #endif
 
-
 #ifdef __ZOWE_OS_ZOS
+
+/* because of the evil of the backwards mainframe default for hashing in ICSF
+   we need an open-source replacement of ICSF for single-user mode.
+
+   Poughkeepsie, this is why we can't have nice things on ZOS.
+   */
+static char *md5It(char *s, int len, char *hash){
+  ICSFDigest digest;
+  memset(hash,0,16);
+  icsfDigestInit(&digest,ICSF_DIGEST_MD5);
+  icsfDigestUpdate(&digest,s,len);
+  icsfDigestFinish(&digest,hash);
+  return hash;
+}
+
+static ACEE *getACEE(){
+  TCB *tcb = getTCB();
+  ACEE *acee = NULL;
+  if (tcb->tcbsenv){
+    acee = (ACEE*)tcb->tcbsenv;
+  } else{
+    ASCB *ascb = getASCB();
+    ASXB *asxb = ascb->ascbasxb;
+    acee = (ACEE*)asxb->asxbsenv;
+  }
+  return acee;
+}
+
+static int singleUserTrace = 1;
+
+static int doSingleUserAuth(HttpServer *server, HttpRequest *request, AuthResponse *authResponse){
+  if (singleUserTrace >= 1){
+    printf("JOE: single-user auth\n");
+  }
+  ACEE *acee = getACEE();
+  HttpHeader *authenticationHeader = getHeader(request,"Authorization");
+  /* the basic auth blob cam come from different places, it's in JSON in a /login
+     type request, but in Auth/Basic in other places */
+  if (singleUserTrace >= 1){
+    printf("JOE: 1U u: '%s' p: '%s' authHeader=0x%p\n",request->username,request->password,authenticationHeader);
+  }
+  char cleartextBuffer[100];
+  char asciiHeaderBuffer[100];
+  char *asciiHeader = NULL;
+  if (authenticationHeader){
+    asciiHeader = authenticationHeader->value;
+  } else{
+    if (strlen(request->username) > 32 || strlen(request->password) > 64){
+      printf("username or password too long\n");
+      return 0;
+    }
+    sprintf(cleartextBuffer,"Basic %s:%s",request->username,request->password);
+    strupcase(cleartextBuffer+6);
+    if (singleUserTrace >= 1){
+      printf("JOE: before ascii and B64 '%s'\n",cleartextBuffer);
+    }
+    e2a(cleartextBuffer,strlen(cleartextBuffer));
+    if (singleUserTrace >= 1){
+      printf("JOE: as ascii\n");
+      dumpbuffer(cleartextBuffer,strlen(cleartextBuffer));
+    }
+    asciiHeader = asciiHeaderBuffer;
+    int encodedSize = 0;
+    encodeBase64NoAlloc(cleartextBuffer+6, strlen(cleartextBuffer)-6, asciiHeader+6,&encodedSize,FALSE);
+    encodedSize += 6;
+    memcpy(asciiHeader,cleartextBuffer,6);
+    asciiHeader[encodedSize] = 0;
+    if (singleUserTrace >= 1){
+      printf("JOE: Built ascii header\n");
+      dumpbuffer(asciiHeader,encodedSize+1);
+    }
+  }
+  char md5Hash[16];
+  md5It(asciiHeader,strlen(asciiHeader),md5Hash);
+  strupcase(request->username); /* upfold username */
+  char *safUser = acee->aceeuser;
+  int safUserLength = safUser[0];
+  safUser++;
+  if (singleUserTrace >= 1){
+    printf("JOE: single-user requestUName: '%s' ACEE uname: '%*.*s'\n",
+           request->username,safUserLength,safUserLength,safUser);
+    dumpbuffer(asciiHeader,strlen(asciiHeader));
+    printf("and blob hash\n");
+    dumpbuffer(md5Hash,16);
+    printf("and singleUserAuthBlob at 0x%p\n",server->singleUserAuthBlob);
+    dumpbuffer(server->singleUserAuthBlob,16);
+  }
+  /*
+     do we need this stuff? and for what?
+     authResponse->type = AUTH_TYPE_RACF;
+     authResponse->responseDetails.safStatus = 0;
+   */
+  return !memcmp(server->singleUserAuthBlob,md5Hash,16);
+}
+
 static int safAuthenticate(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
   int safStatus = 0, racfStatus = 0, racfReason = 0;
   int options = VERIFY_CREATE;
@@ -2517,7 +2634,9 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
   if (traceAuth){
     printf("safAutheniticate: authDataFound=%d\n",authDataFound);
   }
-  if (authDataFound) {
+  if (authDataFound && service->server->singleUserMode){
+    return doSingleUserAuth(service->server,request,authResponse);
+  } else if (authDataFound){
     ACEE *acee = NULL;
     strupcase(request->username); /* upfold username */
 #ifdef ENABLE_DANGEROUS_AUTH_TRACING
@@ -2588,6 +2707,17 @@ static int nativeAuth(HttpService *service, HttpRequest *request, AuthResponse *
 }
 
 static int startImpersonating(HttpService *service, HttpRequest *request) {
+  if (service->server->singleUserMode){
+    /* Why is this valid?
+       Because all requests must be from the same userid in request as
+       what is running this httpserver, therefore impersonation is idempotent.
+       */
+    if (singleUserTrace >= 1){
+      printf("JOE - idem-personating (ha!) in 1U Mode\n");
+    }
+    return TRUE;
+  }
+
   int impersonating = FALSE;
   if (service->doImpersonation) {
     if (service->runInSubtask) {
@@ -2619,6 +2749,9 @@ static int startImpersonating(HttpService *service, HttpRequest *request) {
 }
 
 static int endImpersonating(HttpService *service, HttpRequest *request) {
+  if (service->server->singleUserMode){
+    return TRUE;
+  }
 #ifdef __ZOWE_OS_ZOS
 
 #if (APF_AUTHORIZED == 1) && !defined(HTTPSERVER_BPX_IMPERSONATION)
@@ -5453,6 +5586,69 @@ static void doWSReadWork(HttpConversation *conversation, int readBufferSize){
   }
 }
 
+static int handlePeerSocketRead(STCBase *base,
+                                STCModule *module,
+                                Socket *socket,
+                                SocketExtension *extension,
+                                bool *breakOuterLoop){
+  int returnCode = 0;
+  int reasonCode = 0;
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "handle peer socket read\n");
+  
+  SocketExtension *peerExtension = extension;
+  HttpConversation *conversation = (HttpConversation*)extension->protocolHandler;
+  
+  if (NULL == conversation) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "*** peerExtension protocolHandler is NULL ***\n");
+    /* we can't do a full conversation cleanup, just close the socket and unregister the socketExtension, leaks be damned */
+    socketClose(peerExtension->socket, &returnCode,&reasonCode);
+    *breakOuterLoop = true;
+    return 8;
+  }
+  
+  if (conversation->shouldClose) {
+    /* immediately unregister the socketExtension so we can't enqueue more than one CLOSE_CONVERSATION request */
+    stcReleaseSocketExtension(base, peerExtension);
+    
+    serializeConsiderCloseEnqueue(conversation,FALSE);
+    
+    *breakOuterLoop = true;
+    return 0;
+  }
+
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "peerExtension at 0x%p, httpConversation at 0x%p\n", 
+              peerExtension, conversation);
+  
+#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_RS_TLS)
+  int sxStatus = sxUpdateTLSInfo(peerExtension,
+                                 1); /* prevent multiple ioctl calls on repeated reads */
+  if (0 != sxStatus) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "error from sxUpdateTLSInfo: %d\n", sxStatus);
+  } else if ((RS_TLS_WANT_TLS & peerExtension->tlsFlags) &&
+             (0 == (RS_TLS_HAVE_TLS & peerExtension->tlsFlags)))
+    {
+      if (0 == (tlsWarnCounter % TLS_WARN_FREQUENCY)) {
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "Connection is insecure! TLS needed but not found on socket.\n");
+      }
+      tlsWarnCounter++;
+    } else if ((RS_TLS_WANT_PEERCERT & peerExtension->tlsFlags) &&
+               (0 == (RS_TLS_HAVE_PEERCERT & peerExtension->tlsFlags)))
+      {
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Connection is insecure! Peer certificate wanted but not found.\n");
+      }
+#endif
+  
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "handle read JEDHTTP convo\n");
+  /* if successful, these methods enqueue work */
+  if (conversation->wsSession){
+    doWSReadWork(conversation,READ_BUFFER_SIZE);
+  } else {
+    doHttpReadWork(conversation,READ_BUFFER_SIZE);
+  }
+  return 0;
+}
+
+
 
 static int httpHandleTCP(STCBase *base,
                          STCModule *module,
@@ -5538,61 +5734,208 @@ static int httpHandleTCP(STCBase *base,
       break; /* end server socket processing */
 
     } else {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "handle peer socket read\n");
-
-      SocketExtension *peerExtension = extension;
-      HttpConversation *conversation = (HttpConversation*)extension->protocolHandler;
-
-      if (NULL == conversation) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "*** peerExtension protocolHandler is NULL ***\n");
-        /* we can't do a full conversation cleanup, just close the socket and unregister the socketExtension, leaks be damned */
-        socketClose(peerExtension->socket, &returnCode,&reasonCode);
-        handlerStatus = 8;
-        break; /* end peer socket processing */
-      }
-
-      if (conversation->shouldClose) {
-        /* immediately unregister the socketExtension so we can't enqueue more than one CLOSE_CONVERSATION request */
-        stcReleaseSocketExtension(base, peerExtension);
-
-        serializeConsiderCloseEnqueue(conversation,FALSE);
-
-        break; /* end peer socket processing */
-      }
-
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "peerExtension at 0x%p, httpConversation at 0x%p\n", 
-              peerExtension, conversation);
-
-#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_RS_TLS)
-      int sxStatus = sxUpdateTLSInfo(peerExtension,
-                                     1); /* prevent multiple ioctl calls on repeated reads */
-      if (0 != sxStatus) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "error from sxUpdateTLSInfo: %d\n", sxStatus);
-      } else if ((RS_TLS_WANT_TLS & peerExtension->tlsFlags) &&
-                 (0 == (RS_TLS_HAVE_TLS & peerExtension->tlsFlags)))
-      {
-        if (0 == (tlsWarnCounter % TLS_WARN_FREQUENCY)) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "Connection is insecure! TLS needed but not found on socket.\n");
-        }
-        tlsWarnCounter++;
-      } else if ((RS_TLS_WANT_PEERCERT & peerExtension->tlsFlags) &&
-                 (0 == (RS_TLS_HAVE_PEERCERT & peerExtension->tlsFlags)))
-      {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Connection is insecure! Peer certificate wanted but not found.\n");
-      }
-#endif
-
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "handle read JEDHTTP convo\n");
-      /* if successful, these methods enqueue work */
-      if (conversation->wsSession){
-        doWSReadWork(conversation,READ_BUFFER_SIZE);
-      } else {
-        doHttpReadWork(conversation,READ_BUFFER_SIZE);
+      bool shouldBreak = false;
+      handlerStatus = handlePeerSocketRead(base,module,socket,extension,&shouldBreak);
+      if (shouldBreak){
+        break;
       }
     } /* end peer socket handling */
     
   } while(0);
 
+  return handlerStatus;
+}
+
+typedef struct PipeSocketEntry_tag{
+  int uniqueID;
+  Socket *demuxSocket;
+  Socket *handlerSocket;  /* used by http/tcp code */
+  Socket *muxSocket;      
+} PipeSocketEntry;
+
+static PipeSocketEntry *getOrMakePipeSocketEntry(HttpServer *server, 
+						 STCModule *module, 
+						 Socket *demuxSocket, 
+						 int uniqueID){
+  printf("getOrMake=%d\n",uniqueID);
+  PipeSocketEntry *entry = htIntGet(server->syntheticPipeSockets,uniqueID);
+  printf("ht result = 0x%p\n",entry);
+
+  if (entry == NULL){
+    int fdsToHttp[2] ={ -1, -1};  /* readEnd, writeEnd */
+    int fdsFromHttp[2] ={ -1, -1};
+    pipe (fdsToHttp);
+    pipe (fdsFromHttp);
+    int httpRequestIn = fdsToHttp[0];
+    int httpResponseOut = fdsFromHttp[1];
+    int httpRequestOut = fdsToHttp[1];
+    int httpResponseIn = fdsFromHttp[0];
+
+    printf("hanlderSocket pipes %d %d\n",httpRequestIn,httpResponseOut);
+    Socket *handlerSocket = makePipeBasedSyntheticSocket(IPPROTO_SYNTHETIC_PIPE_HANDLER,httpRequestIn,httpResponseOut);
+    printf("muxSocket pipes %d %d\n",httpResponseIn,httpRequestOut);
+    Socket *muxSocket = makePipeBasedSyntheticSocket(IPPROTO_SYNTHETIC_PIPE_MULTIPLEXER,httpResponseIn,httpRequestOut);
+    printf("handlerSocket=0x%p mux(fwd)socket=0x%p\n",handlerSocket,muxSocket);
+    SocketExtension *handlerExtension = makeSocketExtension(handlerSocket,
+							     server->slh,
+							     FALSE, /* allocateInSLH */
+							     NULL,
+							     READ_BUFFER_SIZE);
+    SocketExtension *muxExtension = makeSocketExtension(muxSocket,
+							server->slh,
+							FALSE, /* allocateInSLH */
+							NULL,
+							READ_BUFFER_SIZE);
+    
+    handlerSocket->userData = handlerExtension;
+    muxSocket->userData = muxExtension;
+
+    HttpConversation *httpConversation = makeHttpConversation(handlerExtension,(HttpServer*)(module->data));
+
+    stcRegisterSocketExtension(server->base, handlerExtension, STC_MODULE_JEDHTTP);
+    stcRegisterSocketExtension(server->base, muxExtension, STC_MODULE_JEDHTTP);
+
+    entry = (PipeSocketEntry*)safeMalloc(sizeof(PipeSocketEntry),"PipeSocketEntry");
+    entry->uniqueID = uniqueID;
+    entry->demuxSocket = demuxSocket;
+    entry->handlerSocket = handlerSocket;
+    entry->muxSocket = muxSocket;
+    printf("PSEntry at 0x%p\n",entry);
+    dumpbuffer((char*)entry,sizeof(PipeSocketEntry));
+    muxExtension->protocolHandler = entry;
+
+    htIntPut(server->syntheticPipeSockets,uniqueID,entry);
+  }
+  return entry;
+}
+
+/* this is called when PIPE has data 
+ */
+
+/* this method *only* runs in the STCBase main thread, putting and effective mutex 
+   on the pipes that talk up/down to process that owns this httpserver */
+static int httpHandlePipe(STCBase *base,
+			  STCModule *module,
+			  Socket *socket){
+  int handlerStatus = 0;
+  int returnCode = 0;
+  int reasonCode = 0;
+  HttpServer *server = (HttpServer*)(module->data);
+  SocketExtension *extension = (SocketExtension*)socket->userData;
+  switch (socket->protocol){
+  case IPPROTO_SYNTHETIC_PIPE_DEMULTIPLEXER:  
+    {
+      /* every pipe chunk for read ready must be > 4 in size */
+      char *readBuffer = extension->readBuffer;
+      
+      int bytesRead = socketRead(socket,readBuffer,8,&returnCode,&reasonCode);
+      if (returnCode){
+	printf("pipe IO error 1 ret=%d reason=0x%x\n",returnCode,reasonCode);
+	return 12;
+      } else if (bytesRead != 8){
+	printf("pipe fragment short read 1\n");
+	return 12;
+      }
+      int magic = *((int*)readBuffer);
+      if (magic != TCP_FRAGMENT_MAGIC){
+	printf("pipe bad tunnel magic\n");
+	return 12;
+      }
+      int headerLength = *((uint16_t*)(readBuffer+4));
+      printf("pipe headerLength=0x%x\n",headerLength);
+      int expectedBytes = headerLength-8;
+      bytesRead = socketRead(socket,readBuffer+8,expectedBytes,&returnCode,&reasonCode);
+      if (returnCode){
+	printf("pipe IO error 2 ret=%d reason=0x%x\n",returnCode,reasonCode);
+	return 12;
+      } else if (bytesRead != expectedBytes){
+	printf("pipe fragment short read 1\n");
+	return 12;
+      }
+      TCPFragment *fragment = (TCPFragment*)readBuffer;
+      printf("pipe header\n");
+      dumpbuffer(readBuffer,headerLength);
+      fflush(stdout);
+      bytesRead = socketRead(socket,readBuffer+headerLength,fragment->payloadLength,&returnCode,&reasonCode);
+      if (returnCode){
+	printf("pipe IO error 3 ret=%d reason=0x%x\n",returnCode,reasonCode);
+	return 12;
+      } else if (bytesRead != fragment->payloadLength){
+	printf("pipe fragment short read 1\n");
+	return 12;
+      }
+      printf("pipe payload\n");
+      dumpbuffer(readBuffer+headerLength,fragment->payloadLength);
+      fflush(stdout);
+      
+      int uniqueID = fragment->remoteClientID;
+      PipeSocketEntry *entry = getOrMakePipeSocketEntry(server,module,socket,uniqueID);
+      Socket *forwardingSocket = entry->muxSocket;
+      
+      printf("entry=0x%p forwardingSocket=0x%p %\n",
+	     entry,forwardingSocket,(forwardingSocket ? forwardingSocket->debugName : ""));
+      socketWrite(forwardingSocket,readBuffer+headerLength,fragment->payloadLength,&returnCode,&reasonCode);
+      if (returnCode){
+	printf("Pipe-forwarding tunneled Packet failed ret=%d, reason=0x%x\n",returnCode,reasonCode);
+      }
+      printf("done forwarding\n");
+    }
+  break;
+  case IPPROTO_SYNTHETIC_PIPE_HANDLER:
+    {
+      /* simple case, we are just a normal socket, almost */
+      bool breakOuterLoop = false;
+      handlerStatus = handlePeerSocketRead(base,module,socket,extension,&breakOuterLoop);
+    }
+  break;
+  case IPPROTO_SYNTHETIC_PIPE_MULTIPLEXER:
+    {
+      /* tack on Fragment header and go back */
+      PipeSocketEntry *entry = (PipeSocketEntry*)extension->protocolHandler;
+      printf("handlePipe MUX case, entry=0x%p\n",entry);
+      if (entry == NULL){
+	printf("no PipeSocketEntry found for socket %s\n",socket->debugName);
+      } else{
+	char *readBuffer = extension->readBuffer;
+	Socket *demuxSocket = entry->demuxSocket;
+	Socket *muxSocket = socket;  /* the one that is readable */
+	int bytesRead = socketRead(muxSocket,readBuffer,READ_BUFFER_SIZE,&returnCode,&reasonCode);
+	printf("MUX case: 0x%x bytes back from handler, ret=%d reason=0x%x\n",bytesRead,returnCode,reasonCode);
+	if (bytesRead > 0){
+	  int dumpLen = bytesRead > 0x400 ? 400 : bytesRead;
+	  dumpbuffer(readBuffer,dumpLen);
+	  TCPFragment fragmentStorage;
+	  TCPFragment *fragment = &fragmentStorage;
+	  memset(fragment,0,sizeof(TCPFragment));
+	  fragment->magic = TCP_FRAGMENT_MAGIC;
+	  fragment->headerLength = sizeof(TCPFragment);
+	  fragment->type = TCP_FRAGMENT_TO_REMOTE;
+	  fragment->remoteClientID = entry->uniqueID;
+	  fragment->payloadLength = bytesRead;
+	  socketWrite(demuxSocket,(char*)fragment,sizeof(TCPFragment),&returnCode,&reasonCode);
+	  FILE *tempOut = fdopen(demuxSocket->pipeOutputSD,"w");
+	  if (tempOut){
+	    fflush(tempOut);
+	  } else{
+	    printf("could not make temp out\n");
+	  }
+	  printf("MUX wrote to socket %s\n",demuxSocket->debugName);
+	  if (returnCode){
+	    printf("demultiplexing write failed ret=%d reason=0x%x\n",returnCode,reasonCode);
+	  } else{
+	    socketWrite(demuxSocket,readBuffer,bytesRead,&returnCode,&reasonCode);
+	    if (returnCode){
+	      printf("demultiplexing payload write failed ret=%d reason=0x%x\n",returnCode,reasonCode);
+	    }
+	  }
+	} else{
+	  printf("oddly, no data for MUX socket read\n");
+	}
+      }
+    }
+  break;
+  }
+  
   return handlerStatus;
 }
 
@@ -5872,26 +6215,28 @@ int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
 void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 {
   /* server pointer will be copied/accessible from module->data */
-  STCModule *httpModule = stcRegisterModule(base,
-                                            STC_MODULE_JEDHTTP,
-                                            server,
-                                            httpHandleTCP,
-                                            NULL,
-                                            httpWorkElementHandler,
-                                            httpBackgroundHandler);
+  STCModule *httpModule = stcRegisterModule2(base,
+                                             STC_MODULE_JEDHTTP,
+                                             server,
+                                             httpHandleTCP,
+                                             NULL,
+                                             httpHandlePipe,
+                                             httpWorkElementHandler,
+                                             httpBackgroundHandler);
 }
 
 int mainHttpLoop(HttpServer *server){
   STCBase *base = server->base;
   /* server pointer will be copied/accessible from module->data */
-  STCModule *httpModule = stcRegisterModule(base,
-                                            STC_MODULE_JEDHTTP,
-                                            server,
-                                            httpHandleTCP,
-                                            NULL,
-                                            httpWorkElementHandler,
-                                            httpBackgroundHandler);
-
+  STCModule *httpModule = stcRegisterModule2(base,
+                                             STC_MODULE_JEDHTTP,
+                                             server,
+                                             httpHandleTCP,
+                                             NULL,
+                                             httpHandlePipe,
+                                             httpWorkElementHandler,
+                                             httpBackgroundHandler);
+  
   return stcBaseMainLoop(base, MAIN_WAIT_MILLIS);
 }
 

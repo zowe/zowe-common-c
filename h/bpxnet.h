@@ -244,7 +244,7 @@ typedef struct hostent_tag{
 
 /* sleep(int seconds) is standard in linux */
 #if !defined(__ZOWE_OS_LINUX) && !defined(__ZOWE_OS_AIX)
-void sleep(int secs);
+unsigned int sleep(unsigned int secs);
 #endif 
 
 /* Set socket tracing; returns prior value */
@@ -337,7 +337,7 @@ typedef struct TCPFragment{
 
 ZOWE_PRAGMA_PACK_RESET
 
-/***** End TCP Pipe-tunneling suppot *****/
+/***** End TCP Pipe-tunneling support *****/
 
 
 #ifdef __ZOWE_OS_ZOS
