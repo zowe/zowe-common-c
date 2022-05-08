@@ -166,6 +166,16 @@ STCModule* stcRegisterModule(STCBase *stcBase,
                              int  (*workElementHandler)(STCBase *stcBase, STCModule *stcModule, WorkElementPrefix *prefix),
                              int  (*backgroundHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *stcModule, int selectStatus));
 
+STCModule* stcRegisterModule2(STCBase *base,
+                             int moduleID,
+                             void *moduleData,
+                             int  (*tcpHandler)(STCBase *base, STCModule *module, Socket *socket),
+                             int  (*udpHandler)(STCBase *base, STCModule *module, Socket *socket),
+                             int  (*pipeHandler)(STCBase *base, STCModule *module, Socket *socket),
+                             int  (*workElementHandler)(STCBase *base, STCModule *stcModule, WorkElementPrefix *prefix),
+                             int  (*backgroundHandler)(struct STCBase_tag *base, struct STCModule_tag *stcModule, int selectStatus));
+
+
 int stcRegisterSocketExtension(STCBase *stcBase,
                                SocketExtension *socketExtension,
                                int moduleID);
