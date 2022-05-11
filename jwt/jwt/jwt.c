@@ -44,7 +44,9 @@ const char *RSJWT_ERROR_DESCRIPTIONS[] = {
   [RC_JWT_CONTEXT_ALLOCATION_FAILED] = "context allocation failed",
   [RC_JWT_CRYPTO_TOKEN_NOT_FOUND] = "crypto token not found",
   [RC_JWT_KEY_NOT_FOUND] = "key not found in crypto token",
-  [RC_JWT_INSECURE] = "JWT is insecure"
+  [RC_JWT_INSECURE] = "JWT is insecure",
+  [RC_JWT_UNKNOWN_CONTEXT_TYPE] = "Unknown JWT context type",
+  [RC_JWT_NOT_CONFIGURED] = "JWT not configured"
 };
 
 #ifdef __ZOWE_EBCDIC
@@ -418,8 +420,17 @@ static int checkSignature(JwsAlgorithm algorithm,
   return sts;
 }
 
+struct JwtContext_tag {
+#define JWT_CONTEXT_TYPE_PKCS11 1
+#define JWT_CONTEXT_TYPE_CUSTOM 2
+  int type;
+  ICSFP11_HANDLE_T *tokenHandle;
+  ICSFP11_HANDLE_T *keyHandle;
+  JwtCheckSignature *checkSignatureFn;
+  void *userData;
+};
 
-int jwtParse(const char *base64Text, bool ebcdic, ICSFP11_HANDLE_T *keyHandle,
+int jwtParse(const char *base64Text, bool ebcdic, const JwtContext *self,
              ShortLivedHeap *slh, Jwt **out) {
   char *base64TextCopy, *decodedText;
   char *decodedParts[MAX_NPARTS] = { NULL };
@@ -501,8 +512,16 @@ int jwtParse(const char *base64Text, bool ebcdic, ICSFP11_HANDLE_T *keyHandle,
    * header will be ignored
    */
   zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "calling checkSignature()...\n");
-  rc = checkSignature(j->header.algorithm, pLen[2], decodedParts[2],
-      prefixLen - 1, asciiBase64, keyHandle);
+  if (self->type == JWT_CONTEXT_TYPE_PKCS11) {
+    ICSFP11_HANDLE_T *keyHandle = self->keyHandle;
+    rc = checkSignature(j->header.algorithm, pLen[2], decodedParts[2],
+        prefixLen - 1, asciiBase64, keyHandle);
+  } else if (self->type == JWT_CONTEXT_TYPE_CUSTOM) {
+    rc = self->checkSignatureFn(j->header.algorithm, pLen[2], decodedParts[2],
+        prefixLen - 1, asciiBase64, self->userData);
+  } else {
+    rc = RC_JWT_UNKNOWN_CONTEXT_TYPE;
+  }
   zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature() rc %d...\n", rc);
   if (rc != RC_JWT_OK && rc != RC_JWT_INSECURE) {
     goto exit;
@@ -865,11 +884,6 @@ json_buffer_head_freed:
 }
 
 
-struct JwtContext_tag {
-  ICSFP11_HANDLE_T *tokenHandle;
-  ICSFP11_HANDLE_T *keyHandle;
-};
-
 JwtContext *makeJwtContextForKeyInToken(const char *in_tokenName,
                                          const char *in_keyLabel,
                                          int class,
@@ -886,6 +900,7 @@ JwtContext *makeJwtContextForKeyInToken(const char *in_tokenName,
     goto context_freed;
   }
 
+  result->type = JWT_CONTEXT_TYPE_PKCS11;
   zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "attempting to address the token %s...\n", in_tokenName);
   ICSFP11_HANDLE_T *tokenHandle = NULL;
   const int findTokenRc = rs_icsfp11_findToken(in_tokenName, &tokenHandle,
@@ -946,13 +961,30 @@ context_freed:
   return NULL;
 }
 
+JwtContext *makeJwtContextCustom(JwtCheckSignature checkSignatureFn, void *userData, int *out_rc) {
+  logConfigureComponent(NULL, LOG_COMP_JWT, "JWT", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
+  if (jwtTrace) {
+    logSetLevel(NULL, LOG_COMP_JWT, jwtTrace);
+  }
+  JwtContext *result = (void *)safeMalloc(sizeof (*result), "JwtContext");
+  if (result == NULL) {
+    *out_rc = RC_JWT_CONTEXT_ALLOCATION_FAILED;
+    return NULL;
+  }
+  result->type = JWT_CONTEXT_TYPE_CUSTOM;
+  result->checkSignatureFn = checkSignatureFn;
+  result->userData = userData;
+  *out_rc = RC_JWT_OK;
+  return result;
+}
+
 Jwt *jwtVerifyAndParseToken(const JwtContext *self,
                             const char *tokenText,
                             bool ebcdic,
                             ShortLivedHeap *slh,
                             int *rc) {
   Jwt *out;
-  *rc = jwtParse(tokenText, ebcdic, self->keyHandle, slh, &out);
+  *rc = jwtParse(tokenText, ebcdic, self, slh, &out);
   return out;
 }
 

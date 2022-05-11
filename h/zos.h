@@ -887,7 +887,15 @@ typedef struct IHACDE_tag{
   char                       cdattrb;   /* flags */
   char                       cdsp;      /* Module subpoolID */
   char                       cdattr;    /* flag byte */
-  char                       cdattr2; 
+#define IHACDE_ATTR_NIP               0x80
+#define IHACDE_ATTR_NIC               0x40
+#define IHACDE_ATTR_REENTERABLE       0x20
+#define IHACDE_ATTR_SERIALLY_REUSABLE 0x10
+#define IHACDE_ATTR_NOT_REUSABLE      0x08
+#define IHACDE_ATTR_MINOR_CDE         0x04
+#define IHACDE_ATTR_MODULE_IN_JPA     0x02
+#define IHACDE_ATTR_NOT_LOADABLE_ONLY 0x01
+  char                       cdattr2;
   char                       cdattr3; 
   char                       cdattr4;   /* reserved for future flags */
 } IHACDE;
@@ -1319,6 +1327,46 @@ typedef struct TIOTEntry_tag{
   int       tioejfcb;      /* this evil thing is 24 high bits of SWA index, and last byte of status bits */
 } TIOTEntry;
 
+/* Mapped by IRRPIDTA macro */
+
+/* IDTA Version */
+#define IDTA_VERSION_0001       0x0001  /* Version 1 of IDTA */
+#define IDTA_CURRENT_VERSION    0x0001
+
+#define IDTA_IDT_BUFFER_LEN_MIN 1024    /* Token Buffer Length Minimum Size (1024) */
+
+/* IDTA idt_type */
+#define IDTA_JWT_IDT_Type       0x0001  /* Indicates the token is a JWT */
+
+/* IDTA idt_prop_out flag */
+#define IDTA_SAF_IDT_RETURN     0x8000  /* Token was returned by SAF */
+#define IDTA_IDT_AUTH_DONE      0x4000  /* Token Authentication Complete */
+#define IDTA_IDT_SIGNED         0x2000  /* Token has a signature */
+
+/* IDTA idt_prop_in flag */
+#define IDTA_End_User_IDT       0x8000  /* Token is input from an end user */
+
+/* Idenitity Token Generation Return Code */
+#define IDTA_IDT_GEN_RC_SUCC          0
+#define IDTA_IDT_GEN_RC_UNSIGN        3
+#define IDTA_IDT_GEN_RC_ICSF_UNAVAIL  4
+#define IDTA_IDT_GEN_RC_ICSF_ERR      5
+
+
+typedef struct IDTA_tag {
+  char            id[4];      /* eyecatcher IDTA */
+  unsigned short  version;
+  unsigned short  length;
+  void * __ptr32  idtBufferPtr;
+  int             idtBufferLen;
+  int             idtLen;
+  unsigned short  idtType;
+  unsigned short  idtGenRc;
+  unsigned short  idtPropOut;
+  unsigned short  idtPropIn;
+  char            reserved[8];
+} IDTA;
+
 ZOWE_PRAGMA_PACK_RESET
 
 DSAB *getDSAB(char *ddname);
@@ -1328,6 +1376,7 @@ int dsabIsOMVS(DSAB *dsab);
 
 int locate(char *dsn, int *volserCount, char *firstVolser);
 
+#define VERIFY_GENERATE_IDT        0x800
 #define VERIFY_WITHOUT_LOG         0x400
 #define VERIFY_WITHOUT_STAT_UPDATE 0x200
 #define VERIFY_WITHOUT_MFA 0x100
@@ -1346,6 +1395,9 @@ int locate(char *dsn, int *volserCount, char *firstVolser);
 #define safVerify3 SAFVRFY3
 #define safVerify4 SAFVRFY4
 #define safVerify5 SAFVRFY5
+#define safVerify6 SAFVRFY6
+#define safVerify7 SAFVRFY7
+
 
 ACEE *getAddressSpaceAcee(void);
 ACEE *getTaskAcee(void);
@@ -1384,6 +1436,14 @@ int safVerify5(int options,
                char *applicationName,
                int  sessionType,
                int  *racfStatus, int *racfReason);
+
+int safVerify6(int options, char *userid, char *password,
+              ACEE **aceeHandle,
+              int *racfStatus, int *racfReason, IDTA *idta);
+
+int safVerify7(int options, char *userid, char *password,
+              ACEE **aceeHandle, char *appl,
+              int *racfStatus, int *racfReason, IDTA *idta);
 
 /* second flag set */
 #define SAF_AUTH_ATTR_ALTER       0x80 
