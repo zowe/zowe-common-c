@@ -259,7 +259,7 @@ int ejsEvalFile(EmbeddedJS *ejs, const char *filename, int loadMode){
     return ret;
 }
 
-/* zos module */
+/* Some conveniences for building 'native' modules */
 
 static JSValue makeObjectAndErrorArray(JSContext *ctx,
 				       JSValue obj,
@@ -289,6 +289,32 @@ static JSValue makeStatusAndErrnoArray(JSContext *ctx,
 			       JS_PROP_C_W_E);
   return arr;
 }
+
+static JSValue makeStatusErrnoAndDetailArray(JSContext *ctx,
+                                             int status,
+                                             int errorNumber,
+                                             int errorDetail){
+  JSValue arr = JS_NewArray(ctx);
+  if (JS_IsException(arr))
+    return JS_EXCEPTION;
+  JS_DefinePropertyValueUint32(ctx, arr, 0, JS_NewInt32(ctx, status),
+			       JS_PROP_C_W_E);
+  JS_DefinePropertyValueUint32(ctx, arr, 1, JS_NewInt32(ctx, errorNumber),
+			       JS_PROP_C_W_E);
+  JS_DefinePropertyValueUint32(ctx, arr, 2, JS_NewInt32(ctx, errorDetail),
+			       JS_PROP_C_W_E);
+  return arr;
+}
+
+#define NATIVE_STR(name,nativeName,i) const char *name; \
+  size_t name##Len; \
+  name = JS_ToCStringLen(ctx, &name##Len, argv[i]); \
+  if (!name) return JS_EXCEPTION; \
+  char nativeName[ name##Len + 1 ]; \
+  memcpy(nativeName, name, name##Len+1); \
+  convertToNative(nativeName, (int) name##Len); 
+
+/* zos module */
 
 static JSValue zosChangeTag(JSContext *ctx, JSValueConst this_val,
                             int argc, JSValueConst *argv){
@@ -470,52 +496,6 @@ static JSValue zosStat(JSContext *ctx, JSValueConst this_val,
   return makeObjectAndErrorArray(ctx, obj, err);
 }
 
-#define READ_BUFFER_SIZE 0x1000
-
-static int copyFile(char *source, char *readMode, char *destination, char *writeMode){
-  FILE *in = NULL;
-  FILE *out = NULL;
-  char *data = NULL;
-  int ret = 0;
-  in = fopen(source, readMode);
-  if (in == NULL){
-    printf("open source failed on '%s'\n",source);
-    ret = errno;
-    goto end;
-  }
-  out = fopen(destination, writeMode);
-  if (out == NULL){
-    printf("open dest failed, d='%s', mode='%s'\n",destination,writeMode);
-    ret = errno;
-    goto end;
-  }
-  data = safeMalloc(READ_BUFFER_SIZE,"copyFiles");
-  while (!feof(in)){
-    int bytesRead = fread(data,1,READ_BUFFER_SIZE,in);
-    if (bytesRead > 0){
-      int bytesWritten = fwrite(data,1,bytesRead,out);
-      if (bytesWritten < bytesRead){
-	ret = -1;
-	goto end;
-      }
-    } else{
-      ret = -1;
-      goto end;
-    }
-  }
-end:
-  if (data){
-    safeFree(data,READ_BUFFER_SIZE);
-  }
-  if (in){
-    fclose(in);
-  }
-  if (out){
-    fclose(out);
-  }
-  return ret;
-}
-
 static const char changeTagASCII[10] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65, 
 					0x54, 0x61, 0x67, 0x00};
 static const char changeExtAttrASCII[14] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65, 
@@ -635,13 +615,6 @@ static JSValue posixMessageGet(JSContext *ctx, JSValueConst this_val,
 #endif 
 }
 
-#define NATIVE_STR(name,nativeName,i) const char *name; \
-  size_t name##Len; \
-  name = JS_ToCStringLen(ctx, &name##Len, argv[i]); \
-  if (!name) return JS_EXCEPTION; \
-  char nativeName[ name##Len + 1 ]; \
-  memcpy(nativeName, name, name##Len+1); \
-  convertToNative(nativeName, (int) name##Len); 
   
 
 /* return [obj, errcode] */
@@ -752,6 +725,54 @@ JSModuleDef *ejsInitModulePOSIX(JSContext *ctx, const char *module_name){
 
   return m;
 }
+
+/* XPlatform (Cross Platform) Support Module 
+
+   This module exposes various non-POSIX useful features that have
+   very similar behavior on zos/linux/windows as already supported by
+   the zowe-common-c libraries.
+   
+ */
+
+static JSValue xplatformFileCopy(JSContext *ctx, JSValueConst this_val,
+                                 int argc, JSValueConst *argv){
+  NATIVE_STR(source,sourceNative,0);
+  NATIVE_STR(destination,destinationNative,1);
+
+  int returnCode = 0;
+  int reasonCode = 0;
+  int status = fileCopy(sourceNative, destinationNative, &returnCode, &reasonCode);
+
+  JS_FreeCString(ctx, source);
+  JS_FreeCString(ctx, destination);
+
+  return makeStatusErrnoAndDetailArray(ctx, status, returnCode, reasonCode);
+}
+
+static char fileCopyASCII[9] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79,  0x00 };
+
+static const JSCFunctionListEntry xplatformFunctions[] = {
+  JS_CFUNC_DEF(fileCopyASCII, 2, xplatformFileCopy),
+};
+
+static int ejsInitXPlatformCallback(JSContext *ctx, JSModuleDef *m){
+  JS_SetModuleExportList(ctx, m, xplatformFunctions, countof(xplatformFunctions));
+  return 0;
+}
+
+JSModuleDef *ejsInitModuleXPlatform(JSContext *ctx, const char *module_name){
+  JSModuleDef *m;
+  m = JS_NewCModule(ctx, module_name, ejsInitXPlatformCallback);
+  if (!m){
+    return NULL;
+  }
+  JS_AddModuleExportList(ctx, m, xplatformFunctions, countof(xplatformFunctions));
+
+  return m;
+}
+
+/* Temporary experimental extension module */
+
 
 static JSClassID js_experiment_thingy_class_id;
 
@@ -1078,6 +1099,7 @@ static char asciiExperiment[11] ={ 0x65, 0x78, 0x70, 0x65,
 				   0x6e, 0x74, 0};
 static char asciiZOS[4] = { 0x7a, 0x6F, 0x73, 0};
 static char asciiPosix[6] = { 0x70, 0x6F, 0x73, 0x69, 0x78, 0};
+static char asciiXPlatform[10] = { 0x78, 0x70, 0x6C, 0x61, 0x74, 0x66, 0x6F, 0x72, 0x6D, 0};
 
 JSModuleDef *js_init_module_experiment(JSContext *ctx, const char *module_name)
 {
@@ -1379,6 +1401,7 @@ static void initContextModules(JSContext *ctx, EJSNativeModule **nativeModules, 
   js_init_module_experiment(ctx, asciiExperiment);
   ejsInitModuleZOS(ctx, asciiZOS);
   ejsInitModulePOSIX(ctx, asciiPosix);
+  ejsInitModuleXPlatform(ctx, asciiXPlatform);
   /* printf("after init experiment\n");*/
   for (int i=0; i<nativeModuleCount; i++){
     ejsInitNativeModule(ctx, nativeModules[i]);
