@@ -581,8 +581,13 @@ int fileChangeMode(const char *fileName, int *returnCode, int *reasonCode, int m
   return returnValue;
 }
 
-int fileCopy(const char *existingFileName, const char *newFileName, int *retCode, int *resCode) {
+#define FILE_BUFFER_SIZE 4096
+
+int fileCopyConverted(const char *existingFileName, const char *newFileName,
+                      int existingCCSID, int newCCSID,
+                      int *retCode, int *resCode) {
   int returnCode = 0, reasonCode = 0, status = 0;
+  bool shouldConvert = (existingCCSID != newCCSID);
   FileInfo info = {0};
 
   status = fileInfo(existingFileName, &info, &returnCode, &reasonCode);
@@ -614,6 +619,12 @@ int fileCopy(const char *existingFileName, const char *newFileName, int *retCode
     return -1;
   }
 
+  if (shouldConvert && (ccsid != existingCCSID)){
+    *retCode = ERRNO_CCSID_MISMATCH;
+    *reasonCode = 0;
+    return -1;
+  }
+
   if (ccsid != CCSID_UNTAGGED) {
     status = fileChangeTagPure(newFileName, &returnCode, &reasonCode, ccsid, isPureText);
     if (status == -1) {
@@ -638,22 +649,42 @@ int fileCopy(const char *existingFileName, const char *newFileName, int *retCode
   }
 
   int bytesRead = 0;
+  char *fileBuffer = safeMalloc(FILE_BUFFER_SIZE,"fileCopyBuffer");
+  int conversionBufferLength = FILE_BUFFER_SIZE * MAX_CONVERT_FACTOR;
+  char *conversionBuffer = (shouldConvert ? safeMalloc(conversionBufferLength,"fileCopyConvertBuffer"): NULL);
+  char *writeBuffer = (shouldConvert ? conversionBuffer : writeBuffer);
+  int writeLength;
+  int returnValue = 0;
+  int bytesRead = 0;
+  
   do {
-#define FILE_BUFFER_SIZE 4000
-    char fileBuffer[FILE_BUFFER_SIZE] = {0};
-    
-    bytesRead = fileRead(existingFile, fileBuffer, sizeof(fileBuffer), &returnCode, &reasonCode);
+    bytesRead = fileRead(existingFile, fileBuffer, FILE_BUFFER_SIZE, &returnCode, &reasonCode);
     if (bytesRead == -1) {
       *retCode = returnCode;
       *resCode = reasonCode;
-      return -1;
+      returnValue = -1;
+      goto cleanup;
+    }
+
+    if (bytesRead > 0 && shouldConvert){
+      int convertStatus = convertCharset(fileBuffer,bytesRead,existingCCSID,
+                                         CHARSET_OUTPUT_USE_BUFFER,&conversionBuffer,conversionBufferLength,newCCSID,
+                                         NULL,&writeLength,resCode);
+      if (convertStatus){
+        *retCode = convertStatus;
+        returnValue = -1;
+        goto cleanup;
+      }
+    } else {
+      writeLength = bytesRead;
     }
     
-    status = fileWrite(newFile, fileBuffer, bytesRead, &returnCode, &reasonCode);
+    status = fileWrite(newFile, writeBuffer, writeLength, &returnCode, &reasonCode);
     if (status == -1) {
       *retCode = returnCode;
       *resCode = reasonCode;
-      return -1;
+      returnValue = -1;
+      goto cleanup;
     } 
   } while (bytesRead != 0);
 
@@ -661,17 +692,30 @@ int fileCopy(const char *existingFileName, const char *newFileName, int *retCode
   if (status == -1) {
     *retCode = returnCode;
     *resCode = reasonCode;
-    return -1;
+    returnValue = -1;
+    goto cleanup;
   }
 
   status = fileClose(newFile, &returnCode, &reasonCode);
   if (status == -1) {
     *retCode = returnCode;
     *resCode = reasonCode;
-    return -1;
+    returnValue = -1;
+  }
+ cleanup:
+  if (fileBuffer){
+    safeFree(fileBuffer,FILE_BUFFER_SIZE);
+  }
+  if (conversionBuffer){
+    safeFree(conversionBuffer,conversionBufferLength);
   }
 
-  return 0;
+  return returnValue;
+}
+
+int fileCopy(const char *existingFileName, const char *newFileName,
+             int *retCode, int *resCode) {
+  return fileCopyConverted(existingFileName,newFileName,0,0,retCode,resCode);
 }
 
 int fileRename(const char *oldFileName, const char *newFileName, int *returnCode, int *reasonCode){

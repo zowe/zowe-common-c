@@ -224,6 +224,7 @@ int main(int argc, char **argv){
   printf("qjstest start argc=%d\n",argc);fflush(stdout);
   if (argc < 2) {
     printf("please supply a js filename to evaluate\n");
+    return 0;
   }
   char *filename = argv[1];
   EJSNativeModule *modules[1];
@@ -233,5 +234,6 @@ int main(int argc, char **argv){
 
   int evalStatus = ejsEvalFile(ejs,filename,EJS_LOAD_IS_MODULE);
   printf("File eval returns %d\n",evalStatus);
+  return 0;
 }
 

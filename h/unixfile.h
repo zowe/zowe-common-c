@@ -405,6 +405,10 @@ int fileGetChar(UnixFile *file, int *returnCode, int *reasonCode);
 
 int fileCopy(const char *existingFile, const char *newFile, int *retCode, int *resCode);
 
+int fileCopyConverted(const char *existingFileName, const char *newFileName,
+                      int existingCCSID, int newCCSID,
+                      int *retCode, int *resCode);
+
 int fileRename(const char *oldFileName, const char *newFileName, int *returnCode, int *reasonCode);
 
 int fileDelete(const char *fileName, int *returnCode, int *reasonCode);
