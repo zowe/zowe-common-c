@@ -1,5 +1,3 @@
-
-
 /*
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
@@ -34,9 +32,6 @@
 #include "charsets.h"
 #include "unixfile.h"
 
-/* JOE 1/20/22 */
-#include <Windows.h>
-
 
 /*
   clang -I../h -I../platform/windows -D_CRT_SECURE_NO_WARNINGS -Dstrdup=_strdup -DYAML_DECLARE_STATIC=1 -Wdeprecated-declarations --rtlib=compiler-rt -o convtest.exe convtest.c ../c/charsets.c ../platform/windows/winfile.c ../c/timeutls.c ../c/utils.c ../c/alloc.c
@@ -55,10 +50,11 @@
   IBM resources
     http://www-01.ibm.com/software/globalization/ccsid/ccsid_registered.html
 
-  HERE
-  1) what does 1200 really mean
-  2) wcTest -> convert to wideNative
-  3) 
+
+  Testing on Z:
+
+  xlclang -q64 -I ../h -D_OPEN_SYS_FILE_EXT=1 -D_XOPEN_SOURCE=600 -D_OPEN_THREADS=1 -DSUBPOOL=132 "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN')" -o convtest convtest.c ../c/charsets.c ../c/zosfile.c  ../c/timeutls.c ../c/utils.c ../c/alloc.c ../c/logging.c ../c/collections.c ../c/le.c ../c/recovery.c ../c/zos.c ../c/scheduling.c
+
 */
 
 
