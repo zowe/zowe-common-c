@@ -277,6 +277,19 @@ static JSValue makeObjectAndErrorArray(JSContext *ctx,
   return arr;
 }
 
+static JSValue makeStatusAndErrnoArray(JSContext *ctx,
+				       int status,
+				       int errorNumber){
+  JSValue arr = JS_NewArray(ctx);
+  if (JS_IsException(arr))
+    return JS_EXCEPTION;
+  JS_DefinePropertyValueUint32(ctx, arr, 0, JS_NewInt32(ctx, status),
+			       JS_PROP_C_W_E);
+  JS_DefinePropertyValueUint32(ctx, arr, 1, JS_NewInt32(ctx, errorNumber),
+			       JS_PROP_C_W_E);
+  return arr;
+}
+
 static JSValue zosChangeTag(JSContext *ctx, JSValueConst this_val,
                             int argc, JSValueConst *argv){
   size_t len;
@@ -558,12 +571,50 @@ JSModuleDef *ejsInitModuleZOS(JSContext *ctx, const char *module_name){
 
 static JSValue posixMessageSend(JSContext *ctx, JSValueConst this_val,
 				int argc, JSValueConst *argv){
-  return JS_EXCEPTION;
+#ifdef __ZOWE_OS_WINDOWS
+  return makeStatusAndErrnoArray(ctx, -1, EPERM);
+#else
+  int qid = 0;
+  JS_ToInt32(ctx, &qid, argv[0]);
+  size_t bufSize = 0;
+  uint8_t *buf = JS_GetArrayBuffer(ctx, &bufSize, argv[1]);
+  int msgSizeInt = 0;
+  JS_ToInt32(ctx, &msgSizeInt, argv[2]);
+  int flags;
+  JS_ToInt32(ctx, &flags, argv[3]);
+  
+  if (!buf){
+    return JS_EXCEPTION;
+  }
+  int status = msgsnd(qid, buf, (size_t)msgSizeInt, flags);
+  return makeStatusAndErrnoArray(ctx, status, (status < 0 ? errno : 0));
+#endif
 }
 
 static JSValue posixMessageReceive(JSContext *ctx, JSValueConst this_val,
 				   int argc, JSValueConst *argv){
-  return JS_EXCEPTION;
+#ifdef __ZOWE_OS_WINDOWS
+  return makeStatusAndErrnoArray(ctx, -1, EPERM);
+#else
+  int qid = 0;
+  JS_ToInt32(ctx, &qid, argv[0]);
+  size_t bufSize = 0;
+  uint8_t *buf = JS_GetArrayBuffer(ctx, &bufSize, argv[1]);
+  int msgSizeInt = 0;
+  JS_ToInt32(ctx, &msgSizeInt, argv[2]);
+  int msgType;
+  JS_ToInt32(ctx, &msgType, argv[3]);
+  int flags;
+  JS_ToInt32(ctx, &flags, argv[4]);
+
+  if (!buf){
+    return JS_EXCEPTION;
+  }
+
+  int status = msgrcv(qid, buf, (size_t)msgSizeInt, (long)msgType, flags);
+
+  return makeStatusAndErrnoArray(ctx, status, (status < 0 ? errno : 0));  
+#endif
 }
 
 static JSValue posixMessageControl(JSContext *ctx, JSValueConst this_val,
@@ -573,27 +624,117 @@ static JSValue posixMessageControl(JSContext *ctx, JSValueConst this_val,
 
 static JSValue posixMessageGet(JSContext *ctx, JSValueConst this_val,
 			       int argc, JSValueConst *argv){
+#ifdef __ZOWE_OS_WINDOWS
+  return makeStatusAndErrnoArray(ctx, -1, EPERM);
+#else
+  int key = 0;
+  JS_ToInt32(ctx, &key, argv[0]);
+  int flags = 0;
+  JS_ToInt32(ctx, &key, argv[1]);
+
+  int status = msgget((key_t)key, flags);
+  return makeStatusAndErrnoArray(ctx, status, (status < 0 ? errno : 0));  
+#endif 
+}
+
+#define NATIVE_STR(name,nativeName,i) const char *name; \
+  size_t name##Len; \
+  name = JS_ToCStringLen(ctx, &name##Len, argv[i]); \
+  if (!name) return JS_EXCEPTION; \
+  char nativeName[ name##Len + 1 ]; \
+  memcpy(nativeName, name, name##Len+1); \
+  convertToNative(nativeName, (int) name##Len); 
+  
+
+/* return [obj, errcode] */
+static JSValue posixChmod(JSContext *ctx, JSValueConst this_val,
+			  int argc, JSValueConst *argv){
+#ifdef __ZOWE_OS_WINDOWS
+  return JS_NewInt64(ctx,(int64_t)EPERM);
+#else
+
+  NATIVE_STR(path,pathNative,0);
+  
+  int mode;
+  JS_ToInt32(ctx, &mode, argv[1]);
+
+  int result = chmod(pathNative, (mode_t)mode);
+
+  JS_FreeCString(ctx,path);
+  
+  return JS_NewInt64(ctx,(int64_t)result);
+#endif
+}
+
+/* iconv_t iconv_open(const char *tocode, const char *fromcode);
+   int iconv_close(iconv_t cd);
+size_t iconv(iconv_t cd, char **__restrict__ inbuf,
+size_t *__restrict__ inbytesleft, char **__restrict__ outbuf,
+size_t *__restrict__ outbytesleft);
+
+    https://gist.github.com/hakre/4188459 Iconv charset names
+    "UTF-8"
+    "00037"
+    "01047"
+   */
+
+static JSValue posixIconvOpen(JSContext *ctx, JSValueConst this_val,
+                          int argc, JSValueConst *argv){
+#ifdef __ZOWE_OS_WINDOWS
+  return makeStatusAndErrnoArray(ctx, -1, EPERM);
+#else 
+  
   return JS_EXCEPTION;
+#endif
 }
 
 static char msgsndASCII[7] ={ 0x6d, 0x73, 0x67, 0x73, 0x6e, 0x64,  0x00};
 static char msgrcvASCII[7] ={ 0x6d, 0x73, 0x67, 0x72, 0x63, 0x76,  0x00};
 static char msgctlASCII[7] ={ 0x6d, 0x73, 0x67, 0x63, 0x74, 0x6c,  0x00};
 static char msggetASCII[7] ={ 0x6d, 0x73, 0x67, 0x67, 0x65, 0x74,  0x00};
+static char chmodASCII[6] ={ 0x63, 0x68, 0x6d, 0x6f, 0x6d, 0x00};
 
 static char IPC_PRIVATE_ASCII[12] ={ 0x49, 0x50, 0x43, 0x5f, 0x50, 0x52, 0x49, 0x56, 0x41, 0x54, 0x45,  0x00};
 static char IPC_CREAT_ASCII[10] ={ 0x49, 0x50, 0x43, 0x5f, 0x43, 0x52, 0x45, 0x41, 0x54,  0x00};
 static char IPC_EXCL_ASCII[9] = { 0x49, 0x50, 0x43, 0x5f, 0x45, 0x58, 0x43, 0x4c,  0x00};
+static char IPC_NOWAIT_ASCII[11] ={0x49, 0x50, 0x43, 0x5f, 0x4e, 0x4f, 0x57, 0x41, 0x49, 0x54,  0x00};
+static char MSG_EXCEPT_ASCII[11] ={0x4d, 0x53, 0x47, 0x5f, 0x45, 0x58, 0x43, 0x45, 0x50, 0x54,  0x00};
+static char MSG_NOERROR_ASCII[12] ={0x4d, 0x53, 0x47, 0x5f, 0x4e, 0x4f, 0x45, 0x52, 0x52, 0x4f, 0x52,  0x00};
 
+/* ZOS Might not define all constants ??  (or not might not implement) */
+#ifndef MSG_EXCEPT
+#define MSG_EXCEPT      020000  /* recv any msg except of specified type.*/
+#endif
+
+/* #define MSG_COPY        040000 */ /* copy (not remove) all queue messages */
 
 static const JSCFunctionListEntry posixFunctions[] = {
+  /* Sean wants...
+     flatten
+     chmod
+     iconv
+     configmgr->env
+     tr
+     awk 
+     curl 
+       sockets
+       httpclient
+     netstat for zos, posix.netstat() might call zos.netstat(), etc
+     uname 
+     hostname
+     dig 
+   */
   JS_CFUNC_DEF(msgsndASCII, 4, posixMessageSend),
   JS_CFUNC_DEF(msgrcvASCII, 5, posixMessageReceive),
   JS_CFUNC_DEF(msgctlASCII, 3, posixMessageControl),
   JS_CFUNC_DEF(msggetASCII, 2, posixMessageGet),
+  JS_CFUNC_DEF(chmodASCII, 2, posixChmod),
   JS_PROP_INT32_DEF(IPC_PRIVATE_ASCII, IPC_PRIVATE, JS_PROP_CONFIGURABLE ),
   JS_PROP_INT32_DEF(IPC_CREAT_ASCII, IPC_CREAT, JS_PROP_CONFIGURABLE ),
   JS_PROP_INT32_DEF(IPC_EXCL_ASCII, IPC_EXCL, JS_PROP_CONFIGURABLE ),
+  JS_PROP_INT32_DEF(IPC_NOWAIT_ASCII, IPC_NOWAIT, JS_PROP_CONFIGURABLE ),
+  JS_PROP_INT32_DEF(MSG_EXCEPT_ASCII, MSG_EXCEPT, JS_PROP_CONFIGURABLE ),
+  JS_PROP_INT32_DEF(MSG_NOERROR_ASCII, MSG_NOERROR, JS_PROP_CONFIGURABLE ),
 };
 
 static int ejsInitPOSIXCallback(JSContext *ctx, JSModuleDef *m){
@@ -939,6 +1080,7 @@ static char asciiExperiment[11] ={ 0x65, 0x78, 0x70, 0x65,
 				   0x72, 0x69, 0x6d, 0x65, 
 				   0x6e, 0x74, 0};
 static char asciiZOS[4] = { 0x7a, 0x6F, 0x73, 0};
+static char asciiPosix[6] = { 0x70, 0x6F, 0x73, 0x69, 0x78, 0};
 
 JSModuleDef *js_init_module_experiment(JSContext *ctx, const char *module_name)
 {
@@ -1239,6 +1381,7 @@ static void initContextModules(JSContext *ctx, EJSNativeModule **nativeModules, 
   js_init_module_os(ctx, asciiOS);
   js_init_module_experiment(ctx, asciiExperiment);
   ejsInitModuleZOS(ctx, asciiZOS);
+  ejsInitModulePOSIX(ctx, asciiPosix);
   /* printf("after init experiment\n");*/
   for (int i=0; i<nativeModuleCount; i++){
     ejsInitNativeModule(ctx, nativeModules[i]);
@@ -1749,6 +1892,8 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
     
     buf = js_load_file(ctx, &buf_len, module_name);
     if (!buf){
+      fprintf(stderr,"Could not load module name '%s'\n",module_name);
+      fflush(stderr);
       JS_ThrowReferenceError(ctx, "could not load module filename '%s'",
 			     module_name);
       return NULL;
