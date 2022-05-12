@@ -567,8 +567,6 @@ JSModuleDef *ejsInitModuleZOS(JSContext *ctx, const char *module_name){
 
 /*** POSIX Module - low level services not in the QuickJS os module.  ***/
 
-#ifndef __ZOWE_OS_WINDOWS
-
 static JSValue posixMessageSend(JSContext *ctx, JSValueConst this_val,
 				int argc, JSValueConst *argv){
 #ifdef __ZOWE_OS_WINDOWS
@@ -729,12 +727,14 @@ static const JSCFunctionListEntry posixFunctions[] = {
   JS_CFUNC_DEF(msgctlASCII, 3, posixMessageControl),
   JS_CFUNC_DEF(msggetASCII, 2, posixMessageGet),
   JS_CFUNC_DEF(chmodASCII, 2, posixChmod),
+#ifndef __ZOWE_OS_WINDOWS
   JS_PROP_INT32_DEF(IPC_PRIVATE_ASCII, IPC_PRIVATE, JS_PROP_CONFIGURABLE ),
   JS_PROP_INT32_DEF(IPC_CREAT_ASCII, IPC_CREAT, JS_PROP_CONFIGURABLE ),
   JS_PROP_INT32_DEF(IPC_EXCL_ASCII, IPC_EXCL, JS_PROP_CONFIGURABLE ),
   JS_PROP_INT32_DEF(IPC_NOWAIT_ASCII, IPC_NOWAIT, JS_PROP_CONFIGURABLE ),
   JS_PROP_INT32_DEF(MSG_EXCEPT_ASCII, MSG_EXCEPT, JS_PROP_CONFIGURABLE ),
   JS_PROP_INT32_DEF(MSG_NOERROR_ASCII, MSG_NOERROR, JS_PROP_CONFIGURABLE ),
+#endif
 };
 
 static int ejsInitPOSIXCallback(JSContext *ctx, JSModuleDef *m){
@@ -752,9 +752,6 @@ JSModuleDef *ejsInitModulePOSIX(JSContext *ctx, const char *module_name){
 
   return m;
 }
-
-#endif /* __ZOWE_OS_WINDOWS */
-
 
 static JSClassID js_experiment_thingy_class_id;
 
