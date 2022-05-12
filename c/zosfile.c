@@ -582,6 +582,7 @@ int fileChangeMode(const char *fileName, int *returnCode, int *reasonCode, int m
 }
 
 #define FILE_BUFFER_SIZE 4096
+#define MAX_CONVERT_FACTOR 4
 
 int fileCopyConverted(const char *existingFileName, const char *newFileName,
                       int existingCCSID, int newCCSID,
@@ -621,7 +622,7 @@ int fileCopyConverted(const char *existingFileName, const char *newFileName,
 
   if (shouldConvert && (ccsid != existingCCSID)){
     *retCode = ERRNO_CCSID_MISMATCH;
-    *reasonCode = 0;
+    *resCode = 0;
     return -1;
   }
 
@@ -655,7 +656,6 @@ int fileCopyConverted(const char *existingFileName, const char *newFileName,
   char *writeBuffer = (shouldConvert ? conversionBuffer : writeBuffer);
   int writeLength;
   int returnValue = 0;
-  int bytesRead = 0;
   
   do {
     bytesRead = fileRead(existingFile, fileBuffer, FILE_BUFFER_SIZE, &returnCode, &reasonCode);
