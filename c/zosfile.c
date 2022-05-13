@@ -620,14 +620,15 @@ int fileCopyConverted(const char *existingFileName, const char *newFileName,
     return -1;
   }
 
-  if (shouldConvert && (ccsid != existingCCSID)){
-    *retCode = ERRNO_CCSID_MISMATCH;
-    *resCode = 0;
-    return -1;
-  }
 
   if (ccsid != CCSID_UNTAGGED) {
-    status = fileChangeTagPure(newFileName, &returnCode, &reasonCode, ccsid, isPureText);
+    if (shouldConvert && (ccsid != existingCCSID)){
+      *retCode = ERRNO_CCSID_MISMATCH;
+      *resCode = 0;
+      return -1;
+    }
+
+    status = fileChangeTagPure(newFileName, &returnCode, &reasonCode, (shouldConvert ? newCCSID : ccsid), isPureText);
     if (status == -1) {
       *retCode = returnCode;
       *resCode = reasonCode;

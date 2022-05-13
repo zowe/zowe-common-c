@@ -681,9 +681,6 @@ static char MSG_NOERROR_ASCII[12] ={0x4d, 0x53, 0x47, 0x5f, 0x4e, 0x4f, 0x45, 0x
 
 static const JSCFunctionListEntry posixFunctions[] = {
   /* Sean wants...
-     flatten
-     chmod
-     iconv
      configmgr->env
      tr
      awk 
@@ -749,10 +746,34 @@ static JSValue xplatformFileCopy(JSContext *ctx, JSValueConst this_val,
   return makeStatusErrnoAndDetailArray(ctx, status, returnCode, reasonCode);
 }
 
+static JSValue xplatformFileCopyConverted(JSContext *ctx, JSValueConst this_val,
+					  int argc, JSValueConst *argv){
+  NATIVE_STR(source,sourceNative,0);
+  int sourceCCSID = 0;
+  JS_ToInt32(ctx, &sourceCCSID, argv[1]);
+  NATIVE_STR(destination,destinationNative,2);
+  int destinationCCSID = 0;
+  JS_ToInt32(ctx, &destinationCCSID, argv[3]);
+
+  int returnCode = 0;
+  int reasonCode = 0;
+  int status = fileCopyConverted(sourceNative, destinationNative, 
+				 sourceCCSID, destinationCCSID,
+				 &returnCode, &reasonCode);
+
+  JS_FreeCString(ctx, source);
+  JS_FreeCString(ctx, destination);
+
+  return makeStatusErrnoAndDetailArray(ctx, status, returnCode, reasonCode);
+}
+
 static char fileCopyASCII[9] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79,  0x00 };
+static char fileCopyConvertedASCII[18] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79, 
+					  0x43, 0x6f, 0x6e, 0x76, 0x65, 0x72, 0x74, 0x65, 0x64, 0x00 };
 
 static const JSCFunctionListEntry xplatformFunctions[] = {
   JS_CFUNC_DEF(fileCopyASCII, 2, xplatformFileCopy),
+  JS_CFUNC_DEF(fileCopyConvertedASCII, 2, xplatformFileCopyConverted),
 };
 
 static int ejsInitXPlatformCallback(JSContext *ctx, JSModuleDef *m){
