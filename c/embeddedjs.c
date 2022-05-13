@@ -1920,30 +1920,56 @@ static JSValue js_native_print(JSContext *ctx, JSValueConst this_val,
 static char asciiConsole[8] = { 0x63, 0x6f, 0x6e, 0x73, 0x6f, 0x6c, 0x65, 0x00 };
 static char asciiLog[4] = { 0x6c, 0x6f, 0x67, 0x00};
 
+static bool endsWith(char *s, char *suffix){
+  int len = strlen(s);
+  int suffixLen = strlen(suffix);
+  if (suffixLen > len){
+    return false;
+  } 
+  return !memcmp(s+len-suffixLen,suffix,suffixLen);
+}
+
+static char asciiDotJS[4] = { 0x2e, 0x6a, 0x73, 0x00 };
+
 JSModuleDef *ejsModuleLoader(JSContext *ctx,
-			     const char *module_name, void *opaque) {
+			     const char *moduleName, void *opaque) {
   JSModuleDef *m;
 
-  if (has_suffix(module_name, ".so")){
-    m = js_module_loader(ctx, module_name, NULL);
+  size_t modNameLen = strlen(moduleName);
+  char nativeName[modNameLen+1];
+  memcpy(nativeName,moduleName,modNameLen+1);
+  convertToNative(nativeName,modNameLen);
+
+  if (has_suffix(nativeName, ".so")){
+    m = js_module_loader(ctx, moduleName, NULL);
   } else{
     size_t buf_len;
     uint8_t *buf;
     JSValue func_val;
-    
-    buf = js_load_file(ctx, &buf_len, module_name);
+    char *nameToLoad = (char*)moduleName;
+
+    if (endsWith(nativeName,".js") ||
+        endsWith(nativeName,".mjs")){
+      printf("module filename already has extension '%s'\n",nativeName);
+    } else {
+      char asciiExtendedName[modNameLen+3+1];
+      memcpy(asciiExtendedName,moduleName,modNameLen);
+      memcpy(asciiExtendedName+modNameLen,asciiDotJS,4);
+      nameToLoad = asciiExtendedName;
+    }
+    buf = js_load_file(ctx, &buf_len, nameToLoad);
     if (!buf){
-      fprintf(stderr,"Could not load module name '%s'\n",module_name);
+      fprintf(stderr,"Could not load module name '%s'\n",nativeName);
       fflush(stderr);
       JS_ThrowReferenceError(ctx, "could not load module filename '%s'",
-			     module_name);
+			     nameToLoad);
       return NULL;
     } else {
       convertFromNative((char*)buf, (int)buf_len);
     }
 
     /* compile the module */
-    func_val = JS_Eval(ctx, (char *)buf, buf_len, module_name,
+    func_val = JS_Eval(ctx, (char *)buf, buf_len, moduleName,
 		       JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
     js_free(ctx, buf);
     if (JS_IsException(func_val))
