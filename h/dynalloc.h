@@ -205,26 +205,40 @@ X'40' Data set available for printing at the end of the job.
 			     details at 
                              http://publib.boulder.ibm.com/infocenter/zos/v1r12/index.jsp?topic=%2Fcom.ibm.zos.r12.ieaa800%2Fsyssym.htm */
 /* MORE DALXXXX PARMS EXIST BUT ARE NOT YET CODED !! */                   
+#define DALDSORG_NULL     0x00
+#define DALDSORG_LARGE    0x01
+#define DALDSORG_BASIC    0x02
+#define DALDSORG_EXTPREF  0x04
+#define DALDSORG_EXTREQ   0x08
+#define DALDSORG_HFS      0x10
+#define DALDSORG_PIPE     0x20
+#define DALDSORG_PDS      0x40
+#define DALDSORG_PDSE     0x80
+
+#define DALDSORG_MREC     0x20
+#define DALDSORG_KREC     0x40
+#define DALDSORG_UREC     0x80
+#define DALDSORG_VSAM     0x0008
+#define DALDSORG_GRAPHICS 0x0080
+#define DALDSORG_PO       0x0200
+#define DALDSORG_POU      0x0300
+#define DALDSORG_MQ       0x0400
+#define DALDSORG_CQ       0x0800
+#define DALDSORG_CX       0x1000
+#define DALDSORG_DA       0x2000
+#define DALDSORG_DAU      0x2100
+#define DALDSORG_PS       0x4000
+#define DALDSORG_PSU      0x4100
 
 #define DALVSER  0x0010
 #define DALVSEQ  0x0012
 #define DALDSORG 0x003C
-#define DALDSORG_VSAM 0x0008
-#define DALDSORG_GRAPHICS 0x0080
-#define DALDSORG_PO 0x0200
-#define DALDSORG_POU 0x0300
-#define DALDSORG_MQ 0x0400
-#define DALDSORG_CQ 0x0800
-#define DALDSORG_CX 0x1000
-#define DALDSORG_DA 0x2000
-#define DALDSORG_DAU 0x2100
-#define DALDSORG_PS 0x4000
-#define DALDSORG_PSU 0x4100
 #define DALBLKSZ 0x0030
 #define DALLRECL 0x0042 
 #define DALBUFNO 0x0034
 #define DALNCP   0x0044
 #define DALAVGR  0x8010
+#define DALDSNT  0x8012
 #define DALDIAGN 0x0054
 #define DALBRTKN 0x006E
 /* dynamic unallocation */
@@ -716,6 +730,14 @@ int DeallocDDName(char *ddname);
 #define VOLSER_SIZE 6
 #define CLASS_WRITER_SIZE 8
 #define TOTAL_TEXT_UNITS 23
+#define LEN_THREE_BYTES 3
+#define LEN_ONE_BYTE    1
+
+#define TEXT_UNIT_STRING 1
+#define TEXT_UNIT_BOOLEAN 2
+#define TEXT_UNIT_CHARINT 3
+#define TEXT_UNIT_NULL 4
+#define JSON_TYPE_ERROR 666
 
 /* Use this structure to pass parameters to DYNALLOC functions.
  * Dsname should be padded by spaces. */
@@ -729,12 +751,8 @@ typedef struct DynallocInputParms_tag {
   char reserved[3];
 } DynallocInputParms;
 
+
 typedef struct DynallocNewTextUnit_tag {
-#define TEXT_UNIT_STRING 1
-#define TEXT_UNIT_BOOLEAN 2
-#define TEXT_UNIT_CHARINT 3
-#define TEXT_UNIT_NULL 4
-#define JSON_TYPE_ERROR 666
   int type;
   int size;
   int key;
