@@ -53,6 +53,7 @@
 #include "quickjs-libc.h"
 
 #ifdef __ZOWE_OS_WINDOWS
+#include <process.h>
 typedef int64_t ssize_t;
 #else 
 #include <sys/ipc.h>
@@ -825,17 +826,134 @@ static JSValue xplatformStringFromBytes(JSContext *ctx, JSValueConst this_val,
   
 }
 
+uint8_t *js_load_file(JSContext *ctx, size_t *pbuf_len, const char *filename);
+
+/* (filename, ccsid) ccsid -1 implies guess best for platform, 0 implies don't translate */
+static JSValue xplatformLoadFileUTF8(JSContext *ctx, JSValueConst this_val,
+                                     int argc, JSValueConst *argv){
+  size_t size;
+  size_t length;
+  char *buf;
+
+  size_t fLen;
+  const char *filename = JS_ToCStringLen(ctx, &fLen, argv[0]);
+  if (!filename){
+    return JS_EXCEPTION;
+  }
+
+  int sourceCCSID;
+  JS_ToInt32(ctx, &sourceCCSID, argv[1]);
+
+  buf = (char*)js_load_file(ctx, &length, filename);
+  
+  if (sourceCCSID < 0){
+    char *nativeBuffer = safeMalloc(length+1,"xplatformStringFromBytes");
+    memcpy(nativeBuffer,buf,length);
+    nativeBuffer[length] = 0;
+    convertFromNative(nativeBuffer,length);
+    js_free(ctx, buf);
+    JSValue ret = JS_NewStringLen(ctx, nativeBuffer, length);
+    safeFree(nativeBuffer,length+1);
+    return ret;
+  } else if (sourceCCSID == 0) {
+    return JS_NewStringLen(ctx, buf, length);
+  } else {
+    printf("string from specific encoding not yet implemented\n");
+    return JS_EXCEPTION;
+  }
+  
+}
+
+static int writeFully(char *filename, const char *data, int length){
+  FILE *out = fopen(filename, "w");
+  if (!out){
+    return errno;
+  }
+  int res = fwrite(data, 1, length, out);
+  if (res != length){
+    fclose(out);
+    return -1;
+  } else {
+    fclose(out);
+    return 0;
+  }
+}
+
+/* (filename, ccsid) ccsid -1 implies guess best for platform, 0 implies don't translate */
+static JSValue xplatformStoreFileUTF8(JSContext *ctx, JSValueConst this_val,
+                                      int argc, JSValueConst *argv){
+  size_t size;
+  size_t length;
+
+  NATIVE_STR(filename,nativeFilename,0);
+  if (!filename){
+    return JS_EXCEPTION;
+  }
+
+  int targetCCSID;
+  JS_ToInt32(ctx, &targetCCSID, argv[1]);
+
+  size_t cLen;
+  const char *content = JS_ToCStringLen(ctx, &cLen, argv[2]);
+  if (!content){
+    return JS_EXCEPTION;
+  }
+
+  if (targetCCSID < 0){
+    char *nativeContent = safeMalloc(cLen+1,"xplatformStoreFileUtf8");
+    memcpy(nativeContent,content,cLen);
+    nativeContent[cLen] = 0;
+    convertToNative(nativeContent,cLen);
+    int status = writeFully(nativeFilename,(const char *)nativeContent,cLen);
+    JS_FreeCString(ctx, filename);
+    safeFree(nativeContent,cLen+1);
+    return JS_NewInt64(ctx,(int64_t)status);
+  } else if (targetCCSID == 0) {
+    int status = writeFully(nativeFilename,content,cLen);
+    JS_FreeCString(ctx, filename);
+    return JS_NewInt64(ctx,(int64_t)status);
+  } else {
+    printf("string from specific encoding not yet implemented\n");
+    return JS_EXCEPTION;
+  }
+  
+}
+
+static JSValue xplatformGetpid(JSContext *ctx, JSValueConst this_val,
+                               int argc, JSValueConst *argv){
+#ifdef __ZOWE_OS_WINDOWS
+  int pid = _getpid();
+#else
+  int pid = getpid();
+#endif
+  return JS_NewInt64(ctx,(int64_t)pid);
+}
+
 static char fileCopyASCII[9] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79,  0x00 };
 static char fileCopyConvertedASCII[18] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79, 
 					  0x43, 0x6f, 0x6e, 0x76, 0x65, 0x72, 0x74, 0x65, 0x64, 0x00 };
 static char dirnameASCII[8] = {0x64, 0x69, 0x72, 0x6e, 0x61, 0x6d, 0x65,  0x00 };
 static char stringFromBytesASCII[16] = {0x73, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x46, 0x72, 0x6f, 0x6d, 0x42, 0x79, 0x74, 0x65, 0x73,  0x00 };
 
+static char getpidASCII[7] = {0x67, 0x65, 0x74, 0x70, 0x69, 0x64,  0x00 };
+static char getppidASCII[8] = {0x67, 0x65, 0x74, 0x70, 0x70, 0x69, 0x64,  0x00 };
+
+static char AUTO_DETECT_ASCII[12] = {0x41, 0x55, 0x54, 0x4f, 0x5f, 0x44, 0x45, 0x54, 0x45, 0x43, 0x54,  0x00 };
+static char NO_CONVERT_ASCII[11] = {0x4e, 0x4f, 0x5f, 0x43, 0x4f, 0x4e, 0x56, 0x45, 0x52, 0x54,  0x00 };
+static char loadFileUTF8ASCII[13] = {0x6c, 0x6f, 0x61, 0x64, 0x46, 0x69, 0x6c, 0x65, 0x55, 0x54, 0x46, 0x38,  0x00 };
+static char storeFileUTF8ASCII[14] = {0x73, 0x74, 0x6f, 0x72, 0x65, 0x46, 0x69, 0x6c, 0x65, 0x55, 0x54, 0x46, 0x38,  0x00 };
+
 static const JSCFunctionListEntry xplatformFunctions[] = {
   JS_CFUNC_DEF(fileCopyASCII, 2, xplatformFileCopy),
   JS_CFUNC_DEF(fileCopyConvertedASCII, 4, xplatformFileCopyConverted),
   JS_CFUNC_DEF(dirnameASCII, 1, xplatformDirname),
   JS_CFUNC_DEF(stringFromBytesASCII, 4, xplatformStringFromBytes),
+  JS_CFUNC_DEF(loadFileUTF8ASCII, 2, xplatformLoadFileUTF8),
+  JS_CFUNC_DEF(storeFileUTF8ASCII, 3, xplatformStoreFileUTF8),
+  JS_CFUNC_DEF(getpidASCII, 0, xplatformGetpid),
+  JS_PROP_INT32_DEF(AUTO_DETECT_ASCII, -1, JS_PROP_CONFIGURABLE ),
+  JS_PROP_INT32_DEF(NO_CONVERT_ASCII, -1, JS_PROP_CONFIGURABLE ),
+
   
 };
 
