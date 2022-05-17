@@ -345,6 +345,30 @@ int fileCopy(const char *existingFileName, const char *newFileName,
   return fileCopyConverted(existingFileName,newFileName,0,0,retCode,resCode);
 }
 
+int fileDirname(const char *path, char *dirname){
+  char drive[_MAX_DRIVE];
+  char dir[_MAX_DIR];
+  char fname[_MAX_FNAME];
+  char ext[_MAX_EXT];
+  errno_t err = _splitpath_s(path,
+                             drive,_MAX_DRIVE,
+                             dir,_MAX_DIR,
+                             fname,_MAX_FNAME,
+                             ext,_MAX_EXT);
+  if (err){
+    strcpy(dirname,".");
+    return 0;
+  } else{
+    sprintf(dirname,"%s%s",drive,dir);
+    int len = strlen(dirname);
+    char last = dirname[len-1];
+    if (last == '/' || last == '\\'){
+      /* kill the last characer if it's a (back)slash */
+      dirname[len-1] = 0;
+    }
+  }
+  return 0;
+}
 
 UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonCode){
   int nameLength = strlen(directoryName);

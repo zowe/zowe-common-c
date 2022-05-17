@@ -413,6 +413,9 @@ int fileRename(const char *oldFileName, const char *newFileName, int *returnCode
 
 int fileDelete(const char *fileName, int *returnCode, int *reasonCode);
 
+/* POSIX dirname() essentially, dirname must be aslong as max(10,path) */
+int fileDirname(const char *path, char *dirname);
+
 /* FileInfo is a generic, opaque typedef that contains a data structure that can give the following 
    info about a file 
 

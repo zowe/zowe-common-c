@@ -107,9 +107,11 @@
 
 /*
 
-    set QJS=c:\repos\quickjs-portable  ## wherever you git cloned quickjs-portable
+    ## wherever you git cloned quickjs-portable
+    set QJS=c:\repos\quickjs-portable
       
-    set YAML=c:\repos\libyaml   ## Wherever you git clone'd libyaml
+    ## Wherever you git clone'd libyaml
+    set YAML=c:\repos\libyaml
 
     clang++ -c ../platform/windows/cppregex.cpp ../platform/windows/winregex.cpp
 
