@@ -766,13 +766,77 @@ static JSValue xplatformFileCopyConverted(JSContext *ctx, JSValueConst this_val,
   return makeStatusErrnoAndDetailArray(ctx, status, returnCode, reasonCode);
 }
 
+static JSValue xplatformDirname(JSContext *ctx, JSValueConst this_val,
+                                int argc, JSValueConst *argv){
+  NATIVE_STR(path,pathNative,0);
+
+  int len = strlen(pathNative);
+  int allocLen = len < 10 ? 10 : len;
+  char dirname[allocLen+1];
+  int status = fileDirname(pathNative,dirname);
+  if (status == 0){
+    int dirLen = strlen(dirname);
+    char dirnameASCII[dirLen+1];
+    memcpy(dirnameASCII,dirname,dirLen+1);
+    convertFromNative(dirnameASCII,dirLen);
+    return makeObjectAndErrorArray(ctx, JS_NewString(ctx, dirnameASCII), 0);
+  } else {
+    return makeObjectAndErrorArray(ctx, JS_NULL, status);
+  }
+}
+
+/* ccsid -1 implies guess best for platform, 0 implies don't translate */
+static JSValue xplatformStringFromBytes(JSContext *ctx, JSValueConst this_val,
+                                        int argc, JSValueConst *argv){
+  size_t size;
+  char *buf;
+
+  buf = (char*)JS_GetArrayBuffer(ctx, &size, argv[0]);
+  if (!buf){
+    return JS_EXCEPTION;
+  }
+  int offset = 0;
+  JS_ToInt32(ctx, &offset, argv[1]);
+  if (offset < 0 || offset > size){
+    return JS_EXCEPTION;
+  }
+  int length = 0;
+  JS_ToInt32(ctx, &length, argv[2]);
+  if (length < 0 || offset+length > size){
+    return JS_EXCEPTION;
+  }
+  int sourceCCSID = 0;
+  JS_ToInt32(ctx, &sourceCCSID, argv[3]);
+
+  if (sourceCCSID < 0){
+    char *nativeBuffer = safeMalloc(length+1,"xplatformStringFromBytes");
+    memcpy(nativeBuffer,buf+offset,length);
+    nativeBuffer[length] = 0;
+    convertFromNative(nativeBuffer,length);
+    JSValue ret = JS_NewStringLen(ctx, nativeBuffer, length);
+    safeFree(nativeBuffer,length+1);
+    return ret;
+  } else if (sourceCCSID == 0) {
+    return JS_NewStringLen(ctx, buf+offset, length);
+  } else {
+    printf("string from specific encoding not yet implemented\n");
+    return JS_EXCEPTION;
+  }
+  
+}
+
 static char fileCopyASCII[9] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79,  0x00 };
 static char fileCopyConvertedASCII[18] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79, 
 					  0x43, 0x6f, 0x6e, 0x76, 0x65, 0x72, 0x74, 0x65, 0x64, 0x00 };
+static char dirnameASCII[8] = {0x64, 0x69, 0x72, 0x6e, 0x61, 0x6d, 0x65,  0x00 };
+static char stringFromBytesASCII[16] = {0x73, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x46, 0x72, 0x6f, 0x6d, 0x42, 0x79, 0x74, 0x65, 0x73,  0x00 };
 
 static const JSCFunctionListEntry xplatformFunctions[] = {
   JS_CFUNC_DEF(fileCopyASCII, 2, xplatformFileCopy),
-  JS_CFUNC_DEF(fileCopyConvertedASCII, 2, xplatformFileCopyConverted),
+  JS_CFUNC_DEF(fileCopyConvertedASCII, 4, xplatformFileCopyConverted),
+  JS_CFUNC_DEF(dirnameASCII, 1, xplatformDirname),
+  JS_CFUNC_DEF(stringFromBytesASCII, 4, xplatformStringFromBytes),
+  
 };
 
 static int ejsInitXPlatformCallback(JSContext *ctx, JSModuleDef *m){
@@ -1949,7 +2013,7 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
 
     if (endsWith(nativeName,".js") ||
         endsWith(nativeName,".mjs")){
-      printf("module filename already has extension '%s'\n",nativeName);
+      /*  printf("module filename already has extension '%s'\n",nativeName); */
     } else {
       char asciiExtendedName[modNameLen+3+1];
       memcpy(asciiExtendedName,moduleName,modNameLen);

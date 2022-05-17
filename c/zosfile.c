@@ -719,6 +719,12 @@ int fileCopy(const char *existingFileName, const char *newFileName,
   return fileCopyConverted(existingFileName,newFileName,0,0,retCode,resCode);
 }
 
+int fileDirname(const char *path, char *dirname){
+  char *d = dirname(path);
+  strcpy(dirname,d);
+  return 0;
+}
+
 int fileRename(const char *oldFileName, const char *newFileName, int *returnCode, int *reasonCode){
   int returnValue = 0;
   int *reasonCodePtr;
