@@ -590,7 +590,6 @@ static JSValue posixMessageReceive(JSContext *ctx, JSValueConst this_val,
   }
 
   int status = msgrcv(qid, buf, (size_t)msgSizeInt, (long)msgType, flags);
-
   return makeStatusAndErrnoArray(ctx, status, (status < 0 ? errno : 0));  
 #endif
 }
@@ -608,7 +607,7 @@ static JSValue posixMessageGet(JSContext *ctx, JSValueConst this_val,
   int key = 0;
   JS_ToInt32(ctx, &key, argv[0]);
   int flags = 0;
-  JS_ToInt32(ctx, &key, argv[1]);
+  JS_ToInt32(ctx, &flags, argv[1]);
 
   int status = msgget((key_t)key, flags);
   return makeStatusAndErrnoArray(ctx, status, (status < 0 ? errno : 0));  
