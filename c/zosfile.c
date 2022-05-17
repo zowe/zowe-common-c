@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <libgen.h>
 
 #endif
 
@@ -719,9 +720,9 @@ int fileCopy(const char *existingFileName, const char *newFileName,
   return fileCopyConverted(existingFileName,newFileName,0,0,retCode,resCode);
 }
 
-int fileDirname(const char *path, char *dirname){
-  char *d = dirname(path);
-  strcpy(dirname,d);
+int fileDirname(const char *path, char *output){
+  char *d = dirname((char*)path);
+  strcpy(output,d);
   return 0;
 }
 
