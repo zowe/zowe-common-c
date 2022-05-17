@@ -868,7 +868,7 @@ int dynallocNewDataset(int *reasonCode, DynallocNewTextUnit *setTextUnits, int T
   DynallocParms *parms = &below2G->parms;
   dynallocParmsInit(parms);
 
-  dynallocParmsSetTextUnits(parms, below2G->textUnits, TextUnitsSize);
+  dynallocParmsSetTextUnits(parms, (TextUnit * __ptr32 *)below2G->textUnits, TextUnitsSize);
 
   int rc;
 
@@ -903,7 +903,7 @@ int dynallocNewDataset(int *reasonCode, DynallocNewTextUnit *setTextUnits, int T
     *reasonCode = dynallocParmsGetInfoCode(parms) +
         (dynallocParmsGetErrorCode(parms) << 16);
   } while (0);
-  freeTextUnitArray(below2G->textUnits, TextUnitsSize);
+  freeTextUnitArray((TextUnit * __ptr32 *)below2G->textUnits, TextUnitsSize);
   safeFree31((char*)below2G->textUnits, sizeof(TextUnit*) * TextUnitsSize);
   dynallocParmsTerm(parms);
   parms = NULL;
