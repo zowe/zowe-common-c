@@ -46,7 +46,7 @@ VERSION="\"${VERSION}\""
 
 QUICKJS="${COMMON}/deps/configmgr/quickjs"
 QUICKJS_LOCATION="git@github.com:joenemo/quickjs-portable.git"
-QUICKJS_BRANCH="0.9.0"
+QUICKJS_BRANCH="main"
 
 LIBYAML="${COMMON}/deps/configmgr/libyaml"
 LIBYAML_LOCATION="git@github.com:yaml/libyaml.git"
