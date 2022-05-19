@@ -883,6 +883,128 @@ static void yaml2JS(yaml_document_t *document, ShortLivedHeap *slh){
   yaml2JS1(bos,document,yaml_document_get_root_node(document),0,1);
 }
 
+#define YAML_SUCCESS 0
+#define YAML_GENERAL_FAILURE 12
+
+static int emitScalar(yaml_emitter_t *emitter, char *scalar, char *tag){
+  yaml_event_t event;
+  int sLen = strlen(scalar);
+  char asciiScalar[sLen+1];
+  memcpy(asciiScalar,scalar,sLen+1);
+  convertFromNative(asciiScalar,sLen);
+  yaml_scalar_event_initialize(&event, NULL, (yaml_char_t *)YAML_STR_TAG,
+                               (yaml_char_t*)asciiScalar, sLen,
+                               1, 0, YAML_PLAIN_SCALAR_STYLE);
+  if (yaml_emitter_emit(emitter, &event)){
+    return YAML_SUCCESS;
+  } else {
+    return YAML_GENERAL_FAILURE;
+  }
+}
+
+static int writeJsonAsYaml1(yaml_emitter_t *emitter, Json *json){
+  yaml_event_t event;
+  char scalarBuffer[256];
+  if (jsonIsArray(json)){
+    JsonArray *array = jsonAsArray(json);
+    int elementCount = jsonArrayGetCount(array);
+
+    yaml_sequence_start_event_initialize(&event, NULL, (yaml_char_t *)YAML_SEQ_TAG,
+                                         1, YAML_ANY_SEQUENCE_STYLE);
+    printf("writing %d elements\n",elementCount);
+    if (!yaml_emitter_emit(emitter, &event)) return YAML_GENERAL_FAILURE;
+    
+    for (int i=0; i<elementCount; i++){
+      Json *itemValue = jsonArrayGetItem(array,i);
+      int subStatus = writeJsonAsYaml1(emitter, itemValue);
+      if (subStatus){
+        return subStatus;
+      }
+    }
+
+    yaml_sequence_end_event_initialize(&event);
+    if (!yaml_emitter_emit(emitter, &event)) return YAML_GENERAL_FAILURE;
+    return YAML_SUCCESS;
+  } else if (jsonIsObject(json)){
+    int propertyCount = 0;
+    JsonObject *object = jsonAsObject(json);
+    JsonProperty *property = jsonObjectGetFirstProperty(object);
+
+    yaml_mapping_start_event_initialize(&event, NULL, (yaml_char_t *)YAML_MAP_TAG,
+                                        1, YAML_ANY_MAPPING_STYLE);
+    if (!yaml_emitter_emit(emitter, &event)) return YAML_GENERAL_FAILURE;
+
+    while (property){
+      propertyCount++;
+      char *propertyName = jsonPropertyGetKey(property);
+      Json *propertyValue = jsonPropertyGetValue(property);
+      int pLen = strlen(propertyName);
+      char asciiName[pLen+1];
+      memcpy(asciiName,propertyName,pLen+1);
+      convertFromNative(asciiName,pLen);
+      yaml_scalar_event_initialize(&event, NULL, (yaml_char_t *)YAML_STR_TAG,
+                                   (yaml_char_t *)asciiName, pLen,
+                                   1, 0, YAML_PLAIN_SCALAR_STYLE);
+      if (!yaml_emitter_emit(emitter, &event)) return YAML_GENERAL_FAILURE;
+
+      int subStatus = writeJsonAsYaml1(emitter,propertyValue);
+      if (subStatus){
+        return subStatus;
+      }
+      property = jsonObjectGetNextProperty(property);
+    }
+    yaml_mapping_end_event_initialize(&event);
+    if (!yaml_emitter_emit(emitter, &event)) return YAML_GENERAL_FAILURE;
+    return YAML_SUCCESS;
+  } else if (jsonIsInt64(json)){
+    sprintf(scalarBuffer,"%lld",jsonAsInt64(json));
+    return emitScalar(emitter,scalarBuffer,YAML_INT_TAG);
+  } else if (jsonIsDouble(json)){
+    sprintf(scalarBuffer,"%f",jsonAsDouble(json));
+    return emitScalar(emitter,scalarBuffer,YAML_FLOAT_TAG);
+  } else if (jsonIsNumber(json)){
+    sprintf(scalarBuffer,"%d",jsonAsNumber(json));
+    return emitScalar(emitter,scalarBuffer,YAML_INT_TAG);
+  } else if (jsonIsString(json)){
+    sprintf(scalarBuffer,"%s",jsonAsString(json));
+    return emitScalar(emitter,scalarBuffer,YAML_STR_TAG);
+  } else if (jsonIsBoolean(json)){
+    return emitScalar(emitter,(jsonAsBoolean(json) ? "true" : "false"),YAML_BOOL_TAG);
+  } else if (jsonIsNull(json)){
+    return emitScalar(emitter,"null",YAML_NULL_TAG);
+  } else {
+    printf("PANIC: unexpected json type %d\n",json->type);
+    return YAML_GENERAL_FAILURE;
+  }
+}
+
+int writeJsonAsYaml(FILE *out, Json *json){
+  yaml_emitter_t emitter;
+  yaml_event_t event;
+  yaml_emitter_initialize(&emitter);
+  yaml_emitter_set_output_file(&emitter, stdout);
+  
+  yaml_stream_start_event_initialize(&event, YAML_UTF8_ENCODING);
+  if (!yaml_emitter_emit(&emitter, &event)) goto error;
+  
+  yaml_document_start_event_initialize(&event, NULL, NULL, NULL, 0);
+  if (!yaml_emitter_emit(&emitter, &event)) goto error;
+  
+  writeJsonAsYaml1(&emitter,json);
+  
+  yaml_document_end_event_initialize(&event, 0);
+  if (!yaml_emitter_emit(&emitter, &event)) goto error;
+  
+  yaml_stream_end_event_initialize(&event);
+  if (!yaml_emitter_emit(&emitter, &event)) goto error;
+  
+  yaml_emitter_delete(&emitter);
+  return YAML_SUCCESS;
+ error:
+  yaml_emitter_delete(&emitter);
+  return YAML_GENERAL_FAILURE;
+}
+
 /*
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
