@@ -265,7 +265,7 @@ components:
         # Joe added this based on references in zss.c
         enabled: true
         server:
-          gatewayHostname: 172.29.97.39
+          gatewayHostname: 172.29.97.76
           gatewayPort: 10010
 
   # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

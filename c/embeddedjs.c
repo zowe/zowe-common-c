@@ -56,6 +56,7 @@
 #include <process.h>
 typedef int64_t ssize_t;
 #else 
+#include <unistd.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #endif
