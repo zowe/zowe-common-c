@@ -150,9 +150,13 @@ int main(int argc, char **argv){
       printf("JSON translated back to zowe-common-c.json\n");
       jsonPrint(p,json2);
     } else if (!strcmp(command,"yamlreadwrite")){
-
-      int status = writeJsonAsYaml(stdout,json);
+      char *buffer = NULL;
+      int bufferLength = 0;
+      int status = json2Yaml2Buffer(json,&buffer,&bufferLength);
       printf("______ Done Yaml Write Status is %d ________________\n",status);
+      if (status == YAML_SUCCESS){
+        printf("%s\n",buffer);
+      }
     } else {
       Json *resultantJSON = evaluateJsonTemplates(ejs,slh,json);
       printf("JSON templates evaluated\n");

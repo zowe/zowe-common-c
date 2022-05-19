@@ -996,44 +996,74 @@ static int writeJsonAsYaml1(yaml_emitter_t *emitter, Json *json){
   }
 }
 
-int writeJsonAsYaml(FILE *out, Json *json){
-  yaml_emitter_t emitter;
+static int emitYaml(yaml_emitter_t *emitter, Json *json){
   yaml_event_t event;
-  yaml_emitter_initialize(&emitter);
-  yaml_emitter_set_output_file(&emitter, stdout);
-  
   yaml_stream_start_event_initialize(&event, YAML_UTF8_ENCODING);
-  if (!yaml_emitter_emit(&emitter, &event)) goto error;
+  if (!yaml_emitter_emit(emitter, &event)) goto error;
   
   yaml_document_start_event_initialize(&event, NULL, NULL, NULL, 0);
-  if (!yaml_emitter_emit(&emitter, &event)){
+  if (!yaml_emitter_emit(emitter, &event)){
     printf("failed at doc start\n");
     goto error;
   }
   
-  int status = writeJsonAsYaml1(&emitter,json);
+  int status = writeJsonAsYaml1(emitter,json);
   if (status){
     printf("failed at write %d\n",status);
     goto error;
   }
   
   yaml_document_end_event_initialize(&event, 0);
-  if (!yaml_emitter_emit(&emitter, &event)){
+  if (!yaml_emitter_emit(emitter, &event)){
     printf("failed at doc end\n");
     goto error;
   }
   
   yaml_stream_end_event_initialize(&event);
-  if (!yaml_emitter_emit(&emitter, &event)) {
+  if (!yaml_emitter_emit(emitter, &event)) {
     printf("failed at end\n");
     goto error;
   }
   
-  yaml_emitter_delete(&emitter);
+  yaml_emitter_delete(emitter);
   return YAML_SUCCESS;
  error:
-  yaml_emitter_delete(&emitter);
+  yaml_emitter_delete(emitter);
   return YAML_GENERAL_FAILURE+8;
+}
+
+// yaml_write_handler_t *handler, void *data);
+// typedef int yaml_write_handler_t(void *data, unsigned char *buffer, size_t size);
+
+static int yamlHandlerCallback(void *context, unsigned char *buffer, size_t size){
+  ByteOutputStream *baos = (ByteOutputStream*)context;
+  bosWrite(baos,(char *)buffer,(int)size);
+  return 1;
+}
+                               
+
+int json2Yaml2Buffer(Json *json, char **buffer, int *bufferLen){
+  ByteOutputStream *baos = makeByteOutputStream(0x1000);
+  yaml_emitter_t emitter;
+  yaml_emitter_initialize(&emitter);
+  yaml_emitter_set_output(&emitter,yamlHandlerCallback,baos);
+
+  int emitStatus = emitYaml(&emitter,json);
+  if (emitStatus){
+    bosFree(baos,true);
+  } else {
+    *buffer = bosNullTerminateAndUse(baos);
+    *bufferLen = baos->size;
+    bosFree(baos,false);
+  }
+  return emitStatus;
+}
+
+int json2Yaml2File(Json *json, FILE *out){
+  yaml_emitter_t emitter;
+  yaml_emitter_initialize(&emitter);
+  yaml_emitter_set_output_file(&emitter, out);
+  return emitYaml(&emitter,json);
 }
 
 /*

@@ -10,7 +10,8 @@ Json *yaml2JSON(yaml_document_t *document, ShortLivedHeap *slh);
 #define YAML_SUCCESS 0
 #define YAML_GENERAL_FAILURE 12
 
-int writeJsonAsYaml(FILE *out, Json *json);
+int json2Yaml2Buffer(Json *json, char **buffer, int *bufferLen);
+int json2Yaml2File(Json *json, FILE *out);
 
   
 #endif
