@@ -191,6 +191,23 @@ static int stderrFD(void){
 }
 #endif
 
+int __atoe_l(char *bufferptr, int leng);
+int __etoa_l(char *bufferptr, int leng);
+
+static int convertToNative(char *buf, size_t size) {
+#ifdef __ZOWE_OS_ZOS
+  return __atoe_l(buf, size);
+#endif
+  return 0;
+}
+
+static int convertFromNative(char *buf, size_t size) {
+#ifdef __ZOWE_OS_ZOS
+  return __etoa_l(buf, size);
+#endif
+  return 0;
+}
+
 
 #define INFO 0
 #define DEBUG 1
@@ -1323,7 +1340,7 @@ static int validateWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
   jsonBuildInt(builder,result,"shoeSize",11,&errorCode);
   freeJsonValidator(validator);
   ejsReturnJson(invocation,result);
-  /* freeJsonBuilder(builder,false); */
+  freeJsonBuilder(builder,false); 
   return EJS_OK;
 }
 
@@ -1337,8 +1354,7 @@ static int getConfigDataWrapper(ConfigManager *mgr, EJSNativeInvocation *invocat
 
 #define YAML_BUFFER_SIZE 4096
 
-static int writeYAML(ConfigManager *mgr, EJSNativeInvocation *invocation){
-  printf("WY.0\n");fflush(stdout);
+static int writeYAMLWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
   EmbeddedJS *ejs = ejsGetEnvironment(invocation);
   const char *configName = NULL;
   ejsStringArg(invocation,0,&configName);
@@ -1346,22 +1362,24 @@ static int writeYAML(ConfigManager *mgr, EJSNativeInvocation *invocation){
   char *buffer = NULL;
   int bufferLength = 0;
   int status = json2Yaml2Buffer(data,&buffer,&bufferLength);
-  printf("WY.1\n");fflush(stdout);
   JsonBuilder *builder = ejsMakeJsonBuilder(ejs);
-  printf("WY.2\n");fflush(stdout);
   int errorCode;
+  char *nativeBuffer = NULL;
   Json *result = jsonBuildArray(builder,NULL,NULL,&errorCode);
-  printf("WY.3\n");fflush(stdout);
   jsonBuildInt(builder,result,NULL,status,&errorCode);
-  printf("WY.4\n");fflush(stdout);
   if (status == 0 && buffer){
-    jsonBuildString(builder,result,NULL,buffer,bufferLength,&errorCode);
+    nativeBuffer = safeMalloc(bufferLength,"NativeYAML");
+    memcpy(nativeBuffer,buffer,bufferLength);
+    convertToNative(nativeBuffer,bufferLength);
+    jsonBuildString(builder,result,NULL,nativeBuffer,bufferLength,&errorCode);
   } else {
     jsonBuildNull(builder,result,NULL,&errorCode);
   }
-  printf("WY.5\n");fflush(stdout);
   ejsReturnJson(invocation,result);
-  /* freeJsonBuilder(builder,false); */
+  if (nativeBuffer){
+    safeFree(nativeBuffer,bufferLength);
+  }
+  freeJsonBuilder(builder,false);
   return EJS_OK;
 }
 
@@ -1407,8 +1425,8 @@ static EJSNativeModule *exportConfigManagerToEJS(EmbeddedJS *ejs){
   ejsAddMethodArg(ejs,getConfigData,"configName",EJS_NATIVE_TYPE_CONST_STRING);
 
   EJSNativeMethod *writeYAML = ejsMakeNativeMethod(ejs,configmgr,"writeYAML",
-                                                       EJS_NATIVE_TYPE_JSON,
-                                                   (EJSForeignFunction*)writeYAML);
+						   EJS_NATIVE_TYPE_JSON,
+                                                   (EJSForeignFunction*)writeYAMLWrapper);
   ejsAddMethodArg(ejs,writeYAML,"configName",EJS_NATIVE_TYPE_CONST_STRING);
 
   EJSNativeMethod *validate = ejsMakeNativeMethod(ejs,configmgr,"validate",
