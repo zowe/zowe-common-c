@@ -1323,6 +1323,7 @@ static int validateWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
   jsonBuildInt(builder,result,"shoeSize",11,&errorCode);
   freeJsonValidator(validator);
   ejsReturnJson(invocation,result);
+  /* freeJsonBuilder(builder,false); */
   return EJS_OK;
 }
 
@@ -1337,16 +1338,30 @@ static int getConfigDataWrapper(ConfigManager *mgr, EJSNativeInvocation *invocat
 #define YAML_BUFFER_SIZE 4096
 
 static int writeYAML(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  printf("WY.0\n");fflush(stdout);
+  EmbeddedJS *ejs = ejsGetEnvironment(invocation);
   const char *configName = NULL;
   ejsStringArg(invocation,0,&configName);
   Json *data = cfgGetConfigData(mgr,configName);
-  const char *filename = NULL;
-  ejsStringArg(invocation,1,&filename);
-
-  int returnCode = 0;
-  int reasonCode = 0;
-  UnixFile *file = fileOpen(filename, FILE_OPTION_WRITE_ONLY, 0, 0, &returnCode, &reasonCode);
-  
+  char *buffer = NULL;
+  int bufferLength = 0;
+  int status = json2Yaml2Buffer(data,&buffer,&bufferLength);
+  printf("WY.1\n");fflush(stdout);
+  JsonBuilder *builder = ejsMakeJsonBuilder(ejs);
+  printf("WY.2\n");fflush(stdout);
+  int errorCode;
+  Json *result = jsonBuildArray(builder,NULL,NULL,&errorCode);
+  printf("WY.3\n");fflush(stdout);
+  jsonBuildInt(builder,result,NULL,status,&errorCode);
+  printf("WY.4\n");fflush(stdout);
+  if (status == 0 && buffer){
+    jsonBuildString(builder,result,NULL,buffer,bufferLength,&errorCode);
+  } else {
+    jsonBuildNull(builder,result,NULL,&errorCode);
+  }
+  printf("WY.5\n");fflush(stdout);
+  ejsReturnJson(invocation,result);
+  /* freeJsonBuilder(builder,false); */
   return EJS_OK;
 }
 
@@ -1390,6 +1405,11 @@ static EJSNativeModule *exportConfigManagerToEJS(EmbeddedJS *ejs){
                                                        EJS_NATIVE_TYPE_JSON,
                                                        (EJSForeignFunction*)getConfigDataWrapper);
   ejsAddMethodArg(ejs,getConfigData,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+
+  EJSNativeMethod *writeYAML = ejsMakeNativeMethod(ejs,configmgr,"writeYAML",
+                                                       EJS_NATIVE_TYPE_JSON,
+                                                   (EJSForeignFunction*)writeYAML);
+  ejsAddMethodArg(ejs,writeYAML,"configName",EJS_NATIVE_TYPE_CONST_STRING);
 
   EJSNativeMethod *validate = ejsMakeNativeMethod(ejs,configmgr,"validate",
                                                   EJS_NATIVE_TYPE_JSON,

@@ -79,6 +79,8 @@ var loadAndExtract = function(){
             let theConfig = cmgr.getConfigData(configName);
             console.log("configData is loaded \n"+theConfig);
             console.log("listenerPort is "+theConfig.listenerPort);
+            let [ yamlStatus, textOrNull ] = cmgr.writeYAML(configName);
+            console.log("here's the whole config as yaml, status="+status);
         }
     } else {
         console.log("validation failed, contact Zowe support");
