@@ -1334,6 +1334,22 @@ static int getConfigDataWrapper(ConfigManager *mgr, EJSNativeInvocation *invocat
   return EJS_OK;
 }
 
+#define YAML_BUFFER_SIZE 4096
+
+static int writeYAML(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  const char *configName = NULL;
+  ejsStringArg(invocation,0,&configName);
+  Json *data = cfgGetConfigData(mgr,configName);
+  const char *filename = NULL;
+  ejsStringArg(invocation,1,&filename);
+
+  int returnCode = 0;
+  int reasonCode = 0;
+  UnixFile *file = fileOpen(filename, FILE_OPTION_WRITE_ONLY, 0, 0, &returnCode, &reasonCode);
+  
+  return EJS_OK;
+}
+
 
 static EJSNativeModule *exportConfigManagerToEJS(EmbeddedJS *ejs){
   EJSNativeModule *module = ejsMakeNativeModule(ejs,"Configuration");

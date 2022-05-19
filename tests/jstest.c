@@ -4,12 +4,17 @@
 #include <stdbool.h>
 #include <string.h>
 
+
 #include "zowetypes.h"
 #include "alloc.h"
 #include "utils.h"
 #include "json.h"
 #include "yaml2json.h"
 #include "quickjs.h"
+
+#ifndef __ZOWE_OS_WINDOWS
+#include <unistd.h>
+#endif
 
 /* This hack is needed because we can mention incomplete types, but not actually *USE* them */
 struct JSValueBox_tag {
