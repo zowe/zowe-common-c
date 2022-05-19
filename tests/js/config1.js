@@ -8,7 +8,7 @@ console.log("hello ConfigMgr, args were ["+scriptArgs+"]");
 
   From zowe-common-c/c
 
-  configmgr -script ..tests/js/config1.js -s "../tests/schemadata/zoweappserver.json:../tests/schemadata/zowebase.json:../tests/schemadata/zowecommon.json" -p "FILE(../tests/schemadata/bundle1.json)" 
+  configmgr -script ../tests/js/config1.js -s "../tests/schemadata/zoweappserver.json:../tests/schemadata/zowebase.json:../tests/schemadata/zowecommon.json" -p "FILE(../tests/schemadata/bundle1.json)" 
  */
 
 var getArg = function(key){
@@ -77,10 +77,13 @@ var loadAndExtract = function(){
         } else {
             console.log("no exceptions seen");
             let theConfig = cmgr.getConfigData(configName);
-            console.log("configData is loaded \n"+theConfig);
+            console.log("configData is loaded \n"+JSON.stringify(theConfig,null,"\n"));
             console.log("listenerPort is "+theConfig.listenerPort);
             let [ yamlStatus, textOrNull ] = cmgr.writeYAML(configName);
             console.log("here's the whole config as yaml, status="+status);
+            if (yamlStatus == 0){
+              console.log(""+textOrNull);
+            }
         }
     } else {
         console.log("validation failed, contact Zowe support");
@@ -89,3 +92,4 @@ var loadAndExtract = function(){
 }
 
 loadAndExtract();
+

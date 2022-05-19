@@ -1032,8 +1032,8 @@ static int emitYaml(yaml_emitter_t *emitter, Json *json){
   return YAML_GENERAL_FAILURE+8;
 }
 
-// yaml_write_handler_t *handler, void *data);
-// typedef int yaml_write_handler_t(void *data, unsigned char *buffer, size_t size);
+/* yaml_write_handler_t *handler, void *data);
+   typedef int yaml_write_handler_t(void *data, unsigned char *buffer, size_t size); */
 
 static int yamlHandlerCallback(void *context, unsigned char *buffer, size_t size){
   ByteOutputStream *baos = (ByteOutputStream*)context;
