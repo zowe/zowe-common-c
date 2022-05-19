@@ -4,14 +4,17 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "cutils.h"
-#include "quickjs-libc.h"
-
 #include "zowetypes.h"
 #include "alloc.h"
 #include "utils.h"
 #include "json.h"
 #include "yaml2json.h"
+#include "quickjs.h"
+
+/* This hack is needed because we can mention incomplete types, but not actually *USE* them */
+struct JSValueBox_tag {
+  JSValue value;
+};
 #include "embeddedjs.h"
 
 /*
@@ -22,7 +25,7 @@
   
   clang++ -c ../platform/windows/cppregex.cpp ../platform/windows/winregex.cpp
 
-  clang -I %QJS%/porting -I%YAML%/include -I../platform/windows -I %QJS% -I ..\h -DCONFIG_VERSION=\"2021-03-27\" -D_CRT_SECURE_NO_WARNINGS -Dstrdup=_strdup -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 -Wdeprecated-declarations --rtlib=compiler-rt -o jstest.exe jstest.c %QJS%\quickjs.c %QJS%\cutils.c %QJS%\quickjs-libc.c %QJS%\libbf.c %QJS%\libregexp.c %QJS%\libunicode.c %QJS%\porting\winpthread.c %QJS%\porting\wintime.c %QJS%\porting\windirent.c %QJS%\porting\winunistd.c %QJS%\repl.c %YAML%/src/api.c %YAML%/src/reader.c %YAML%/src/scanner.c %YAML%/src/parser.c %YAML%/src/loader.c %YAML%/src/writer.c %YAML%/src/emitter.c %YAML%/src/dumper.c ../c/yaml2json.c ../c/embeddedjs.c ../c/jsonschema.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c cppregex.o winregex.o
+  clang -I %QJS%/porting -I%YAML%/include -I../platform/windows -I %QJS% -I ..\h -DCONFIG_VERSION=\"2021-03-27\" -D_CRT_SECURE_NO_WARNINGS -Dstrdup=_strdup -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 -Wdeprecated-declarations --rtlib=compiler-rt -o jstest.exe jstest.c %QJS%\quickjs.c %QJS%\cutils.c %QJS%\quickjs-libc.c %QJS%\libbf.c %QJS%\libregexp.c %QJS%\libunicode.c %QJS%\porting\winpthread.c %QJS%\porting\wintime.c %QJS%\porting\windirent.c %QJS%\porting\winunistd.c %QJS%\repl.c %YAML%/src/api.c %YAML%/src/reader.c %YAML%/src/scanner.c %YAML%/src/parser.c %YAML%/src/loader.c %YAML%/src/writer.c %YAML%/src/emitter.c %YAML%/src/dumper.c ../c/yaml2json.c ../c/embeddedjs.c ../c/jsonschema.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c cppregex.o winregex.o ../platform/windows/winfile.c
 
 
   A software configuration is a virtual hierarchical document
@@ -77,7 +80,7 @@ int main(int argc, char **argv){
   int i;
   int include_count = 0;
   char *command = argv[1];
-  int loadMode = FILE_LOAD_AUTODETECT;
+  int loadMode = EJS_LOAD_DETECT_MODULE;
   int errorBufferSize = 1024;
 #ifdef __ZOWE_OS_WINDOWS
   int stdoutFD = _fileno(stdout);
@@ -89,8 +92,8 @@ int main(int argc, char **argv){
   printf("JSTest Start \n");
   fflush(stdout);
   
-  EmbeddedJS *ejs = makeEmbeddedJS(NULL);
-  
+  EmbeddedJS *ejs = allocateEmbeddedJS(NULL);
+  configureEmbeddedJS(ejs,NULL,0,argc,argv);
 
   /* no includes yet 
   for(i = 0; i < include_count; i++) {
@@ -103,7 +106,7 @@ int main(int argc, char **argv){
   /* JOE, here, eval buffer, or file, or go interactive */
   if (!strcmp(command,"expr")){
     char *sourceCode = argv[2];
-    JSValue output = ejsEvalBuffer(ejs, sourceCode, strlen(sourceCode), "<cmdline>", 0, &evalStatus);
+    JSValueBox output = ejsEvalBuffer(ejs, sourceCode, strlen(sourceCode), "<cmdline>", 0, &evalStatus);
     if (evalStatus){
       printf("evaluation failed, status=%d\n",evalStatus);
     } else {
@@ -115,7 +118,8 @@ int main(int argc, char **argv){
       printf("file eval failed\n");
     }
   } else if (!strcmp(command,"yamlcopy") ||
-             !strcmp(command,"yamleval")){
+             !strcmp(command,"yamleval") ||
+             !strcmp(command,"yamlreadwrite")){
     char *filename = argv[2];
     ShortLivedHeap *slh = makeShortLivedHeap(0x10000, 100);
     yaml_document_t *doc = readYAML(filename, errorBuffer, errorBufferSize);
@@ -130,16 +134,20 @@ int main(int argc, char **argv){
     jsonPrint(p,json);
 
     if (!strcmp(command,"yamlcopy")){
-      JSValue jsValue = ejsJsonToJS(ejs,json);
+      JSValueBox jsValue = ejsJsonToJS(ejs,json);
       printf("made jsValue\n");
       fflush(stdout);
       ejsSetGlobalProperty(ejs,"magic1",jsValue);
       char *s1 = "console.log(\"theThing=\"+JSON.stringify(magic1))";
-      JSValue throwAway = ejsEvalBuffer(ejs, s1, strlen(s1), "<cmdLine>", 0, &evalStatus);
+      JSValueBox throwAway = ejsEvalBuffer(ejs, s1, strlen(s1), "<cmdLine>", 0, &evalStatus);
       printf("evalStatus=%d\n",evalStatus);
       Json *json2 = ejsJSToJson(ejs,jsValue,slh);
       printf("JSON translated back to zowe-common-c.json\n");
       jsonPrint(p,json2);
+    } else if (!strcmp(command,"yamlreadwrite")){
+
+      int status = writeJsonAsYaml(stdout,json);
+      printf("______ Done Yaml Write Status is %d ________________\n",status);
     } else {
       Json *resultantJSON = evaluateJsonTemplates(ejs,slh,json);
       printf("JSON templates evaluated\n");
