@@ -3878,7 +3878,7 @@ static MimeType MIME_TYPES[] = {
   {"env", "text/plain", FALSE},
   {"gif", "image/gif", TRUE},
   {"gz", "application/gzip", TRUE},
-  {"go", "text/plain", TRUE},
+  {"go", "text/plain", FALSE},
   {"h", "text/plain", FALSE},
   {"html", "text/html", FALSE},
   {"htm", "text/html", FALSE},
