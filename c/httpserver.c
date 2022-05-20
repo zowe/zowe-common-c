@@ -3855,7 +3855,7 @@ typedef struct MimeType_tag {
 
 static MimeType MIME_TYPES[] = {
   {"7z", "application/x-7z-compressed", TRUE},
-  {"asm", "text/plain", FALSE}
+  {"asm", "text/plain", FALSE},
   {"avi", "video/x-msvideo", TRUE},
   {"bin", "application/octet-stream", TRUE},
   {"bmp", "image/bmp", TRUE},
