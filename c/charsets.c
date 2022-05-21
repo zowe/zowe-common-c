@@ -95,10 +95,6 @@ int getCharsetCode(const char *charsetName) {
   IBM resources
     http://www-01.ibm.com/software/globalization/ccsid/ccsid_registered.html
 
-  HERE
-  1) what does 1200 really mean
-  2) wcTest -> convert to wideNative
-  3) 
 */
 
 int convertCharset2(char *input, 
@@ -114,11 +110,12 @@ int convertCharset2(char *input,
                     char *workArea,
                     int  workAreaLength){
   char *wideTemp = NULL;
+  int  tempLength = 2 * inputLength; /* only allocated if needed */
   bool needToFreeTemp = false;
-  if (workArea && (workAreaLength >= (inputLength*2))){
+  if (workArea && (workAreaLength >= tempLength)){
     wideTemp = workArea;
   } else {
-    wideTemp = safeMalloc(2*inputLength,"WideTemp");
+    wideTemp = safeMalloc(tempLength,"WideTemp");
     needToFreeTemp = true;
   }
   int wideCharCount = 0;
@@ -126,10 +123,8 @@ int convertCharset2(char *input,
   int status = MultiByteToWideChar(inputCCSID,0,input,inputLength,(LPWSTR)wideTemp,inputLength); /* 2nd length is count of wchar */
   if (status == 0){
     *reasonCode = GetLastError();
-    printf("win multiToWide reason = %d, inputCCSID=%d wideTemp=0x%p, inLen=%d req=%d\n",
-           *reasonCode,inputCCSID,wideTemp,inputLength,required);
     if (needToFreeTemp){
-      safeFree(wideTemp,2*inputLength);
+      safeFree(wideTemp,tempLength);
     }
     return CHARSET_CONVERSION_ROUTINE_FAILURE;
   } else {
@@ -151,11 +146,10 @@ int convertCharset2(char *input,
   
   status = WideCharToMultiByte(outputCCSID,0,(LPWSTR)wideTemp,wideCharCount,outputBuffer,outputLength,NULL,NULL);
   if (needToFreeTemp){
-    safeFree(wideTemp,2*inputLength);
+    safeFree(wideTemp,tempLengthLength);
   }
   if (status == 0){
     *reasonCode = GetLastError();
-    printf("win wideToMulti reason = %d\n",*reasonCode);
     if (outputMode == CHARSET_OUTPUT_SAFE_MALLOC){
       safeFree((char*)outputBuffer,outputLength);
     }

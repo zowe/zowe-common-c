@@ -206,9 +206,12 @@ components:
     usersDir: "${{ zowe.workspaceDirectory }}/app-server/users"
     pluginsDir: "${{ zowe.workspaceDirectory }}/app-server/plugins"
     agent:
-      host: ${{ components.zss.agent.host }}
-      https: ${{ components.zss.port }}
-
+      host: example.com
+      https: 
+        port: 64111
+    dataserviceAuthentication:
+      defaultAuthentication: zss
+      rbac: false
   # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   zss:
     enabled: true
@@ -224,8 +227,8 @@ components:
       _zss.zlparser: 2
       _zss.zlcompiler: 2
       _zss.zlruntime: 2
-      _zss.stcbase: 2
-      _zss.httpserver: 4
+      _zss.stcbase: 4
+      _zss.httpserver: 3
       _zss.discovery: 2
       _zss.cms: 2
       _zss.lpa: 2
@@ -233,15 +236,15 @@ components:
       _zss.restfile: 2
       _zss.zos: 2
       _zss.httpclient: 2
-      _zss.jwt: 4
+      _zss.jwt: 3
       _zss.mvdserver: 2
       _zss.ctds: 2
       _zss.security: 2
       _zss.unixfile: 2
       _zss.dataservice: 2
       _zss.apimlstorage: 2
-      _zss.jwk: 3
-      _zss.httpAuthTrace: 4
+      _zss.jwk: 2
+      _zss.httpAuthTrace: 5
       # per plugin starts here
       com.zossteam.inzpect.debug: 3
     agent:
@@ -260,6 +263,8 @@ components:
       http:
         ipAddresses: 
           - "172.29.122.164"
+      jwt:
+        fallback: true
     node:
       mediationLayer:
         # Joe added this based on references in zss.c

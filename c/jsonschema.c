@@ -961,7 +961,7 @@ static JSValueSpec *getTopSchemaByName(JsonValidator *validator,
            fileNameLength,fileNameLength,fileName);
   hashtable *definitionTable = validator->topSchema->topValueSpec->definitions;
   JSValueSpec *schema = (definitionTable ? htGet(definitionTable,key) : NULL);
-  if (validator->traceLevel >= 1){
+  if (validator->traceLevel >= 0){
     trace(validator,depth,"getTopSchema for key='%s' yields 0x%p (from HT)\n",key,schema);
   }
   if (schema == NULL){
@@ -969,9 +969,12 @@ static JSValueSpec *getTopSchemaByName(JsonValidator *validator,
       JsonSchema *otherSchema = validator->otherSchemas[i];
       JSValueSpec *otherTopSpec = otherSchema->topValueSpec;
       
+      if (validator->traceLevel >= 0){
+	trace(validator,depth,"getTopSchema compare key='%s' otherTopID='%s' \n",key,otherTopSpec->id);
+      }
       if (otherTopSpec->id && !strcmp(otherTopSpec->id,key)){
         schema = otherTopSpec;
-        if (validator->traceLevel >= 1){
+        if (validator->traceLevel >= 0){
           trace(validator,depth,"getTopSchema for key='%s' yields 0x%p (from Other Schemas)\n",key,schema);
         }
         break;

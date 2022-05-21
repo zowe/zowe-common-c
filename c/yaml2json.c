@@ -924,7 +924,7 @@ static int writeJsonAsYaml1(yaml_emitter_t *emitter, Json *json){
     JsonArray *array = jsonAsArray(json);
     int elementCount = jsonArrayGetCount(array);
 
-    yaml_sequence_start_event_initialize(&event, NULL, (yaml_char_t *)YAML_SEQ_TAG,
+    yaml_sequence_start_event_initialize(&event, NULL, (yaml_char_t *)YAML_SEQ_TAG_ASCII,
                                          1, YAML_ANY_SEQUENCE_STYLE);
     if (!yaml_emitter_emit(emitter, &event)) return YAML_GENERAL_FAILURE+2;
     

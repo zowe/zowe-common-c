@@ -489,9 +489,6 @@ int setFileInfoCCSID(int ccsid);
 int fileInfoCCSID(const FileInfo *info);
 int fileInfoUnixCreationTime(const FileInfo *info);
 int fileInfoUnixModificationTime(const FileInfo *info);
-/**
-   
- */
 int fileUnixMode(const FileInfo *info);
 int fileEOF(const UnixFile *file);
 int fileGetINode(const FileInfo *file);
