@@ -198,14 +198,6 @@ int rs_icsfp11_getObjectValue(const ICSFP11_HANDLE_T *in_object_handle,
                               int *out_rc, int *out_reason);
 
 /**
- * Create a token by name (max 32 chars).
- */
-int rs_icsfp11_createToken(const char *in_name,
-                           const ICSFP11_TOKENATTRS_T *in_tokenattrs,
-                           ICSFP11_HANDLE_T **out_handle,
-                           int *out_rc, int *out_reason);
-
-/**
  * Delete a token by handle, or by name.
  */
 int rs_icsfp11_deleteTokenByHandle(const ICSFP11_HANDLE_T *in_handle,

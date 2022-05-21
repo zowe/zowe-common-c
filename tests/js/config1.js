@@ -9,6 +9,10 @@ console.log("hello ConfigMgr, args were ["+scriptArgs+"]");
   From zowe-common-c/c
 
   configmgr -script ../tests/js/config1.js -s "../tests/schemadata/zoweappserver.json:../tests/schemadata/zowebase.json:../tests/schemadata/zowecommon.json" -p "FILE(../tests/schemadata/bundle1.json)" 
+
+  Testing ZSS schemas
+
+  ../deps/zowe-common-c/bin/configmgr -script ../deps/zowe-common-c/tests/js/config1.js -s "../schemas/zowe-schema.json:../schemas/zowe-yaml-schema.json:../schemas/server-common.json:../schemas/zss-config.json" -p "FILE(../deps/zowe-common-c/tests/schemadata/bigyaml.yaml)"
  */
 
 var getArg = function(key){
@@ -55,7 +59,7 @@ var loadAndExtract = function(){
         console.log("could not set config path: "+configPath);
         return;
     }
-
+    cmgr.setTraceLevel(0);
     status = cmgr.loadSchemas(configName,schemaList);
     if (status != 0){
         console.log("could not loadSchemas: "+schemaList);

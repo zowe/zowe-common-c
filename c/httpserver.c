@@ -31,6 +31,7 @@
 
 #ifndef __ZOWE_OS_WINDOWS
 #include <time.h>
+#include <errno.h>
 #endif
 
 #endif /* METTLE */
@@ -514,7 +515,7 @@ static void finishChunkedOutput(ChunkedOutputStream *s, int translate){
 // **NOTE**
 
 void finishResponse(HttpResponse *response){
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "finishResponse where response=0x%x\n",response);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "finishResponse where response=0x%\n",response);
   if (response->stream){
     finishChunkedOutput(response->stream,
         (response->jp == NULL)? TRANSLATE_8859_1 : 0);
@@ -727,7 +728,7 @@ static int readMachineAdvance(WSReadMachine *m, char *data, WSSession *wsSession
       /* compute header need */
       m->flagAndOpcodeByte = m->headerBuffer[0]&0xff;
       shouldClose = m->flagAndOpcodeByte & 0x08;
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "readMachineAdvance: local shouldClose=%d,wsSession 0x%X, flagAndOpcodeByte 0x%X\n",
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "readMachineAdvance: local shouldClose=%d,wsSession 0x%p, flagAndOpcodeByte 0x%X\n",
               shouldClose, wsSession,m->flagAndOpcodeByte);
       m->fin = (m->flagAndOpcodeByte&0x80)!=0;
       int maskAndPayloadLengthByte = m->headerBuffer[1]&0xff;
@@ -1118,7 +1119,7 @@ void writeRequest(HttpRequest *request, Socket *socket){
   asciify(line,len);
   writeFully(socket,line,len);
   writeFully(socket,crlf,2);
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "write header chain 0x%x\n",headerChain);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "write header chain 0x%p\n",headerChain);
 
   while (headerChain){
 
@@ -1746,11 +1747,11 @@ static char *getNative(char *s){
 /* makeHttpResponse alloc's the response structure on the passed SLH,
  * but now infuses the HttpResponse with its own SLH */
 HttpResponse *makeHttpResponse(HttpRequest *request, ShortLivedHeap *slh, Socket *socket){
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "makeHttpResponse called with req=0x%x, slh=0x%x, socket=0x%x\n",
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "makeHttpResponse called with req=0x%p, slh=0x%p, socket=0x%p\n",
          request, slh, socket);
   ShortLivedHeap *responseSLH = makeShortLivedHeap(65536,100);
   HttpResponse *response = (HttpResponse*)SLHAlloc(responseSLH,sizeof(HttpResponse));
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "makeHttpResponse after SLHAlloc, resp=0x%x\n", response);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "makeHttpResponse after SLHAlloc, resp=0x%p\n", response);
   if (NULL != request) {
     response->request = request;
   	request->slh = slh;
@@ -2526,14 +2527,21 @@ int isLowerCasePasswordAllowed(){
 
 #ifdef __ZOWE_OS_ZOS
 
-/* because of the evil of the backwards mainframe default for hashing in ICSF
-   we need an open-source replacement of ICSF for single-user mode.
+/*
+  MD5, although not a great algorithm anymore, is used because
+  this is being used to validate a short string (userid.len+password.len).
+  There is little to no chance of collision attacks on short strings.  This
+  function is only used in zowe single-user mode.  Single-user mode does not
+  open up network ports.  It only opens to SSH connections for customers that
+  have valid SAF credentials, and only allows them to execute code as their
+  own ID.
+  */
 
-   Poughkeepsie, this is why we can't have nice things on ZOS.
-   */
+#define MD5_LENGTH 16
+
 static char *md5It(char *s, int len, char *hash){
   ICSFDigest digest;
-  memset(hash,0,16);
+  memset(hash,0,MD5_LENGTH);
   icsfDigestInit(&digest,ICSF_DIGEST_MD5);
   icsfDigestUpdate(&digest,s,len);
   icsfDigestFinish(&digest,hash);
@@ -2555,6 +2563,10 @@ static ACEE *getACEE(){
 
 static int singleUserTrace = 1;
 
+#define MAX_USERID_LENGTH 32 /* very generous to be forward compatible */
+#define MAX_PASSWORD_LENGTH 64 /* very generous to be forward compatible */
+#define AUTH_BUFFER_LENGTH (MAX_USERID_LENGTH + MAX_PASSWORD_LENGTH + 32)
+
 static int doSingleUserAuth(HttpServer *server, HttpRequest *request, AuthResponse *authResponse){
   if (singleUserTrace >= 1){
     printf("JOE: single-user auth\n");
@@ -2566,17 +2578,17 @@ static int doSingleUserAuth(HttpServer *server, HttpRequest *request, AuthRespon
   if (singleUserTrace >= 1){
     printf("JOE: 1U u: '%s' p: '%s' authHeader=0x%p\n",request->username,request->password,authenticationHeader);
   }
-  char cleartextBuffer[100];
-  char asciiHeaderBuffer[100];
+  char cleartextBuffer[AUTH_BUFFER_LENGTH];
+  char asciiHeaderBuffer[AUTH_BUFFER_LENGTH];
   char *asciiHeader = NULL;
   if (authenticationHeader){
     asciiHeader = authenticationHeader->value;
   } else{
-    if (strlen(request->username) > 32 || strlen(request->password) > 64){
+    if (strlen(request->username) > MAX_USERID_LENGTH || strlen(request->password) > MAX_PASSWORD_LENGTH){
       printf("username or password too long\n");
       return 0;
     }
-    sprintf(cleartextBuffer,"Basic %s:%s",request->username,request->password);
+    snprintf(cleartextBuffer,AUTH_BUFFER_LENGTH,"Basic %s:%s",request->username,request->password);
     strupcase(cleartextBuffer+6);
     if (singleUserTrace >= 1){
       printf("JOE: before ascii and B64 '%s'\n",cleartextBuffer);
@@ -2597,7 +2609,7 @@ static int doSingleUserAuth(HttpServer *server, HttpRequest *request, AuthRespon
       dumpbuffer(asciiHeader,encodedSize+1);
     }
   }
-  char md5Hash[16];
+  char md5Hash[MD5_LENGTH];
   md5It(asciiHeader,strlen(asciiHeader),md5Hash);
   strupcase(request->username); /* upfold username */
   char *safUser = acee->aceeuser;
@@ -2608,16 +2620,17 @@ static int doSingleUserAuth(HttpServer *server, HttpRequest *request, AuthRespon
            request->username,safUserLength,safUserLength,safUser);
     dumpbuffer(asciiHeader,strlen(asciiHeader));
     printf("and blob hash\n");
-    dumpbuffer(md5Hash,16);
+    dumpbuffer(md5Hash,MD5_LENGTH);
     printf("and singleUserAuthBlob at 0x%p\n",server->singleUserAuthBlob);
-    dumpbuffer(server->singleUserAuthBlob,16);
+    dumpbuffer(server->singleUserAuthBlob,MD5_LENGTH);
   }
   /*
      do we need this stuff? and for what?
      authResponse->type = AUTH_TYPE_RACF;
      authResponse->responseDetails.safStatus = 0;
    */
-  return !memcmp(server->singleUserAuthBlob,md5Hash,16);
+  return (!memcmp(request->username,safUser,safUserLength) &&       /* Same User as ACEE */
+	  !memcmp(server->singleUserAuthBlob,md5Hash,MD5_LENGTH));  /* and the Same Blob  */
 }
 
 static int safAuthenticate(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
@@ -3587,7 +3600,6 @@ static int handleHttpService(HttpServer *server,
     case SERVICE_AUTH_TOKEN_TYPE_JWT:
     case SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK:
       request->authenticated = serviceAuthWithJwt(service, request, response);
-
       if (request->authenticated  ||
           service->server->config->authTokenType
             != SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK) {
@@ -5756,26 +5768,33 @@ typedef struct PipeSocketEntry_tag{
 static PipeSocketEntry *getOrMakePipeSocketEntry(HttpServer *server, 
 						 STCModule *module, 
 						 Socket *demuxSocket, 
-						 int uniqueID){
-  printf("getOrMake=%d\n",uniqueID);
+						 int uniqueID,
+						 int *pipeError){
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "getOrMake=%d\n",uniqueID);
   PipeSocketEntry *entry = htIntGet(server->syntheticPipeSockets,uniqueID);
-  printf("ht result = 0x%p\n",entry);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "ht result = 0x%p\n",entry);
 
   if (entry == NULL){
     int fdsToHttp[2] ={ -1, -1};  /* readEnd, writeEnd */
     int fdsFromHttp[2] ={ -1, -1};
-    pipe (fdsToHttp);
-    pipe (fdsFromHttp);
+    if (pipe(fdsToHttp)){
+      *pipeError = errno;
+      return NULL;
+    }
+    if (pipe(fdsFromHttp)){
+      *pipeError = errno;
+      return NULL;
+    }
     int httpRequestIn = fdsToHttp[0];
     int httpResponseOut = fdsFromHttp[1];
     int httpRequestOut = fdsToHttp[1];
     int httpResponseIn = fdsFromHttp[0];
 
-    printf("hanlderSocket pipes %d %d\n",httpRequestIn,httpResponseOut);
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2,"hanlderSocket pipes %d %d\n",httpRequestIn,httpResponseOut);
     Socket *handlerSocket = makePipeBasedSyntheticSocket(IPPROTO_SYNTHETIC_PIPE_HANDLER,httpRequestIn,httpResponseOut);
-    printf("muxSocket pipes %d %d\n",httpResponseIn,httpRequestOut);
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2,"muxSocket pipes %d %d\n",httpResponseIn,httpRequestOut);
     Socket *muxSocket = makePipeBasedSyntheticSocket(IPPROTO_SYNTHETIC_PIPE_MULTIPLEXER,httpResponseIn,httpRequestOut);
-    printf("handlerSocket=0x%p mux(fwd)socket=0x%p\n",handlerSocket,muxSocket);
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2,"handlerSocket=0x%p mux(fwd)socket=0x%p\n",handlerSocket,muxSocket);
     SocketExtension *handlerExtension = makeSocketExtension(handlerSocket,
 							     server->slh,
 							     FALSE, /* allocateInSLH */
@@ -5800,13 +5819,13 @@ static PipeSocketEntry *getOrMakePipeSocketEntry(HttpServer *server,
     entry->demuxSocket = demuxSocket;
     entry->handlerSocket = handlerSocket;
     entry->muxSocket = muxSocket;
-    printf("PSEntry at 0x%p\n",entry);
-    dumpbuffer((char*)entry,sizeof(PipeSocketEntry));
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "PSEntry at 0x%p\n",entry );
+    zowedump(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, (char*)entry,sizeof(PipeSocketEntry));
     muxExtension->protocolHandler = entry;
 
     htIntPut(server->syntheticPipeSockets,uniqueID,entry);
   }
-  return entry;
+  return entry; 
 }
 
 /* this is called when PIPE has data 
@@ -5853,9 +5872,8 @@ static int httpHandlePipe(STCBase *base,
 	return 12;
       }
       TCPFragment *fragment = (TCPFragment*)readBuffer;
-      printf("pipe header\n");
-      dumpbuffer(readBuffer,headerLength);
-      fflush(stdout);
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "pipe header\n");
+      zowedump(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, readBuffer,headerLength);
       bytesRead = socketRead(socket,readBuffer+headerLength,fragment->payloadLength,&returnCode,&reasonCode);
       if (returnCode){
 	printf("pipe IO error 3 ret=%d reason=0x%x\n",returnCode,reasonCode);
@@ -5864,21 +5882,25 @@ static int httpHandlePipe(STCBase *base,
 	printf("pipe fragment short read 1\n");
 	return 12;
       }
-      printf("pipe payload\n");
-      dumpbuffer(readBuffer+headerLength,fragment->payloadLength);
-      fflush(stdout);
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "pipe payload\n");
+      zowedump(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, readBuffer+headerLength,fragment->payloadLength);
       
       int uniqueID = fragment->remoteClientID;
-      PipeSocketEntry *entry = getOrMakePipeSocketEntry(server,module,socket,uniqueID);
-      Socket *forwardingSocket = entry->muxSocket;
-      
-      printf("entry=0x%p forwardingSocket=0x%p %\n",
-	     entry,forwardingSocket,(forwardingSocket ? forwardingSocket->debugName : ""));
-      socketWrite(forwardingSocket,readBuffer+headerLength,fragment->payloadLength,&returnCode,&reasonCode);
-      if (returnCode){
-	printf("Pipe-forwarding tunneled Packet failed ret=%d, reason=0x%x\n",returnCode,reasonCode);
+      int pipeErrno = 0;
+      PipeSocketEntry *entry = getOrMakePipeSocketEntry(server,module,socket,uniqueID,&pipeErrno);
+      if (entry){
+	Socket *forwardingSocket = entry->muxSocket;
+	
+	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "entry=0x%p forwardingSocket=0x%p %\n",
+		entry,forwardingSocket,(forwardingSocket ? forwardingSocket->debugName : ""));
+	socketWrite(forwardingSocket,readBuffer+headerLength,fragment->payloadLength,&returnCode,&reasonCode);
+	if (returnCode){
+	  printf("Pipe-forwarding tunneled Packet failed ret=%d, reason=0x%x\n",returnCode,reasonCode);
+	}
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "done forwarding\n");
+      } else{
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "pipe creation failure, errno was %d\n",pipeErrno);
       }
-      printf("done forwarding\n");
     }
   break;
   case IPPROTO_SYNTHETIC_PIPE_HANDLER:
@@ -5892,7 +5914,7 @@ static int httpHandlePipe(STCBase *base,
     {
       /* tack on Fragment header and go back */
       PipeSocketEntry *entry = (PipeSocketEntry*)extension->protocolHandler;
-      printf("handlePipe MUX case, entry=0x%p\n",entry);
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "handlePipe MUX case, entry=0x%p\n",entry);
       if (entry == NULL){
 	printf("no PipeSocketEntry found for socket %s\n",socket->debugName);
       } else{
@@ -5900,10 +5922,10 @@ static int httpHandlePipe(STCBase *base,
 	Socket *demuxSocket = entry->demuxSocket;
 	Socket *muxSocket = socket;  /* the one that is readable */
 	int bytesRead = socketRead(muxSocket,readBuffer,READ_BUFFER_SIZE,&returnCode,&reasonCode);
-	printf("MUX case: 0x%x bytes back from handler, ret=%d reason=0x%x\n",bytesRead,returnCode,reasonCode);
+	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "MUX case: 0x%x bytes back from handler, ret=%d reason=0x%x\n",bytesRead,returnCode,reasonCode);
 	if (bytesRead > 0){
 	  int dumpLen = bytesRead > 0x400 ? 400 : bytesRead;
-	  dumpbuffer(readBuffer,dumpLen);
+	  zowedump(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, readBuffer,dumpLen);
 	  TCPFragment fragmentStorage;
 	  TCPFragment *fragment = &fragmentStorage;
 	  memset(fragment,0,sizeof(TCPFragment));
@@ -5919,7 +5941,7 @@ static int httpHandlePipe(STCBase *base,
 	  } else{
 	    printf("could not make temp out\n");
 	  }
-	  printf("MUX wrote to socket %s\n",demuxSocket->debugName);
+	  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "MUX wrote to socket %s\n",demuxSocket->debugName);
 	  if (returnCode){
 	    printf("demultiplexing write failed ret=%d reason=0x%x\n",returnCode,reasonCode);
 	  } else{

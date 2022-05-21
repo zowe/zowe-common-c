@@ -363,7 +363,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
       Socket *socket = (Socket*)safeMalloc(sizeof(Socket),"Socket");
       socket->sd = socketVector[0];
       socket->pipeOutputSD = 0;  /* nothing, not a reference to STDIN */
-      sprintf(socket->debugName,"SD=%d",socket->sd);
+      snprintf(socket->debugName,SOCKET_DEBUG_NAME_LENGTH,"SD=%d",socket->sd);
       socket->isServer = 0;
       socket->tlsFlags = tlsFlags;
       /* manual says returnCode and value only meaningful if return value = -1 */
@@ -396,7 +396,7 @@ Socket *makePipeBasedSyntheticSocket(int protocol, int inputFD, int outputFD){
   Socket *socket = (Socket*)safeMalloc(sizeof(Socket),"Socket");
   socket->sd = inputFD;
   socket->pipeOutputSD = outputFD;
-  sprintf(socket->debugName,"PIPE(%d,%d)",inputFD,outputFD);
+  snprintf(socket->debugName,SOCKET_DEBUG_NAME_LENGTH,"PIPE(%d,%d)",inputFD,outputFD);
   socket->isServer = 0;
   socket->tlsFlags = 0;
   socket->protocol = protocol;
