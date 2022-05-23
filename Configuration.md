@@ -13,6 +13,7 @@ The Configuation Manager must be
   - Evolutionary
   - Backward Compatible
   - Manageable
+  - ZOS Deployable
 
 
 ### Well-definedness
