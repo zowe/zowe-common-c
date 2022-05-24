@@ -103,8 +103,8 @@ typedef struct CAA_tag{
   char   reserved288[28];
   Addr31 loggingContext; /* see logging text */
   Addr31 rleTask;        /* normally reserved, but
-			    we use this for a pointer to the
-			    RLE Task */
+                            we use this for a pointer to the
+                            RLE Task */
 #endif
   char   ceecaasystm;   /* 0x2AC */
   char   ceecaahrdwr;
