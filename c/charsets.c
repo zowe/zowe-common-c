@@ -146,7 +146,7 @@ int convertCharset2(char *input,
   
   status = WideCharToMultiByte(outputCCSID,0,(LPWSTR)wideTemp,wideCharCount,outputBuffer,outputLength,NULL,NULL);
   if (needToFreeTemp){
-    safeFree(wideTemp,tempLengthLength);
+    safeFree(wideTemp,tempLength);
   }
   if (status == 0){
     *reasonCode = GetLastError();

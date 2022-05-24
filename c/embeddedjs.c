@@ -1586,12 +1586,10 @@ static JSContext *makeEmbeddedJSContext(JSRuntime *rt){
   if (!ctx)
     return NULL;
 #ifdef CONFIG_BIGNUM
-  if (bignum_ext) {
-    JS_AddIntrinsicBigFloat(ctx);
-    JS_AddIntrinsicBigDecimal(ctx);
-    JS_AddIntrinsicOperators(ctx);
-    JS_EnableBignumExt(ctx, TRUE);
-  }
+  JS_AddIntrinsicBigFloat(ctx);
+  JS_AddIntrinsicBigDecimal(ctx);
+  JS_AddIntrinsicOperators(ctx);
+  JS_EnableBignumExt(ctx, TRUE);
 #endif
   return ctx;
 }

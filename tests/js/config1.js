@@ -13,6 +13,7 @@ console.log("hello ConfigMgr, args were ["+scriptArgs+"]");
   Testing ZSS schemas
 
   ../deps/zowe-common-c/bin/configmgr -script ../deps/zowe-common-c/tests/js/config1.js -s "../schemas/zowe-schema.json:../schemas/zowe-yaml-schema.json:../schemas/server-common.json:../schemas/zss-config.json" -p "FILE(../deps/zowe-common-c/tests/schemadata/bigyaml.yaml)"
+
  */
 
 var getArg = function(key){
