@@ -10,10 +10,10 @@ The Configuation Manager must be
   - Extensibile
   - Support multiple progamming languages
   - Universal and Singular
+  - Defaultable/Clonable/Overidable (example ZOS)
   - Evolutionary
   - Backward Compatible
   - Manageable
-  - ZOS Deployable
 
 
 ### Well-definedness
