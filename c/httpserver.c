@@ -515,7 +515,7 @@ static void finishChunkedOutput(ChunkedOutputStream *s, int translate){
 // **NOTE**
 
 void finishResponse(HttpResponse *response){
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "finishResponse where response=0x%\n",response);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "finishResponse where response=0x%p\n",response);
   if (response->stream){
     finishChunkedOutput(response->stream,
         (response->jp == NULL)? TRANSLATE_8859_1 : 0);
@@ -2629,7 +2629,8 @@ static int doSingleUserAuth(HttpServer *server, HttpRequest *request, AuthRespon
      authResponse->type = AUTH_TYPE_RACF;
      authResponse->responseDetails.safStatus = 0;
    */
-  return (!memcmp(request->username,safUser,safUserLength) &&       /* Same User as ACEE */
+  return ((strlen(request->username) == safUserLength) &&           /* Same User as ACEE */
+          !memcmp(request->username,safUser,safUserLength) &&       /* Same User as ACEE */
 	  !memcmp(server->singleUserAuthBlob,md5Hash,MD5_LENGTH));  /* and the Same Blob  */
 }
 
@@ -5891,7 +5892,7 @@ static int httpHandlePipe(STCBase *base,
       if (entry){
 	Socket *forwardingSocket = entry->muxSocket;
 	
-	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "entry=0x%p forwardingSocket=0x%p %\n",
+	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "entry=0x%p forwardingSocket=0x%p %p\n",
 		entry,forwardingSocket,(forwardingSocket ? forwardingSocket->debugName : ""));
 	socketWrite(forwardingSocket,readBuffer+headerLength,fragment->payloadLength,&returnCode,&reasonCode);
 	if (returnCode){
