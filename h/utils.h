@@ -410,6 +410,14 @@ void trimRight(char *str, int length);
 }           /* end of extern "C" */
 #endif                                                                          
 
+#ifndef __LONGNAME__
+#define isLowerCasePasswordAllowed ISLWCPWD
+#define isPassPhrase               ISPASPHR
+#endif
+
+int isLowerCasePasswordAllowed();
+bool isPassPhrase(const char *password);
+
 #endif
 
 
