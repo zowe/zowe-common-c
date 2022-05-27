@@ -356,7 +356,7 @@ void wtoPrintf2(int consoleID, CART cart, char *formatString, ...) {
 
 }
 
-static void printWithPrefix(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList);
+static void printWithPrefix(LoggingContext *context, LoggingComponent *component, char* path, int line, int level, uint64 compID, void *data, char *formatString, va_list argList);
 static char *dumpWithEmptyMessageID(char *workBuffer, int workBufferSize, void *data, int dataSize, int lineNumber);
 
 void cmsInitializeLogging() {
@@ -609,7 +609,7 @@ static void initLogMessagePrefix(LogMessagePrefix *prefix) {
 #define PREFIXED_LINE_MAX_COUNT         1000
 #define PREFIXED_LINE_MAX_MSG_LENGTH    4096
 
-static void printWithPrefix(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList) {
+static void printWithPrefix(LoggingContext *context, LoggingComponent *component, char* path, int line, int level, uint64 compID, void *data, char *formatString, va_list argList) {
 
   char messageBuffer[PREFIXED_LINE_MAX_MSG_LENGTH];
   size_t messageLength = vsnprintf(messageBuffer, sizeof(messageBuffer), formatString, argList);
@@ -3190,12 +3190,13 @@ static void printDisplayConfigCommandResponse(CrossMemoryServer *server, CMSWTOR
   int consoleID = routeInfo->consoleID;
   CrossMemoryServerGlobalArea *globalArea = server->globalArea;
 
-  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
 #ifdef CROSS_MEMORY_SERVER_DEBUG
-      CMS_LOG_DISP_CMD_RESULT_MSG"Server name - \'%16.16s\' (debug mode)\n"
+  char* formatStringPrefix = CMS_LOG_DISP_CMD_RESULT_MSG"Server name - \'%16.16s\' (debug mode)\n";
 #else
-      CMS_LOG_DISP_CMD_RESULT_MSG"Server name - \'%16.16s\'\n"
+  char* formatStringPrefix = CMS_LOG_DISP_CMD_RESULT_MSG"Server name - \'%16.16s\'\n";
 #endif
+
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, strcat(formatStringPrefix,
       "         Global area address = 0x%p\n"
       "           Version          = %d\n"
       "           Key              = %d\n"
@@ -3210,7 +3211,7 @@ static void printDisplayConfigCommandResponse(CrossMemoryServer *server, CMSWTOR
       "           PC-ss seq number = 0x%08X\n"
       "           PC-cp PC number  = 0x%08X\n"
       "           PC-cp seq number = 0x%08X\n"
-      "           PC log level     = %d\n",
+      "           PC log level     = %d\n"),
       server->name.nameSpacePadded,
       globalArea,
       globalArea->version,
