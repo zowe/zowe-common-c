@@ -590,6 +590,8 @@ int setHttpCloseConversationTrace(int toWhat);
 int setHttpAuthTrace(int toWhat);
 #endif
 
+int isLowerCasePasswordAllowed();
+
 int httpServerInitJwtContext(HttpServer *self,
                              bool legacyFallback,
                              const char *pkcs11TokenName,

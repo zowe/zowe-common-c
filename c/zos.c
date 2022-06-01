@@ -108,14 +108,14 @@ int supervisorMode(int enable){
 }
 
 int setKey(int key){
+  int shiftedKey = key << 4;
   int oldKey;
   __asm(" XR   2,2 \n"
-        " SLL  %1,4 \n"
         " MODESET KEYREG=(%1),SAVEKEY=(2) \n"
         " SRL  2,4 \n"
         " ST   2,%0 \n"
         :"=m"(oldKey)
-        :"&r"(key)
+        :"r"(shiftedKey)
         :"r2");
   return oldKey;
 }
@@ -222,15 +222,14 @@ ExternalSecurityManager getExternalSecurityManager(void) {
 }
 
 CVT *getCVT(void) {
-  int * __ptr32 mem = (int * __ptr32) 0;
-  int * __ptr32 theCVT = (int * __ptr32)(*(mem+(0x10/4)));
-  return (CVT*)theCVT;
+  int *mem = (int*)0;
+  return (CVT*)INT2PTR(mem[0x10/4]);
 }
 
 Addr31 getATCVT(void) {
-  int * __ptr32 mem = (int * __ptr32) 0;
-  int * __ptr32 theATCVT = (int * __ptr32)(*(mem+(ATCVT_ADDRESS/4)));
-  return theATCVT;
+  int *mem = (int*)0;
+  /* int * __ptr32 theATCVT = (int * __ptr32)(*(mem+(ATCVT_ADDRESS/4))); */
+  return (Addr31)INT2PTR(mem[ATCVT_ADDRESS/4]);
 }
 
 void *getIEACSTBL(void) {
@@ -260,7 +259,7 @@ char *getSystemName (void) {
 
 TCB *getTCB(void) {
   int *mem = (int*)0;
-  return (TCB*)mem[CURRENT_TCB/sizeof(int)];
+  return (TCB*)INT2PTR(mem[CURRENT_TCB/4]);
 }
 
 STCB *getSTCB(void) {
@@ -275,7 +274,7 @@ OTCB *getOTCB(void) {
 
 ASCB *getASCB(void) {
   int *mem = (int*)0;
-  return (ASCB*)(mem[CURRENT_ASCB/sizeof(int)]&0x7FFFFFFF);
+  return (ASCB*)INT2PTR((mem[CURRENT_ASCB/4])&0x7FFFFFFF);
 }
 
 ASXB *getASXB(void) {
@@ -458,6 +457,8 @@ typedef struct safp_tag{
 #define SAF_VERIFY_NESTED_COPY    0x20
 #define SAF_VERIFY_NO_MFA         0x10
 
+#pragma pack(packed)
+
 typedef struct safVerifyRequest_tag{
   char initlen;
   char initsubp;
@@ -504,6 +505,13 @@ typedef struct safVerifyRequest_tag{
   void * __ptr32 idta;
 } safVerifyRequest;
 
+/* Helper function to workaround xlclang FE and backend not agreeing on packed ptr32 size */
+
+static int sizeofSafVerifyRequest(void){
+  return sizeof(safVerifyRequest);
+}
+
+
 /* first flag set */
 #define SAF_AUTH_RACFIND_SPECIFIED 0x80
 #define SAF_AUTH_RACFIND_YES       0x40
@@ -530,15 +538,59 @@ typedef struct safVerifyRequest_tag{
 #define SAF_AUTH_STATUS_WRITEONLY 0x20
 #define SAF_AUTH_STATUS_ACCESS 0x10
 
+typedef struct safAuthRequest_tag{
+  char achkleng;
+  char old_installationDataAddress[3];
+  char achkflg1;
+  char old_entityNameAddress[3];
+  char achkflg2;
+  char old_classNameAddress[3];
+  char achkflg3;
+  char old_volser3ByteAddress[3];
+  void * __ptr32 old_volserAddress;
+  void * __ptr32 applName;
+  void * __ptr32 acee;
+  void * __ptr32 owner; /* ? */
+  void * __ptr32 installationData;
+  void * __ptr32 entityName;
+  void * __ptr32 className;
+  void * __ptr32 volser;
+  void * __ptr32 acclvl1;
+  void * __ptr32 acclvl2;
+  short fileSequenceNumber;
+  char tapeFlags;
+  char achkflg4;
+  void * __ptr32 userid;
+  void * __ptr32 groupName;
+  void * __ptr32 ddname;
+  void * __ptr32 reserved1;
+  void * __ptr32 utoken;
+  void * __ptr32 rtoken;
+  void * __ptr32 logstr;
+  void * __ptr32 recvr;
+} safAuthRequest;
+
+typedef struct safStatRequest_tag{
+  void * __ptr32 className;
+  void * __ptr32 CDTentry;
+  short statLength;
+  char reserved[2];
+  void * __ptr32 classCopy;
+  int classCopyLength;
+  void * __ptr32 statNext;
+} safStatRequest;
+
+#pragma pack(reset)
+
 static int SAF(safp * __ptr32 safwrapper, int useSupervisorMode)
 {
   int returnCode = 0;
 
   int supervisorState = 0;
 
-  char * __ptr32 cvt = * (char * __ptr32 * __ptr32 ) 16;
-  char * __ptr32 safVectorTable = (char * __ptr32) *(int *)(cvt + 248);
-  char * __ptr32 safRouter = (char * __ptr32) *(int *)(safVectorTable + 12);
+  CVT *cvt = getCVT();
+  int *safVectorTable = (int*)INT2PTR(cvt->cvtsaf);
+  int safRouter = safVectorTable[3]; /* not using ptr type becuz embedded ASM does not care */
 
   ALLOC_STRUCT31(
     STRUCT31_NAME(below2G),
@@ -592,47 +644,6 @@ void setSafTrace(int traceLevel, void *traceFile){
   safTraceFile = traceFile;
 }
 
-typedef struct safAuthRequest_tag{
-  char achkleng;
-  char old_installationDataAddress[3];
-  char achkflg1;
-  char old_entityNameAddress[3];
-  char achkflg2;
-  char old_classNameAddress[3];
-  char achkflg3;
-  char old_volser3ByteAddress[3];
-  void * __ptr32 old_volserAddress;
-  void * __ptr32 applName;
-  void * __ptr32 acee;
-  void * __ptr32 owner; /* ? */
-  void * __ptr32 installationData;
-  void * __ptr32 entityName;
-  void * __ptr32 className;
-  void * __ptr32 volser;
-  void * __ptr32 acclvl1;
-  void * __ptr32 acclvl2;
-  short fileSequenceNumber;
-  char tapeFlags;
-  char achkflg4;
-  void * __ptr32 userid;
-  void * __ptr32 groupName;
-  void * __ptr32 ddname;
-  void * __ptr32 reserved1;
-  void * __ptr32 utoken;
-  void * __ptr32 rtoken;
-  void * __ptr32 logstr;
-  void * __ptr32 recvr;
-} safAuthRequest;
-
-typedef struct safStatRequest_tag{
-  void * __ptr32 className;
-  void * __ptr32 CDTentry;
-  short statLength;
-  char reserved[2];
-  void * __ptr32 classCopy;
-  int classCopyLength;
-  void * __ptr32 statNext;
-} safStatRequest;
 
 static safp *makeSAFCallData(int requestNumber,
                              int useSupervisorMode,
@@ -649,7 +660,7 @@ static safp *makeSAFCallData(int requestNumber,
   version = SAFPR192;
   switch (requestNumber){
   case SAFPVER:
-    specificDataSize = sizeof(safVerifyRequest);
+    specificDataSize = sizeofSafVerifyRequest();
     flags = SAFP_FLAG_R18;
     if (useSupervisorMode){
       flags |= SAFP_FLAG_SYST;
@@ -779,6 +790,20 @@ static char *makeCountedString(char *name,
   result[prefixLen+len] = 0;
   return result;
 }
+
+/* forward decl */
+static int safVerifyInternal(int options,
+                             char *userid,
+                             char *password,
+                             char *newPassword,
+                             ACEE **aceeHandle,
+                             void **messageAreaPtr,
+                             int  subpool,
+                             char *applicationName,
+                             int  sessionType,
+                             int *racfStatus,
+                             int *racfReason,
+                             IDTA *idta);
 
 int safVerify(int options, char *userid, char *password,
               ACEE **aceeHandle,
@@ -995,7 +1020,7 @@ static int safVerifyInternal(int options,
       }
     }
 
-    verifyRequest->initlen = sizeof(safVerifyRequest);
+    verifyRequest->initlen = sizeofSafVerifyRequest();
     if (options & VERIFY_CREATE){
       verifyFlags1 |= SAF_VERIFY_CREATE;
     } else if (options & VERIFY_DELETE){
@@ -1036,8 +1061,8 @@ static int safVerifyInternal(int options,
          flags 1 is zero */
       *ACEEPtr = *aceeHandle;
       if (safTrace){
-        fprintf(safTraceFile,"setting acee anchor to %0.8X', %0.8X'\n",aceeHandle, *aceeHandle);
-        fprintf(safTraceFile,"setting real acee anchor to %0.8X', %0.8X'\n",ACEEPtr, *ACEEPtr);
+        fprintf(safTraceFile,"setting acee anchor to 0x%p', 0x%p'\n",aceeHandle, *aceeHandle);
+        fprintf(safTraceFile,"setting real acee anchor to 0x%p', 0x%p'\n",ACEEPtr, *ACEEPtr);
       }
       verifyRequest->aceeAnchor = ACEEPtr; /* placeholder for system-created ACEE */
     }
@@ -1046,12 +1071,12 @@ static int safVerifyInternal(int options,
     verifyRequest->initflg3 = verifyFlags3;
 
     if (safTrace){
-      fprintf(safTraceFile,"countedUserid %0.8X' password %0.8X' passphrase %0.8X'\n",
+      fprintf(safTraceFile,"countedUserid 0x%p' password 0x%p' passphrase 0x%p'\n",
               countedUserid, countedPassword, countedPassphrase);
-      fprintf(safTraceFile,"about to go call saf wrapper at %0.8X' verify block at %0.8X' acee %0.8X'\n",safWrapper,verifyRequest,
+      fprintf(safTraceFile,"about to go call saf wrapper at 0x%p' verify block at 0x%p' acee 0x%p'\n",safWrapper,verifyRequest,
               (aceeHandle != NULL ? *aceeHandle : NULL));
       dumpbuffer((char*)safWrapper,sizeof(safp));
-      fprintf(safTraceFile,"verify:\n",0);
+      fprintf(safTraceFile,"verify: request at 0x%p\n",verifyRequest);
       dumpbuffer((char*)verifyRequest,sizeof(safVerifyRequest));
     }
     safStatus = SAF(safWrapper,useSupervisorMode);
@@ -1155,21 +1180,21 @@ static int safAuth_internal(int options, char *safClass, char *entity, int acces
     }
 
     if (safTrace){
-      fprintf(safTraceFile,"before calling SAF, wrapper=%0.8X':\n",safWrapper);
+      fprintf(safTraceFile,"before calling SAF, wrapper=0x%p':\n",safWrapper);
       dumpbuffer((char*)safWrapper,sizeof(safp));
-      fprintf(safTraceFile,"before calling SAF, auth=%0.8X':\n", authRequest);
+      fprintf(safTraceFile,"before calling SAF, auth=0x%p':\n", authRequest);
       dumpbuffer((char*)authRequest,sizeof(safAuthRequest));
-      fprintf(safTraceFile,"before calling SAF, class=%0.8X':\n", countedClass);
+      fprintf(safTraceFile,"before calling SAF, class=0x%p':\n", countedClass);
       dumpbuffer((char*)countedClass,countedClass[0]+1);
-      fprintf(safTraceFile,"before calling SAF, entity=%0.8X':\n", countedEntity);
+      fprintf(safTraceFile,"before calling SAF, entity=0x%p':\n", countedEntity);
       dumpbuffer((char*)countedEntity,countedEntity[3]+4);
     }
     safStatus = SAF(safWrapper, useSupervisorMode);
     if (safTrace){
       fprintf(safTraceFile,"after calling SAF, safStatus=%d\n",safStatus);
-      fprintf(safTraceFile,"after calling SAF, wrapper=%0.8X':\n",safWrapper);
+      fprintf(safTraceFile,"after calling SAF, wrapper=0x%p':\n",safWrapper);
       dumpbuffer((char*)safWrapper,sizeof(safp));
-      fprintf(safTraceFile,"after calling SAF, auth=%0.8X':\n", authRequest);
+      fprintf(safTraceFile,"after calling SAF, auth=0x%p':\n", authRequest);
       dumpbuffer((char*)authRequest,sizeof(safAuthRequest));
     }
     *racfStatus = safWrapper->safprret;
@@ -1227,15 +1252,15 @@ int safStat(int options, char *safClass, char *copy, int copyLength, int *racfSt
     statRequest->statLength = sizeof(safStatRequest);
 
     if (safTrace){
-      fprintf(safTraceFile,"about to call saf, wrapper %0.8X:\n",safWrapper);
+      fprintf(safTraceFile,"about to call saf, wrapper 0x%p:\n",safWrapper);
       dumpbuffer((char*)safWrapper,sizeof(safp));
-      fprintf(safTraceFile,"stat %0.8X:\n",statRequest);
+      fprintf(safTraceFile,"stat 0x%p:\n",statRequest);
       dumpbuffer((char*)statRequest,sizeof(safStatRequest));
-      fprintf(safTraceFile,"className %0.8X:\n",classBuffer);
+      fprintf(safTraceFile,"className 0x%p:\n",classBuffer);
       dumpbuffer((char*)classBuffer,12);
-      fprintf(safTraceFile,"classCopy %0.8X:\n",copy);
+      fprintf(safTraceFile,"classCopy 0x%p:\n",copy);
       dumpbuffer((char*)copy,copyLength);
-      fprintf(safTraceFile,"workArea %0.8X\n",workArea);
+      fprintf(safTraceFile,"workArea 0x%p\n",workArea);
       fflush(safTraceFile);
     }
     safStatus = SAF(safWrapper, useSupervisorMode);
@@ -1308,7 +1333,7 @@ int locate(char *dsn, int *volserCount, char *firstVolser){
   memcpy(below2G->dsn44,dsn,dsnLength);
 
   /*
-    printf("dsn44 %x len %d\n",dsn44,dsnLength);
+    printf("dsn44 0x%p len %d\n",dsn44,dsnLength);
     dumpbuffer(dsn44,44);
     printf("arg %x:\n",svc26Arg);
     dumpbuffer(svc26Arg,16);
@@ -1411,7 +1436,7 @@ static void *loadByNameInternal(char *moduleName, int *statusPtr,
   if (status){
     return 0; /* entry point not found */
   } else{
-    return (void*)entryPoint;
+    return INT2PTR(entryPoint);
   }
 
 }

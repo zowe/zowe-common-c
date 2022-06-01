@@ -1,0 +1,72 @@
+{
+    "name": "zowe_yaml_schema",
+    "$id": "http//zowe.org/schemas/yaml-2.0.json",
+    "type": "object",
+    "required": [ "zowe" ],
+    "properties": {
+        "zowe": {
+            "type": "object",
+
+            "description": "This is the top-level Zowe Server Configuration Object",
+            "properties": {
+                "setup": {
+                    "type": "object",
+                    "properties": {
+                        "mvs": {
+                            "type": "object",
+                            "description": "MVS (ZOS) Dataset names and prefixes",
+                            "properties": {
+                                "proclib": {
+                                    "title": "PROCLIB",
+                                    "description": "JCL Procedure Library",
+                                    "examples": [ "FOO.BAR.BLETCH" ],
+                                    "$ref": "#/$defs/dataset" },
+                                "parmlib": {
+                                    "description": "Parameter Library (44-char ZOS dotted name)",
+                                    "$ref": "#/$defs/dataset" },
+                                "hlq": { "$ref": "#/$defs/dataset" }
+                            }
+                        }
+                    }
+                },
+                "job": {
+                    "type": "object",
+                    "required": [ "name", "prefix" ],
+                    "properties": {
+                        "name": { "$ref": "#/$defs/jobname" },
+                        "prefix": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "externalPort": {
+                    "description": "This must be a valid TCP Port or offset reference",
+                    "$ref": "#/$defs/tcpPort" },
+                "logDirectory": {
+                    "description": "Must be a valid USS (Unix-style) path",
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "$defs": {
+        "dataset": {
+            "type": "string",
+            "description": "A 44-char all caps dotted ZOS name",
+            "pattern": "^([A-Z0-9\\$\\#\\@]){1,8}(\\.([A-Z0-9\\$\\#\\@]){1,8}){0,11}$",
+            "minLength": 3,
+            "maxLength": 44
+        },
+        "jobname": {
+            "type": "string",
+            "pattern": "^([A-Z0-9\\$\\#\\@]){1,8}$",
+            "minLength": 3,
+            "maxLength": 8
+        },
+        "tcpPort": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 65535
+        }
+    }
+}

@@ -245,8 +245,8 @@ ZOWE_PRAGMA_PACK_RESET
 
 #endif
 
-char *getCAA();
-void showRTL();
+char *getCAA(void);
+void showRTL(void);
 
 #else /*  not __ZOWE_OS_ZOS - */
 

@@ -86,7 +86,7 @@ LibraryFunction libraryFunctionTable[LIBRARY_FUNCTION_COUNT]
 #endif
 };
 
-char *getCAA(){
+char *getCAA(void){
   char *realCAA = NULL;
 
 #if !defined(METTLE) && defined(_LP64)
@@ -162,15 +162,15 @@ static LibraryFunction *findLibraryFunction(int rtlVectorOffset){
 
 #define ESTIMATED_RTL_VECTOR_SIZE 0xB00
 
-void showRTL(){
+void showRTL(void){
   CAA *caa = (CAA*)getCAA();
   void **rtlVector = caa->runtimeLibraryVectorTable;
-  printf("RTL Vector at 0x%x\n",rtlVector);
+  printf("RTL Vector at 0x%p\n",rtlVector);
   dumpbuffer((char*)rtlVector,ESTIMATED_RTL_VECTOR_SIZE);
   int estimatedEntries = ESTIMATED_RTL_VECTOR_SIZE / 4;
   for (int i=2; i<estimatedEntries; i++){
     char *stub = rtlVector[i];
-    printf("i = %d offset=0x%03x at 0x%x\n",i,i*sizeof(int),stub);
+    printf("i = %d offset=0x%03x at 0x%p\n",i,(int)(i*sizeof(int)),stub);
     dumpbuffer(stub,0x40);
 
     int offset = i * 4;
