@@ -793,8 +793,8 @@ static VResult validateJSONString(JsonValidator *validator,
       addValidityChild(pendingException,
                        makeValidityException(validator,
                                              validityMessage(validator,
-                                                             "string too long, %d > MAX=%d at %s",
-                                                             len,lim,validatorAccessPath(validator))));
+                                                             "string too long (len=%d) '%s' > MAX=%d at %s",
+                                                             len,s,lim,validatorAccessPath(validator))));
     }
   }
   if (valueSpec->validatorFlags & JS_VALIDATOR_MIN_LENGTH){
@@ -803,8 +803,8 @@ static VResult validateJSONString(JsonValidator *validator,
       addValidityChild(pendingException,
                        makeValidityException(validator,
                                              validityMessage(validator,
-                                                             "string too short, %d < MAX=%d at %s",
-                                                             len,lim,validatorAccessPath(validator))));
+                                                             "string too short (len=%d) '%s' %d < MAX=%d at %s",
+                                                             len,s,lim,validatorAccessPath(validator))));
     }
   }
   if (valueSpec->pattern && (valueSpec->regexCompilationError == 0)){

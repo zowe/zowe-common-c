@@ -103,13 +103,21 @@ typedef int64_t ssize_t;
 
     clang++ -c ../platform/windows/cppregex.cpp ../platform/windows/winregex.cpp
 
-    clang -I %QJS%/porting -I%YAML%/include -I %QJS% -I./src -I../h -I ../platform/windows -DCMGRTEST=1 -DCONFIG_VERSION=\"2021-03-27\" -Dstrdup=_strdup -D_CRT_SECURE_NO_WARNINGS -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 --rtlib=compiler-rt -o configmgr.exe configmgr.c embeddedjs.c %QJS%\quickjs.c %QJS%\cutils.c %QJS%\quickjs-libc.c %QJS%\libbf.c %QJS%\libregexp.c %QJS%\libunicode.c %QJS%\porting\winpthread.c %QJS%\porting\wintime.c %QJS%\porting\windirent.c %QJS%\porting\winunistd.c %YAML%/src/api.c %YAML%/src/reader.c %YAML%/src/scanner.c %YAML%/src/parser.c %YAML%/src/loader.c %YAML%/src/writer.c %YAML%/src/emitter.c %YAML%/src/dumper.c ../c/yaml2json.c ../c/microjq.c ../c/parsetools.c ../c/jsonschema.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c ../platform/windows/winfile.c cppregex.o winregex.o
+    
+clang -I %QJS%/porting -I%YAML%/include -I %QJS% -I./src -I../h -I ../platform/windows -DCMGRTEST=1 -DCONFIG_VERSION=\"2021-03-27\" -Dstrdup=_strdup -D_CRT_SECURE_NO_WARNINGS -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 --rtlib=compiler-rt -o configmgr.exe configmgr.c embeddedjs.c %QJS%\quickjs.c %QJS%\cutils.c %QJS%\quickjs-libc.c %QJS%\libbf.c %QJS%\libregexp.c %QJS%\libunicode.c %QJS%\porting\winpthread.c %QJS%\porting\wintime.c %QJS%\porting\windirent.c %QJS%\porting\winunistd.c %YAML%/src/api.c %YAML%/src/reader.c %YAML%/src/scanner.c %YAML%/src/parser.c %YAML%/src/loader.c %YAML%/src/writer.c %YAML%/src/emitter.c %YAML%/src/dumper.c ../c/yaml2json.c ../c/microjq.c ../c/parsetools.c ../c/jsonschema.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c ../platform/windows/winfile.c cppregex.o winregex.o
 
     configmgr "../tests/schemadata" "" "LIBRARY(FOO):DIR(BAR)" yak
 
     configmgr -s "../tests/schemadata" -p "LIBRARY(FOO):DIR(BAR)" extract "/zowe/setup/"
 
     configmgr -s "../tests/schemadata" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" validate
+
+      PARMLIB<PDS(E)>   -> specifically named
+                       
+      PARMLIBS(DEFAULT) -> static system stuff
+      PARMLIBS(CURRENT) -> dynamic (doesn't work yet)
+    - PARMLIB MEMBERNAME for a config
+
 
     configmgr -t 2 -s "../tests/schemadata/zoweyaml.schema" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" validate
 
@@ -164,6 +172,8 @@ typedef int64_t ssize_t;
 #define CONFIG_PATH_OMVS_FILE    0x0001
 #define CONFIG_PATH_OMVS_DIR     0x0002
 #define CONFIG_PATH_OMVS_LIBRARY 0x0004
+#define CONFIG_PATH_MVS_PARMLIB   0x0008
+#define CONFIG_PATH_MVS_PARMLIBS  0x0010 /* DEFAULT, CURRENT */
 
 #ifdef __ZOWE_OS_WINDOWS
 static int stdoutFD(void){
@@ -296,6 +306,8 @@ typedef struct ConfigPathElement_tag{
   struct ConfigPathElement_tag *next;
 } ConfigPathElement;
 
+#define PARMLIB_MEMBER_MAX 8
+
 struct CFGConfig_tag {
   const char *name;
   ConfigPathElement *schemaPath;  /* maybe */
@@ -303,6 +315,7 @@ struct CFGConfig_tag {
   JsonSchema  *topSchema;
   JsonSchema **otherSchemas;
   int          otherSchemasCount;
+  char         parmlibMemberName[PARMLIB_MEMBER_MAX];
   Json        *configData;
   struct CFGConfig_tag *next;
 };
@@ -383,17 +396,13 @@ static bool addPathElement(ConfigManager *mgr, CFGConfig *config, char *pathElem
   regmatch_t matches[10];
   regex_t *argPattern = regexAlloc();
   /* Nice Regex test site */
-  char *pat = "^(LIBRARY|DIR|FILE)\\(([^)]+)\\)$";
+  char *pat = "^(LIBRARY|DIR|FILE|PARMLIBS)\\(([^)]+)\\)$";
   int compStatus = regexComp(argPattern,pat,REG_EXTENDED);
   if (compStatus != 0){
     trace(mgr,INFO,"Internal error, pattern compilation failed\n");
     return false;
   }
-  if (!strcmp(pathElementArg,"PARMLIBS")){
-    /* need ZOS impl */
-    printf("implement me\n");
-    return false;
-  } else if (regexExec(argPattern,pathElementArg,10,matches,0) == 0){
+  if (regexExec(argPattern,pathElementArg,10,matches,0) == 0){
     char *elementTypeName = extractMatch(mgr,pathElementArg,&matches[1]);
     char *elementData = extractMatch(mgr,pathElementArg,&matches[2]);
     int flags = 0;
@@ -403,7 +412,10 @@ static bool addPathElement(ConfigManager *mgr, CFGConfig *config, char *pathElem
       flags = CONFIG_PATH_OMVS_DIR;
     } else if (!strcmp(elementTypeName,"FILE")){
       flags = CONFIG_PATH_OMVS_FILE;
-      
+    } else if (!strcmp(elementTypeName,"PARMLIB")){
+      flags = CONFIG_PATH_MVS_PARMLIB;
+    } else if (!strcmp(elementTypeName,"PARMLIBS")){
+      flags = CONFIG_PATH_MVS_PARMLIBS;      
     } else {
       return false; /* internal logic error */
     }
@@ -633,7 +645,9 @@ static Json *readJson(ConfigManager *mgr, ConfigPathElement *pathElement){
 #endif
       trace(mgr,INFO,"WARNING, yaml read failed, errorBuffer='%s'\n",errorBuffer);
       return NULL;
-    }  
+    }
+  } else if (pathElement->flags & CONFIG_PATH_OMVS_FILE){
+    return NULL;
   } else {
     trace(mgr,INFO,"WARNING, only simple file case yet implemented\n");
     return NULL;
@@ -656,6 +670,22 @@ CFGConfig *addConfig(ConfigManager *mgr, const char *configName){
     mgr->lastConfig = newConfig;
   }
   return newConfig;
+}
+
+int cfgSetParmlibMemberName(ConfigManager *mgr, const char *configName, const char *parmlibMemberName){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (config){
+    int len = strlen(parmlibMemberName);
+    if (len < 3 || len  > PARMLIB_MEMBER_MAX){
+      return ZCFG_BAD_PARMLIB_MEMBER_NAME;
+    } else {
+      memset(config->parmlibMemberName,' ',PARMLIB_MEMBER_MAX);
+      memcpy(config->parmlibMemberName,parmlibMemberName,len);
+      return ZCFG_SUCCESS;
+    }
+  } else {
+    return ZCFG_UNKNOWN_CONFIG_NAME;
+  }
 }
 
 Json *cfgGetConfigData(ConfigManager *mgr, const char *configName){
@@ -1288,6 +1318,16 @@ static int loadConfigurationsWrapper(ConfigManager *mgr, EJSNativeInvocation *in
   return EJS_OK;
 }
 
+static int setParmlibMemberNameWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  const char *configName = NULL;
+  ejsStringArg(invocation,0,&configName);
+  const char *memberName = NULL;
+  ejsStringArg(invocation,1,&memberName);
+  int status = cfgSetParmlibMemberName(mgr,configName,memberName);
+  ejsReturnInt(invocation, status);
+  return EJS_OK;
+}
+
 static char *extractString(JsonBuilder *b, char *s){
   int len = strlen(s);
   char *copy = SLHAlloc(b->parser.slh,len+1);
@@ -1418,6 +1458,12 @@ static EJSNativeModule *exportConfigManagerToEJS(EmbeddedJS *ejs){
                                                           EJS_NATIVE_TYPE_INT32,
                                                           (EJSForeignFunction*)loadConfigurationsWrapper);
   ejsAddMethodArg(ejs,loadConfiguration,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+
+  EJSNativeMethod *setParmlibMemberName = ejsMakeNativeMethod(ejs,configmgr,"setParmlibMemberName",
+                                                              EJS_NATIVE_TYPE_INT32,
+                                                              (EJSForeignFunction*)setParmlibMemberNameWrapper);
+  ejsAddMethodArg(ejs,setParmlibMemberName,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+  ejsAddMethodArg(ejs,setParmlibMemberName,"parmlibMemberName",EJS_NATIVE_TYPE_CONST_STRING);
 
   EJSNativeMethod *getConfigData = ejsMakeNativeMethod(ejs,configmgr,"getConfigData",
                                                        EJS_NATIVE_TYPE_JSON,
