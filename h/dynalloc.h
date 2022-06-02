@@ -723,21 +723,11 @@ int DeallocDDName(char *ddname);
 #define SPIN_UNALLOC 0x80
 #define SPIN_ENDJOB 0x40
 
-#define BYTE_LENGTH 8
-#define BYTE_FULL_MASK 0xff
-
 #define INT24_SIZE 3
-#define VOLSER_SIZE 6
-#define CLASS_WRITER_SIZE 8
-#define TOTAL_TEXT_UNITS 23
-#define LEN_THREE_BYTES 3
-#define LEN_ONE_BYTE    1
-
 #define TEXT_UNIT_STRING 1
 #define TEXT_UNIT_BOOLEAN 2
 #define TEXT_UNIT_CHARINT 3
 #define TEXT_UNIT_NULL 4
-#define JSON_TYPE_ERROR 666
 
 /* Use this structure to pass parameters to DYNALLOC functions.
  * Dsname should be padded by spaces. */
@@ -752,23 +742,22 @@ typedef struct DynallocInputParms_tag {
 } DynallocInputParms;
 
 
-typedef struct DynallocNewTextUnit_tag {
+typedef struct DynallocNewInputParms_tag {
   int type;
   int size;
   int key;
   union {
-    int number;
-    char *string;
-    int boolean;
+    int numValue;
+    char *stringValue;
   } data;
-} DynallocNewTextUnit;
+} DynallocNewInputParms;
 
 #pragma map(dynallocDataset, "DYNAUALC")
 #pragma map(dynallocDatasetMember, "DYNAUALM")
 #pragma map(unallocDataset, "DYNADALC")
 
 int dynallocDataset(DynallocInputParms *inputParms, int *reasonCode);
-int dynallocNewDataset(int *reasonCode, DynallocNewTextUnit *setTextUnits, int TextUnitsSize);
+int dynallocNewDataset(DynallocNewInputParms *setInputParms, int TextUnitsSize, int *reasonCode);
 int dynallocDatasetMember(DynallocInputParms *inputParms, int *reasonCode,
                           char *member);
 int unallocDataset(DynallocInputParms *inputParms, int *reasonCode);
