@@ -237,7 +237,6 @@ Socket *tcpClient3(SocketAddress *socketAddress,
   int returnValue = 0;
   *returnCode = *reasonCode = 0;
   int *reasonCodePtr;
-  int status;
 
 #ifndef _LP64
   reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
@@ -287,7 +286,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
         returnValue = 0;
         *returnCode  = 0;
         *reasonCode  = 0;
-        status = tcpStatus(&tempSocket, timeoutInMillis, 1, returnCode, reasonCode);
+        int status = tcpStatus(&tempSocket, timeoutInMillis, 1, returnCode, reasonCode);
         if (status == SD_STATUS_TIMEOUT) {
           int sd = socketVector[0];
           if (socketTrace) {

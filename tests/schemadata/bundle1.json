@@ -2,5 +2,6 @@
   "A": "apple",
   "listenerPort": 3444,
   "BB": "FOO",
-  "Z": "60609"
+  "Z": "60609",
+  "colors": [ "blue", "green"]
 }
