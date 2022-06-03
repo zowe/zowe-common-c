@@ -5850,11 +5850,11 @@ static int httpHandlePipe(STCBase *base,
       
       int bytesRead = socketRead(socket,readBuffer,8,&returnCode,&reasonCode);
       if (returnCode){
-	printf("pipe IO error 1 ret=%d reason=0x%x\n",returnCode,reasonCode);
-	return 12;
+        printf("pipe IO error 1 ret=%d reason=0x%x\n",returnCode,reasonCode);
+        return 12;
       } else if (bytesRead != 8){
-	printf("pipe fragment short read 1\n");
-	return 12;
+        printf("pipe fragment short read 1\n");
+        return 12;
       }
       int magic = *((int*)readBuffer);
       if (magic != TCP_FRAGMENT_MAGIC){
@@ -5896,7 +5896,7 @@ static int httpHandlePipe(STCBase *base,
 		entry,forwardingSocket,(forwardingSocket ? forwardingSocket->debugName : ""));
 	socketWrite(forwardingSocket,readBuffer+headerLength,fragment->payloadLength,&returnCode,&reasonCode);
 	if (returnCode){
-	  printf("Pipe-forwarding tunneled Packet failed ret=%d, reason=0x%x\n",returnCode,reasonCode);
+	  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "Pipe-forwarding tunneled Packet failed ret=%d, reason=0x%x\n",returnCode,reasonCode);
 	}
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "done forwarding\n");
       } else{
@@ -5925,7 +5925,7 @@ static int httpHandlePipe(STCBase *base,
 	int bytesRead = socketRead(muxSocket,readBuffer,READ_BUFFER_SIZE,&returnCode,&reasonCode);
 	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "MUX case: 0x%x bytes back from handler, ret=%d reason=0x%x\n",bytesRead,returnCode,reasonCode);
 	if (bytesRead > 0){
-	  int dumpLen = bytesRead > 0x400 ? 400 : bytesRead;
+	  int dumpLen = bytesRead > 0x400 ? 0x400 : bytesRead;
 	  zowedump(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, readBuffer,dumpLen);
 	  TCPFragment fragmentStorage;
 	  TCPFragment *fragment = &fragmentStorage;
