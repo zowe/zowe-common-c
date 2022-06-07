@@ -282,7 +282,6 @@ Socket *tcpClient3(SocketAddress *socketAddress,
          for EWOULDBLOCK as well
       */
       if (returnValue){
-	int firstReturnCode = *returnCode;
         returnValue = 0;
         *returnCode  = 0;
         *reasonCode  = 0;

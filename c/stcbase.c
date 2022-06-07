@@ -431,6 +431,7 @@ STCModule* stcRegisterModule2(STCBase *base,
   module->data = moduleData;
   module->tcpHandler = tcpHandler;
   module->udpHandler = udpHandler;
+  module->pipeHandler = pipeHandler;
   module->workElementHandler = workElementHandler;
   module->backgroundHandler = backgroundHandler;
 #ifdef DEBUG

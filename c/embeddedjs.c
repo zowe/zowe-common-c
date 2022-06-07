@@ -2172,6 +2172,7 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
   */
   js_std_set_worker_new_context_func(makeEmbeddedJSContext);
   js_std_init_handlers(embeddedJS->rt);
+  JS_SetMaxStackSize(embeddedJS->rt, 1048576);
   JSContext *ctx = makeEmbeddedJSContext(embeddedJS->rt);
   if (!ctx) {
     fprintf(stderr, "qjs: cannot allocate JS context\n");
