@@ -39,6 +39,7 @@ ZOWE_PRAGMA_PACK
      0x218 holds CEECAACEDB
      */
 
+
 typedef struct CAA_tag{
   char   ceecaaflag0;
   char   reserved001;
@@ -74,7 +75,16 @@ typedef struct CAA_tag{
   Addr31 ceecaaecov;     /* 0x234 routine vector, important */
   int    ceecaactofsv;   /* 0x238 what is this? */
   Addr31 ceecaatrtspcae; /* 0x23C Another routine vector ?? */
+#ifdef NEW_CAA_LOCATIONS
+  char   reserved240[16];
+  /* these two slots are occupied by Zowe Common C stuff and don't seem to have any use in LE currently */
+  Addr31 loggingContext; /* see logging text */
+  Addr31 rleTask;        /* normally reserved, but
+                              we use this for a pointer to the
+                              RLE Task */
+#else
   char   reserved240[24];
+#endif
   Addr31 ceecaaTCASrvUserWord; /* 0x258 */
   Addr31 ceecaaTCASrvWorkArea;
   Addr31 ceecaaTCASrvGetmain;
@@ -87,11 +97,15 @@ typedef struct CAA_tag{
   char   reserved27C[4];
   Addr31 ceecaalws;     /* 0x280 PL/I LWS */
   Addr31 ceecaasavr;    /* register save?  fer what?? */
+#ifdef NEW_CAA_LOCATIONS 
+  char   reserved288[36];
+#else
   char   reserved288[28];
   Addr31 loggingContext; /* see logging text */
   Addr31 rleTask;        /* normally reserved, but
-                              we use this for a pointer to the
-                              RLE Task */
+                            we use this for a pointer to the
+                            RLE Task */
+#endif
   char   ceecaasystm;   /* 0x2AC */
   char   ceecaahrdwr;
   char   ceecaasbsys;

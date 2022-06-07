@@ -76,6 +76,7 @@ typedef struct STCModule_tag {
   void *data;
   int  (*tcpHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *module, Socket *socket);  /* module ID's need to replace HTTP protocol ID's */
   int  (*udpHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *module, Socket *socket);
+  int  (*pipeHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *module, Socket *socket);
   int  (*workElementHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *stcModule, WorkElementPrefix *prefix);
   int  (*backgroundHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *stcModule, int selectReturnCode);
 } STCModule;
@@ -88,6 +89,7 @@ typedef struct STCBase_tag{
   RLEAnchor  *rleAnchor;
 #elif defined(__ZOWE_OS_WINDOWS)
   HANDLE      qReadyEvent;
+  RLEAnchor  *rleAnchor;
 #elif defined(__ZOWE_OS_AIX)
   void      **eventSockets;
   RLEAnchor  *rleAnchor;
@@ -107,7 +109,6 @@ typedef struct STCBase_tag{
   int         commandShutdownECB;
   void       *iezcom;                    /* this is really a mainframe-specific system command handler */
   SocketSet  *socketSet;
-  struct      HttpServer *httpServer;    /* this is more chicken-shitty than I would really like */
   STCModule  *modules[STC_MAX_MODULES];
 /*  int64       traceControlWord; replaced with logging context*/
 
@@ -164,6 +165,16 @@ STCModule* stcRegisterModule(STCBase *stcBase,
                              int  (*udpHandler)(STCBase *stcBase, STCModule *module, Socket *socket),
                              int  (*workElementHandler)(STCBase *stcBase, STCModule *stcModule, WorkElementPrefix *prefix),
                              int  (*backgroundHandler)(struct STCBase_tag *stcBase, struct STCModule_tag *stcModule, int selectStatus));
+
+STCModule* stcRegisterModule2(STCBase *base,
+                             int moduleID,
+                             void *moduleData,
+                             int  (*tcpHandler)(STCBase *base, STCModule *module, Socket *socket),
+                             int  (*udpHandler)(STCBase *base, STCModule *module, Socket *socket),
+                             int  (*pipeHandler)(STCBase *base, STCModule *module, Socket *socket),
+                             int  (*workElementHandler)(STCBase *base, STCModule *stcModule, WorkElementPrefix *prefix),
+                             int  (*backgroundHandler)(struct STCBase_tag *base, struct STCModule_tag *stcModule, int selectStatus));
+
 
 int stcRegisterSocketExtension(STCBase *stcBase,
                                SocketExtension *socketExtension,

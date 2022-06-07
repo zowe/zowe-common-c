@@ -29,6 +29,7 @@
 #include "charsets.h"
 #include "json.h"
 #include "jsonschema.h"
+#include "yaml2json.h"
 
 #ifdef __ZOWE_OS_ZOS
 
@@ -178,7 +179,7 @@ yaml_document_t *readYAML(const char *filename, char *errorBuf, size_t errorBufS
   do {
     if (!(document = (yaml_document_t*)safeMalloc(sizeof(yaml_document_t), "YAML Doc"))) {
       snprintf(errorBuf, errorBufSize, "failed to alloc memory for YAML doc");
-      break;      
+      break;
     }
     memset(document, 0, sizeof(yaml_document_t));
     if (!(file = fopen(filename, "rb"))) {
@@ -493,6 +494,9 @@ static int buildTemplateJSON(JsonBuilder *b, Json *parent, char *parentKey,
   freeJsonBuffer(buffer);
   return status;
 }
+
+
+
 
 
 static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
@@ -881,6 +885,185 @@ static void yaml2JS1(ByteOutputStream *bos,
 static void yaml2JS(yaml_document_t *document, ShortLivedHeap *slh){
   ByteOutputStream *bos = makeByteOutputStream(0x1000);
   yaml2JS1(bos,document,yaml_document_get_root_node(document),0,1);
+}
+
+static char YAML_NULL_TAG_ASCII[23] ={0x74, 0x61, 0x67, 0x3a, 0x79, 0x61, 0x6d, 0x6c, 0x2e, 0x6f, 0x72, 0x67, 0x2c, 0x32, 0x30, 0x30, 0x32, 0x3a, 0x6e, 0x75, 0x6c, 0x6c,  0x00};
+
+static char YAML_BOOL_TAG_ASCII[23] ={0x74, 0x61, 0x67, 0x3a, 0x79, 0x61, 0x6d, 0x6c, 0x2e, 0x6f, 0x72, 0x67, 0x2c, 0x32, 0x30, 0x30, 0x32, 0x3a, 0x62, 0x6f, 0x6f, 0x6c,  0x00};
+
+static char YAML_STR_TAG_ASCII[22] ={0x74, 0x61, 0x67, 0x3a, 0x79, 0x61, 0x6d, 0x6c, 0x2e, 0x6f, 0x72, 0x67, 0x2c, 0x32, 0x30, 0x30, 0x32, 0x3a, 0x73, 0x74, 0x72,  0x00};
+
+static char YAML_INT_TAG_ASCII[22] ={0x74, 0x61, 0x67, 0x3a, 0x79, 0x61, 0x6d, 0x6c, 0x2e, 0x6f, 0x72, 0x67, 0x2c, 0x32, 0x30, 0x30, 0x32, 0x3a, 0x69, 0x6e, 0x74,  0x00};
+
+static char YAML_FLOAT_TAG_ASCII[24] ={0x74, 0x61, 0x67, 0x3a, 0x79, 0x61, 0x6d, 0x6c, 0x2e, 0x6f, 0x72, 0x67, 0x2c, 0x32, 0x30, 0x30, 0x32, 0x3a, 0x66, 0x6c, 0x6f, 0x61, 0x74,  0x00};
+
+static char YAML_SEQ_TAG_ASCII[22] ={0x74, 0x61, 0x67, 0x3a, 0x79, 0x61, 0x6d, 0x6c, 0x2e, 0x6f, 0x72, 0x67, 0x2c, 0x32, 0x30, 0x30, 0x32, 0x3a, 0x73, 0x65, 0x71,  0x00};
+
+static char YAML_MAP_TAG_ASCII[22] ={0x74, 0x61, 0x67, 0x3a, 0x79, 0x61, 0x6d, 0x6c, 0x2e, 0x6f, 0x72, 0x67, 0x2c, 0x32, 0x30, 0x30, 0x32, 0x3a, 0x6d, 0x61, 0x70,  0x00};
+
+static int emitScalar(yaml_emitter_t *emitter, char *scalar, char *tag){
+  yaml_event_t event;
+  int sLen = strlen(scalar);
+  char asciiScalar[sLen+1];
+  memcpy(asciiScalar,scalar,sLen+1);
+  convertFromNative(asciiScalar,sLen);
+  yaml_scalar_event_initialize(&event, NULL, (yaml_char_t *)YAML_STR_TAG_ASCII,
+                               (yaml_char_t*)asciiScalar, sLen,
+                               1, 0, YAML_PLAIN_SCALAR_STYLE);
+  if (yaml_emitter_emit(emitter, &event)){
+    return YAML_SUCCESS;
+  } else {
+    return YAML_GENERAL_FAILURE+1;
+  }
+}
+
+static int writeJsonAsYaml1(yaml_emitter_t *emitter, Json *json){
+  yaml_event_t event;
+  char scalarBuffer[256];
+  if (jsonIsArray(json)){
+    JsonArray *array = jsonAsArray(json);
+    int elementCount = jsonArrayGetCount(array);
+
+    yaml_sequence_start_event_initialize(&event, NULL, (yaml_char_t *)YAML_SEQ_TAG_ASCII,
+                                         1, YAML_ANY_SEQUENCE_STYLE);
+    if (!yaml_emitter_emit(emitter, &event)) return YAML_GENERAL_FAILURE+2;
+    
+    for (int i=0; i<elementCount; i++){
+      Json *itemValue = jsonArrayGetItem(array,i);
+      int subStatus = writeJsonAsYaml1(emitter, itemValue);
+      if (subStatus){
+        return subStatus;
+      }
+    }
+
+    yaml_sequence_end_event_initialize(&event);
+    if (!yaml_emitter_emit(emitter, &event)) return YAML_GENERAL_FAILURE+3;
+    return YAML_SUCCESS;
+  } else if (jsonIsObject(json)){
+    int propertyCount = 0;
+    JsonObject *object = jsonAsObject(json);
+    JsonProperty *property = jsonObjectGetFirstProperty(object);
+
+    yaml_mapping_start_event_initialize(&event, NULL, (yaml_char_t *)YAML_MAP_TAG_ASCII,
+                                        1, YAML_ANY_MAPPING_STYLE);
+    if (!yaml_emitter_emit(emitter, &event)) return YAML_GENERAL_FAILURE+4;
+
+    while (property){
+      propertyCount++;
+      char *propertyName = jsonPropertyGetKey(property);
+      Json *propertyValue = jsonPropertyGetValue(property);
+      int pLen = strlen(propertyName);
+      char asciiName[pLen+1];
+      memcpy(asciiName,propertyName,pLen+1);
+      convertFromNative(asciiName,pLen);
+      yaml_scalar_event_initialize(&event, NULL, (yaml_char_t *)YAML_STR_TAG_ASCII,
+                                   (yaml_char_t *)asciiName, pLen,
+                                   1, 0, YAML_PLAIN_SCALAR_STYLE);
+      if (!yaml_emitter_emit(emitter, &event)) return YAML_GENERAL_FAILURE+5;
+
+      int subStatus = writeJsonAsYaml1(emitter,propertyValue);
+      if (subStatus){
+        return subStatus;
+      }
+      property = jsonObjectGetNextProperty(property);
+    }
+    yaml_mapping_end_event_initialize(&event);
+    if (!yaml_emitter_emit(emitter, &event)) return YAML_GENERAL_FAILURE+6;
+    return YAML_SUCCESS;
+  } else if (jsonIsInt64(json)){
+#ifdef __ZOWE_OS_WINDOWS
+    sprintf(scalarBuffer,"%lld",jsonAsInt64(json));
+#else
+    sprintf(scalarBuffer,"%ld",jsonAsInt64(json));
+#endif
+    return emitScalar(emitter,scalarBuffer,YAML_INT_TAG_ASCII);
+  } else if (jsonIsDouble(json)){
+    sprintf(scalarBuffer,"%f",jsonAsDouble(json));
+    return emitScalar(emitter,scalarBuffer,YAML_FLOAT_TAG_ASCII);
+  } else if (jsonIsNumber(json)){
+    sprintf(scalarBuffer,"%d",jsonAsNumber(json));
+    return emitScalar(emitter,scalarBuffer,YAML_INT_TAG_ASCII);
+  } else if (jsonIsString(json)){
+    sprintf(scalarBuffer,"%s",jsonAsString(json));
+    return emitScalar(emitter,scalarBuffer,YAML_STR_TAG_ASCII);
+  } else if (jsonIsBoolean(json)){
+    return emitScalar(emitter,(jsonAsBoolean(json) ? "true" : "false"),YAML_BOOL_TAG_ASCII);
+  } else if (jsonIsNull(json)){
+    return emitScalar(emitter,"null",YAML_NULL_TAG_ASCII);
+  } else {
+    printf("PANIC: unexpected json type %d\n",json->type);
+    return YAML_GENERAL_FAILURE+7;
+  }
+}
+
+static int emitYaml(yaml_emitter_t *emitter, Json *json){
+  yaml_event_t event;
+  yaml_stream_start_event_initialize(&event, YAML_UTF8_ENCODING);
+  if (!yaml_emitter_emit(emitter, &event)) goto error;
+  
+  yaml_document_start_event_initialize(&event, NULL, NULL, NULL, 0);
+  if (!yaml_emitter_emit(emitter, &event)){
+    printf("failed at doc start\n");
+    goto error;
+  }
+  
+  int status = writeJsonAsYaml1(emitter,json);
+  if (status){
+    printf("failed at write %d\n",status);
+    goto error;
+  }
+  
+  yaml_document_end_event_initialize(&event, 0);
+  if (!yaml_emitter_emit(emitter, &event)){
+    printf("failed at doc end\n");
+    goto error;
+  }
+  
+  yaml_stream_end_event_initialize(&event);
+  if (!yaml_emitter_emit(emitter, &event)) {
+    printf("failed at end\n");
+    goto error;
+  }
+  
+  yaml_emitter_delete(emitter);
+  return YAML_SUCCESS;
+ error:
+  yaml_emitter_delete(emitter);
+  return YAML_GENERAL_FAILURE+8;
+}
+
+/* yaml_write_handler_t *handler, void *data);
+   typedef int yaml_write_handler_t(void *data, unsigned char *buffer, size_t size); */
+
+static int yamlHandlerCallback(void *context, unsigned char *buffer, size_t size){
+  ByteOutputStream *baos = (ByteOutputStream*)context;
+  bosWrite(baos,(char *)buffer,(int)size);
+  return 1;
+}
+                               
+
+int json2Yaml2Buffer(Json *json, char **buffer, int *bufferLen){
+  ByteOutputStream *baos = makeByteOutputStream(0x1000);
+  yaml_emitter_t emitter;
+  yaml_emitter_initialize(&emitter);
+  yaml_emitter_set_output(&emitter,yamlHandlerCallback,baos);
+
+  int emitStatus = emitYaml(&emitter,json);
+  if (emitStatus){
+    bosFree(baos,true);
+  } else {
+    *buffer = bosNullTerminateAndUse(baos);
+    *bufferLen = baos->size;
+    bosFree(baos,false);
+  }
+  return emitStatus;
+}
+
+int json2Yaml2File(Json *json, FILE *out){
+  yaml_emitter_t emitter;
+  yaml_emitter_initialize(&emitter);
+  yaml_emitter_set_output_file(&emitter, out);
+  return emitYaml(&emitter,json);
 }
 
 /*
