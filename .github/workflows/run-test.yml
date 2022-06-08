@@ -23,6 +23,20 @@ jobs:
           version: latest
           platform: x64
 
+      - name: '[Dep 1] Libyaml'
+        uses: actions/checkout@v3
+        with:
+          repository: yaml/libyaml
+          path: deps/configmgr/libyaml
+          ref: '0.2.5'
+
+      - name: '[Dep 2] Quickjs'
+        uses: actions/checkout@v3
+        with:
+          repository: joenemo/quickjs-portable
+          path: deps/configmgr/quickjs
+          ref: 'main'
+      
       - name: 'Checkout'
         uses: actions/checkout@v2
 
