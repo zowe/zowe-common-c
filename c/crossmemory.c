@@ -3915,7 +3915,7 @@ static int handleModifyCommand(STCBase *base, CIB *cib, STCConsoleCommandType co
   return 0;
 }
 
-static void sleep(int seconds){
+static void cmsSleep(int seconds){
   int waitValue = seconds * 100;
   __asm(" STIMER WAIT,BINTVL=%0\n" : : "m"(waitValue));
 }
@@ -4513,7 +4513,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   if (status == RC_CMS_OK) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_STARTING_CONSOLE_TASK_MSG);
     stcLaunchConsoleTask2(srv->base, handleModifyCommand, srv);
-    sleep(START_COMMAND_HANDLING_DELAY_IN_SEC);
+    cmsSleep(START_COMMAND_HANDLING_DELAY_IN_SEC);
   }
 
   if (status == RC_CMS_OK) {
@@ -4643,7 +4643,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   }
 
   stcBaseShutdown(srv->base);
-  sleep(STCBASE_SHUTDOWN_DELAY_IN_SEC);
+  cmsSleep(STCBASE_SHUTDOWN_DELAY_IN_SEC);
 
   if (serverStarted) {
     int stopRC = stopServer(srv);

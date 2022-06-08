@@ -242,10 +242,6 @@ typedef struct hostent_tag{
   int  **addrList;
 } Hostent;
 
-/* sleep(int seconds) is standard in linux */
-#if !defined(__ZOWE_OS_LINUX) && !defined(__ZOWE_OS_AIX)
-unsigned int sleep(unsigned int secs);
-#endif 
 
 /* Set socket tracing; returns prior value */
 int setSocketTrace(int toWhat); 
