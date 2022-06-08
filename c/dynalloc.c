@@ -857,7 +857,7 @@ int dynallocDataset(DynallocInputParms *inputParms, int *reasonCode) {
 
 }
 
-int dynallocNewDataset(DynallocNewInputParms *inputParms, int textUnitsSize, int *reasonCode) {
+int dynallocNewDataset(DynallocNewInputParms *inputParms, int inputParmsCount, int *reasonCode) {
   ALLOC_STRUCT31(
     STRUCT31_NAME(below2G),
     STRUCT31_FIELDS(
@@ -866,20 +866,20 @@ int dynallocNewDataset(DynallocNewInputParms *inputParms, int textUnitsSize, int
     )
   );
 
-  below2G->textUnits = (TextUnit **)safeMalloc31(sizeof(TextUnit*) * textUnitsSize, "Text units array");
+  below2G->textUnits = (TextUnit **)safeMalloc31(sizeof(TextUnit*) * inputParmsCount, "Text units array");
   if(below2G->textUnits == NULL) {
     return -1;
   }
   DynallocParms *parms = &below2G->parms;
   dynallocParmsInit(parms);
 
-  dynallocParmsSetTextUnits(parms, (TextUnit * __ptr32 *)below2G->textUnits, textUnitsSize);
+  dynallocParmsSetTextUnits(parms, (TextUnit * __ptr32 *)below2G->textUnits, inputParmsCount);
 
   int rc;
 
   do {
     rc = 0;
-    for (int i = 0; i < textUnitsSize; i++) { 
+    for (int i = 0; i < inputParmsCount; i++) { 
       if (inputParms[i].type == TEXT_UNIT_STRING) {
         below2G->textUnits[i] = createSimpleTextUnit2(inputParms[i].key, inputParms[i].data.stringValue, inputParms[i].size);
         if (below2G->textUnits[i] == NULL) {
@@ -910,7 +910,6 @@ int dynallocNewDataset(DynallocNewInputParms *inputParms, int textUnitsSize, int
           }   
         }
         else if (inputParms[i].size == sizeof(long long)) {
-          //long number = inputParms[i].data.numValue;
           below2G->textUnits[i] = createLongIntTextUnit(inputParms[i].key, (long long)inputParms[i].data.numValue);
           if (below2G->textUnits[i] == NULL) {
             rc = -1;
@@ -929,13 +928,13 @@ int dynallocNewDataset(DynallocNewInputParms *inputParms, int textUnitsSize, int
     if (rc == -1) {
       break;
     }
-    turn_on_HOB(below2G->textUnits[textUnitsSize - 1]);
+    turn_on_HOB(below2G->textUnits[inputParmsCount - 1]);
     rc = invokeDynalloc(parms);
     *reasonCode = dynallocParmsGetInfoCode(parms) +
         (dynallocParmsGetErrorCode(parms) << 16);
   } while (0);
-  freeTextUnitArray((TextUnit * __ptr32 *)below2G->textUnits, textUnitsSize);
-  safeFree31((char*)below2G->textUnits, sizeof(TextUnit*) * textUnitsSize);
+  freeTextUnitArray((TextUnit * __ptr32 *)below2G->textUnits, inputParmsCount);
+  safeFree31((char*)below2G->textUnits, sizeof(TextUnit*) * inputParmsCount);
   dynallocParmsTerm(parms);
   parms = NULL;
   FREE_STRUCT31(

@@ -757,7 +757,7 @@ typedef struct DynallocNewInputParms_tag {
 #pragma map(unallocDataset, "DYNADALC")
 
 int dynallocDataset(DynallocInputParms *inputParms, int *reasonCode);
-int dynallocNewDataset(DynallocNewInputParms *setInputParms, int TextUnitsSize, int *reasonCode);
+int dynallocNewDataset(DynallocNewInputParms *inputParms, int inputParmsCount, int *reasonCode);
 int dynallocDatasetMember(DynallocInputParms *inputParms, int *reasonCode,
                           char *member);
 int unallocDataset(DynallocInputParms *inputParms, int *reasonCode);
