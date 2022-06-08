@@ -1,0 +1,27 @@
+name: Run test
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  check-permission:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check permission
+        uses: zowe-actions/shared-actions/permission-check@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  run-test:
+    runs-on: windows-latest
+    needs: check-permission
+    steps: 
+    
+      - name: Set up Clang
+        uses: egor-tensin/setup-clang@v1
+        with:
+          version: latest
+          platform: x64
+
+      - name: 'Checkout'
+        uses: actions/checkout@v2
