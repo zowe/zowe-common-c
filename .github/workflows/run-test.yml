@@ -39,6 +39,12 @@ jobs:
       
       - name: 'Checkout'
         uses: actions/checkout@v2
+     
+      - name: 'run script'
+        run: |
+          cd tests
+          ./test.sh
+      
 
       - name: 'run setkeytest'
         continue-on-error: true
