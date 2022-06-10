@@ -25,18 +25,6 @@ jobs:
         with:
           repository: yaml/libyaml
           ref: '0.2.5'
-      
-      - name: 'Checkout'
-        uses: actions/checkout@v2
-      
-      - name: 'check lib'
-        run: |
-          pwd
-          ls
-          echo '1'
-          ls ..
-          echo '2'
-          ls ../..
      
       - name: 'run script'
         run: |
