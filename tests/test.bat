@@ -2,11 +2,19 @@
 
 echo "********************************************************************************"
 
-set LIBYAML=../../deps/configmgr/libyaml
-set LIBYAML_LOCATION=git@github.com:yaml/libyaml.git
-set LIBYAML_BRANCH=0.2.5
+set LIBYAML="../../deps/configmgr/libyaml"
+set LIBYAML_LOCATION="git@github.com:yaml/libyaml.git"
+set LIBYAML_BRANCH="0.2.5"
 
 set DEPS="QUICKJS LIBYAML"
+
+echo ".."
+ls ..
+echo "../.."
+ls ../..
+
+
+
 
 LIBYAML="$../../deps/configmgr/libyaml"
 LIBYAML_LOCATION="git@github.com:yaml/libyaml.git"
