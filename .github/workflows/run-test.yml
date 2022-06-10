@@ -24,12 +24,15 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: yaml/libyaml
+          path: D:\a\zowe-common-c\deps\configmgr\libyaml
           ref: '0.2.5'
      
       - name: 'run script'
         shell: pwsh
         run: |
           ls D:\a\zowe-common-c\zowe-common-c
+          echo "11111111"
+          ls D:\a\zowe-common-c\deps\configmgr\libyaml
       
 
       - name: 'run setkeytest'
