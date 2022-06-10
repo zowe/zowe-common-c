@@ -21,12 +21,6 @@ jobs:
         uses: egor-tensin/setup-clang@v1
         with:
           version: latest
-          platform: x64
-          
-      - name: '[Prep 2] Setup jFrog CLI'
-        uses: jfrog/setup-jfrog-cli@v2
-        env:
-          JF_ARTIFACTORY_1: ${{ secrets.JF_ARTIFACTORY_TOKEN }}
 
       - name: '[Dep 1] Libyaml'
         uses: actions/checkout@v3
@@ -34,21 +28,15 @@ jobs:
           repository: yaml/libyaml
           path: deps/configmgr/libyaml
           ref: '0.2.5'
-
-      - name: '[Dep 2] Quickjs'
-        uses: actions/checkout@v3
-        with:
-          repository: joenemo/quickjs-portable
-          path: deps/configmgr/quickjs
-          ref: 'main'
       
       - name: 'Checkout'
         uses: actions/checkout@v2
       
       - name: 'check lib'
         run: |
-          cd ../
-          git clone --branch 0.2.5 git@github.com:yaml/libyaml.git ../../deps/configmgr/libyaml
+          pwd
+          ls
+          ls D:\a\zowe-common-c\zowe-common-c\deps\configmgr\libyaml
      
       - name: 'run script'
         run: |
