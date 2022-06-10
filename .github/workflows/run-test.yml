@@ -16,12 +16,14 @@ jobs:
     runs-on: windows-latest
     needs: check-permission
     steps: 
-
+      
+      - name: 'Checkout'
+        uses: actions/checkout@v3
+        
       - name: '[Dep 1] Libyaml'
         uses: actions/checkout@v3
         with:
           repository: yaml/libyaml
-          path: deps/configmgr/libyaml
           ref: '0.2.5'
       
       - name: 'Checkout'
