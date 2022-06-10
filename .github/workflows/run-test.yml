@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: yaml/libyaml
-          path: ..\deps\configmgr\libyaml
+          path: deps\configmgr\libyaml
           ref: '0.2.5'
      
       - name: 'run script'
