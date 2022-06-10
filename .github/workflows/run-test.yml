@@ -63,7 +63,7 @@ jobs:
         continue-on-error: true
         run: |
           cd tests
-          clang -I./src -I../h -I ../platform/windows -Dstrdup=_strdup -D_CRT_SECURE_NO_WARNINGS -o jsonmergetest.exe jsonmergetest.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc
+          clang -I./src -I../h -I ../platform/windows -Dstrdup=_strdup -D_CRT_SECURE_NO_WARNINGS -o jsonmergetest.exe jsonmergetest.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c
 
       - name: 'run parsetst'
         continue-on-error: true
