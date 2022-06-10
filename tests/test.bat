@@ -18,7 +18,7 @@ ls ../../..
 
 
 
-LIBYAML="$../../deps/configmgr/libyaml"
+LIBYAML="$../deps"
 LIBYAML_LOCATION="git@github.com:yaml/libyaml.git"
 LIBYAML_BRANCH="0.2.5"
 

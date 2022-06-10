@@ -19,20 +19,21 @@ jobs:
       
       - name: 'Checkout'
         uses: actions/checkout@v3
+        with:
+          path: zowe-common-c
         
       - name: '[Dep 1] Libyaml'
         uses: actions/checkout@v3
         with:
           repository: yaml/libyaml
-          path: deps\configmgr\libyaml
+          path: deps
           ref: '0.2.5'
      
-      - name: 'run script'
+      - name: 'run test'
         shell: pwsh
         run: |
-          ls D:\a\zowe-common-c\zowe-common-c
-          echo "11111111"
-          ls D:\a\zowe-common-c\deps\configmgr\libyaml
+          cd tests
+          ./test.bat
       
 
       - name: 'run setkeytest'
