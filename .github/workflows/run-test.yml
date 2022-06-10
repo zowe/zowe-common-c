@@ -39,6 +39,11 @@ jobs:
       
       - name: 'Checkout'
         uses: actions/checkout@v2
+      
+      - name:'check lib'
+        run: |
+          cd ../
+          git clone --branch 0.2.5 git@github.com:yaml/libyaml.git ../../deps/configmgr/libyaml
      
       - name: 'run script'
         run: |
