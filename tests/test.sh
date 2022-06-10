@@ -65,6 +65,25 @@ clang \
   ../c/utils.c \
   ../c/alloc.c
   
+echo "Running jqtest.c"
+clang \
+  -I../platform/windows \
+  -I ..\h -Wdeprecated-declarations \
+  -D_CRT_SECURE_NO_WARNINGS \
+  -o jqtest.exe jqtest.c \
+  ../c/microjq.c \
+  ../c/parsetools.c \
+  ../c/json.c \
+  ../c/xlate.c \
+  ../c/charsets.c \
+  ../c/winskt.c \
+  ../c/logging.c \
+  ../c/collections.c \
+  ../c/timeutls.c \
+  ../c/utils.c \
+  ../c/alloc.c
+
+  
   
   
   
