@@ -27,9 +27,16 @@ jobs:
           ref: '0.2.5'
      
       - name: 'run script'
+        shell: pwsh
         run: |
-          cd tests
-          ./test.bat
+          ls
+          pwd
+          cd ..
+          ls
+          pwd
+          cd ..
+          ls
+          pwd
       
 
       - name: 'run setkeytest'
