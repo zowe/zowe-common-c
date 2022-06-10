@@ -29,14 +29,7 @@ jobs:
       - name: 'run script'
         shell: pwsh
         run: |
-          ls
-          pwd
-          cd ..
-          ls
-          pwd
-          cd ..
-          ls
-          pwd
+          ls D:\a\zowe-common-c\zowe-common-c
       
 
       - name: 'run setkeytest'
