@@ -20,7 +20,7 @@ LIBYAML="$../../deps/configmgr/libyaml"
 LIBYAML_LOCATION="git@github.com:yaml/libyaml.git"
 LIBYAML_BRANCH="0.2.5"
 
-git clone --branch 0.2.5 git@github.com:yaml/libyaml.git ../../deps/configmgr/libyaml
+Rem git clone --branch 0.2.5 git@github.com:yaml/libyaml.git ../../deps/configmgr/libyaml
 
 echo "Running convtest.c"
 clang -I../h -I../platform/windows -D_CRT_SECURE_NO_WARNINGS -Dstrdup=_strdup -DYAML_DECLARE_STATIC=1 -Wdeprecated-declarations --rtlib=compiler-rt -o convtest.exe convtest.c ../c/charsets.c ../platform/windows/winfile.c ../c/timeutls.c ../c/utils.c ../c/alloc.c
