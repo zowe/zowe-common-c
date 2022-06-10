@@ -35,10 +35,8 @@ jobs:
           ref: '0.2.5'
      
       - name: 'run test'
-        shell: pwsh
         run: |
-          cd tests
-          ./test.bat
+          ls
       
 
       - name: 'run setkeytest'
