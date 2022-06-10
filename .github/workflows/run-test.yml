@@ -41,27 +41,32 @@ jobs:
         uses: actions/checkout@v2
 
       - name: 'run setkeytest'
+        continue-on-error: true
         run: |
           cd tests
           xlclang -q64 -D_OPEN_SYS_FILE_EXT=1 -D_XOPEN_SOURCE=600 -D_OPEN_THREADS=1 -DSUBPOOL=132 "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN')" "-Wl,ac=1" -I ../h -I ../platform/posix -Wbitwise-op-parentheses -o setkeytest setkeytest.c ../c/zos.c ../c/timeutls.c ../c/utils.c ../c/alloc.c 
 
       - name: 'run convtest'
+        continue-on-error: true
         run: |
           cd tests
           clang -I../h -I../platform/windows -D_CRT_SECURE_NO_WARNINGS -Dstrdup=_strdup -DYAML_DECLARE_STATIC=1 -Wdeprecated-declarations --rtlib=compiler-rt -o convtest.exe convtest.c ../c/charsets.c ../platform/windows/winfile.c ../c/timeutls.c ../c/utils.c ../c/alloc.c
           
       - name: 'run jqtest'
+        continue-on-error: true
         run: |
           cd tests
           clang -I../platform/windows -I ..\h -Wdeprecated-declarations -D_CRT_SECURE_NO_WARNINGS -o jqtest.exe jqtest.c ../c/microjq.c ../c/parsetools.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c
           
           
       - name: 'run jsonmergetest'
+        continue-on-error: true
         run: |
           cd tests
           clang -I./src -I../h -I ../platform/windows -Dstrdup=_strdup -D_CRT_SECURE_NO_WARNINGS -o jsonmergetest.exe jsonmergetest.c ../c/json.c ../c/xlate.c ../c/charsets.c ../c/winskt.c ../c/logging.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc
 
       - name: 'run parsetst'
+        continue-on-error: true
         run: |
           cd tests
           clang -I../h -I../platform/windows -D_CRT_SECURE_NO_WARNINGS -Dstrdup=_strdup -DYAML_DECLARE_STATIC=1 -Wdeprecated-declarations --rtlib=compiler-rt -o parsetest.exe parsetest.c ../c/parsetools.c ../c/json.c ../c/winskt.c ../c/xlate.c ../c/charsets.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c
