@@ -43,7 +43,7 @@ jobs:
       - name: 'run script'
         run: |
           cd tests
-          ./test.sh
+          ./test.bat
       
 
       - name: 'run setkeytest'
