@@ -35,8 +35,10 @@ jobs:
           ref: '0.2.5'
      
       - name: 'run test'
+
         run: |
-          ls
+          cd zowe-common-c/tests
+          ./test.bat
       
 
       - name: 'run setkeytest'
