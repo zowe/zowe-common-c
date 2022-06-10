@@ -16,7 +16,12 @@ jobs:
     runs-on: windows-latest
     needs: check-permission
     steps: 
-      
+     
+      - name: Set up Clang
+        uses: egor-tensin/setup-clang@v1
+        with:
+          version: latest
+     
       - name: 'Checkout'
         uses: actions/checkout@v3
         with:
@@ -67,7 +72,4 @@ jobs:
           cd tests
           clang -I../h -I../platform/windows -D_CRT_SECURE_NO_WARNINGS -Dstrdup=_strdup -DYAML_DECLARE_STATIC=1 -Wdeprecated-declarations --rtlib=compiler-rt -o parsetest.exe parsetest.c ../c/parsetools.c ../c/json.c ../c/winskt.c ../c/xlate.c ../c/charsets.c ../c/collections.c ../c/timeutls.c ../c/utils.c ../c/alloc.c
 
-      - name: Set up Clang
-        uses: egor-tensin/setup-clang@v1
-        with:
-          version: latest
+      
