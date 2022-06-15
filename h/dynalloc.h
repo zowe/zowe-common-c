@@ -276,9 +276,7 @@ TextUnit *createSimpleTextUnit2(int key, char *value, int firstParameterLength);
 TextUnit *createCharTextUnit(int key, char value);
 TextUnit *createCompoundTextUnit(int key, char **values, int valueCount);
 TextUnit *createIntTextUnit(int key, int value);
-TextUnit *createCharTextUnit2(int key, short value);
 TextUnit *createInt8TextUnit(int key, int8_t value);
-TextUnit *createIntTextUnitLength(int key, int value, int length);
 TextUnit *createInt16TextUnit(int key, int16_t value);
 TextUnit *createInt24TextUnit(int key, int value);
 void freeTextUnit(TextUnit * text_unit);
@@ -306,6 +304,10 @@ int AllocForDynamicOutput(char *outDescName,
                           char *error_buffer);
 
 int DeallocDDName(char *ddname);
+
+int setTextUnit(int type, int size, char* stringValue, 
+                int numValue, int key, 
+                int *index, TextUnit **inputTextUnit);
 
 #define DOADDRES 0x0027
 /* ADDRESS FieldCount: 4 FieldLength 0-60
@@ -724,10 +726,13 @@ int DeallocDDName(char *ddname);
 #define SPIN_ENDJOB 0x40
 
 #define INT24_SIZE 3
-#define TEXT_UNIT_STRING 1
-#define TEXT_UNIT_BOOLEAN 2
-#define TEXT_UNIT_CHARINT 3
-#define TEXT_UNIT_NULL 4
+#define TEXT_UNIT_STRING   1
+#define TEXT_UNIT_BOOLEAN  2
+#define TEXT_UNIT_CHAR     3
+#define TEXT_UNIT_INT16    4
+#define TEXT_UNIT_INT24    5
+#define TEXT_UNIT_LONGINT  6
+#define TEXT_UNIT_NULL     7
 
 /* Use this structure to pass parameters to DYNALLOC functions.
  * Dsname should be padded by spaces. */
@@ -741,23 +746,12 @@ typedef struct DynallocInputParms_tag {
   char reserved[3];
 } DynallocInputParms;
 
-
-typedef struct DynallocNewInputParms_tag {
-  int type;
-  int size;
-  int key;
-  union {
-    int numValue;
-    char *stringValue;
-  } data;
-} DynallocNewInputParms;
-
 #pragma map(dynallocDataset, "DYNAUALC")
 #pragma map(dynallocDatasetMember, "DYNAUALM")
 #pragma map(unallocDataset, "DYNADALC")
 
 int dynallocDataset(DynallocInputParms *inputParms, int *reasonCode);
-int dynallocNewDataset(DynallocNewInputParms *inputParms, int inputParmsCount, int *reasonCode);
+int dynallocNewDataset(TextUnit **inputTextUnit, int inputTextUnitCount, int *reasonCode);
 int dynallocDatasetMember(DynallocInputParms *inputParms, int *reasonCode,
                           char *member);
 int unallocDataset(DynallocInputParms *inputParms, int *reasonCode);

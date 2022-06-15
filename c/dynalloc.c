@@ -30,8 +30,6 @@
 #include "alloc.h"
 #include "dynalloc.h"
 
-#define BYTE_LENGTH 8
-#define BYTE_FULL_MASK 0xff
 
 #define TEXT_UNIT_ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
 
@@ -63,10 +61,6 @@ TextUnit *createIntTextUnit(int key, int value) {
   return createSimpleTextUnit2(key, (char*)&value, sizeof(value));
 }
 
-TextUnit *createIntTextUnitLength(int key, int value, int length) {
-  return createSimpleTextUnit2(key, (char*)&value, length);
-}
-
 TextUnit *createInt8TextUnit(int key, int8_t value) {
   return createSimpleTextUnit2(key, (char*)&value, sizeof(value));
 }
@@ -88,14 +82,6 @@ TextUnit *createCharTextUnit(int key, char value) {
   valueArray[0] = value;
   valueArray[1] = 0;
   return createSimpleTextUnit2(key, valueArray, 1);
-}
-
-TextUnit *createCharTextUnit2(int key, short value) {
-  char valueArray[3];
-  valueArray[0] = value >> BYTE_LENGTH & BYTE_FULL_MASK;
-  valueArray[1] = value & BYTE_FULL_MASK;
-  valueArray[2] = 0;
-  return createSimpleTextUnit2(key, valueArray, 2);
 }
 
 TextUnit *createCompoundTextUnit(int key, char **values, int valueCount) {
@@ -857,7 +843,38 @@ int dynallocDataset(DynallocInputParms *inputParms, int *reasonCode) {
 
 }
 
-int dynallocNewDataset(DynallocNewInputParms *inputParms, int inputParmsCount, int *reasonCode) {
+int setTextUnit(int type, int size, char* stringValue, int numValue, int key, 
+                int *index, TextUnit **inputTextUnit) {
+  int rc = -1;
+  switch (type) {
+    case TEXT_UNIT_STRING:
+      inputTextUnit[*index] = createSimpleTextUnit2(key, stringValue, size);
+      break;
+    case TEXT_UNIT_CHAR:
+      inputTextUnit[*index] = createCharTextUnit(key, numValue);
+      break;
+    case TEXT_UNIT_INT16:
+      inputTextUnit[*index] = createInt16TextUnit(key, numValue);
+      break;
+    case TEXT_UNIT_INT24:
+      inputTextUnit[*index] = createInt24TextUnit(key, numValue);
+      break;
+    case TEXT_UNIT_LONGINT:
+      inputTextUnit[*index] = createLongIntTextUnit(key, (long long)numValue);
+      break;
+    case TEXT_UNIT_BOOLEAN:
+      inputTextUnit[*index] = createSimpleTextUnit2(key, NULL, 0);
+      break;
+  }
+  if (inputTextUnit[*index] == NULL) {
+    return rc;
+  } else {
+    (*index)++;
+    return 0;
+  }
+}
+
+int dynallocNewDataset(TextUnit **inputTextUnit, int inputTextUnitCount, int *reasonCode) {
   ALLOC_STRUCT31(
     STRUCT31_NAME(below2G),
     STRUCT31_FIELDS(
@@ -866,75 +883,36 @@ int dynallocNewDataset(DynallocNewInputParms *inputParms, int inputParmsCount, i
     )
   );
 
-  below2G->textUnits = (TextUnit **)safeMalloc31(sizeof(TextUnit*) * inputParmsCount, "Text units array");
+  below2G->textUnits = (TextUnit **)safeMalloc31(sizeof(TextUnit*) * inputTextUnitCount, "Text units array");
   if(below2G->textUnits == NULL) {
     return -1;
   }
   DynallocParms *parms = &below2G->parms;
   dynallocParmsInit(parms);
 
-  dynallocParmsSetTextUnits(parms, (TextUnit * __ptr32 *)below2G->textUnits, inputParmsCount);
+  dynallocParmsSetTextUnits(parms, (TextUnit * __ptr32 *)below2G->textUnits, inputTextUnitCount);
 
   int rc;
 
   do {
     rc = 0;
-    for (int i = 0; i < inputParmsCount; i++) { 
-      if (inputParms[i].type == TEXT_UNIT_STRING) {
-        below2G->textUnits[i] = createSimpleTextUnit2(inputParms[i].key, inputParms[i].data.stringValue, inputParms[i].size);
-        if (below2G->textUnits[i] == NULL) {
-          rc = -1;
-          break;
-        }       
-      }
-      else if (inputParms[i].type == TEXT_UNIT_CHARINT) {
-        if (inputParms[i].size == sizeof(char)) {
-          below2G->textUnits[i] = createCharTextUnit(inputParms[i].key, inputParms[i].data.numValue);
-          if (below2G->textUnits[i] == NULL) {
-            rc = -1;
-            break;
-          }    
-        }  
-        else if (inputParms[i].size == sizeof(short)) {
-          below2G->textUnits[i] = createInt16TextUnit(inputParms[i].key, inputParms[i].data.numValue);
-          if (below2G->textUnits[i] == NULL) {
-            rc = -1;
-            break;
-          }   
-        } 
-        else if (inputParms[i].size == INT24_SIZE) {
-          below2G->textUnits[i] = createInt24TextUnit(inputParms[i].key, inputParms[i].data.numValue);
-          if (below2G->textUnits[i] == NULL) {
-            rc = -1;
-            break;
-          }   
-        }
-        else if (inputParms[i].size == sizeof(long long)) {
-          below2G->textUnits[i] = createLongIntTextUnit(inputParms[i].key, (long long)inputParms[i].data.numValue);
-          if (below2G->textUnits[i] == NULL) {
-            rc = -1;
-            break;
-          }   
-        }
-      } 
-      else if (inputParms[i].type == TEXT_UNIT_BOOLEAN) {
-        below2G->textUnits[i] = createSimpleTextUnit2(inputParms[i].key, NULL, 0);
-        if (below2G->textUnits[i] == NULL) {
-          rc = -1;
-          break;
-        }
-      }
+    for (int i = 0; i < inputTextUnitCount; i++) { 
+      below2G->textUnits[i] = inputTextUnit[i];
+      if (below2G->textUnits[i] == NULL) {
+        rc = -1;
+        break;
+      }       
     }
     if (rc == -1) {
       break;
     }
-    turn_on_HOB(below2G->textUnits[inputParmsCount - 1]);
+    turn_on_HOB(below2G->textUnits[inputTextUnitCount - 1]);
     rc = invokeDynalloc(parms);
     *reasonCode = dynallocParmsGetInfoCode(parms) +
         (dynallocParmsGetErrorCode(parms) << 16);
   } while (0);
-  freeTextUnitArray((TextUnit * __ptr32 *)below2G->textUnits, inputParmsCount);
-  safeFree31((char*)below2G->textUnits, sizeof(TextUnit*) * inputParmsCount);
+  freeTextUnitArray((TextUnit * __ptr32 *)below2G->textUnits, inputTextUnitCount);
+  safeFree31((char*)below2G->textUnits, sizeof(TextUnit*) * inputTextUnitCount);
   dynallocParmsTerm(parms);
   parms = NULL;
   FREE_STRUCT31(
