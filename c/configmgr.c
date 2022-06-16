@@ -62,6 +62,9 @@
 #include "parsetools.h"
 #include "microjq.h"
 #include "configmgr.h"
+#ifdef __ZOWE_OS_ZOS
+#include "pdsutil.h"
+#endif 
 
 #ifdef __ZOWE_OS_WINDOWS
 typedef int64_t ssize_t;
@@ -113,14 +116,14 @@ typedef int64_t ssize_t;
 
       PARMLIB<PDS(E)>   -> specifically named
                        
-      PARMLIBS(DEFAULT) -> static system stuff
-      PARMLIBS(CURRENT) -> dynamic (doesn't work yet)
+      PARMLIBS(STANDARD) -> what IEFPRMLIB SAYS
+      PARMLIBS(JOBLEVEL) -> dynamic (doesn't work yet)
     - PARMLIB MEMBERNAME for a config
 
 
     configmgr -t 2 -s "../tests/schemadata/zoweyaml.schema" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowebase.yaml)" validate
 
-    configmgr -t 1 -s "../tests/schemadata/zoweappserver.json:../tests/schemadata/zowebase.json:../tests/schemadata/zowecommon.json" -p "FILE(../tests/schemadata/bundle1.json)" validate
+    configmgr -t 1 -m ZWEPARMS -s "../tests/schemadata/zoweappserver.json:../tests/schemadata/zowebase.json:../tests/schemadata/zowecommon.json" -p "PARMLIBS(DEFAULT):FILE(../tests/schemadata/bundle1.json)" validate
 
     configmgr -s "../tests/schemadata/zoweappserver.json:../tests/schemadata/zowebase.json:../tests/schemadata/zowecommon.json" -p "FILE(../tests/schemadata/zoweoverrides.yaml):FILE(../tests/schemadata/zowedefault.yaml)" extract "/zowe/setup/mvs/proclib"
 
@@ -172,7 +175,8 @@ typedef int64_t ssize_t;
 #define CONFIG_PATH_OMVS_DIR     0x0002
 #define CONFIG_PATH_OMVS_LIBRARY 0x0004
 #define CONFIG_PATH_MVS_PARMLIB   0x0008
-#define CONFIG_PATH_MVS_PARMLIBS  0x0010 /* DEFAULT, CURRENT */
+#define CONFIG_PATH_MVS_PARMLIBS  0x0010 /* STANDARD, JOBLEVEL */
+#define CONFIG_PATH_WAS_EXPANDED  0x0100
 
 #ifdef __ZOWE_OS_WINDOWS
 static int stdoutFD(void){
@@ -314,7 +318,7 @@ struct CFGConfig_tag {
   JsonSchema  *topSchema;
   JsonSchema **otherSchemas;
   int          otherSchemasCount;
-  char         parmlibMemberName[PARMLIB_MEMBER_MAX];
+  char        *parmlibMemberName;
   Json        *configData;
   struct CFGConfig_tag *next;
 };
@@ -388,6 +392,38 @@ static ConfigPathElement *makePathElement(ConfigManager *mgr, CFGConfig *config,
   return element;
 }
 
+#ifdef __ZOWE_OS_ZOS
+static ConfigPathElement *addExpandedParmlibs(ConfigManager *mgr, CFGConfig *config, int flags, char *name, char *data){
+  int getParmlibs(char *outputBuffer, int *reasonCode);
+  char *outBuffer = safeMalloc31(PRMLB_BUFFER_SIZE,"IEFPRMLB Buffer");
+
+  int reasonCode = 0;
+  int returnCode =  getParmlibs(outBuffer,&reasonCode);
+  ConfigPathElement *element = NULL;
+  trace(mgr,DEBUG,"IEFPRMLB LIST ret=0x%x reason=0x%x\n",returnCode,reasonCode);
+  if (returnCode == 0){
+    int count = getParmlibCount(outBuffer);
+    for (int i=0; i<count; i++){
+      char *volser = NULL;
+      char *dsn = getParmlib(outBuffer,i,&volser);
+      if (volser == NULL){ /* means it's a catalogued data set */
+	int dsnLen = 44;
+	while (dsnLen > 0 && (dsn[dsnLen-1] <= 0x40)) dsnLen--;
+	element = makePathElement(mgr,
+				  config,
+				  CONFIG_PATH_MVS_PARMLIB | CONFIG_PATH_WAS_EXPANDED, 
+				  substring(mgr,"PARMLIB",0,7),
+				  substring(mgr,dsn,0,dsnLen));
+      }
+    }
+  }
+
+
+  safeFree31(outBuffer,PRMLB_BUFFER_SIZE);
+  return element;
+}
+#endif
+
 static bool addPathElement(ConfigManager *mgr, CFGConfig *config, char *pathElementArg){
   ConfigPathElement *element = (ConfigPathElement*)SLHAlloc(mgr->slh,sizeof(ConfigPathElement));
   memset(element,0,sizeof(ConfigPathElement));
@@ -398,6 +434,7 @@ static bool addPathElement(ConfigManager *mgr, CFGConfig *config, char *pathElem
   char *pat = "^(LIBRARY|DIR|FILE|PARMLIBS)\\(([^)]+)\\)$";
   int compStatus = regexComp(argPattern,pat,REG_EXTENDED);
   if (compStatus != 0){
+    
     trace(mgr,INFO,"Internal error, pattern compilation failed\n");
     return false;
   }
@@ -418,13 +455,19 @@ static bool addPathElement(ConfigManager *mgr, CFGConfig *config, char *pathElem
     } else {
       return false; /* internal logic error */
     }
-    makePathElement(mgr,config,flags,pathElementArg,elementData);
+    if (!(flags&CONFIG_PATH_MVS_PARMLIBS)){
+      makePathElement(mgr,config,flags,pathElementArg,elementData);
+    } else{
+      /* zowe does nothing with PARMLIBS off-ZOS */
+#ifdef __ZOWE_OS_ZOS
+      addExpandedParmlibs(mgr,config,flags,pathElementArg,elementData);
+#endif
+    }
     return true;
   } else {
     trace(mgr,DEBUG,"unhandled path element '%s'\n",pathElementArg);
     return false;
   }
-
 }
 
 static int buildConfigPath(ConfigManager *mgr, CFGConfig *config, char *configPathArg){
@@ -482,7 +525,7 @@ static void printConfigPath(ConfigManager *mgr, const char *configName){
   trace(mgr,INFO,"Path Elements: config=0x%p\n",config);
   ConfigPathElement *element = config->configPath;
   while (element){
-    trace(mgr,INFO,"  %04X %s\n",element->flags,element->name);
+    trace(mgr,INFO,"  %04X %s, data='%s'\n",element->flags,element->name,element->data);
     element = element->next;
   }
 }
@@ -625,30 +668,54 @@ int cfgSetConfigPath(ConfigManager *mgr, const char *configName, char *configPat
 }
 
 #define YAML_ERROR_MAX 1024
+#define MAX_PDS_NAME 1000 /* very generous */
 
-static Json *readJson(ConfigManager *mgr, ConfigPathElement *pathElement){
+static Json *readYamlIntoJson(ConfigManager *mgr, char *filename, bool allowMissingFile){
   char errorBuffer[YAML_ERROR_MAX];
-  if (pathElement->flags & CONFIG_PATH_OMVS_FILE){
-    trace(mgr,DEBUG,"before read YAML mgr=0x%p file=%s\n",mgr,pathElement->data);
-    yaml_document_t *doc = readYAML(pathElement->data,errorBuffer,YAML_ERROR_MAX);
-    trace(mgr,DEBUG,"yaml doc at 0x%p\n",doc);
-    if (doc){
-      if (mgr->traceLevel >= 1){
-        pprintYAML(doc);
-      }
-      return yaml2JSON(doc,mgr->slh);
-    } else {
-      trace(mgr,INFO,"WARNING, yaml read failed, errorBuffer='%s'\n",errorBuffer);
-#ifdef __ZOWE_OS_ZOS
-      a2e(errorBuffer,YAML_ERROR_MAX);
-#endif
-      trace(mgr,INFO,"WARNING, yaml read failed, errorBuffer='%s'\n",errorBuffer);
-      return NULL;
+  trace(mgr,DEBUG,"before read YAML mgr=0x%p file=%s\n",mgr,filename);
+  bool wasMissing = false;
+  yaml_document_t *doc = readYAML2(filename,errorBuffer,YAML_ERROR_MAX,&wasMissing);
+  trace(mgr,DEBUG,"yaml doc at 0x%p, allowMissing=%d wasMissing=%d\n",doc,allowMissingFile,wasMissing);
+  if (doc){
+    if (mgr->traceLevel >= 1){
+      pprintYAML(doc);
     }
-  } else if (pathElement->flags & CONFIG_PATH_MVS_PARMLIB){
+    return yaml2JSON(doc,mgr->slh);
+  } else if (allowMissingFile && wasMissing){
     return NULL;
+  } else{
+    trace(mgr,INFO,"WARNING, yaml read failed, errorBuffer='%s'\n",errorBuffer);
+#ifdef __ZOWE_OS_ZOS
+    a2e(errorBuffer,YAML_ERROR_MAX);
+#endif
+    trace(mgr,INFO,"WARNING, yaml read failed, errorBuffer='%s'\n",errorBuffer);
+    return NULL;
+  }
+}
+
+static Json *readJson(ConfigManager *mgr, CFGConfig *config, ConfigPathElement *pathElement, bool *nullAllowedPtr){
+  *nullAllowedPtr = false;
+  if (pathElement == NULL){
+    trace(mgr,INFO,"PANIC! readJson got null pathElement\n");
+    return NULL;
+  }
+  if (config == NULL){
+    trace(mgr,INFO,"PANIC! readJson got null config\n");
+    return NULL;
+  }
+  if (pathElement->flags & CONFIG_PATH_OMVS_FILE){
+    return readYamlIntoJson(mgr,pathElement->data,false);
+  } else if (pathElement->flags & CONFIG_PATH_MVS_PARMLIB){
+    char pdsMemberSpec[MAX_PDS_NAME];
+    trace(mgr,DEBUG,"pathElement=0x%p config=0x%p\n",pathElement,config);
+    int charsWritten = snprintf(pdsMemberSpec,MAX_PDS_NAME,"//'%s(%s)'",
+				pathElement->data,config->parmlibMemberName);
+    trace(mgr,DEBUG,"PDS name = '%s'\n",pdsMemberSpec);
+    bool nullAllowed = (pathElement->flags & CONFIG_PATH_WAS_EXPANDED);
+    *nullAllowedPtr = nullAllowed;
+    return readYamlIntoJson(mgr,pdsMemberSpec,nullAllowed);
   } else {
-    trace(mgr,INFO,"WARNING, only simple file case yet implemented\n");
+    trace(mgr,INFO,"WARNING, only simple file and PARMLIB(s) cases yet implemented, saw flags=0x%x\n",pathElement->flags);
     return NULL;
   }
 }
@@ -678,8 +745,7 @@ int cfgSetParmlibMemberName(ConfigManager *mgr, const char *configName, const ch
     if (len < 3 || len  > PARMLIB_MEMBER_MAX){
       return ZCFG_BAD_PARMLIB_MEMBER_NAME;
     } else {
-      memset(config->parmlibMemberName,' ',PARMLIB_MEMBER_MAX);
-      memcpy(config->parmlibMemberName,parmlibMemberName,len);
+      config->parmlibMemberName = substring(mgr,(char*)parmlibMemberName,0,len);
       return ZCFG_SUCCESS;
     }
   } else {
@@ -727,20 +793,32 @@ static int overloadConfiguration(ConfigManager *mgr,
                                  ConfigPathElement *pathTail){
   if (pathTail == NULL){
     trace(mgr, DEBUG2, "at end of config path\n");
-    config->configData = readJson(mgr,pathElement);
+    bool dontCare = false;
+    config->configData = readJson(mgr,config,pathElement,&dontCare);
     trace(mgr, DEBUG2, "mgr->config = 0x%p\n", config);
     return 0; /* success */
   } else {
-    Json *overlay = readJson(mgr,pathElement);
+    bool nullAllowed = false;
+    trace(mgr,DEBUG,"overload mgr=0x%p config=0%p pathElement=0x%p\n",
+	  mgr,config,pathElement);
+    Json *overlay = readJson(mgr,config,pathElement,&nullAllowed);
+    trace(mgr,DEBUG,"overlay = 0x%p tail=0x%p nullAllowed=%d\n",overlay,pathTail,nullAllowed);
+    if ((overlay == NULL) && !nullAllowed){
+      return ZCFG_MISSING_CONFIG_SOURCE;
+    }
     int rhsStatus = overloadConfiguration(mgr,config,pathTail,pathTail->next);
     trace(mgr, DEBUG2, "read the overlay with json=0x%p and status=%d\n",overlay,rhsStatus);
     if (rhsStatus){
       return rhsStatus; /* don't merge if we couldn't load what's to the right in the list */
     }
     int mergeStatus = 0;
-    config->configData = jsonMerge(mgr->slh,overlay,config->configData,
-                                   JSON_MERGE_FLAG_CONCATENATE_ARRAYS,
-                                   &mergeStatus);
+    if (overlay){
+      config->configData = jsonMerge(mgr->slh,overlay,config->configData,
+				     JSON_MERGE_FLAG_CONCATENATE_ARRAYS,
+				     &mergeStatus);
+    } else{
+      /* let it ride */
+    }
     return mergeStatus;
   }
 }
@@ -752,6 +830,7 @@ int loadConfigurations(ConfigManager *mgr, const char *configName){
   }
   ConfigPathElement *pathElement = config->configPath;
   int overloadStatus = overloadConfiguration(mgr,config,pathElement,pathElement->next);
+  trace(mgr,DEBUG,"Overload status = %d\n",overloadStatus);
   if (overloadStatus){
     return overloadStatus;
   } else {
@@ -1497,6 +1576,7 @@ static int simpleMain(int argc, char **argv){
   char *schemaList = NULL;
   char *zoweWorkspaceHome = NULL; // Read-write      is there always a zowe.yaml in there
   char *configPath = NULL;
+  char *parmlibMemberName = NULL;
   char *command = NULL;
   char *traceArg = NULL;
   int argx = 1;
@@ -1524,6 +1604,8 @@ static int simpleMain(int argc, char **argv){
       }
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-w")) != NULL){
       zoweWorkspaceHome = optionValue;
+    } else if ((optionValue = getStringOption(argc,argv,&argx,"-m")) != NULL){
+      parmlibMemberName = optionValue;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-p")) != NULL){
       configPath = optionValue;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-c")) != NULL){
@@ -1570,9 +1652,12 @@ static int simpleMain(int argc, char **argv){
     fprintf(traceOut,"Failed to load schemas rsn=%d\n",schemaLoadStatus);
     return 0;
   }
+  if (parmlibMemberName != NULL){
+    cfgSetParmlibMemberName(mgr,configName,parmlibMemberName);
+  }
 
   int configPathStatus = cfgSetConfigPath(mgr,configName,configPath);
-  if (schemaLoadStatus){
+  if (configPathStatus){
     fprintf(traceOut,"Problems with config path rsn=%d\n",configPathStatus);
     return 0;
   }
@@ -1593,6 +1678,7 @@ static int simpleMain(int argc, char **argv){
   int loadStatus = loadConfigurations(mgr,configName);
   if (loadStatus){
     trace(mgr,INFO,"Failed to load configuration, element may be bad, or less likey a bad merge\n");
+    return 0;
   }
   trace(mgr,DEBUG,"configuration parms are loaded\n");
   if (!strcmp(command,"validate")){ /* just a testing mode */
