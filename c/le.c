@@ -30,10 +30,14 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <stdarg.h>
-#include <sys/stat.h>
+
+#ifndef __ZOWE_OS_WINDOWS
+#include <strings.h>
 #include <unistd.h>
+#endif
+
+#include <sys/stat.h>
 
 #endif
 

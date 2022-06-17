@@ -686,6 +686,11 @@ JsonPointer *parseJsonPointer(char *s);
 void freeJsonPointer(JsonPointer *jp);
 void printJsonPointer(FILE *out, JsonPointer *jp);
 
+/* Some diagnostic-only functions */
+
+Json *jsonObjectGetPropertyValueLoud(JsonObject *object, const char *key);
+void jsonDumpObj(JsonObject *object);
+
 #endif	/* __JSON__ */
 
 

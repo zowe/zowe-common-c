@@ -992,8 +992,7 @@ static int getBitsForChar(char c){
   }
 }
 
-int decodeBase64(char *s, char *result){
-  int sLen = strlen(s);
+int decodeBase64Unterminated(char *s, char *result, int sLen){
   int numGroups = sLen / 4;
   int missingBytesInLastGroup = 0;
   int numFullGroups = numGroups;
@@ -1039,6 +1038,11 @@ int decodeBase64(char *s, char *result){
   }
 
   return outCursor;  
+}
+
+int decodeBase64(char *s, char *result){
+  int sLen = strlen(s);
+  return decodeBase64Unterminated(s,result,sLen);
 }
 
 static char binToB64[] ={0x41,0x42,0x43,0x44,0x45,0x46,0x47,0x48,0x49,0x4A,0x4B,0x4C,0x4D,0x4E,0x4F,0x50,

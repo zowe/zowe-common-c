@@ -154,7 +154,7 @@ int setSocketTrace(int toWhat) {
   return was;
 }
 
-void sleep(int seconds){
+unsigned int sleep(unsigned int seconds){
   int returnValue;
   int *returnValuePtr;
   
@@ -164,6 +164,7 @@ void sleep(int seconds){
   returnValuePtr = &returnValue;
 #endif
   BPXSLP(seconds,returnValuePtr); 
+  return returnValue;
 }
 
 void bpxSleep(int seconds)
@@ -208,6 +209,12 @@ SocketAddress *makeSocketAddrIPv6(InetAddr *addr, unsigned short port){
   }
   return address;
 }
+
+/* SD or, on windows the handle */
+int getSocketDebugID(Socket *s){
+  return s->sd;
+}
+
 
 /*--5---10---15---20---25---30---35---40---45---50---55---60---65---70---75---*/
 #define SO_ERROR    0x1007
@@ -274,7 +281,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
       /* EINPROGRESS is the expected return code here but we are just being careful by checking
          for EWOULDBLOCK as well
       */
-      if (returnValue != 0){
+      if (returnValue){
         returnValue = 0;
         *returnCode  = 0;
         *reasonCode  = 0;
@@ -295,6 +302,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
             printf("BPXCLO for time out connect returnValue %d returnCode %d reasonCode %d\n",
                     returnValue, *returnCode, *reasonCode);
           }
+	
           return NULL;
         }
         *returnCode  = 0;
@@ -317,6 +325,9 @@ Socket *tcpClient3(SocketAddress *socketAddress,
         {
           returnValue = 0;
         }
+      } else{
+	/* all was good on 1st try, but why aren't we setting blocking mode here?
+	   seems inconsistent */
       }
     }
     else{
@@ -351,7 +362,8 @@ Socket *tcpClient3(SocketAddress *socketAddress,
     } else{
       Socket *socket = (Socket*)safeMalloc(sizeof(Socket),"Socket");
       socket->sd = socketVector[0];
-      sprintf(socket->debugName,"SD=%d",socket->sd);
+      socket->pipeOutputSD = 0;  /* nothing, not a reference to STDIN */
+      snprintf(socket->debugName,SOCKET_DEBUG_NAME_LENGTH,"SD=%d",socket->sd);
       socket->isServer = 0;
       socket->tlsFlags = tlsFlags;
       /* manual says returnCode and value only meaningful if return value = -1 */
@@ -380,6 +392,16 @@ Socket *tcpClient(SocketAddress *socketAddress,
   return tcpClient2(socketAddress,-1,returnCode,reasonCode);
 }
 
+Socket *makePipeBasedSyntheticSocket(int protocol, int inputFD, int outputFD){
+  Socket *socket = (Socket*)safeMalloc(sizeof(Socket),"Socket");
+  socket->sd = inputFD;
+  socket->pipeOutputSD = outputFD;
+  snprintf(socket->debugName,SOCKET_DEBUG_NAME_LENGTH,"PIPE(%d,%d)",inputFD,outputFD);
+  socket->isServer = 0;
+  socket->tlsFlags = 0;
+  socket->protocol = protocol;
+  return socket;
+}
 
 void socketFree(Socket *socket){
   safeFree((char*)socket,sizeof(Socket));
@@ -1068,7 +1090,9 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
 int socketWrite(Socket *socket, const char *buffer, int desiredBytes, 
 	       int *returnCode, int *reasonCode){
   int status = 0;
-  int sd = socket->sd;
+  int sd = (IS_SYNTHETIC_PIPE(socket->protocol) ?
+            socket->pipeOutputSD :
+            socket->sd);
   int returnValue = 0;
   *returnCode = *reasonCode = 0;
   int *reasonCodePtr;
