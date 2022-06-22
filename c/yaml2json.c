@@ -170,7 +170,7 @@ static void decodeParserError(yaml_parser_t *parser, char *errorBuf, size_t erro
   }
 }
 
-yaml_document_t *readYAML(const char *filename, char *errorBuf, size_t errorBufSize) {
+yaml_document_t *readYAML2(const char *filename, char *errorBuf, size_t errorBufSize, bool *wasMissing){
   FILE *file = NULL;
   yaml_document_t *document = NULL;
   yaml_parser_t parser = {0};
@@ -182,8 +182,9 @@ yaml_document_t *readYAML(const char *filename, char *errorBuf, size_t errorBufS
       break;
     }
     memset(document, 0, sizeof(yaml_document_t));
-    if (!(file = fopen(filename, "rb"))) {
+    if (!(file = fopen(filename, "r"))) {
       snprintf(errorBuf, errorBufSize, "failed to read '%s' - %s", filename, strerror(errno));
+      *wasMissing = true;
       break;
     }
     if (!yaml_parser_initialize(&parser)) {
@@ -212,6 +213,11 @@ yaml_document_t *readYAML(const char *filename, char *errorBuf, size_t errorBufS
   }
   yaml_parser_delete(&parser);
   return document;
+}
+
+yaml_document_t *readYAML(const char *filename, char *errorBuf, size_t errorBufSize) {
+  bool wasMissing = false;
+  return readYAML2(filename,errorBuf,errorBufSize,&wasMissing);
 }
 
 static void indent(int x){
