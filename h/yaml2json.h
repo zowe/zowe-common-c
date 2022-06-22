@@ -4,6 +4,7 @@
 #include "yaml.h"
 
 yaml_document_t *readYAML(const char *filename, char *errorBuf, size_t errorBufSize);
+yaml_document_t *readYAML2(const char *filename, char *errorBuf, size_t errorBufSize, bool *wasMissing);
 void pprintYAML(yaml_document_t *document);
 Json *yaml2JSON(yaml_document_t *document, ShortLivedHeap *slh);
 
