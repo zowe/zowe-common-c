@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `2.2.0`
+
+- Added a script 'dependencies.sh' which assists in managing external depedencies needed for project compilation
+
 ## `1.27.0`
 
 - Enhancement: Allow to specify 31-bit and 64-bit version of dataService library using `libraryName64` and `libraryName31` keys in DataService definition.
