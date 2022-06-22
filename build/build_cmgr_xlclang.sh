@@ -15,6 +15,13 @@ WORKING_DIR=$(dirname "$0")
 echo "********************************************************************************"
 echo "Building configmgr..."
 
+COMMON="../.."
+
+# Loads project info like name and version
+. configmgr.proj.env
+# Checks for and possibly downloads dependencies from env vars from above file
+dependencies.sh "${COMMON}"
+
 # These paths assume that the build is run from /zss/deps/zowe-common-c/builds
 
 date_stamp=$(date +%Y%m%d%S)
@@ -23,9 +30,6 @@ TMP_DIR="${WORKING_DIR}/tmp-${date_stamp}"
 
 mkdir -p "${TMP_DIR}" && cd "${TMP_DIR}"
 
-COMMON="../.."
-
-VERSION=$(cat ../configmgr_version.txt)
 
 # Split version into parts
 OLDIFS=$IFS
@@ -42,28 +46,6 @@ done
 IFS=$OLDIFS
 
 VERSION="\"${VERSION}\""
-
-
-QUICKJS="${COMMON}/deps/configmgr/quickjs"
-QUICKJS_LOCATION="git@github.com:joenemo/quickjs-portable.git"
-QUICKJS_BRANCH="main"
-
-LIBYAML="${COMMON}/deps/configmgr/libyaml"
-LIBYAML_LOCATION="git@github.com:yaml/libyaml.git"
-LIBYAML_BRANCH="0.2.5"
-
-DEPS="QUICKJS LIBYAML"
-
-IFS=" "
-for dep in ${DEPS}; do
-  eval directory="\$${dep}"
-  echo "Check if dir exist=$directory"
-  if [ ! -d "$directory" ]; then
-    eval echo Clone: \$${dep}_LOCATION @ \$${dep}_BRANCH to \$${dep}
-    eval git clone --branch "\$${dep}_BRANCH" "\$${dep}_LOCATION" "\$${dep}"
-  fi
-done
-IFS=$OLDIFS
 
 rm -f "${COMMON}/bin/configmgr"
 
@@ -83,22 +65,22 @@ xlclang \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
   -DCONFIG_VERSION=\"2021-03-27\" \
-  -I "${LIBYAML}/include" \
-  -I "${QUICKJS}" \
-  ${LIBYAML}/src/api.c \
-  ${LIBYAML}/src/reader.c \
-  ${LIBYAML}/src/scanner.c \
-  ${LIBYAML}/src/parser.c \
-  ${LIBYAML}/src/loader.c \
-  ${LIBYAML}/src/writer.c \
-  ${LIBYAML}/src/emitter.c \
-  ${LIBYAML}/src/dumper.c \
-  ${QUICKJS}/cutils.c \
-  ${QUICKJS}/quickjs.c \
-  ${QUICKJS}/quickjs-libc.c \
-  ${QUICKJS}/libunicode.c \
-  ${QUICKJS}/libregexp.c \
-  ${QUICKJS}/porting/polyfill.c
+  -I "${LIBYAML_DESTINATION}/include" \
+  -I "${QUICKJS_DESTINATION}" \
+  ${LIBYAML_DESTINATION}/src/api.c \
+  ${LIBYAML_DESTINATION}/src/reader.c \
+  ${LIBYAML_DESTINATION}/src/scanner.c \
+  ${LIBYAML_DESTINATION}/src/parser.c \
+  ${LIBYAML_DESTINATION}/src/loader.c \
+  ${LIBYAML_DESTINATION}/src/writer.c \
+  ${LIBYAML_DESTINATION}/src/emitter.c \
+  ${LIBYAML_DESTINATION}/src/dumper.c \
+  ${QUICKJS_DESTINATION}/cutils.c \
+  ${QUICKJS_DESTINATION}/quickjs.c \
+  ${QUICKJS_DESTINATION}/quickjs-libc.c \
+  ${QUICKJS_DESTINATION}/libunicode.c \
+  ${QUICKJS_DESTINATION}/libregexp.c \
+  ${QUICKJS_DESTINATION}/porting/polyfill.c
 #then
 #  echo "Done with qascii-compiled open-source parts"
 #else
@@ -116,8 +98,8 @@ xlclang \
   -DCMGRTEST=1 \
   -I "${COMMON}/h" \
   -I "${COMMON}/platform/posix" \
-  -I "${LIBYAML}/include" \
-  -I "${QUICKJS}" \
+  -I "${LIBYAML_DESTINATION}/include" \
+  -I "${QUICKJS_DESTINATION}" \
   -o "${COMMON}/bin/configmgr" \
   api.o \
   reader.o \
