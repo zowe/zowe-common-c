@@ -15,7 +15,7 @@ WORKING_DIR=$(dirname "$0")
 echo "********************************************************************************"
 echo "Building configmgr..."
 
-COMMON="../.."
+COMMON="$WORKING_DIR/.."
 
 # Loads project info like name and version
 . $WORKING_DIR/configmgr.proj.env
