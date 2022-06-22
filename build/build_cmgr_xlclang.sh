@@ -18,9 +18,11 @@ echo "Building configmgr..."
 COMMON="../.."
 
 # Loads project info like name and version
-. configmgr.proj.env
+. ./configmgr.proj.env
 # Checks for and possibly downloads dependencies from env vars from above file
-dependencies.sh "${COMMON}"
+. ./dependencies.sh
+check_dependencies "${COMMON}" ./configmgr.proj.env
+DEPS_DESTINATION=$(get_destination "${COMMON}")
 
 # These paths assume that the build is run from /zss/deps/zowe-common-c/builds
 
@@ -65,22 +67,22 @@ xlclang \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
   -DCONFIG_VERSION=\"2021-03-27\" \
-  -I "${LIBYAML_DESTINATION}/include" \
-  -I "${QUICKJS_DESTINATION}" \
-  ${LIBYAML_DESTINATION}/src/api.c \
-  ${LIBYAML_DESTINATION}/src/reader.c \
-  ${LIBYAML_DESTINATION}/src/scanner.c \
-  ${LIBYAML_DESTINATION}/src/parser.c \
-  ${LIBYAML_DESTINATION}/src/loader.c \
-  ${LIBYAML_DESTINATION}/src/writer.c \
-  ${LIBYAML_DESTINATION}/src/emitter.c \
-  ${LIBYAML_DESTINATION}/src/dumper.c \
-  ${QUICKJS_DESTINATION}/cutils.c \
-  ${QUICKJS_DESTINATION}/quickjs.c \
-  ${QUICKJS_DESTINATION}/quickjs-libc.c \
-  ${QUICKJS_DESTINATION}/libunicode.c \
-  ${QUICKJS_DESTINATION}/libregexp.c \
-  ${QUICKJS_DESTINATION}/porting/polyfill.c
+  -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
+  -I "${DEPS_DESTINATION}/${QUICKJS}" \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/api.c \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/reader.c \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/scanner.c \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/parser.c \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/loader.c \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/writer.c \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/emitter.c \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/dumper.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/cutils.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/quickjs.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/quickjs-libc.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/libunicode.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/libregexp.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/porting/polyfill.c
 #then
 #  echo "Done with qascii-compiled open-source parts"
 #else
@@ -98,8 +100,8 @@ xlclang \
   -DCMGRTEST=1 \
   -I "${COMMON}/h" \
   -I "${COMMON}/platform/posix" \
-  -I "${LIBYAML_DESTINATION}/include" \
-  -I "${QUICKJS_DESTINATION}" \
+  -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
+  -I "${DEPS_DESTINATION}/${QUICKJS}" \
   -o "${COMMON}/bin/configmgr" \
   api.o \
   reader.o \
