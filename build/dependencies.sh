@@ -87,8 +87,13 @@ check_dependencies() {
 }
 
 get_destination() {
-  echo "$1/deps"
+  root=$1
+  project=$2
+  echo "$root/deps/$project"
 }
 get_dependency_destination() {
-  echo "$1/deps/$2"
+  root=$1
+  project=$2
+  dep=$3
+  echo "$1/deps/$2/$3"
 }
