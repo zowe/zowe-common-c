@@ -15,7 +15,15 @@ WORKING_DIR=$(dirname "$0")
 echo "********************************************************************************"
 echo "Building configmgr..."
 
-COMMON="$WORKING_DIR/.."
+# These paths assume that the build is run from /zss/deps/zowe-common-c/builds
+
+date_stamp=$(date +%Y%m%d%S)
+
+TMP_DIR="${WORKING_DIR}/tmp-${date_stamp}"
+
+mkdir -p "${TMP_DIR}" && cd "${TMP_DIR}"
+
+COMMON="../.."
 
 # Loads project info like name and version
 . $WORKING_DIR/configmgr.proj.env
@@ -24,13 +32,7 @@ COMMON="$WORKING_DIR/.."
 check_dependencies "${COMMON}" "$WORKING_DIR/configmgr.proj.env"
 DEPS_DESTINATION=$(get_destination "${COMMON}")
 
-# These paths assume that the build is run from /zss/deps/zowe-common-c/builds
 
-date_stamp=$(date +%Y%m%d%S)
-
-TMP_DIR="${WORKING_DIR}/tmp-${date_stamp}"
-
-mkdir -p "${TMP_DIR}" && cd "${TMP_DIR}"
 
 
 # Split version into parts
