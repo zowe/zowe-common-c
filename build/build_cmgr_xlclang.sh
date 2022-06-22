@@ -15,13 +15,13 @@ WORKING_DIR=$(dirname "$0")
 echo "********************************************************************************"
 echo "Building configmgr..."
 
-COMMON="../.."
+COMMON="$WORKING_DIR/../.."
 
 # Loads project info like name and version
-. ./configmgr.proj.env
+. $COMMON/build/configmgr.proj.env
 # Checks for and possibly downloads dependencies from env vars from above file
-. ./dependencies.sh
-check_dependencies "${COMMON}" ./configmgr.proj.env
+. $COMMON/build/dependencies.sh
+check_dependencies "${COMMON}" "${COMMON}/build/configmgr.proj.env"
 DEPS_DESTINATION=$(get_destination "${COMMON}")
 
 # These paths assume that the build is run from /zss/deps/zowe-common-c/builds
