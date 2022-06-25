@@ -149,8 +149,6 @@ typedef int64_t ssize_t;
 
     Supporting a subset of jq syntax for extraction:
 
-    JQ available at 
- 
       https://stedolan.github.io/jq/
 
     Examples:
@@ -720,7 +718,7 @@ static Json *readJson(ConfigManager *mgr, CFGConfig *config, ConfigPathElement *
   }
 }
 
-CFGConfig *addConfig(ConfigManager *mgr, const char *configName){
+CFGConfig *cfgAddConfig(ConfigManager *mgr, const char *configName){
   CFGConfig *config = getConfig(mgr,configName);
   if (config){
     return config;
@@ -736,6 +734,10 @@ CFGConfig *addConfig(ConfigManager *mgr, const char *configName){
     mgr->lastConfig = newConfig;
   }
   return newConfig;
+}
+
+CFGConfig *addConfig(ConfigManager *mgr, const char *configName){
+  return cfgAddConfig(mgr,configName);
 }
 
 int cfgSetParmlibMemberName(ConfigManager *mgr, const char *configName, const char *parmlibMemberName){
@@ -823,7 +825,7 @@ static int overloadConfiguration(ConfigManager *mgr,
   }
 }
 
-int loadConfigurations(ConfigManager *mgr, const char *configName){
+int cfgLoadConfiguration(ConfigManager *mgr, const char *configName){
   CFGConfig *config = getConfig(mgr,configName);
   if (!config){
     return ZCFG_UNKNOWN_CONFIG_NAME;
@@ -1387,10 +1389,10 @@ static int setConfigPathWrapper(ConfigManager *mgr, EJSNativeInvocation *invocat
   return EJS_OK;
 }
 
-static int loadConfigurationsWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+static int loadConfigurationWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
   const char *configName = NULL;
   ejsStringArg(invocation,0,&configName);
-  int loadStatus = loadConfigurations(mgr,configName);
+  int loadStatus = cfgLoadConfiguration(mgr,configName);
   ejsReturnInt(invocation,loadStatus);
   return EJS_OK;
 }
@@ -1533,7 +1535,7 @@ static EJSNativeModule *exportConfigManagerToEJS(EmbeddedJS *ejs){
 
   EJSNativeMethod *loadConfiguration = ejsMakeNativeMethod(ejs,configmgr,"loadConfiguration",
                                                           EJS_NATIVE_TYPE_INT32,
-                                                          (EJSForeignFunction*)loadConfigurationsWrapper);
+                                                          (EJSForeignFunction*)loadConfigurationWrapper);
   ejsAddMethodArg(ejs,loadConfiguration,"configName",EJS_NATIVE_TYPE_CONST_STRING);
 
   EJSNativeMethod *setParmlibMemberName = ejsMakeNativeMethod(ejs,configmgr,"setParmlibMemberName",
@@ -1675,7 +1677,7 @@ static int simpleMain(int argc, char **argv){
   if (mgr->traceLevel >= 1){
     printConfigPath(mgr,configName);
   }
-  int loadStatus = loadConfigurations(mgr,configName);
+  int loadStatus = cfgLoadConfiguration(mgr,configName);
   if (loadStatus){
     trace(mgr,INFO,"Failed to load configuration, element may be bad, or less likey a bad merge\n");
     return 0;

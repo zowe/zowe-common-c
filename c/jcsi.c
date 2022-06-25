@@ -57,7 +57,7 @@ int loadCsi() {
         : :"r0","r1","r15");
 
   if (status == 0) {
-    csiFn = (CsiFn)entryPoint;
+    csiFn = (CsiFn)INT2PTR(entryPoint);
   }
   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG2, "IGGCSI00 0x%p LOAD status = 0x%x\n", csiFn, status);
   return status;
@@ -142,6 +142,8 @@ char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSizeInOut) {
 
     returnCode = callCsi(csiFn, paramList, paramList->saveArea);
     reasonCode = *reasonCodePtr;
+
+    printf("JOE csi ret=%d reason=0x%x\n",returnCode,reasonCode);
 
     if (returnCode != 0) {
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "CSI failed ret=%d, reason=0x%x\n", returnCode, reasonCode);

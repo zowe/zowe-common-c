@@ -68,7 +68,7 @@ check_dependencies() {
     echo "Dependencies=$DEPS"
   fi
 
-  destination=$1/deps
+  destination=$1/deps/$PROJECT
 
   OLDIFS=$IFS
   IFS=" "
