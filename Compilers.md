@@ -46,22 +46,35 @@ As of Zowe 2.0 (2022) feel free to use C11 in most places.  We had been holding 
 ## Questions
 
 - Will all 3 streams continue indefinitely (XLC,XLCLANG,OPENXLC/CLANG)?
-- Will other non-XPLINK stack support come to xlclang or clang
+- Will other non-XPLINK stack support come to xlclang or clang?
+- What is upstreamed to Clang/LLVM?
+- - Can we make PR's to help with gaps (see below)
 - NR is deprecated and the doc refers us to the clang documentation. Clang syntax doesn't seem to work. The question is, are there examples of how to use all the __asm__ features in Open XL C/C++? Are there plans to add examples to the Open XL C/C++ doc?
 
 ## Gotcha's
 
 - XLC does allow integer bitfields for all integer widths
 - use "_Packed", not pragma pack(...) - works for all 3 compilers.
+- Open XLC lacks the OS linkage pragma 
+- - much of this is expressable in IR, LE has scratch 31/upward stack)
+- - BPXxxxx, CSFxxxx and many other callable service libraries require it.
+- No Convlit in OpenXLC (to help with EBCDIC names in what is generally ASCII code)
 
 ## Wishlists
 
 - ZOS Macros for inline ASM in Open XLC (clang)
-- Thread local support.  
+- Thread local support. 
+- CompilerRT
+- LLDB
+- Clang Static Analyzer
+- Clang Tidy
+- Output to LL
+- Input from LL
+- Cross compilation (so all the LLVM tools can be used, even if not ported). 
 
 ### OSS Ports
 - CMake 
 - libuv
 - openssl 
 - libcurl
-- 
+- (whatever is known to be upstreamed)
