@@ -8,7 +8,14 @@
 # 
 # Copyright Contributors to the Zowe Project.
 
-WORKING_DIR=$(cd $(dirname "$0") && pwd)
+WORKING_DIR=$(dirname "$0")
+
+# set -v
+
+echo "********************************************************************************"
+echo "Building configmgr for REXX"
+
+# These paths assume that the build is run from /zss/deps/zowe-common-c/builds
 
 # set -v
 
@@ -25,32 +32,12 @@ COMMON="$WORKING_DIR/.."
 check_dependencies "${COMMON}" "$WORKING_DIR/configmgr.proj.env"
 DEPS_DESTINATION=$(get_destination "${COMMON}" "${PROJECT}")
 
-# These paths assume that the build is run from /zss/deps/zowe-common-c/builds
-
-date_stamp=$(date +%Y%m%d%S)
-
-TMP_DIR="${WORKING_DIR}/tmp-${date_stamp}"
-
-mkdir -p "${TMP_DIR}" && cd "${TMP_DIR}"
-
-
-# Split version into parts
-OLDIFS=$IFS
-IFS="."
-for part in ${VERSION}; do
-  if [ -z "$MAJOR" ]; then
-    MAJOR=$part
-  elif [ -z "$MINOR" ]; then
-    MINOR=$part
-  else
-    PATCH=$part
-  fi
-done
-IFS=$OLDIFS
-
-VERSION="\"${VERSION}\""
-
 rm -f "${COMMON}/bin/configmgr"
+
+MAJOR=0
+MINOR=2
+PATCH=5
+VERSION="\"${MAJOR}.${MINOR}.${PATCH}\""
 
 xlclang \
   -c \
@@ -66,6 +53,7 @@ xlclang \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
   -DCONFIG_VERSION=\"2021-03-27\" \
+  -DNEW_CAA_LOCATIONS=1 \
   -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
   -I "${DEPS_DESTINATION}/${QUICKJS}" \
   ${DEPS_DESTINATION}/${LIBYAML}/src/api.c \
@@ -81,6 +69,7 @@ xlclang \
   ${DEPS_DESTINATION}/${QUICKJS}/quickjs-libc.c \
   ${DEPS_DESTINATION}/${QUICKJS}/libunicode.c \
   ${DEPS_DESTINATION}/${QUICKJS}/libregexp.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/porting/debugutil.c \
   ${DEPS_DESTINATION}/${QUICKJS}/porting/polyfill.c
 #then
 #  echo "Done with qascii-compiled open-source parts"
@@ -90,18 +79,37 @@ xlclang \
 #fi
 
 xlclang \
+  -c \
   -q64 \
   "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN')" \
+  -DYAML_VERSION_MAJOR=${YAML_MAJOR} \
+  -DYAML_VERSION_MINOR=${YAML_MINOR} \
+  -DYAML_VERSION_PATCH=${YAML_PATCH} \
+  -DYAML_VERSION_STRING="${YAML_VERSION}" \
+  -DYAML_DECLARE_STATIC=1 \
   -D_OPEN_SYS_FILE_EXT=1 \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
-  -DNOIBMHTTP=1 \
-  -DCMGRTEST=1 \
+  -DCONFIG_VERSION=\"2021-03-27\" \
+  -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
+  -I "${DEPS_DESTINATION}/${QUICKJS}" \
+  -I ${COMMON}/h \
+  ${COMMON}/c/embeddedjs.c 
+
+# Hacking around weird link issue:
+ar x /usr/lpp/cbclib/lib/libibmcmp.a z_atomic.LIB64R.o
+
+xlc \
+  -q64 \
+  "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'),list()" \
+  -D_OPEN_SYS_FILE_EXT=1 \
+  -D_XOPEN_SOURCE=600 \
+  -D_OPEN_THREADS=1 \
+  -DNEW_CAA_LOCATIONS=1 \
   -I "${COMMON}/h" \
   -I "${COMMON}/platform/posix" \
   -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
-  -I "${DEPS_DESTINATION}/${QUICKJS}" \
-  -o "${COMMON}/bin/configmgr" \
+  -o "${COMMON}/bin/zwecfgle" \
   api.o \
   reader.o \
   scanner.o \
@@ -116,12 +124,14 @@ xlclang \
   libunicode.o \
   libregexp.o \
   polyfill.o \
+  debugutil.o \
+  embeddedjs.o \
+  z_atomic.LIB64R.o \
   ${COMMON}/c/alloc.c \
   ${COMMON}/c/bpxskt.c \
   ${COMMON}/c/charsets.c \
   ${COMMON}/c/collections.c \
   ${COMMON}/c/configmgr.c \
-  ${COMMON}/c/embeddedjs.c \
   ${COMMON}/c/json.c \
   ${COMMON}/c/jsonschema.c \
   ${COMMON}/c/le.c \
@@ -131,6 +141,7 @@ xlclang \
   ${COMMON}/c/pdsutil.c \
   ${COMMON}/platform/posix/psxregex.c \
   ${COMMON}/c/recovery.c \
+  ${COMMON}/c/rexxcmgr.c \
   ${COMMON}/c/scheduling.c \
   ${COMMON}/c/timeutls.c \
   ${COMMON}/c/utils.c \
@@ -148,8 +159,6 @@ xlclang \
 #  echo "Build failed"
 #  exit 8
 #fi
-
-rm -rf "${TMP_DIR}"
 
 
 # This program and the accompanying materials are

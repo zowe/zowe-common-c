@@ -437,11 +437,29 @@ typedef struct ecvt_tag{
   short ecvtptim;     /* time value for parallel detach (RTM) */
   Addr31 ecvtjcct;     /* JES Communication Control Table */
   /* Offset 0x120 */
-  char unmapped1[0x30];
+  Addr31 ecvtlsab;     /* Logger Services Anchor Block */
+  Addr31 ecvtetpe;     /* V(IEAVETPE) */
+  Addr31 ecvtsymt;     /* System static Symbol table - Mapped by SYMBT withing ASASYMBP */
+  Addr31 ecvtesym;     /* V(IEAVESYM) */
+  char unmapped1[0x20];
+  /* Offset 0x150 */
   char ecvthdnm[8];
   char ecvtlpnm[8];
   char ecvtvmnm[8];
-  char unmapped2[0x74];
+  /* Offset 0x168 */
+  Addr31 ecvtgrm;    /* V(CRG52GRM) */
+  Addr31 ecvtseif;   /* V(CRG52SEI) */
+  /* Offset 0x170 */
+  Addr31 ecvtaes;    /* V(IEAVEAES) */
+  Addr31 ecvtrsmt;   /* Addr registration services management table */
+  char   ecvtmmem[16];
+  /* Offset 0x188 */
+  Addr31 ecvtipa;    /* Addr of Initzltn Parameter Area - like "D IPLINFO" */
+  char   ecvtmmet[16]; 
+  Addr31 ecvtmmeq;
+  /* Offset 0x1A0 */
+  char unmapped2[0x3C];
+  /* OFFSET 0x1DC */
   int  ecvtpseq;
   char ecvtpown[16];
   char ecvtpnam[16];
@@ -450,6 +468,10 @@ typedef struct ecvt_tag{
   char ecvtpmod[2];
   char ecvtpdvl;
   char ecvtttfl;     /* transaction trace flags */
+  /* OFFSET 0x208 */
+  char unmapped208[0x3D0-0x208]; 
+  /* OFFSET 0x3D0 */
+  Addr31 ecvtizugsp;      /* ZOSMF info */
   /* more unmapped fields here */
 } ECVT;
 
@@ -1234,7 +1256,29 @@ typedef struct JSCB_tag{
   Addr31    jscbcscb;                /* Addr of CSCB Command Scheduling Block */
   /* theres a *LOT* of crufty JES stuff after here, really weird stuff, not all noted here */
   
-  char      undifferentiated104[0x168-0x104]; 
+  char      undifferentiated104[0x130-0x104]; 
+  /* Offset 0x130 */
+  uint16_t  jscbsono;                /* # of SYSOUT Data Sets + 1 */
+  uint16_t  jscbcrb2;                /* see manual */
+  uint64_t  jscbfrba;                /* Relative Byte Address of First Journal Block */
+  Addr31    jscbssib;                /* Life-of-JOB SSIB */
+  /* Offset 0x140 */
+  Addr31    jscdsabq;                /* QDB for DSAB Chain */
+  uint32_t  jscgddno;                /* Counter used by Dynalloc to generate DD Names */
+  uint32_t  jscsct;                  /* Low 3 bytes are SVA of SCT, use SWAREQ to get pointer */
+  Addr31    jsctmcor;                /* Address of TIOT main storage mgmt area */
+  /* Offset 0x150 */
+  Addr31    jscbvata;                /* Address of VAT Used during restart */
+  uint16_t  jscrsv08;
+  uint16_t  jscbodno;                /* Counter used by dynamic output for desciptors */
+  uint16_t  jscddnum;                /* # of DDNames allocated, both in-use and not */
+  char      jscrsv33;
+  char      jscbswsp;                /* SWA Subpool */
+  Addr31    jscbact;                 /* Active JSCB */
+  /* Offset 0x160 */
+  Addr31    jscrsv09;
+  Addr31    jscbeacb;                /* Address of Event Log ACB */
+
   /* Offset 0x168 */
   char      jscbpgnm[8];             /* Job Step Program Name */
 } JSCB;
