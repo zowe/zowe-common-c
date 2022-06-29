@@ -31,7 +31,7 @@ There are many nits in porting OSS to ZOS.  There are differences, and some omis
 
 ## Enter Open XL C/C++ 1.1
 
-OpenXLC is essentially Clang 14 for ZOS.  And it's GA as of May 2022.  Porting open-source to ZOS should be even broader in scope and simpler in implementation than xlclang.  Please read the migration guide at:
+Open XL C/C++ is essentially Clang 14 for ZOS.  And it's GA as of May 2022.  Porting open-source to ZOS should be even broader in scope and simpler in implementation than xlclang.  Please read the migration guide at:
 
 [Migration Guide](https://www.ibm.com/docs/en/SSUMVNF_1.1.0/pdf/migrate.pdf).
 
