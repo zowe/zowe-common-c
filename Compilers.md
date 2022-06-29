@@ -29,7 +29,7 @@ Actually most of zowe-common-c can compile with xlclang (or clang off ZOS).  The
 
 There are many nits in porting OSS to ZOS.  There are differences, and some omissions in standard libaries.   And a lot of open source code has Linux-isms in it that violate language and POSIX standards.  So it is rarely just "make and run".
 
-## Enter Open XLC 1.1
+## Enter Open XL C/C++ 1.1
 
 OpenXLC is essentially Clang 14 for ZOS.  And it's GA as of May 2022.  Porting open-source to ZOS should be even broader in scope and simpler in implementation than xlclang.  Please read the migration guide at:
 
@@ -47,6 +47,7 @@ As of Zowe 2.0 (2022) feel free to use C11 in most places.  We had been holding 
 
 - Will all 3 streams continue indefinitely (XLC,XLCLANG,OPENXLC/CLANG)?
 - Will other non-XPLINK stack support come to xlclang or clang
+- NR is deprecated and the doc refers us to the clang documentation. Clang syntax doesn't seem to work. The question is, are there examples of how to use all the __asm__ features in Open XL C/C++? Are there plans to add examples to the Open XL C/C++ doc?
 
 ## Gotcha's
 
@@ -56,6 +57,7 @@ As of Zowe 2.0 (2022) feel free to use C11 in most places.  We had been holding 
 ## Wishlists
 
 - ZOS Macros for inline ASM in Open XLC (clang)
+- Thread local support.  
 
 ### OSS Ports
 - CMake 
