@@ -143,8 +143,6 @@ char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSizeInOut) {
     returnCode = callCsi(csiFn, paramList, paramList->saveArea);
     reasonCode = *reasonCodePtr;
 
-    printf("JOE csi ret=%d reason=0x%x\n",returnCode,reasonCode);
-
     if (returnCode != 0) {
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "CSI failed ret=%d, reason=0x%x\n", returnCode, reasonCode);
       safeFree31((char*)workArea, workAreaSize);
