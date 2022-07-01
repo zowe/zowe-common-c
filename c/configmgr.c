@@ -792,7 +792,8 @@ void freeConfigManager(ConfigManager *mgr){
 static int overloadConfiguration(ConfigManager *mgr,
                                  CFGConfig *config,
                                  ConfigPathElement *pathElement,
-                                 ConfigPathElement *pathTail){
+                                 ConfigPathElement *pathTail,
+                                 int arrayMergePolicy){
   if (pathTail == NULL){
     trace(mgr, DEBUG2, "at end of config path\n");
     bool dontCare = false;
@@ -808,7 +809,7 @@ static int overloadConfiguration(ConfigManager *mgr,
     if ((overlay == NULL) && !nullAllowed){
       return ZCFG_MISSING_CONFIG_SOURCE;
     }
-    int rhsStatus = overloadConfiguration(mgr,config,pathTail,pathTail->next);
+    int rhsStatus = overloadConfiguration(mgr,config,pathTail,pathTail->next,arrayMergePolicy);
     trace(mgr, DEBUG2, "read the overlay with json=0x%p and status=%d\n",overlay,rhsStatus);
     if (rhsStatus){
       return rhsStatus; /* don't merge if we couldn't load what's to the right in the list */
@@ -816,7 +817,7 @@ static int overloadConfiguration(ConfigManager *mgr,
     int mergeStatus = 0;
     if (overlay){
       config->configData = jsonMerge(mgr->slh,overlay,config->configData,
-				     JSON_MERGE_FLAG_CONCATENATE_ARRAYS,
+				     arrayMergePolicy,
 				     &mergeStatus);
     } else{
       /* let it ride */
@@ -825,13 +826,44 @@ static int overloadConfiguration(ConfigManager *mgr,
   }
 }
 
-int cfgLoadConfiguration(ConfigManager *mgr, const char *configName){
+int cfgMakeModifiedConfiguration(ConfigManager *mgr, 
+				 const char *configName, 
+				 const char *modifiedConfigName,
+				 Json *overlay, 
+				 int arrayMergePolicy){
+  CFGConfig *config = getConfig(mgr,configName);
+  if (!config){
+    return ZCFG_UNKNOWN_CONFIG_NAME;
+  }
+  int mergeStatus = 0;
+
+  Json *mergedData = jsonMerge(mgr->slh,
+			       overlay,
+			       config->configData,
+			       arrayMergePolicy,
+			       &mergeStatus);
+  if (mergeStatus){
+    return mergeStatus;
+  }
+  CFGConfig *modifiedConfig = cfgAddConfig(mgr,modifiedConfigName);
+  modifiedConfig->schemaPath = config->schemaPath;
+  /* is this path really true anymore?? */
+  modifiedConfig->configPath = config->configPath;
+  modifiedConfig->topSchema = config->topSchema;
+  modifiedConfig->otherSchemas = config->otherSchemas;
+  modifiedConfig->otherSchemasCount = config->otherSchemasCount;
+  modifiedConfig->parmlibMemberName = config->parmlibMemberName;
+  modifiedConfig->configData = mergedData;
+  return ZCFG_SUCCESS;
+}
+
+int cfgLoadConfiguration2(ConfigManager *mgr, const char *configName, int arrayMergePolicy){
   CFGConfig *config = getConfig(mgr,configName);
   if (!config){
     return ZCFG_UNKNOWN_CONFIG_NAME;
   }
   ConfigPathElement *pathElement = config->configPath;
-  int overloadStatus = overloadConfiguration(mgr,config,pathElement,pathElement->next);
+  int overloadStatus = overloadConfiguration(mgr,config,pathElement,pathElement->next,arrayMergePolicy);
   trace(mgr,DEBUG,"Overload status = %d\n",overloadStatus);
   if (overloadStatus){
     return overloadStatus;
@@ -857,17 +889,12 @@ int cfgLoadConfiguration(ConfigManager *mgr, const char *configName){
     }
   }
 }
-  
 
-/* Merging notes
-   defaulting and merging requires the same data shape at all levels and sources 
-*/
+int cfgLoadConfiguration(ConfigManager *mgr, const char *configName){
+  return cfgLoadConfiguration2(mgr,configName,JSON_MERGE_FLAG_CONCATENATE_ARRAYS);
+}
 
 /* all calls return status */
-
-/* zowe.setup.mvs.proclib */
-
-
 
 static Json *jsonPointerDereference(Json *json, JsonPointer *jsonPointer, int *errorReason, int traceLevel){
   ArrayList *elements = &(jsonPointer->elements);
@@ -1397,6 +1424,21 @@ static int loadConfigurationWrapper(ConfigManager *mgr, EJSNativeInvocation *inv
   return EJS_OK;
 }
 
+static int makeModifiedConfigurationWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  const char *configName = NULL;
+  ejsStringArg(invocation,0,&configName);
+  const char *modifiedConfigName = NULL;
+  ejsStringArg(invocation,1,&modifiedConfigName);
+  Json *overlay = NULL;
+  ejsJsonArg(invocation,2,&overlay);
+  int arrayMergePolicy = 0;
+  ejsIntArg(invocation,3,&arrayMergePolicy);
+  
+  int status = cfgMakeModifiedConfiguration(mgr,configName,modifiedConfigName,overlay,arrayMergePolicy);
+  ejsReturnInt(invocation,status);
+  return EJS_OK;
+}
+
 static int setParmlibMemberNameWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
   const char *configName = NULL;
   ejsStringArg(invocation,0,&configName);
@@ -1537,6 +1579,14 @@ static EJSNativeModule *exportConfigManagerToEJS(EmbeddedJS *ejs){
                                                           EJS_NATIVE_TYPE_INT32,
                                                           (EJSForeignFunction*)loadConfigurationWrapper);
   ejsAddMethodArg(ejs,loadConfiguration,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+
+  EJSNativeMethod *makeModifiedConfiguration = ejsMakeNativeMethod(ejs,configmgr,"makeModifiedConfiguration",
+								   EJS_NATIVE_TYPE_INT32,
+								   (EJSForeignFunction*)makeModifiedConfigurationWrapper);
+  ejsAddMethodArg(ejs,makeModifiedConfiguration,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+  ejsAddMethodArg(ejs,makeModifiedConfiguration,"modifiedConfigName",EJS_NATIVE_TYPE_CONST_STRING);
+  ejsAddMethodArg(ejs,makeModifiedConfiguration,"overrides",EJS_NATIVE_TYPE_JSON);
+  ejsAddMethodArg(ejs,makeModifiedConfiguration,"arrayMergePolicy",EJS_NATIVE_TYPE_INT32);
 
   EJSNativeMethod *setParmlibMemberName = ejsMakeNativeMethod(ejs,configmgr,"setParmlibMemberName",
                                                               EJS_NATIVE_TYPE_INT32,
