@@ -57,7 +57,7 @@ jobs:
 
       - name: '[Prep 4] Set version'
         id: version
-        run: echo "::set-output name=version::$(cat build/configmgr_version.txt)"
+        run: echo "::set-output name=version::$(cat build/configmgr.proj.env | grep VERSION | cut -f 2 -d=)"
 
       - name: '[Prep 5] Set branchname'
         id: branch
