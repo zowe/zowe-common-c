@@ -1676,6 +1676,14 @@ static void initContextModules(JSContext *ctx, EJSNativeModule **nativeModules, 
         
  */
 
+static char *copyToNative(const char *source, ShortLivedHeap *slh){
+  size_t sourceLen = strlen(source);
+  char *dest = (slh ? SLHAlloc(slh,sourceLen+1) : safeMalloc(sourceLen+1,"copyFromNative"));
+  snprintf (dest, sourceLen + 1, "%.*s", (int)sourceLen, source);
+  convertToNative(dest, sourceLen);
+  return dest;
+}
+
 static Json *jsToJson1(EmbeddedJS *ejs,
                        JsonBuilder *b, Json *parent, char *parentKey,
                        JSValue value,
@@ -1738,10 +1746,11 @@ static Json *jsToJson1(EmbeddedJS *ejs,
         /* BEWARE!!!
            JS_GetOwnProperty has *NASTY* 3-valued logic.  < 0 error, 0 not found, 1 found */
         int valueStatus = JS_GetOwnProperty(ctx,&descriptor,value,property->atom);
-        const char *cPropertyName = JS_ToCString(ctx,propertyName);
-        /* printf("jsToJson property i=%d %s valStatus=%d\n",i,cPropertyName,valueStatus); */
+        const char *cPropertyName = JS_ToCString(ctx,propertyName); /* will be UTF/ASCII */
+	char *cPropertyNative = copyToNative(cPropertyName,b->parser.slh);
+        /* printf("jsToJson property i=%d %s valStatus=%d\n",i,cPropertyNative,valueStatus); */
         if (valueStatus > 0){
-          jsToJson1(ejs,b,jsonObject,(char*)cPropertyName,descriptor.value,depth+1);
+          jsToJson1(ejs,b,jsonObject,(char*)cPropertyNative,descriptor.value,depth+1);
         } else {
           printf("*** WARNING *** could not get value for property '%s', status=%d\n",cPropertyName,valueStatus);
         }

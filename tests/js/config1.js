@@ -83,16 +83,26 @@ var loadAndExtract = function(){
             console.log("no exceptions seen");
             let theConfig = cmgr.getConfigData(configName);
             console.log("configData is loaded \n"+JSON.stringify(theConfig,null,"\n"));
-            console.log("listenerPort is "+theConfig.listenerPort);
+            console.log("listenerPort is "+theConfig.listenerPort)
+	    status = cmgr.makeModifiedConfiguration(configName, /* name of existing config */
+                                                    "modConfig", /* name of new config with mods */
+                                                    { listenerPort: 10101 }, 1);
+
             let [ yamlStatus, textOrNull ] = cmgr.writeYAML(configName);
             console.log("here's the whole config as yaml, status="+status);
             if (yamlStatus == 0){
               console.log(""+textOrNull);
             }
+            console.log("here's the modifiedConfig");
+            let [ yamlStatus2, modText ] = cmgr.writeYAML("modConfig");
+            if (yamlStatus2 == 0){
+              console.log(""+modText);
+            }
         }
     } else {
         console.log("validation failed, contact Zowe support");
     }
+
 
 }
 
