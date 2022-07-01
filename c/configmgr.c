@@ -793,7 +793,7 @@ static int overloadConfiguration(ConfigManager *mgr,
                                  CFGConfig *config,
                                  ConfigPathElement *pathElement,
                                  ConfigPathElement *pathTail,
-				 int arrayMergePolicy){
+                                 int arrayMergePolicy){
   if (pathTail == NULL){
     trace(mgr, DEBUG2, "at end of config path\n");
     bool dontCare = false;

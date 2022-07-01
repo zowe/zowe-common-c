@@ -84,7 +84,7 @@ var loadAndExtract = function(){
             let theConfig = cmgr.getConfigData(configName);
             console.log("configData is loaded \n"+JSON.stringify(theConfig,null,"\n"));
             console.log("listenerPort is "+theConfig.listenerPort)
-	    status = cmgr.makeModifiedConfiguration(configName, /* name of existing config */
+            status = cmgr.makeModifiedConfiguration(configName, /* name of existing config */
                                                     "modConfig", /* name of new config with mods */
                                                     { listenerPort: 10101 }, 1);
 
