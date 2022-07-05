@@ -61,7 +61,7 @@ jobs:
 
       - name: '[Prep 5] Set branchname'
         id: branch
-        run: echo "::set-output name=branch::$(echo '${{ github.head_ref }}' | sed 's@/@_@g')"
+        run: echo "::set-output name=branch::$(if [ -n '${{ github.head_ref }}' ]; then echo '${{ github.head_ref }}'; else echo '${{ github.ref_name }}'; fi | sed 's@/@_@g')"
 
 
       - name: '[Prep 6] Prepare workflow'
