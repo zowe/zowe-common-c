@@ -907,7 +907,7 @@ static char YAML_SEQ_TAG_ASCII[22] ={0x74, 0x61, 0x67, 0x3a, 0x79, 0x61, 0x6d, 0
 
 static char YAML_MAP_TAG_ASCII[22] ={0x74, 0x61, 0x67, 0x3a, 0x79, 0x61, 0x6d, 0x6c, 0x2e, 0x6f, 0x72, 0x67, 0x2c, 0x32, 0x30, 0x30, 0x32, 0x3a, 0x6d, 0x61, 0x70,  0x00};
 
-static int emitScalar(yaml_emitter_t *emitter, char *scalar, char *tag){
+static int emitScalar(yaml_emitter_t *emitter, char *scalar, char *tag, int style){
   yaml_event_t event;
   int sLen = strlen(scalar);
   char asciiScalar[sLen+1];
@@ -915,7 +915,7 @@ static int emitScalar(yaml_emitter_t *emitter, char *scalar, char *tag){
   convertFromNative(asciiScalar,sLen);
   yaml_scalar_event_initialize(&event, NULL, (yaml_char_t *)YAML_STR_TAG_ASCII,
                                (yaml_char_t*)asciiScalar, sLen,
-                               1, 0, YAML_PLAIN_SCALAR_STYLE);
+                               1, 1, style);
   if (yaml_emitter_emit(emitter, &event)){
     return YAML_SUCCESS;
   } else {
@@ -982,20 +982,20 @@ static int writeJsonAsYaml1(yaml_emitter_t *emitter, Json *json){
 #else
     sprintf(scalarBuffer,"%ld",jsonAsInt64(json));
 #endif
-    return emitScalar(emitter,scalarBuffer,YAML_INT_TAG_ASCII);
+    return emitScalar(emitter,scalarBuffer,YAML_INT_TAG_ASCII, YAML_PLAIN_SCALAR_STYLE);
   } else if (jsonIsDouble(json)){
     sprintf(scalarBuffer,"%f",jsonAsDouble(json));
-    return emitScalar(emitter,scalarBuffer,YAML_FLOAT_TAG_ASCII);
+    return emitScalar(emitter,scalarBuffer,YAML_FLOAT_TAG_ASCII, YAML_PLAIN_SCALAR_STYLE);
   } else if (jsonIsNumber(json)){
     sprintf(scalarBuffer,"%d",jsonAsNumber(json));
-    return emitScalar(emitter,scalarBuffer,YAML_INT_TAG_ASCII);
+    return emitScalar(emitter,scalarBuffer,YAML_INT_TAG_ASCII, YAML_PLAIN_SCALAR_STYLE);
   } else if (jsonIsString(json)){
     sprintf(scalarBuffer,"%s",jsonAsString(json));
-    return emitScalar(emitter,scalarBuffer,YAML_STR_TAG_ASCII);
+    return emitScalar(emitter,scalarBuffer,YAML_STR_TAG_ASCII, YAML_DOUBLE_QUOTED_SCALAR_STYLE);
   } else if (jsonIsBoolean(json)){
-    return emitScalar(emitter,(jsonAsBoolean(json) ? "true" : "false"),YAML_BOOL_TAG_ASCII);
+    return emitScalar(emitter,(jsonAsBoolean(json) ? "true" : "false"),YAML_BOOL_TAG_ASCII, YAML_PLAIN_SCALAR_STYLE);
   } else if (jsonIsNull(json)){
-    return emitScalar(emitter,"null",YAML_NULL_TAG_ASCII);
+    return emitScalar(emitter,"null",YAML_NULL_TAG_ASCII, YAML_PLAIN_SCALAR_STYLE);
   } else {
     printf("PANIC: unexpected json type %d\n",json->type);
     return YAML_GENERAL_FAILURE+7;
