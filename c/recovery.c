@@ -17,6 +17,7 @@
 #include <metal/stdio.h>
 #include <metal/stdlib.h>
 #include <metal/string.h>
+#include <metal/stdint.h>
 #include <metal/inttypes.h>
 #include "metalio.h"
 #else
@@ -24,6 +25,7 @@
 #include "stdlib.h"
 #include "stdio.h"
 #include "string.h"
+#include "stdint.h"
 #include "inttypes.h"
 #endif
 
