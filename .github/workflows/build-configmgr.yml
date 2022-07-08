@@ -57,11 +57,11 @@ jobs:
 
       - name: '[Prep 4] Set version'
         id: version
-        run: echo "::set-output name=version::$(cat build/configmgr_version.txt)"
+        run: echo "::set-output name=version::$(cat build/configmgr.proj.env | grep VERSION | cut -f 2 -d=)"
 
       - name: '[Prep 5] Set branchname'
         id: branch
-        run: echo "::set-output name=branch::$(echo '${{ github.head_ref }}' | sed 's@/@_@g')"
+        run: echo "::set-output name=branch::$(if [ -n '${{ github.head_ref }}' ]; then echo '${{ github.head_ref }}'; else echo '${{ github.ref_name }}'; fi | sed 's@/@_@g')"
 
 
       - name: '[Prep 6] Prepare workflow'
