@@ -1432,7 +1432,9 @@ static int initNativeModuleCallback(JSContext *ctx, JSModuleDef *m){
     JS_NewClass(JS_GetRuntime(ctx), nativeClassInternals->classID, &nativeClassInternals->classDef);
     JSValue proto = JS_NewObject(ctx);
     void *protoPointer = JS_VALUE_GET_PTR(proto);
-    printf("JOE putting proto pointer for '%s' as proto=0x%p, nCI=0x%p\n",nativeClass->name,protoPointer,nativeClassInternals);
+    if (ejs->traceLevel >= 1) {
+      printf("JOE putting proto pointer for '%s' as proto=0x%p, nCI=0x%p\n",nativeClass->name,protoPointer,nativeClassInternals);
+    }
     lhtPut(ejs->nativeClassTable,(int64_t)protoPointer,nativeClassInternals);
     buildNativePrototypeFunctions(ctx,ejs,proto,nativeClass,nativeClassInternals);
 

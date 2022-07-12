@@ -878,10 +878,10 @@ int cfgLoadConfiguration2(ConfigManager *mgr, const char *configName, int arrayM
     if (evaluatedConfig){
       config->configData = evaluatedConfig;
       if (mgr->traceLevel >= 1){
-	printf("config after template eval:\n");
-	fflush(stdout);
-	fflush(stderr);
-	jsonPrettyPrint(mgr, config->configData);
+        printf("config after template eval:\n");
+        fflush(stdout);
+        fflush(stderr);
+        jsonPrettyPrint(mgr, config->configData);
       }
       return ZCFG_SUCCESS;
     } else {
@@ -944,7 +944,7 @@ static Json *varargsDereference(Json *json, int argCount, va_list args, int *err
       JsonArray *array = jsonAsArray(value);
       int index = va_arg(args,int);
       if (traceLevel >= 1){
-	printf("vdref array i=%d ndx=%d\n",i,index);
+        printf("vdref array i=%d ndx=%d\n",i,index);
       }
       int arraySize = jsonArrayGetCount(array);
       if (index >= arraySize){
@@ -956,8 +956,8 @@ static Json *varargsDereference(Json *json, int argCount, va_list args, int *err
       JsonObject *object = jsonAsObject(value);
       char *key = va_arg(args,char *);
       if (traceLevel >= 1){
-	printf("vdref object i=%d k=%s\n",i,key);
-	fflush(stdout);
+        printf("vdref object i=%d k=%s\n",i,key);
+        fflush(stdout);
       }
       Json *newValue = jsonObjectGetPropertyValue(object,key);
       if (newValue == NULL){
@@ -1400,8 +1400,7 @@ static int loadSchemasWrapper(ConfigManager *mgr, EJSNativeInvocation *invocatio
   const char *schemaList = NULL;
   ejsStringArg(invocation,1,&schemaList);
   int status = cfgLoadSchemas(mgr,configName,(char*)schemaList);
-  printf("loadSchemas ret = %d\n",status);
-  fflush(stdout);
+  trace(mgr, DEBUG, "loadSchemas ret = %d\n",status);
   ejsReturnInt(invocation,status);
   return EJS_OK;
 }
@@ -1844,11 +1843,13 @@ int main(int argc, char **argv){
     EmbeddedJS *ejs = allocateEmbeddedJS(NULL);
     modules[0] = exportConfigManagerToEJS(ejs);
     configureEmbeddedJS(ejs,modules,1,argc,argv);
-    printf("configured EJS, and starting script_______________________________________________\n");
-    fflush(stdout);
-    fflush(stderr);
+    /* disabled due to verbosity causing scripting errors for those who read std as a return value 
+      printf("configured EJS, and starting script_______________________________________________\n");
+      fflush(stdout);
+      fflush(stderr);
+    */
     int evalStatus = ejsEvalFile(ejs,filename,EJS_LOAD_IS_MODULE);
-    printf("Done with EJS: File eval returns %d_______________________________________________\n",evalStatus);
+    // printf("Done with EJS: File eval returns %d_______________________________________________\n",evalStatus);
   } else {
     return simpleMain(argc,argv);
   }
