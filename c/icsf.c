@@ -122,6 +122,26 @@ int icsfDigestInit(ICSFDigest *digest, int type){
     digest->ruleArray = "SHA-1   FIRST   ";
     digest->hashLength = 20;
     break;
+  case ICSF_DIGEST_SHA224:
+    digest->ruleArrayCount = 2;
+    digest->ruleArray = "SHA224  FIRST   ";
+    digest->hashLength = 28;
+    break;
+  case ICSF_DIGEST_SHA256:
+    digest->ruleArrayCount = 2;
+    digest->ruleArray = "SHA246  FIRST   ";
+    digest->hashLength = 32;
+    break;
+  case ICSF_DIGEST_SHA384:
+    digest->ruleArrayCount = 2;
+    digest->ruleArray = "SHA384  FIRST   ";
+    digest->hashLength = 48;
+    break;
+  case ICSF_DIGEST_SHA512:
+    digest->ruleArrayCount = 2;
+    digest->ruleArray = "SHA512  FIRST   ";
+    digest->hashLength = 64;
+    break;
   default:
     if (digestTrace){
       printf("unimplemented\n");
@@ -165,6 +185,22 @@ int icsfDigestUpdate(ICSFDigest *digest, char *data, int len){
   case ICSF_DIGEST_SHA1:
     digest->ruleArrayCount = 2;
     digest->ruleArray = "SHA-1   MIDDLE  ";
+    break;
+  case ICSF_DIGEST_SHA224:
+    digest->ruleArrayCount = 2;
+    digest->ruleArray = "SHA224  MIDDLE  ";
+    break;
+  case ICSF_DIGEST_SHA256:
+    digest->ruleArrayCount = 2;
+    digest->ruleArray = "SHA256  MIDDLE  ";
+    break;
+  case ICSF_DIGEST_SHA384:
+    digest->ruleArrayCount = 2;
+    digest->ruleArray = "SHA384  MIDDLE  ";
+    break;
+  case ICSF_DIGEST_SHA512:
+    digest->ruleArrayCount = 2;
+    digest->ruleArray = "SHA512  MIDDLE  ";
     break;
   default:
     if (digestTrace){
@@ -247,6 +283,22 @@ int icsfDigestFinish(ICSFDigest *digest, char *hash){
   case ICSF_DIGEST_SHA1:
     digest->ruleArrayCount = 2;
     digest->ruleArray = "SHA-1   LAST    ";
+    break;
+  case ICSF_DIGEST_SHA224:
+    digest->ruleArrayCount = 2;
+    digest->ruleArray = "SHA224  LAST    ";
+    break;
+  case ICSF_DIGEST_SHA256:
+    digest->ruleArrayCount = 2;
+    digest->ruleArray = "SHA256  LAST    ";
+    break;
+  case ICSF_DIGEST_SHA384:
+    digest->ruleArrayCount = 2;
+    digest->ruleArray = "SHA384  LAST    ";
+    break;
+  case ICSF_DIGEST_SHA512:
+    digest->ruleArrayCount = 2;
+    digest->ruleArray = "SHA512  LAST    ";
     break;
   default:
     if (digestTrace){

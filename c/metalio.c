@@ -837,12 +837,73 @@ void vfprintf(void *target, char *formatString, va_list argPointer){
   sysout->position = pos;
 }
 
+#define PRINTF_SIZE 1024
+
+static int fwriteInternal(int fd, const char *buffer, int desiredBytes,
+                          int *returnCode, int *reasonCode){
+  int status = 0;
+  int sd = fd;
+  int returnValue = 0;
+  int *reasonCodePtr;
+  int zero = 0;
+
+#ifndef _LP64
+  reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
+  BPX1WRT(&sd,
+#else
+  reasonCodePtr = reasonCode;
+  BPX4WRT(&sd,
+#endif
+	  &buffer,
+	  &zero,
+	  &desiredBytes,
+	  &returnValue,
+	  returnCode,
+	  reasonCodePtr);
+  if (returnValue < 0){
+    return -1;
+  } else {
+    *returnCode = 0;
+    *reasonCode = 0;
+    return returnValue;
+  }
+}
+
+int fdprintf(int fd, char *formatString, ...){
+  va_list argPointer;
+  char buffer[PRINTF_SIZE];
+  va_start(argPointer,formatString);
+  int len = vsnprintf(buffer,(size_t)PRINTF_SIZE,formatString,argPointer);
+  va_end(argPointer);
+  int returnCode = 0;
+  int reasonCode = 0;
+  if (len < PRINTF_SIZE){
+    fwriteInternal(fd,buffer,len,&returnCode,&reasonCode);
+  }
+  return 0;
+}
+
+#ifdef METAL_PRINTF_TO_STDOUT
+void printf(char *formatString, ...){
+  va_list argPointer;
+  char buffer[PRINTF_SIZE];
+  va_start(argPointer,formatString);
+  int len = vsnprintf(buffer,(size_t)PRINTF_SIZE,formatString,argPointer);
+  va_end(argPointer);
+  int returnCode = 0;
+  int reasonCode = 0;
+  if (len < PRINTF_SIZE){
+    fwriteInternal(1,buffer,len,&returnCode,&reasonCode);
+  }
+}
+#else
 void printf(char *formatString, ...){
   va_list argPointer;
   va_start(argPointer,formatString);
   vfprintf(NULL,formatString,argPointer);
   va_end(argPointer);
 }
+#endif
 
 
 void fflush(int fd){

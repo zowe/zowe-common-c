@@ -23,7 +23,9 @@
 #else
 
 #include <stdio.h>
+#ifndef _MSC_VER   /* aka Windows */
 #include <unistd.h>
+#endif
 #include <stdlib.h>
 #include <fcntl.h>
 #include <string.h>
@@ -33,7 +35,7 @@
 #endif
 
 
-#ifndef NOIBMHTTP
+#ifdef OLDIBMHTTP
   #include <HTAPI.h>
 #endif
 
@@ -70,7 +72,7 @@ static void writeFully(xmlPrinter *p, char *text, int len){
     long rc;
     unsigned long ullen = (unsigned long)len;
 
-#ifndef NOIBMHTTP
+#ifdef OLDIBMHTTP
     HTTPD_write(p->handle,(unsigned char *)text,&ullen,&rc);
 #endif
   } else{
@@ -108,7 +110,7 @@ void writeByte(xmlPrinter *p, char c){
     long rc;
     unsigned long ullen = 1;
 
-#ifndef NOIBMHTTP
+#ifdef OLDIBMHTTP
     HTTPD_write(p->handle,(unsigned char *)buffer,&ullen,&rc);
 #endif
   } else{
@@ -235,7 +237,7 @@ static xmlPrinter *makeXmlPrinterInternal(int isCustom,
   if (xmlDeclaration != NULL){
     xmlPrintInternal(p,xmlDeclaration,strlen(xmlDeclaration),TRUE,TRUE);
   }
-  printf("makeXMLPrinter custom=%d full 0x%x byte 0x%x\n",
+  printf("makeXMLPrinter custom=%d full 0x%p byte 0x%p\n",
 	 p->isCustom,p->customWriteFully,p->customWriteByte);
   return p; 
 }
@@ -773,7 +775,8 @@ static int isAlphaNumeric(char c){
 }
 
 static int isDigit(char c){
-  return (c >= 0xF0 && c <= 0xF9);
+  int c2 = c&0xFF;
+  return (c2 >= 0xF0 && c2 <= 0xF9);
 }
 
 static int isWhitespace(char c){
@@ -1162,7 +1165,9 @@ XMLNode *parseXMLNode(XmlParser *p) {
           XMLToken *nextToken = getTokenNoWS(p);
 	  if (traceXML){
 	    printf("ATTR< equalsToken=%s valueToken=%s nextToken=%s\n",
-		   equalsToken,valueToken,nextToken);
+		   xmlTokenTypeNames[equalsToken->type],
+                   xmlTokenTypeNames[valueToken->type],
+                   xmlTokenTypeNames[nextToken->type]);
 	  }
           if (equalsToken->type != XMLTOKEN_ATTR_EQUAL) {
 	    syntaxError(p,"expected '=', got %s",xmlTokenTypeNames[equalsToken->type]);
@@ -1328,7 +1333,7 @@ int intFromChildWithTag(XMLNode *node, char *tag, int *value){
   int i;
   int x = 0;
   for (i=0; i<len; i++){
-    char c = text[i];
+    int c = text[i]&0xFF;
     if (c < 0xF0 || c>0xF9){
       return 0;
     }

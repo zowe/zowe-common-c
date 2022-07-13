@@ -22,6 +22,8 @@
 
 /* debugging switch */
 
+#define ERRNO_CCSID_MISMATCH 666888333
+
 #define TRACE_CHARSET_CONVERSION FALSE
 
 /* COMMON CODE PAGE */
@@ -49,12 +51,14 @@
 #define CCSID_BINARY          (short)0xFFFF
 
 #elif defined(__ZOWE_OS_WINDOWS)
+#include <Windows.h>
 /* WINDOWS CCSID's that are not common 
    see https://msdn.microsoft.com/en-us/library/windows/desktop/dd317756(v=vs.85).aspx
 */
 
 #define CCSID_ISO_8859_1     28591
 #define CCSID_UTF_16_LE       1200    /* worried about difference, or is 1200 native */
+#define CCSID_UTF_16          1200    /* worried about difference, or is 1200 native */
 
 #define CCSID_SYSTEM_DEFAULT_ANSI CP_ACP
 #define CCSID_THREAD_DEFAULT_ANSI CP_THREAD_ACP
@@ -92,7 +96,12 @@ int convertCharset(char *input,
                    int *conversionOutputLength, 
                    int *reasonCode);
 
-
+/**
+   Returns -1 if charsetName is not known.
+   
+   Returned codes may be platform-specific.
+*/
+int getCharsetCode(const char *charsetName);
 
 #endif
 

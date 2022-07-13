@@ -57,7 +57,7 @@ int loadCsi() {
         : :"r0","r1","r15");
 
   if (status == 0) {
-    csiFn = (CsiFn)entryPoint;
+    csiFn = (CsiFn)INT2PTR(entryPoint);
   }
   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG2, "IGGCSI00 0x%p LOAD status = 0x%x\n", csiFn, status);
   return status;

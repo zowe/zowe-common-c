@@ -8,35 +8,49 @@
 # 
 # Copyright Contributors to the Zowe Project.
 
-WORKING_DIR=$(dirname "$0")
+WORKING_DIR=$(cd $(dirname "$0") && pwd)
 
 # set -v
 
+# Loads project info like name and version
+. $WORKING_DIR/configmgr.proj.env
+
 echo "********************************************************************************"
-echo "Building configmgr..."
+echo "Building $PROJECT..."
+
+COMMON="$WORKING_DIR/.."
+
+# Checks for and possibly downloads dependencies from env vars from above file
+. $WORKING_DIR/dependencies.sh
+check_dependencies "${COMMON}" "$WORKING_DIR/configmgr.proj.env"
+DEPS_DESTINATION=$(get_destination "${COMMON}" "${PROJECT}")
 
 # These paths assume that the build is run from /zss/deps/zowe-common-c/builds
 
+date_stamp=$(date +%Y%m%d%S)
+
+TMP_DIR="${WORKING_DIR}/tmp-${date_stamp}"
+
+mkdir -p "${TMP_DIR}" && cd "${TMP_DIR}"
 
 
-mkdir -p "${WORKING_DIR}/tmp-configmgr" && cd "$_"
+# Split version into parts
+OLDIFS=$IFS
+IFS="."
+for part in ${VERSION}; do
+  if [ -z "$MAJOR" ]; then
+    MAJOR=$part
+  elif [ -z "$MINOR" ]; then
+    MINOR=$part
+  else
+    PATCH=$part
+  fi
+done
+IFS=$OLDIFS
 
-COMMON="../.."
-QUICKJS="../../../../../quickjs"
-LIBYAML="../../../../../libyaml"
+VERSION="\"${VERSION}\""
 
 rm -f "${COMMON}/bin/configmgr"
-
-MAJOR=0
-MINOR=2
-PATCH=5
-VERSION="\"${MAJOR}.${MINOR}.${PATCH}\""
-
-#if [ ! -d "${LIBYAML}" ]; then
-#  git clone git@github.com:yaml/libyaml.git
-#fi
-
-# export _C89_ACCEPTABLE_RC=4
 
 xlclang \
   -c \
@@ -52,22 +66,22 @@ xlclang \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
   -DCONFIG_VERSION=\"2021-03-27\" \
-  -I "${LIBYAML}/include" \
-  -I "${QUICKJS}" \
-  ${LIBYAML}/src/api.c \
-  ${LIBYAML}/src/reader.c \
-  ${LIBYAML}/src/scanner.c \
-  ${LIBYAML}/src/parser.c \
-  ${LIBYAML}/src/loader.c \
-  ${LIBYAML}/src/writer.c \
-  ${LIBYAML}/src/emitter.c \
-  ${LIBYAML}/src/dumper.c \
-  ${QUICKJS}/cutils.c \
-  ${QUICKJS}/quickjs.c \
-  ${QUICKJS}/quickjs-libc.c \
-  ${QUICKJS}/libunicode.c \
-  ${QUICKJS}/libregexp.c \
-  ${QUICKJS}/porting/polyfill.c
+  -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
+  -I "${DEPS_DESTINATION}/${QUICKJS}" \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/api.c \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/reader.c \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/scanner.c \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/parser.c \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/loader.c \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/writer.c \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/emitter.c \
+  ${DEPS_DESTINATION}/${LIBYAML}/src/dumper.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/cutils.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/quickjs.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/quickjs-libc.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/libunicode.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/libregexp.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/porting/polyfill.c
 #then
 #  echo "Done with qascii-compiled open-source parts"
 #else
@@ -82,10 +96,11 @@ xlclang \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
   -DNOIBMHTTP=1 \
+  -DCMGRTEST=1 \
   -I "${COMMON}/h" \
   -I "${COMMON}/platform/posix" \
-  -I "${LIBYAML}/include" \
-  -I "${QUICKJS}" \
+  -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
+  -I "${DEPS_DESTINATION}/${QUICKJS}" \
   -o "${COMMON}/bin/configmgr" \
   api.o \
   reader.o \
@@ -113,6 +128,7 @@ xlclang \
   ${COMMON}/c/logging.c \
   ${COMMON}/c/microjq.c \
   ${COMMON}/c/parsetools.c \
+  ${COMMON}/c/pdsutil.c \
   ${COMMON}/platform/posix/psxregex.c \
   ${COMMON}/c/recovery.c \
   ${COMMON}/c/scheduling.c \
@@ -132,6 +148,8 @@ xlclang \
 #  echo "Build failed"
 #  exit 8
 #fi
+
+rm -rf "${TMP_DIR}"
 
 
 # This program and the accompanying materials are

@@ -1,5 +1,11 @@
 # Zowe Common C Changelog
 
+## `2.2.0`
+
+- Added a script 'dependencies.sh' which assists in managing external depedencies needed for project compilation
+- Added a new build target, 'configmgr', which builds a tool that can be called to either load, validate, and print the zowe configuration, or load, validate, and run a JS script that is given the configuration.
+- Added an automated build for configmgr which is consumed by the zowe packaging
+
 ## `1.27.0`
 
 - Enhancement: Allow to specify 31-bit and 64-bit version of dataService library using `libraryName64` and `libraryName31` keys in DataService definition.

@@ -29,6 +29,11 @@ typedef struct ICSFDigest_tag{
 
 #define ICSF_DIGEST_MD5  1
 #define ICSF_DIGEST_SHA1 2
+/* SHA-2 Familt algoithms */
+#define ICSF_DIGEST_SHA224 3
+#define ICSF_DIGEST_SHA256 4
+#define ICSF_DIGEST_SHA384 5
+#define ICSF_DIGEST_SHA512 6
 
 #define icsfDigestFully  CFSDGFUL
 #define icsfDigestInit   CSFDGINI
