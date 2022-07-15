@@ -20,6 +20,8 @@
 #include <string.h>
 #endif
 
+#include "zowetypes.h"
+#include "alloc.h"
 #include "utils.h"
 #include "xlate.h"
 #include "bpxnet.h"
@@ -524,9 +526,9 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
 void httpClientSettingsDestroy(HttpClientSettings *settings) {
   if (settings) {
     if (settings->host) {
-      safeFree(settings->host, 1 + strlen(settings->host));
+      safeFree((char*)settings->host, 1 + strlen(settings->host));
     }
-    safeFree(settings, sizeof(HttpClientSettings));
+    safeFree((char*)settings, sizeof(HttpClientSettings));
   }
 }
 
@@ -552,7 +554,7 @@ void httpClientContextDestroy(HttpClientContext *ctx) {
       freeSocketAddr(ctx->serverAddress);
     }
     memset(ctx, 0x00, sizeof(HttpClientContext));
-    safeFree(ctx, sizeof(HttpClientContext));
+    safeFree((char*)ctx, sizeof(HttpClientContext));
   }
 }
 
@@ -638,7 +640,7 @@ void httpClientSessionDestroy(HttpClientSession *session) {
       SLHFree(session->slh);
     }
     memset(session, 0x00, sizeof(HttpClientSession));
-    safeFree(session, sizeof(HttpClientSession));
+    safeFree((char*)session, sizeof(HttpClientSession));
   }
 }
 

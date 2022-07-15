@@ -52,6 +52,9 @@ VERSION="\"${VERSION}\""
 
 rm -f "${COMMON}/bin/configmgr"
 
+GSKDIR=/usr/lpp/gskssl
+GSKINC="${GSKDIR}/include"
+
 xlclang \
   -c \
   -q64 \
@@ -96,9 +99,11 @@ xlclang \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
   -DNOIBMHTTP=1 \
+  -DUSE_ZOWE_TLS=1 \
   -DCMGRTEST=1 \
   -I "${COMMON}/h" \
   -I "${COMMON}/platform/posix" \
+  -I ${GSKINC} \
   -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
   -I "${DEPS_DESTINATION}/${QUICKJS}" \
   -o "${COMMON}/bin/configmgr" \
@@ -122,22 +127,32 @@ xlclang \
   ${COMMON}/c/collections.c \
   ${COMMON}/c/configmgr.c \
   ${COMMON}/c/embeddedjs.c \
+  ${COMMON}/c/fdpoll.c \
+  ${COMMON}/c/http.c \
+  ${COMMON}/c/httpclient.c \
   ${COMMON}/c/json.c \
+  ${COMMON}/c/jcsi.c \
   ${COMMON}/c/jsonschema.c \
   ${COMMON}/c/le.c \
   ${COMMON}/c/logging.c \
   ${COMMON}/c/microjq.c \
   ${COMMON}/c/parsetools.c \
   ${COMMON}/c/pdsutil.c \
+  ${COMMON}/c/qjsnet.c \
+  ${COMMON}/c/qjszos.c \
   ${COMMON}/platform/posix/psxregex.c \
   ${COMMON}/c/recovery.c \
   ${COMMON}/c/scheduling.c \
+  ${COMMON}/c/socketmgmt.c \
   ${COMMON}/c/timeutls.c \
+  ${COMMON}/c/tls.c \
   ${COMMON}/c/utils.c \
   ${COMMON}/c/xlate.c \
   ${COMMON}/c/yaml2json.c \
   ${COMMON}/c/zos.c \
-  ${COMMON}/c/zosfile.c
+  ${COMMON}/c/zosfile.c \
+  ${GSKDIR}/lib/GSKSSL64.x \
+  ${GSKDIR}/lib/GSKCMS64.x
 #then
 #  echo "Build successful"
 #  ls -l "${COMMON}/bin"

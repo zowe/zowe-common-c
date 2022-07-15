@@ -1849,7 +1849,7 @@ int main(int argc, char **argv){
       fflush(stderr);
     */
     int evalStatus = ejsEvalFile(ejs,filename,EJS_LOAD_IS_MODULE);
-    // printf("Done with EJS: File eval returns %d_______________________________________________\n",evalStatus);
+    /* printf("Done with EJS: File eval returns %d_______________________________________________\n",evalStatus); */
   } else {
     return simpleMain(argc,argv);
   }
