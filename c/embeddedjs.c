@@ -1523,7 +1523,6 @@ static Json *jsToJson1(EmbeddedJS *ejs,
     JSValue aLenJS = JS_GetPropertyStr(ctx,value,lengthASCII);
     int aLen = 0;
     buildStatus = JS_ToInt32(ctx,&aLen,aLenJS);
-    printf("JS array len = %d\n",aLen);
     for (int i=0; i<aLen; i++){
       JSValue element = JS_GetPropertyUint32(ctx, value, i);
       jsToJson1(ejs,b,jsonArray,NULL,element,depth+1);
