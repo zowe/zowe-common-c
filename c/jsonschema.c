@@ -757,7 +757,7 @@ static VResult validateJSONArray(JsonValidator *validator,
       }
     }
     if (valueSpec->uniqueItems){
-      long longHash = jsonLongHash(itemValue);
+      int64_t longHash = jsonLongHash(itemValue);
       if (lhtGet(uniquenessSet,longHash) != NULL){
         addValidityChild(pendingException,
                          makeValidityException(validator,
