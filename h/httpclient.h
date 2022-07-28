@@ -46,6 +46,7 @@ extern "C" {
 #define HTTP_CLIENT_READ_ERROR            15
 #define HTTP_CLIENT_RESPONSE_ZEROLEN      16
 #define HTTP_CLIENT_TLS_ERROR             17
+#define HTTP_CLIENT_TLS_NOT_CONFIGURED    18
 
 typedef struct HttpClientSettings_tag {
   char *host;

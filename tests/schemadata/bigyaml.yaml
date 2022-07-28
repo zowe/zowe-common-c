@@ -1,0 +1,301 @@
+zowe:
+  #-------------------------------------------------------------------------------
+  # These configurations are used by "zwe install" or "zwe init" commands.
+  #-------------------------------------------------------------------------------
+  setup:
+    # MVS data set related configurations
+    dataset:
+      # where Zowe MVS data sets will be installed
+      # prefix: TSSPG.ZWE2007
+      # proclib: TSSPG.ZWE2007.PRCLIB
+      # parmlib: TSSPG.ZWE2007.PRMLIB
+      # authLoadlib: null
+      # APF authorized LOADLIB for Zowe ZIS Plugins
+      # authPluginLib: TSSPG.ZWE2007.CUST.ZWESAPL
+      # JCL library where Zowe will store temporary JCLs during initialization
+      # jcllib: TSSPG.ZWE2007.CUST.JCLLIB
+
+      authPluginLib: TS3215.TESTAPF
+      jcllib: TS3215.CUST.JCLLIB
+      parmlib: TS3215.USER.PARMLIB
+      prefix: TS3215.TESTX
+      proclib: ROCKET.USER.PROCLIB
+
+      # APF authorized LOADLIB for Zowe
+      # Optional. If it's empty, <hlq>.SZWEAUTH will be APF authorized.
+      authLoadlib:
+
+    security:
+      stcs:
+        aux: ZWEMVD01
+        zis: ZWESIS01
+        zowe: ZWEMVDJS
+
+    certificate:
+      # PKCS12 or JCERACFKS
+      type: PKCS12
+      pkcs12:
+        directory: /u/ts3215/cert
+
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # VSAM configurations if you are using VSAM as Caching Service storage
+    vsam:
+      # NONRLS or RLS
+      mode: NONRLS
+      # Volume name if you are using VSAM in NONRLS mode
+      volume: VOL123
+      # Storage class name if you are using VSAM in RLS mode
+      storageClass:
+
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  runtimeDirectory: /u/zossteam/jdevlin/zowe/runtime
+
+  logDirectory: /u/zossteam/jdevlin/zowe/logs
+
+  workspaceDirectory: /u/zossteam/jdevlin/zowe/workspace
+
+  # Where extensions get symlinked on "zwe component install"
+  extensionDirectory: /u/tsspg/zowe/extensions/2.0.0
+
+
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  # runtime z/OS job name
+  job:
+    # Zowe JES job name
+    # name: ZWE1SV
+    name: ZWEMVDJS
+    # Prefix of component address space
+    prefix: ZWE1
+
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>                                                                                 
+  # This is the host and port you use to access Zowe Gateway from your web browser.
+  externalDomains:
+    # this should be the domain name of you Dynamic VIP Address (DVIPA)
+    - rs28.rocketsoftware.com
+
+  externalPort: 62995
+
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  # Enable debug mode for zowe launch scripts
+  launchScript:
+    # debug or trace
+    logLevel: ""
+
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  certificate:
+    keystore:
+      type: PKCS12
+      file: /u/zossteam/jdevlin/git2022/zss/bin/localhost.keystore.p12
+      password: "password"
+      alias: localhost
+    truststore:
+      type: PKCS12
+      file: /u/ts3215/cert/localhost/localhost.truststore.p12
+      password: password
+    pem:
+      key: /u/ts3215/cert/localhost/localhost.key
+      certificate: /u/ts3215/cert/localhost/localhost.cer
+      certificateAuthorities: /u/ts3215/cert/local_ca/local_ca.cer
+
+  # STRICT/NONSTRICT/DISABLED
+  verifyCertificates: DISABLED
+
+
+java:
+  home: /rsusr/java/IBM/J8.0_64
+
+node:
+  home: /proj/mvd/node/installs/node-v14.16.0-os390-s390x-202103142315
+
+#-------------------------------------------------------------------------------
+# z/OSMF configuraiton
+#-------------------------------------------------------------------------------
+zOSMF:
+  host: rs28.rocketsoftware.com
+  port: 11443
+  applId: IZUDFLT
+
+
+#-------------------------------------------------------------------------------
+# Zowe components
+#-------------------------------------------------------------------------------
+components:
+  gateway:
+    enabled: true
+    port: 62995
+    debug: false
+
+    apiml:
+      security:
+        auth:
+          provider: zosmf
+          zosmf:
+            jwtAutoconfiguration: auto
+            serviceId: zosmf
+        authorization:
+          endpoint:
+            enabled: false
+          provider:
+        jwtInitializerTimeout: 5
+        x509:
+          enabled: false
+        zosmf:
+          applid: IZUDFLT
+      service:
+        allowEncodedSlashes: true
+        corsEnabled: false
+    server:
+      internal:
+      # gateway supports internal connector
+        enabled: false
+        port: 7556
+        ssl:
+          enabled: false
+          # internal connector can use different certificate
+          # certificates:
+          #   alias:
+
+    # If we customize this to use different external certificate, than should also
+    # define "server.internal.ssl.certificate" and enable "server.internal.ssl.enabled".
+    # certificates:
+    #   alias:
+
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  metrics-service:
+    enabled: false
+    port: 62997
+
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  api-catalog:
+    enabled: true
+    port: 62994
+
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  discovery:
+    enabled: true
+    port: 62993
+    debug: false
+    # Define this value to match your number of Discovery StatefulSet if you are running containerized Zowe
+    # replicas: 1
+
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  caching-service:
+    enabled: false
+    port: 62992
+
+    storage:
+      evictionStrategy: reject
+      # can be inMemory, VSAM
+      mode: inMemory
+      size: 10000
+      vsam:
+        # your VSAM data set created by ZWECSVSM job
+        # this is required if storage mode is VSAM
+        name:
+
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  app-server:
+    enabled: true
+    port: 62911
+    logLevels:
+      _zsf.proxy: 2
+    productDir: "${{ zowe.runtimeDirectory }}/components/app-server/share"      
+    siteDir: "${{ zowe.workspaceDirectory }}/app-server/site"
+    instanceDir: "${{ zowe.workspaceDirectory }}/app-server"
+    groupsDir: "${{ zowe.workspaceDirectory }}/app-server/groups"
+    usersDir: "${{ zowe.workspaceDirectory }}/app-server/users"
+    pluginsDir: "${{ zowe.workspaceDirectory }}/app-server/plugins"
+    agent:
+      host: example.com
+      https: 
+        port: 64111
+    dataserviceAuthentication:
+      defaultAuthentication: zss
+      rbac: false
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  zss:
+    enabled: true
+    port: 8577
+    crossMemoryServerName: ZWESIS_JOE
+    tls: true
+    logLevels:
+      _zss.traceLevel: 2
+      _zss.alloc: 2
+      _zss.utils: 2
+      _zss.collections: 2
+      _zss.serialization: 2
+      _zss.zlparser: 2
+      _zss.zlcompiler: 2
+      _zss.zlruntime: 2
+      _zss.stcbase: 4
+      _zss.httpserver: 3
+      _zss.discovery: 2
+      _zss.cms: 2
+      _zss.lpa: 2
+      _zss.resetdataset: 2
+      _zss.restfile: 2
+      _zss.zos: 2
+      _zss.httpclient: 2
+      _zss.jwt: 3
+      _zss.mvdserver: 2
+      _zss.ctds: 2
+      _zss.security: 2
+      _zss.unixfile: 2
+      _zss.dataservice: 2
+      _zss.apimlstorage: 2
+      _zss.jwk: 2
+      _zss.httpAuthTrace: 5
+      # per plugin starts here
+      com.zossteam.inzpect.debug: 3
+    agent:
+      mediationLayer:
+        enabled: true
+        cachingService:
+          enabled: false
+      https:
+        ipAddresses: 
+          - "172.29.122.164"
+        label: ${{ zowe.certificate.keystore.alias }}
+        # 1) currently assuming that multiple types of key stores are handled well by all, but if GSK does not see (2)
+        keyring: ${{ zowe.certificate.keystore.file }}
+        # 2) unless saf keyring, then ${{ zowe.setup.security.users.zowe}}/${{ zowe.certificate.ke
+        password: ${{ zowe.certificate.keystore.password }}
+      http:
+        ipAddresses: 
+          - "172.29.122.164"
+      jwt:
+        fallback: true
+    node:
+      mediationLayer:
+        # Joe added this based on references in zss.c
+        enabled: true
+        server:
+          gatewayHostname: 172.29.97.76
+          gatewayPort: 10010
+
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  jobs-api:
+    enabled: false
+    port: 7558
+
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  files-api:
+    enabled: false
+    port: 7559
+
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  explorer-jes:
+    enabled: true
+
+  explorer-mvs:
+    enabled: true
+
+  explorer-uss:
+    enabled: true
+
+
+
+  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  # Each extension can have dedicated definition similar to core components.
+  #process-manager:
+  #  enabled: true

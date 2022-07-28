@@ -251,8 +251,10 @@ static void cleanLoggingComponentInLogHT(void *component) {
 }
 
 LoggingContext *makeLocalLoggingContext() {
-
-  LoggingContext *context = (LoggingContext *)safeMalloc(sizeof(LoggingContext),"LoggingContext");
+  /* this allocation must be 31-bit because the pointer to it may be stored in
+     4-byte slot in the CAA 
+     */
+  LoggingContext *context = (LoggingContext *)safeMalloc31(sizeof(LoggingContext),"LoggingContext");
   memcpy(context->eyecatcher, "RSLOGCTX", sizeof(context->eyecatcher));
   context->vendorTable = htCreate(LOG_VENDOR_HT_BACKBONE_SIZE, NULL, NULL, NULL, NULL);
   context->zoweAnchor = makeZoweAnchor();
@@ -293,7 +295,7 @@ void removeLocalLoggingContext(LoggingContext *context) {
   context->vendorTable = NULL;
   removeZoweAnchor(context->zoweAnchor);
   context->zoweAnchor = NULL;
-  safeFree((char *)context, sizeof(LoggingContext));
+  safeFree31((char *)context, sizeof(LoggingContext));
   context  = NULL;
 
 }

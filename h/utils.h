@@ -225,6 +225,7 @@ int percentEncode(char *value, char *buffer, int len);
 #define BASE64_ENCODE_SIZE(SZ) (2 + 4 * ((SZ + 2) / 3))
 
 int decodeBase64(char *s, char *result);
+int decodeBase64Unterminated(char *s, char *result, int len);
 char *encodeBase64(ShortLivedHeap *slh, const char buf[], int size, int *resultSize,
                    int useEbcdic);
 void encodeBase64NoAlloc(const char buf[], int size, char result[], int *resultSize,

@@ -163,11 +163,25 @@ typedef struct socketAddr_tag{
 
 #define SOCKET_DEBUG_NAME_LENGTH 20
 
+#define IPPROTO_SYNTHETIC_PIPE_MASK 0x770 /* real Inet protocols are max <= 255 */
+#define IPPROTO_SYNTHETIC_PIPE_DEMULTIPLEXER 0x771
+#define IPPROTO_SYNTHETIC_PIPE_HANDLER 0x772
+#define IPPROTO_SYNTHETIC_PIPE_MULTIPLEXER 0x773
+
+#define IS_SYNTHETIC_PIPE(protocol) ((protocol & IPPROTO_SYNTHETIC_PIPE_MASK) == IPPROTO_SYNTHETIC_PIPE_MASK)
+
+/* 
+   Sockets may be simulated as pairs of pipes to support tunnelling.  If this option is used the protocol will
+   be IPPROTO_SYNTHETIC_PIPE.
+*/
+
 typedef struct socket_tag{
-#ifdef __ZOWE_OS_WINDOWS
+  #ifdef __ZOWE_OS_WINDOWS
   SOCKET windowsSocket;
-#else 
+  SOCKET pipeOutputSocket;
+#else
   int sd;
+  int pipeOutputSD;
 #endif
   short isServer;        /* inherited by SocketExtension */
 
@@ -228,10 +242,6 @@ typedef struct hostent_tag{
   int  **addrList;
 } Hostent;
 
-/* sleep(int seconds) is standard in linux */
-#if !defined(__ZOWE_OS_LINUX) && !defined(__ZOWE_OS_AIX)
-void sleep(int secs);
-#endif 
 
 /* Set socket tracing; returns prior value */
 int setSocketTrace(int toWhat); 
@@ -243,6 +253,9 @@ int socketInit(char *uniqueName);
 int getLocalHostName(char* inout_hostname,
                      unsigned int* inout_hostname_len,
                      int *returnCode, int *reasonCode);
+
+/* SD or, on windows the handle */
+int getSocketDebugID(Socket *s);
 
 InetAddr* getLocalHostAddress(int *returnCode, int *reasonCode); /* AKA gethostid */
 
@@ -289,6 +302,39 @@ Socket *tcpServer2(InetAddr *addr,
                    int tlsFlags,
                    int *returnCode,
                    int *reasonCode);
+
+/***** TCP Pipe-tunneling support structures *****/
+
+ZOWE_PRAGMA_PACK  
+
+/*
+  Constructor for pipe-based "tunnel" sockets.
+ */
+Socket *makePipeBasedSyntheticSocket(int protocol, int inputFD, int outputFD);
+
+#define TCP_FRAGMENT_MAGIC 0xD0BED0BE
+#define TCP_FRAGMENT_FLAG_INBOUND 0x1
+
+#define TCP_FRAGMENT_FROM_REMOTE           1
+#define TCP_FRAGMENT_TO_REMOTE             2
+#define TCP_FRAGMENT_INTERNAL_MASK    0x0100
+
+typedef struct TCPFragment{
+  uint32_t magic;        /* D0BED0BE */
+  uint16_t headerLength;
+  uint8_t  flags;
+  uint8_t  reserved;
+  uint32_t type;
+  uint32_t remoteClientID; /* proxy for client socket at far end of tunnel */
+  /* offset 10 */
+  uint32_t payloadLength;
+  char     optionalHeaderData[];
+} TCPFragment;
+
+ZOWE_PRAGMA_PACK_RESET
+
+/***** End TCP Pipe-tunneling support *****/
+
 
 #ifdef __ZOWE_OS_ZOS
 void bpxSleep(int seconds);

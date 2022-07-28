@@ -928,6 +928,23 @@ int safVerify6(int options, char *userid, char *password,
                             idta));
 }
 
+int safVerify7(int options, char *userid, char *password,
+              ACEE **aceeHandle, char *appl,
+              int *racfStatus, int *racfReason, IDTA *idta) {
+  return (safVerifyInternal(options,
+                            userid,
+                            password,
+                            NULL,
+                            aceeHandle,
+                            NULL,
+                            0,
+                            appl,
+                            0,
+                            racfStatus,
+                            racfReason,
+                            idta));
+}
+
 static int safVerifyInternal(int options,
                              char *userid,
                              char *password,

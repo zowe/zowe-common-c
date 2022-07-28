@@ -24,8 +24,15 @@
 
 
 /* rscrypto */
+
+#ifdef __ZOWE_OS_ZOS 
 #include "rs_icsfp11.h"
+#else
+#include "rs_pkcs11.h"
+#endif
+
 #include "rs_crypto_errors.h"
+
 
 #include "jwt.h"
 

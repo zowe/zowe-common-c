@@ -51,6 +51,15 @@ int memberExistsInDDName(char *ddname);
 
 StringList *getPDSMembers(char *pdsName);
 
+#define PRMLB_SUCCESS 0
+#define PRMLB_BUFFER_SIZE 0x1000
+
+/* returns IEFPRMLB retCode, allocate the buffer with safeMalloc31 */
+int getParmlibs(char *outputBuffer, int *reasonCode);
+int getParmlibCount(char *outputBuffer);
+char *getParmlib(char *outputBuffer, int index, char **specificVolser);
+
+
 #endif
 
 

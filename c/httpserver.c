@@ -31,6 +31,7 @@
 
 #ifndef __ZOWE_OS_WINDOWS
 #include <time.h>
+#include <errno.h>
 #endif
 
 #endif /* METTLE */
@@ -50,6 +51,8 @@
 #include "icsf.h"
 #include "recovery.h"
 #include "zis/client.h"
+#else
+#include <stdatomic.h>
 #endif 
 
 #include "collections.h"
@@ -93,7 +96,11 @@ typedef struct AuthResponse_tag {
   int type;
 #define AUTH_TYPE_RACF  1
   union {
+#ifdef __ZOWE_OS_ZOS 
     SAFAuthStatus safStatus;
+#else
+    int someStatus;
+#endif
   } responseDetails;
 } AuthResponse;
 
@@ -210,13 +217,14 @@ static char crlf[] ={ 0x0d, 0x0a};
 #define UPGRADE           "Upgrade"
 #define WEBSOCKET         "websocket"
 
+/* Note:  I think DEFAULT_UMASK is obsolete. Joe on 4/28/2022 */
 
 #ifdef __ZOWE_OS_ZOS
 #define NATIVE_CODEPAGE CCSID_EBCDIC_1047
 #define DEFAULT_UMASK 0022
 #elif defined(__ZOWE_OS_WINDOWS)
 #define NATIVE_CODEPAGE CP_UTF8
-#error Must_find_default_windows_umask
+#define DEFAULT_UMASK 0022
 #elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
 #define NATIVE_CODEPAGE CCSID_ISO_8859_1
 #warning ISO-8859-1 is not necessarily the default codepage on Linux
@@ -507,7 +515,7 @@ static void finishChunkedOutput(ChunkedOutputStream *s, int translate){
 // **NOTE**
 
 void finishResponse(HttpResponse *response){
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "finishResponse where response=0x%x\n",response);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "finishResponse where response=0x%p\n",response);
   if (response->stream){
     finishChunkedOutput(response->stream,
         (response->jp == NULL)? TRANSLATE_8859_1 : 0);
@@ -703,9 +711,6 @@ static int readMachineAdvance(WSReadMachine *m, char *data, WSSession *wsSession
   int shouldClose = FALSE;
   m->trace = TRUE;
   while (available > 0){
-    if (loopCount++ > loopCount){
-      break;
-    }
     if (TRUE || m->trace){
       printf("advanceLoop offset=%02d available=%02d headerFill=%02d headerNeed=%02d\n",
              offset,available,m->headerFill,m->headerNeed);
@@ -723,7 +728,7 @@ static int readMachineAdvance(WSReadMachine *m, char *data, WSSession *wsSession
       /* compute header need */
       m->flagAndOpcodeByte = m->headerBuffer[0]&0xff;
       shouldClose = m->flagAndOpcodeByte & 0x08;
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "readMachineAdvance: local shouldClose=%d,wsSession 0x%X, flagAndOpcodeByte 0x%X\n",
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "readMachineAdvance: local shouldClose=%d,wsSession 0x%p, flagAndOpcodeByte 0x%X\n",
               shouldClose, wsSession,m->flagAndOpcodeByte);
       m->fin = (m->flagAndOpcodeByte&0x80)!=0;
       int maskAndPayloadLengthByte = m->headerBuffer[1]&0xff;
@@ -866,7 +871,7 @@ WSMessageHandler *makeWSMessageHandler(void (*h)(WSSession *session,
   memset(handler,0,sizeof(WSMessageHandler));
   handler->onMessage = h;
   
-  printf("about to return new messageHandler 0x%x\n",handler);
+  printf("about to return new messageHandler 0x%p\n",handler);
   fflush(stdout);
   return handler;
 }
@@ -1114,7 +1119,7 @@ void writeRequest(HttpRequest *request, Socket *socket){
   asciify(line,len);
   writeFully(socket,line,len);
   writeFully(socket,crlf,2);
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "write header chain 0x%x\n",headerChain);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "write header chain 0x%p\n",headerChain);
 
   while (headerChain){
 
@@ -1388,21 +1393,24 @@ static int initSessionTokenKey(SessionTokenKey *key) {
 
 #else
 
-#error Session token key generation has been implemented for z/OS only
+  printf("*** WARNING *** low quality random number in use for SessionToken \n");
+  for (int i=0; i<HTTPSERVER_SESSION_TOKEN_KEY_SIZE; i++){
+    key->value[i] = (char)(rand()&0xFF);
+  }
 
 #endif
 
   return 0;
 }
 
+#define trivialEncipher memcpy
+#define trivialDecipher memcpy
+
 static int encodeSessionToken(ShortLivedHeap *slh,
                               const HttpServerConfig *config,
                               const char *tokenText,
                               unsigned int tokenTextLength,
                               char **result) {
-
-
-#ifdef __ZOWE_OS_ZOS
 
   unsigned int encodedTokenTextLength = tokenTextLength;
   char *encodedTokenText = SLHAlloc(slh, encodedTokenTextLength);
@@ -1412,6 +1420,10 @@ static int encodeSessionToken(ShortLivedHeap *slh,
             "(size=%u, SLH=%p)\n", encodedTokenTextLength, slh);
     return -1;
   }
+
+
+#ifdef __ZOWE_OS_ZOS
+
 
   int icsfRSN = 0;
   int icsfRC = icsfEncipher(config->sessionTokenKey,
@@ -1431,6 +1443,13 @@ static int encodeSessionToken(ShortLivedHeap *slh,
   *result = encodedTokenText;
   return 0;
 
+#elif defined(__ZOWE_OS_WINDOWS)
+
+  printf("*WARNING* - Trivial Cipher in use\n");
+  trivialEncipher(encodedTokenText,tokenText,tokenTextLength);
+  *result = encodedTokenText;
+  return 0;
+  
 #else
 
 #error Session token encoding has been implemented for z/OS only
@@ -1444,9 +1463,6 @@ static int decodeSessionToken(ShortLivedHeap *slh,
                               const char *encodedTokenText,
                               unsigned int encodedTokenTextLength,
                               char **result) {
-
-#ifdef __ZOWE_OS_ZOS
-
   unsigned int tokenTextLength = encodedTokenTextLength;
   unsigned int paddingLength = 4;
   char *tokenText = SLHAlloc(slh, tokenTextLength+paddingLength);
@@ -1456,6 +1472,8 @@ static int decodeSessionToken(ShortLivedHeap *slh,
             "(size=%u, SLH=%p)\n", encodedTokenTextLength, slh);
     return -1;
   }
+
+#ifdef __ZOWE_OS_ZOS
 
   int icsfRSN = 0;
   int icsfRC = icsfDecipher(config->sessionTokenKey,
@@ -1477,6 +1495,14 @@ static int decodeSessionToken(ShortLivedHeap *slh,
   *result = tokenText;
   return 0;
 
+#elif defined(__ZOWE_OS_WINDOWS)
+
+  printf("*WARNING* - Trivial Cipher in use\n");
+  trivialDecipher(tokenText,encodedTokenText,tokenTextLength);
+  *result = tokenText;
+  return 0;
+
+
 #else
 
 #error Session token decoding has been implemented for z/OS only
@@ -1494,19 +1520,24 @@ HttpServer *makeHttpServerInner(STCBase *base,
                                 char *cookieName,
                                 int *returnCode, int *reasonCode){
   //logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
-
+  Socket *listenerSocket = NULL;
+  /* if "noTCP" is true, this server only receives IO thru tunnelling */
+  bool noTCP = false;
   SessionTokenKey sessionTokenKey = {0};
   if (initSessionTokenKey(&sessionTokenKey) != 0) {
     return NULL;
   }
-
-  Socket *listenerSocket = tcpServer2(addr,port,tlsFlags,returnCode,reasonCode);
-  if (listenerSocket == NULL){
-    return NULL;
-  }
+  if (addr != NULL && port != HTTP_DISABLE_TCP_PORT){
+    listenerSocket = tcpServer2(addr,port,tlsFlags,returnCode,reasonCode);
+    if (listenerSocket == NULL){
+      return NULL;
+    }
 #ifdef USE_ZOWE_TLS
-  listenerSocket->tlsEnvironment = tlsEnv;
+    listenerSocket->tlsEnvironment = tlsEnv;
 #endif // USE_ZOWE_TLS
+  } else{
+    noTCP = true;
+  }
   HttpServer *server = (HttpServer*)safeMalloc31(sizeof(HttpServer),"HTTP Server");
   memset(server,0,sizeof(HttpServer));
   server->base = base;
@@ -1521,13 +1552,11 @@ HttpServer *makeHttpServerInner(STCBase *base,
   server->serverInstanceUID = (uint64)getFineGrainedTime();
   stcRegisterSocketExtension(base, listenerSocketExtension, STC_MODULE_JEDHTTP);
 
-#ifdef __ZOWE_OS_WINDOWS
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "ListenerSocket on SocketHandle=0x%x\n",listenerSocket->windowsSocket);
-#else
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "ListenerSocket on SD=%d\n",listenerSocket->sd);
-#endif
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "ListenerSocket on SD/WinSock=0x%x\n",
+	  (listenerSocket ? getSocketDebugID(listenerSocket) : 0));
 
   server->config = (HttpServerConfig*)safeMalloc31(sizeof(HttpServerConfig),"HttpServerConfig");
+  server->syntheticPipeSockets = htCreate(4001, NULL, NULL, NULL, NULL);
   server->properties = htCreate(4001,stringHash,stringCompare,NULL,NULL);
   memset(server->config,0,sizeof(HttpServerConfig));
 
@@ -1538,6 +1567,26 @@ HttpServer *makeHttpServerInner(STCBase *base,
 
   return server;
 }
+
+int httpServerEnablePipes(HttpServer *server,
+			  int fromDispatcherFD,
+			  int toDispatcherFD){
+  Socket *pipeSocket = makePipeBasedSyntheticSocket(IPPROTO_SYNTHETIC_PIPE_DEMULTIPLEXER,
+						    fromDispatcherFD,toDispatcherFD);
+  /* pipe tracking and the arguments to makeSExt() */
+  SocketExtension *pipeExtension = makeSocketExtension(pipeSocket,
+                                                       server->slh,
+                                                       FALSE, /* allocateInSLH */
+                                                       server,
+                                                       READ_BUFFER_SIZE);
+  pipeSocket->userData = pipeExtension;
+  stcRegisterSocketExtension(server->base, pipeExtension, STC_MODULE_JEDHTTP);
+  
+  server->singleUserMode = true; /* this should be somewhere else some day */
+  
+  return 0;
+}
+
 
 HttpServer *makeHttpServer2(STCBase *base,
                            InetAddr *addr,
@@ -1698,11 +1747,11 @@ static char *getNative(char *s){
 /* makeHttpResponse alloc's the response structure on the passed SLH,
  * but now infuses the HttpResponse with its own SLH */
 HttpResponse *makeHttpResponse(HttpRequest *request, ShortLivedHeap *slh, Socket *socket){
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "makeHttpResponse called with req=0x%x, slh=0x%x, socket=0x%x\n",
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "makeHttpResponse called with req=0x%p, slh=0x%p, socket=0x%p\n",
          request, slh, socket);
   ShortLivedHeap *responseSLH = makeShortLivedHeap(65536,100);
   HttpResponse *response = (HttpResponse*)SLHAlloc(responseSLH,sizeof(HttpResponse));
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "makeHttpResponse after SLHAlloc, resp=0x%x\n", response);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "makeHttpResponse after SLHAlloc, resp=0x%p\n", response);
   if (NULL != request) {
     response->request = request;
   	request->slh = slh;
@@ -1795,11 +1844,11 @@ static HttpService *findHttpService(HttpServer *server, HttpRequest *request){
   StringList *parts = request->parsedFile;
   int partsCount = (parts? parts->count : 0);
   if (traceDispatch){
-    printf("find service: serviceListHead=0x%x parsedFile=0x%x\n",service,request->parsedFile);
+    printf("find service: serviceListHead=0x%p parsedFile=0x%p\n",service,request->parsedFile);
   }
   while (service){
     if (traceDispatch){
-      printf("  find service '%s' while loop top service->parsedMaskPartCount=%d parts->count=%d, next=0x%x\n",
+      printf("  find service '%s' while loop top service->parsedMaskPartCount=%d parts->count=%d, next=0x%p\n",
 	     service->name,service->parsedMaskPartCount,partsCount,service->next);
       fflush(stdout);
     }
@@ -2405,7 +2454,7 @@ static int proxyServe(HttpService *service,
                       HttpResponse *response){
   HttpConversation *conversation = response->conversation;
   conversation->conversationType = CONVERSATION_HTTP_PROXY;
-  printf("proxyServe started, conversation=0x%x\n",conversation);
+  printf("proxyServe started, conversation=0x%p\n",conversation);
   HttpRequest *innerRequest = (HttpRequest*)SLHAlloc(response->slh,sizeof(HttpRequest));
   memset(innerRequest,0,sizeof(HttpRequest));
   int transformationStatus = service->requestTransformer(conversation,request,innerRequest);
@@ -2476,8 +2525,115 @@ int isLowerCasePasswordAllowed(){
 }
 #endif
 
-
 #ifdef __ZOWE_OS_ZOS
+
+/*
+  MD5, although not a great algorithm anymore, is used because
+  this is being used to validate a short string (userid.len+password.len).
+  There is little to no chance of collision attacks on short strings.  This
+  function is only used in zowe single-user mode.  Single-user mode does not
+  open up network ports.  It only opens to SSH connections for customers that
+  have valid SAF credentials, and only allows them to execute code as their
+  own ID.
+  */
+
+#define MD5_LENGTH 16
+
+static char *md5It(char *s, int len, char *hash){
+  ICSFDigest digest;
+  memset(hash,0,MD5_LENGTH);
+  icsfDigestInit(&digest,ICSF_DIGEST_MD5);
+  icsfDigestUpdate(&digest,s,len);
+  icsfDigestFinish(&digest,hash);
+  return hash;
+}
+
+static ACEE *getACEE(){
+  TCB *tcb = getTCB();
+  ACEE *acee = NULL;
+  if (tcb->tcbsenv){
+    acee = (ACEE*)tcb->tcbsenv;
+  } else{
+    ASCB *ascb = getASCB();
+    ASXB *asxb = ascb->ascbasxb;
+    acee = (ACEE*)asxb->asxbsenv;
+  }
+  return acee;
+}
+
+static int singleUserTrace = 1;
+
+#define MAX_USERID_LENGTH 32 /* very generous to be forward compatible */
+#define MAX_PASSWORD_LENGTH 64 /* very generous to be forward compatible */
+#define AUTH_BUFFER_LENGTH (MAX_USERID_LENGTH + MAX_PASSWORD_LENGTH + 32)
+
+static int doSingleUserAuth(HttpServer *server, HttpRequest *request, AuthResponse *authResponse){
+  if (singleUserTrace >= 1){
+    printf("JOE: single-user auth\n");
+  }
+  ACEE *acee = getACEE();
+  HttpHeader *authenticationHeader = getHeader(request,"Authorization");
+  /* the basic auth blob cam come from different places, it's in JSON in a /login
+     type request, but in Auth/Basic in other places */
+  if (singleUserTrace >= 1){
+    printf("JOE: 1U u: '%s' p: '%s' authHeader=0x%p\n",request->username,request->password,authenticationHeader);
+  }
+  char cleartextBuffer[AUTH_BUFFER_LENGTH];
+  char asciiHeaderBuffer[AUTH_BUFFER_LENGTH];
+  char *asciiHeader = NULL;
+  if (authenticationHeader){
+    asciiHeader = authenticationHeader->value;
+  } else{
+    if (strlen(request->username) > MAX_USERID_LENGTH || strlen(request->password) > MAX_PASSWORD_LENGTH){
+      printf("username or password too long\n");
+      return 0;
+    }
+    snprintf(cleartextBuffer,AUTH_BUFFER_LENGTH,"Basic %s:%s",request->username,request->password);
+    strupcase(cleartextBuffer+6);
+    if (singleUserTrace >= 1){
+      printf("JOE: before ascii and B64 '%s'\n",cleartextBuffer);
+    }
+    e2a(cleartextBuffer,strlen(cleartextBuffer));
+    if (singleUserTrace >= 1){
+      printf("JOE: as ascii\n");
+      dumpbuffer(cleartextBuffer,strlen(cleartextBuffer));
+    }
+    asciiHeader = asciiHeaderBuffer;
+    int encodedSize = 0;
+    encodeBase64NoAlloc(cleartextBuffer+6, strlen(cleartextBuffer)-6, asciiHeader+6,&encodedSize,FALSE);
+    encodedSize += 6;
+    memcpy(asciiHeader,cleartextBuffer,6);
+    asciiHeader[encodedSize] = 0;
+    if (singleUserTrace >= 1){
+      printf("JOE: Built ascii header\n");
+      dumpbuffer(asciiHeader,encodedSize+1);
+    }
+  }
+  char md5Hash[MD5_LENGTH];
+  md5It(asciiHeader,strlen(asciiHeader),md5Hash);
+  strupcase(request->username); /* upfold username */
+  char *safUser = acee->aceeuser;
+  int safUserLength = safUser[0];
+  safUser++;
+  if (singleUserTrace >= 1){
+    printf("JOE: single-user requestUName: '%s' ACEE uname: '%*.*s'\n",
+           request->username,safUserLength,safUserLength,safUser);
+    dumpbuffer(asciiHeader,strlen(asciiHeader));
+    printf("and blob hash\n");
+    dumpbuffer(md5Hash,MD5_LENGTH);
+    printf("and singleUserAuthBlob at 0x%p\n",server->singleUserAuthBlob);
+    dumpbuffer(server->singleUserAuthBlob,MD5_LENGTH);
+  }
+  /*
+     do we need this stuff? and for what?
+     authResponse->type = AUTH_TYPE_RACF;
+     authResponse->responseDetails.safStatus = 0;
+   */
+  return ((strlen(request->username) == safUserLength) &&           /* Same User as ACEE */
+          !memcmp(request->username,safUser,safUserLength) &&       /* Same User as ACEE */
+	  !memcmp(server->singleUserAuthBlob,md5Hash,MD5_LENGTH));  /* and the Same Blob  */
+}
+
 static int safAuthenticate(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
   int safStatus = 0, racfStatus = 0, racfReason = 0;
   int options = VERIFY_CREATE;
@@ -2492,7 +2648,9 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
   if (traceAuth){
     printf("safAutheniticate: authDataFound=%d\n",authDataFound);
   }
-  if (authDataFound) {
+  if (authDataFound && service->server->singleUserMode){
+    return doSingleUserAuth(service->server,request,authResponse);
+  } else if (authDataFound){
     ACEE *acee = NULL;
     strupcase(request->username); /* upfold username */
 #ifdef ENABLE_DANGEROUS_AUTH_TRACING
@@ -2563,6 +2721,17 @@ static int nativeAuth(HttpService *service, HttpRequest *request, AuthResponse *
 }
 
 static int startImpersonating(HttpService *service, HttpRequest *request) {
+  if (service->server->singleUserMode){
+    /* Why is this valid?
+       Because all requests must be from the same userid in request as
+       what is running this httpserver, therefore impersonation is idempotent.
+       */
+    if (singleUserTrace >= 1){
+      printf("JOE - idem-personating (ha!) in 1U Mode\n");
+    }
+    return TRUE;
+  }
+
   int impersonating = FALSE;
   if (service->doImpersonation) {
     if (service->runInSubtask) {
@@ -2594,6 +2763,9 @@ static int startImpersonating(HttpService *service, HttpRequest *request) {
 }
 
 static int endImpersonating(HttpService *service, HttpRequest *request) {
+  if (service->server->singleUserMode){
+    return TRUE;
+  }
 #ifdef __ZOWE_OS_ZOS
 
 #if (APF_AUTHORIZED == 1) && !defined(HTTPSERVER_BPX_IMPERSONATION)
@@ -2730,10 +2902,10 @@ int extractBearerToken(HttpRequest *request, HttpHeader *authHeader) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "tokenEnd=%d\n", tokenEnd);
   }
   const int tokenLen = tokenEnd - tokenStart;
-  AUTH_TRACE("bearer token length\n", tokenLen);
+  AUTH_TRACE("bearer token length = %d\n", tokenLen);
 
   char *const tokenString = SLHAlloc(request->slh, tokenLen + 1);
-  AUTH_TRACE("bearer token buffer at %p\n", tokenString);
+  AUTH_TRACE("bearer token buffer at 0x%p\n", tokenString);
   if (tokenString == NULL) {
     return FALSE;
   }
@@ -2972,11 +3144,10 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   char *tokenCookieText = getCookieValue(request,getSessionTokenCookieName(service));
   
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
-       "serviceAuthNativeWithSessionToken: authenticationHeader 0x%p, authenticationHeader(hex) = 0x%x\n",
-       "extractFunction 0x%p\n",
-       authenticationHeader,
-       authenticationHeader,
-       service->authExtractionFunction);
+          "serviceAuthNativeWithSessionToken: authenticationHeader 0x%p\n",
+          "extractFunction 0x%p\n",
+          authenticationHeader,
+          service->authExtractionFunction);
   
   if (authenticationHeader) {
     if (extractBasicAuth(request,authenticationHeader)){
@@ -3047,7 +3218,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
     if (nativeAuth(service,request,authResponse)){
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
               "serviceAuthNativeWithSessionToken: auth header provided and works, "
-              "before generate session token req=0x%x, username=0x%x, response=0x%p\n",
+              "before generate session token req=0x%p, username=0x%p, response=0x%p\n",
               request,request->username,response);
 
       char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);
@@ -3102,7 +3273,7 @@ static int serviceAuthWithJwt(HttpService *service,
    */
 
   if (authorizationHeader) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "serviceAuthWithJwt: auth header = 0x%x\n", authorizationHeader);
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "serviceAuthWithJwt: auth header = 0x%p\n", authorizationHeader);
     if (request->authToken == NULL && extractBearerToken(request, authorizationHeader)) {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "back inside serviceAuthWithJwt after call to extractBearerToken\n");
     }
@@ -3270,8 +3441,13 @@ static void serializeConsiderCloseEnqueue(HttpConversation *conversation, int su
       break;                    // Successful when function returns 1
     // Refresh the compare copy of the conversation serialized data
     memcpy(&compare,&conversation->serializedData,sizeof(compare));
+#elif defined __ZOWE_OS_WINDOWS
+    if (atomic_compare_exchange_strong(&conversation->serializedData,
+                                       (unsigned int *)&compare.serializedData,
+                                       replace.serializedData))
+      break;
 #else
-  #error Unsupported platform for atomic increment
+  #error Unsupported platform for atomic operation
 #endif
   } while(1);
 
@@ -3293,7 +3469,7 @@ static void serveRequest(HttpService* service, HttpResponse* response,
     proxyServe(service, request, response);
   } else {
     char* serviceArgProblem = NULL;
-    if (serviceArgProblem = processServiceRequestParams(service, response)) {
+    if ((serviceArgProblem = processServiceRequestParams(service, response)) != NULL){
       respondWithError(response, 404, serviceArgProblem);
       // Response is finished on return
     } else {
@@ -3314,6 +3490,7 @@ static void serveRequest(HttpService* service, HttpResponse* response,
 
 static void respondWithAuthError(HttpResponse *response, AuthResponse *authResponse) {
   switch (authResponse->type) {
+#ifdef __ZOWE_OS_ZOS
     case AUTH_TYPE_RACF:
       if (authResponse->responseDetails.safStatus.safRC == SAF_RC_PASSWORD_EXPIRED &&
           authResponse->responseDetails.safStatus.racfRC == RACF_RC_PASSWORD_EXPIRED) {
@@ -3322,6 +3499,7 @@ static void respondWithAuthError(HttpResponse *response, AuthResponse *authRespo
         respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
       }
       break;
+#endif
     default:
       respondWithError(response, HTTP_STATUS_UNAUTHORIZED, "Not Authorized");
       break;
@@ -3381,15 +3559,15 @@ static int handleHttpService(HttpServer *server,
                                 NULL, extractABENDInfo, &abendInfo, NULL, NULL);
   if (recoveryRC != RC_RCV_OK) {
     if (recoveryRC == RC_RCV_CONTEXT_NOT_FOUND) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "httpserver: error running service %s, recovery context not found\n",
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "httpserver: error running service %s, recovery context not found\n",
           service->name);
     }
     else if (recoveryRC == RC_RCV_ABENDED) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "httpserver: ABEND %03X-%02X averted when handling %s\n",
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "httpserver: ABEND %03X-%02X averted when handling %s\n",
           abendInfo.completionCode, abendInfo.reasonCode, service->name);
     }
     else {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "httpserver: error running service %s unknown recovery code %d\n",
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "httpserver: error running service %s unknown recovery code %d\n",
           service->name, recoveryRC);
     }
     return handleServiceFailed(conversation, service, response);
@@ -3423,7 +3601,6 @@ static int handleHttpService(HttpServer *server,
     case SERVICE_AUTH_TOKEN_TYPE_JWT:
     case SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK:
       request->authenticated = serviceAuthWithJwt(service, request, response);
-
       if (request->authenticated  ||
           service->server->config->authTokenType
             != SERVICE_AUTH_TOKEN_TYPE_JWT_WITH_LEGACY_FALLBACK) {
@@ -3523,12 +3700,12 @@ static int serviceLoop(Socket *socket){
     } 
     int requestStreamOK = processHttpFragment(parser,readBuffer,bytesRead);
     if (!requestStreamOK){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "some issue with parser status, socket=0x%X\n", socket);
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "some issue with parser status, socket=0x%p\n", socket);
       shouldClose = TRUE;
       break;
     }
     HttpRequest *request = NULL;
-    while (request = dequeueHttpRequest(parser)){
+    while ((request = dequeueHttpRequest(parser)) != NULL){
       HttpHeader *header;
       HttpResponse *response = makeHttpResponse(request,parser->slh,socket);
       /* parse URI after request and response ready for work, have SLH's, etc */
@@ -3844,7 +4021,7 @@ HttpRequestParam *getCheckedParam(HttpRequest *request, char *paramName){
 static char *getMimeType2(char *extension, int *isBinary, int dotPos, int ccsid);
 
 char *getMimeType(char *extension, int *isBinary) {
-  getMimeType2(extension, isBinary, FALSE, -1);
+  return getMimeType2(extension, isBinary, FALSE, -1);
 }
 
 typedef struct MimeType_tag {
@@ -3854,46 +4031,70 @@ typedef struct MimeType_tag {
 } MimeType;
 
 static MimeType MIME_TYPES[] = {
-  {"js", "text/javascript", FALSE},
-  {"json", "application/json", FALSE},
+  {"7z", "application/x-7z-compressed", TRUE},
+  {"asm", "text/plain", FALSE},
+  {"avi", "video/x-msvideo", TRUE},
+  {"bin", "application/octet-stream", TRUE},
+  {"bmp", "image/bmp", TRUE},
+  {"bz2", "application/x-bzip2", TRUE},
   {"ts", "text/typescript", FALSE},
   {"c", "text/plain", FALSE},
-  {"py", "text/plain", FALSE},
   {"cbl", "text/plain", FALSE},
-  {"asm", "text/plain", FALSE},
+  {"cob", "text/plain", FALSE},
   {"cpp", "text/plain", FALSE},
-  {"csv", "text/csv", FALSE},
-  {"h", "text/plain", FALSE},
-  {"log", "text/plain", FALSE},
-  {"env", "text/plain", FALSE},
-  {"html", "text/html", FALSE},
-  {"htm", "text/html", FALSE},
+  {"cpy", "text/plain", FALSE},
   {"css", "text/css", FALSE},
-  {"md", "text/markdown", FALSE},
-  {"sh", "application/x-sh", FALSE},
-  {"bin", "application/octet-stream", TRUE},
-  {"o", "application/octet-stream", TRUE},
+  {"csv", "text/csv", FALSE},
   {"dbg", "application/octet-stream", TRUE},
-  {"gz", "application/gzip", TRUE},
-  {"jar", "application/java-archive", TRUE},
-  {"tar", "application/x-tar", TRUE},
-  {"gif", "image/gif", TRUE},
-  {"png", "image/png", TRUE},
-  {"jpg", "image/jpg", TRUE},
-  {"bmp", "image/bmp", TRUE},
-  {"mpg", "video/mpeg", TRUE},
-  {"woff2", "application/font-woff2", TRUE},
-  {"ttf", "application/font-ttf", TRUE},
-  {"avi", "video/x-msvideo", TRUE},
   {"doc", "application/msword", TRUE },
   {"docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", TRUE},
-  {"mp3", "audio/mpeg", TRUE},
+  {"py", "text/plain", FALSE},
+  {"cbl", "text/plain", FALSE},
+  {"cpp", "text/plain", FALSE},
+  {"csv", "text/csv", FALSE},
+  {"env", "text/plain", FALSE},
+  {"gif", "image/gif", TRUE},
+  {"gz", "application/gzip", TRUE},
+  {"go", "text/plain", FALSE},
+  {"h", "text/plain", FALSE},
+  {"html", "text/html", FALSE},
+  {"htm", "text/html", FALSE},
+  {"ico", "image/vnd.microsoft.icon", TRUE},
+  {"jar", "application/java-archive", TRUE},
+  {"java", "text/plain", FALSE},
+  {"jcl", "text/plain", FALSE},
+  {"jpg", "image/jpg", TRUE},
+  {"js", "text/javascript", FALSE},
+  {"jsx", "text/plain", FALSE},
+  {"json", "application/json", FALSE},
   {"jsonld", "application/ld+json", TRUE},
+  {"log", "text/plain", FALSE},
+  {"md", "text/markdown", FALSE},
+  {"mpg", "video/mpeg", TRUE},
+  {"o", "application/octet-stream", TRUE},
+  {"rex", "text/plain", FALSE},
+  {"rexx", "text/plain", FALSE},
+  {"rs", "text/plain", FALSE},
+  {"rlib", "text/plain", FALSE},
+  {"php", "text/plain", FALSE},
+  {"pl", "text/plain", FALSE},
+  {"png", "image/png", TRUE}, 
+  {"py", "text/plain", FALSE},
+  {"woff2", "application/font-woff2", TRUE},
+  {"ttf", "application/font-ttf", TRUE},
+  {"mp3", "audio/mpeg", TRUE},
+  {"sh", "application/x-sh", FALSE},
+  {"sql", "application/sql", FALSE},
+  {"swift", "text/plain", FALSE},
   {"pdf", "application/pdf", TRUE},
+  {"tar", "application/x-tar", TRUE},
+  {"ts", "text/plain", FALSE},
+  {"tsx", "text/plain", FALSE},
+  {"txt", "text/plain", FALSE},
+  {"webm", "video/webm", TRUE},
   {"xls", "application/vnd.ms-excel", TRUE},
-  {"zip", "application/zip", TRUE},
-  {"7z", "application/x-7z-compressed", TRUE},
-  {"webm", "video/webm", TRUE}
+  {"xml", "application/xml", FALSE},
+  {"zip", "application/zip", TRUE}
 };
 
 #define MIME_TYPE_COUNT sizeof(MIME_TYPES)/sizeof(MIME_TYPES[0])
@@ -3937,20 +4138,15 @@ void respondWithUnixDirectorySafer(HttpResponse* response, char* absolutePath, i
 void respondWithUnixFileNotFound(HttpResponse* response, int jsonMode);
 void respondWithJsonError(HttpResponse *response, char *error, int statusCode, char *statusMessage);
 
-static uint64_t makeFileEtag(FileInfo *file) {
+static uint64_t makeFileEtag(const FileInfo *file) {
   static const uint32_t prime = 31;
   uint64_t result = 1;
   uint32_t inode;
   time_t mtime;
   uint64_t size;
 
-#if defined(__ZOWE_OS_AIX) || defined (__ZOWE_OS_LINUX)
-  inode = file->st_ino;
-  mtime = file->st_mtime;
-#else
-  inode = file->inode;
-  mtime = file->lastModficationTime;
-#endif
+  inode = fileGetINode(file);
+  mtime = fileInfoUnixModificationTime(file);
   size = fileInfoSize(file);
   result = prime * result + inode;
   result = prime * result + mtime;
@@ -3971,7 +4167,7 @@ void respondWithUnixFileContentsWithAutocvtMode (HttpService* service, HttpRespo
   int reasonCode;
   int status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
 
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "finfo:\n");
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "finfo:\n");
 #ifdef DEBUG
   dumpbuffer((char*)&info, sizeof(FileInfo));
 #endif
@@ -4109,7 +4305,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 
   if(status == 0) {
     int filenameLen = strlen(absolutePath);
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Request for file=%s\n",absolutePath);
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Request for file=%s\n",absolutePath);
     int dotPos = lastIndexOf(absolutePath, filenameLen, '.');
     int isDotFile = FALSE;
     if (dotPos > 0 && (absolutePath[dotPos-1] == '/')){
@@ -4120,14 +4316,10 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     long fileSize = fileInfoSize(&info);
     int ccsid = fileInfoCCSID(&info);
     char *mimeType = getMimeType2(extension,&isBinary,isDotFile, ccsid);
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "File ccsid=%d, mimetype=%s isBinary=%s\n",
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "File ccsid=%d, mimetype=%s isBinary=%s\n",
             ccsid,mimeType,isBinary ? "true" : "false");
     char tmperr[256] = {0};
-#if defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_LINUX)
-    time_t mtime = info.st_mtime;
-#else
-    time_t mtime = info.lastModficationTime;
-#endif
+    time_t mtime = fileInfoUnixModificationTime(&info);
     uint64_t etag = makeFileEtag(&info);
     bool modified = isCachedCopyModified(req, etag, mtime);
 
@@ -4183,12 +4375,12 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 
     if (isBinary || ccsid == -1) {
       writeHeader(response);
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Streaming binary for %s\n", absolutePath);
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Streaming binary for %s\n", absolutePath);
       
       streamBinaryForFile2(response, NULL, in, ENCODING_CHUNKED, asB64);
     } else {
       writeHeader(response);
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Streaming %d for %s\n", ccsid, absolutePath);
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Streaming %d for %s\n", ccsid, absolutePath);
 
       /* TBD: This isn't really an OS dependency, but this is what I had
          to do to get this working on Linux. The problem is that there really
@@ -4207,7 +4399,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
       int webCodePage = 
 #ifdef __ZOWE_OS_ZOS
         CCSID_ISO_8859_1
-#elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
+#elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_WINDOWS)
         CCSID_UTF_8
 #else
 #error Unknown OS
@@ -4226,7 +4418,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
              respondWithError(response, HTTP_STATUS_BAD_REQUEST, "source/target encoding value parsing error.");
              return;
            }
-	         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Sending with forced conversion between %d and %d\n", 
+	         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Sending with forced conversion between %d and %d\n", 
                    sscanfSource, sscanfTarget);
            streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, sEncoding, tEncoding, asB64);
         }
@@ -4236,12 +4428,12 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
         }
     }
     else if(ccsid == 0) {
-	    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Sending with default conversion between %d and %d\n", 
+	    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Sending with default conversion between %d and %d\n", 
               NATIVE_CODEPAGE, webCodePage);
       streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
     }
     else {
-	    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Sending with tagged conversion between %d and %d\n", 
+	    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Sending with tagged conversion between %d and %d\n", 
               ccsid, webCodePage);
       streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, ccsid, webCodePage, asB64);
     }
@@ -4257,7 +4449,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     finishResponse(response);
   }
   else {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "File not found within respondWithUnixFile.. This may be a problem\n");
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "File not found within respondWithUnixFile.. This may be a problem\n");
     respondWithUnixFileNotFound(response, jsonMode);
     // Response is finished on return
   }
@@ -4364,26 +4556,28 @@ void respondWithJsonError(HttpResponse *response, char *error, int statusCode, c
 static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
-  int bufferSize = FILE_STREAM_BUFFER_SIZE;
-  char buffer[bufferSize+4];
-  int encodedLength;
   ChunkedOutputStream *stream = NULL;
 
   if ((response && socket) || (!response && !socket)) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "bad arguments: either response or socket must be not NULL, never both\n");	
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "bad arguments: either response or socket must be not NULL, never both\n");	
     return 8;
   }
   if (encoding == ENCODING_GZIP) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "GZIP encoding not implemented\n");	
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "GZIP encoding not implemented\n");	
     return 8;
   }
   if (encoding == ENCODING_CHUNKED && !response) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "bad arguments: response must be not NULL to use chunked encoding\n");	
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "bad arguments: response must be not NULL to use chunked encoding\n");	
     return 8;
   }
   if (encoding == ENCODING_CHUNKED) {
     stream = makeChunkedOutputStreamInternal(response);
   }
+
+  int bufferSize = FILE_STREAM_BUFFER_SIZE;
+  char *buffer = safeMalloc(bufferSize+4, "streamBinaryBuffer");
+  int encodedLength;
+
   while (!fileEOF(in)) {
     int bytesRead = fileRead(in,buffer,bufferSize,&returnCode,&reasonCode);
     if (bytesRead <= 0) {
@@ -4415,6 +4609,8 @@ static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile
     finishChunkedOutput(stream, NO_TRANSLATE);
   }
 
+  safeFree(buffer, bufferSize+4);
+
   return 0;
 }
 
@@ -4431,35 +4627,35 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
   int returnCode = 0;
   int reasonCode = 0;
   int bytesSent = 0;
-  int bufferSize = FILE_STREAM_BUFFER_SIZE;
-  char buffer[bufferSize+4];
-  char translation[(2*bufferSize)+4]; /* UTF inflation tolerance */
-  int encodedLength;
   ChunkedOutputStream *stream = NULL;
-
 
   /* Q: How do we find character encoding for unix file? 
      A: You can't. There is no equivalent of USS character encoding tags on
         other Unix systems. Hence, things like the .htaccess (for Apache).
   */
   if ((response && socket) || (!response && !socket)) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "bad arguments: either response or socket must be not NULL, never both\n");	
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "bad arguments: either response or socket must be not NULL, never both\n");	
     return 8;
   }
   switch (encoding){
   case ENCODING_CHUNKED:
     if (!response) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "bad arguments: response must be not NULL to use chunked encoding\n");	
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "bad arguments: response must be not NULL to use chunked encoding\n");	
       return 8;
     }
     stream = makeChunkedOutputStreamInternal(response);
     /* fallthrough */
-  case ENCODING_SIMPLE:
+  case ENCODING_SIMPLE: {
+    int bufferSize = FILE_STREAM_BUFFER_SIZE;
+    char *buffer = safeMalloc(bufferSize+4, "streamTextBuffer");
+    char *translation = safeMalloc((2*bufferSize)+4, "streamTextConvertBuffer"); /* UTF inflation tolerance */
+    int encodedLength;
+
     while (!fileEOF(in)){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "WARNING: UTF8 might not be aligned properly: preserve 3 bytes for the next read cycle to fix UTF boundaries\n");
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "WARNING: UTF8 might not be aligned properly: preserve 3 bytes for the next read cycle to fix UTF boundaries\n");
       int bytesRead = fileRead(in,buffer,bufferSize,&returnCode,&reasonCode);
       if (bytesRead <= 0) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2,
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
                 "Text streaming has ended. (return = 0x%x, reason = 0x%x)\n",
                 returnCode, reasonCode);
         break;
@@ -4501,9 +4697,9 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
                             &reasonCode);
 
         if (inLen != translationLength) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "streamTextForFile(%d (%s), %d (%s), %d, %d, %d, %d): "
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "streamTextForFile(%d (%s), %d (%s), %d, %d, %d, %d): "
                  "after sending %d bytes got translation length error; expected %d, got %d\n",
-                 socket->sd, socket->debugName, 
+                 getSocketDebugID(socket), socket->debugName, 
                  in->fd, in->pathname,
                  encoding, sourceCCSID, targetCCSID, asB64, bytesSent, inLen, translationLength);
         }
@@ -4512,7 +4708,7 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
           dumpbuffer(translation,translationLength);
         }
         if (rc != 0){
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "iconv rc = %d, bytesRead=%d xlateLength=%d\n",rc,bytesRead,translationLength);
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "iconv rc = %d, bytesRead=%d xlateLength=%d\n",rc,bytesRead,translationLength);
         }
 
         outPtr = translation;
@@ -4522,7 +4718,7 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
       char *encodedBuffer = NULL;
       if (asB64) {
         if (outLen % 3) { 
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
         }
         allocSize = ENCODE64_SIZE(outLen)+1;
         encodedBuffer = encodeBase64(NULL, outPtr, outLen, &encodedLength, FALSE);
@@ -4541,14 +4737,17 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
       /* finish the chunked output here because finishResponse will not flush this stream's data */
       finishChunkedOutput(stream, NO_TRANSLATE);
     }
+    safeFree(buffer, bufferSize+4);
+    safeFree(translation, (2*bufferSize)+4);
     break;
+  }
   case ENCODING_GZIP:
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "HELP - not implemented\n");
     break;
   }
   if (traceSocket > 0) {
     printf("streamTextForFile(%d (%s), %d (%s), %d, %d, %d, %d) sent %d bytes\n",
-           socket->sd, socket->debugName, 
+           getSocketDebugID(socket), socket->debugName, 
            in->fd, in->pathname,
            encoding, sourceCCSID, targetCCSID, asB64, bytesSent);
   }
@@ -4708,20 +4907,20 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
           convertUnixToISO(unixTime, &timeStamp);
 
           char owner[USER_NAME_LEN+1] = {0};
-          int status = userGetName(info.ownerUID, owner, &returnCode, &reasonCode);
+          int status = userGetName(fileInfoOwnerUID(&info), owner, &returnCode, &reasonCode);
           if (status != 0) {
             zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, 
-                   "failed to obtain user name for uid=%d, returnCode: %d, reasonCode: 0x%08x\n",
-                   info.ownerUID, returnCode, reasonCode);
+                    "failed to obtain user name for uid=%d, returnCode: %d, reasonCode: 0x%08x\n",
+                    fileInfoOwnerUID(&info), returnCode, reasonCode);
           }
           trimRight(owner, USER_NAME_LEN);
           
           char group[GROUP_NAME_LEN+1] = {0};
-          status = groupGetName(info.ownerGID, group, &returnCode, &reasonCode);
+          status = groupGetName(fileInfoOwnerGID(&info), group, &returnCode, &reasonCode);
           if (status != 0) {
             zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, 
-                   "failed to obtain group name for gid=%d, returnCode: %d, reasonCode: 0x%08x\n",
-                   info.ownerGID, returnCode, reasonCode);
+                    "failed to obtain group name for gid=%d, returnCode: %d, reasonCode: 0x%08x\n",
+                    fileInfoOwnerGID(&info), returnCode, reasonCode);
           }
           trimRight(group, GROUP_NAME_LEN);
           
@@ -4957,7 +5156,7 @@ char *getQueryParam(HttpRequest *request, char *paramName){
 void serveSimpleTemplate(HttpService *service, HttpResponse *response){
   HttpRequest *request = response->request;
   HTMLTemplate *template = openHTMLTemplate(response,service->templatePath);
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "serveSimpleTemplate %s, template=0x%x\n",service->templatePath,template);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "serveSimpleTemplate %s, template=0x%p\n",service->templatePath,template);
   if (template){
     ChunkedOutputStream *outStream = makeChunkedOutputStreamInternal(response);
     setResponseStatus(response,200,"OK");
@@ -5034,7 +5233,7 @@ HttpService *makeWebSocketService(char *name, char *urlMask, WSEndpoint *endpoin
   parseURLMask(service,urlMask);
   service->next = NULL;
   service->wsEndpoint = endpoint;
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "putting endpoint 0x%x on service 0x%x\n",endpoint,service);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "putting endpoint 0x%p on service 0x%p\n",endpoint,service);
 
   service->paramSpecList = NULL;
   return service;
@@ -5108,11 +5307,20 @@ static void serializeStartRunning(HttpConversation *conversation) {
                                      compare.serializedData,replace.serializedData))                                                                                                                                
       break;                    // Successful when function returns 1                                                                                                                                               
     // Refresh the compare copy of the conversation serialized data                                                                                                                                                 
-    memcpy(&compare,&conversation->serializedData,sizeof(compare));                                                                                                                                                 
+    memcpy(&compare,&conversation->serializedData,sizeof(compare));
+
+#elif defined(__ZOWE_OS_WINDOWS)
+
+    if (atomic_compare_exchange_strong(&conversation->serializedData,
+                                       (unsigned int *)&compare.serializedData,
+                                       replace.serializedData))
+      break;
+
+    
 #else                                                                                                                                                                                                               
-  #error Unsupported platform for atomic increment                                                                                                                                                                  
+  #error Unsupported platform atomic operation                                                                                                                                                                 
 #endif                                                                                                                                                                                                              
-  } while(1);                                                                                                                                                                                                       
+  } while(1);
 
   return;                                                                                                                                                                                                           
 }                                                                                                                                                                                                                   
@@ -5126,7 +5334,7 @@ static int httpTaskMain(RLETask *task){
 
   HttpWorkElement *element = (HttpWorkElement*)task->userPointer;
   HttpConversation *conversation = element->conversation;
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "httpTaskMain element=0x%x elt->convo=0x%x\n",element,conversation);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "httpTaskMain element=0x%p elt->convo=0x%p\n",element,conversation);
   if (!conversation->shouldClose) {
     /* Execute only if the conversation is still open */
     serviceResult = handleHttpService(conversation->server,
@@ -5171,7 +5379,7 @@ static char *makeWSAccept(ShortLivedHeap *slh, char *key){
 
   digestContextFinish(&context,hash);
   int resultSize = 0;
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "before encode base 64 slh=0x%x hash at 0x%x\n",slh,hash);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "before encode base 64 slh=0x%p hash at 0x%x\n",slh,hash);
   char *encoded = encodeBase64(slh,hash,20,&resultSize,
 #ifdef __ZOWE_OS_ZOS
                                TRUE
@@ -5236,7 +5444,7 @@ static void upgradeToWebSocket(HttpConversation *conversation,
     finishResponse(response);
 
     WSEndpoint *endpoint = service->wsEndpoint; 
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "WS upgrade service=0x%x name=%s endpoint=0x%x\n",
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "WS upgrade service=0x%p name=%s endpoint=0x%p\n",
             service,service->name,endpoint);
     if (endpoint->onOpen){
       endpoint->onOpen(conversation->wsSession);
@@ -5269,7 +5477,7 @@ static void doHttpResponseWork(HttpConversation *conversation)
   do {
 
     if (conversation->shouldError) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "doHttpResponseWork in new shouldError case (%d). Conversation=0x%X\n", 
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "doHttpResponseWork in new shouldError case (%d). Conversation=0x%p\n", 
               conversation->httpErrorStatus,conversation);
       /* makeHttpResponse now gives the response its own SLH */
       response = makeHttpResponse(NULL, parser->slh, conversation->socketExtension->socket);
@@ -5294,7 +5502,7 @@ static void doHttpResponseWork(HttpConversation *conversation)
       response = makeHttpResponse(firstRequest,parser->slh,conversation->socketExtension->socket);
       /* parse URI after request and response ready for work, have SLH's, etc */
       parseURI(firstRequest);
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "firstReq: looking for service for URI %s. Conversation=0x%X\n",
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "firstReq: looking for service for URI %s. Conversation=0x%p\n",
               firstRequest->uri,conversation);
       header = firstRequest->headerChain;
       while (header){
@@ -5331,7 +5539,7 @@ static void doHttpResponseWork(HttpConversation *conversation)
           response = NULL; /* transfer the ownership of the response to the subtask */
           conversation->task->userPointer = workElement;
           zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
-                  "about to start RLE Task from main at 0x%x wkElement=0x%x pendingService=0x%x\n",
+                  "about to start RLE Task from main at 0x%p wkElement=0x%p pendingService=0x%p\n",
                   conversation->task,workElement,conversation->pendingService);
 
           /* Keep track of number of running tasks */                                                                                                                                                            
@@ -5343,7 +5551,7 @@ static void doHttpResponseWork(HttpConversation *conversation)
         handleHttpService(conversation->server,service,firstRequest,response);
         break;
       }
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "doHttpResponseWork:  no service found. conversation=0x%X\n",conversation);
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "doHttpResponseWork:  no service found. conversation=0x%p\n",conversation);
       respondWithError(response,HTTP_STATUS_NOT_FOUND,"resource or service not found");
       if (!firstRequest->keepAlive) {
         conversation->shouldClose = TRUE;
@@ -5366,7 +5574,7 @@ static void doHttpReadWork(HttpConversation *conversation, int readBufferSize){
 
   int bytesRead = socketRead(socket,readBuffer,readBufferSize,&returnCode,&reasonCode);
   if (bytesRead < 1) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "HTTP desiredBytes = %d bytesRead=%d, so a problem or no more available rc=0x%x, reason=0x%x. conversation=0x%X\n",
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "HTTP desiredBytes = %d bytesRead=%d, so a problem or no more available rc=0x%x, reason=0x%x. conversation=0x%p\n",
             readBufferSize,bytesRead,returnCode,reasonCode,conversation);
     conversation->shouldClose = TRUE;
     return; /* can't respond on a bad socket, even with an error */
@@ -5402,7 +5610,7 @@ static void doWSReadWork(HttpConversation *conversation, int readBufferSize){
 
   int bytesRead = socketRead(socket,readBuffer,readBufferSize,&returnCode,&reasonCode);
   if (bytesRead < 1){
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "WS desiredBytes = %d bytesRead=%d, so a problem or no more available rc=0x%x, reason=0x%x, conversation=0x%X\n",
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "WS desiredBytes = %d bytesRead=%d, so a problem or no more available rc=0x%x, reason=0x%x, conversation=0x%p\n",
             readBufferSize,bytesRead,returnCode,reasonCode,conversation);
     conversation->shouldClose = TRUE;
     return; /* dangerous to enqueue any work once shouldClose has been set */
@@ -5422,6 +5630,69 @@ static void doWSReadWork(HttpConversation *conversation, int readBufferSize){
   }
 }
 
+static int handlePeerSocketRead(STCBase *base,
+                                STCModule *module,
+                                Socket *socket,
+                                SocketExtension *extension,
+                                bool *breakOuterLoop){
+  int returnCode = 0;
+  int reasonCode = 0;
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "handle peer socket read\n");
+  
+  SocketExtension *peerExtension = extension;
+  HttpConversation *conversation = (HttpConversation*)extension->protocolHandler;
+  
+  if (NULL == conversation) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "*** peerExtension protocolHandler is NULL ***\n");
+    /* we can't do a full conversation cleanup, just close the socket and unregister the socketExtension, leaks be damned */
+    socketClose(peerExtension->socket, &returnCode,&reasonCode);
+    *breakOuterLoop = true;
+    return 8;
+  }
+  
+  if (conversation->shouldClose) {
+    /* immediately unregister the socketExtension so we can't enqueue more than one CLOSE_CONVERSATION request */
+    stcReleaseSocketExtension(base, peerExtension);
+    
+    serializeConsiderCloseEnqueue(conversation,FALSE);
+    
+    *breakOuterLoop = true;
+    return 0;
+  }
+
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "peerExtension at 0x%p, httpConversation at 0x%p\n", 
+              peerExtension, conversation);
+  
+#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_RS_TLS)
+  int sxStatus = sxUpdateTLSInfo(peerExtension,
+                                 1); /* prevent multiple ioctl calls on repeated reads */
+  if (0 != sxStatus) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "error from sxUpdateTLSInfo: %d\n", sxStatus);
+  } else if ((RS_TLS_WANT_TLS & peerExtension->tlsFlags) &&
+             (0 == (RS_TLS_HAVE_TLS & peerExtension->tlsFlags)))
+    {
+      if (0 == (tlsWarnCounter % TLS_WARN_FREQUENCY)) {
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "Connection is insecure! TLS needed but not found on socket.\n");
+      }
+      tlsWarnCounter++;
+    } else if ((RS_TLS_WANT_PEERCERT & peerExtension->tlsFlags) &&
+               (0 == (RS_TLS_HAVE_PEERCERT & peerExtension->tlsFlags)))
+      {
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Connection is insecure! Peer certificate wanted but not found.\n");
+      }
+#endif
+  
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "handle read JEDHTTP convo\n");
+  /* if successful, these methods enqueue work */
+  if (conversation->wsSession){
+    doWSReadWork(conversation,READ_BUFFER_SIZE);
+  } else {
+    doHttpReadWork(conversation,READ_BUFFER_SIZE);
+  }
+  return 0;
+}
+
+
 
 static int httpHandleTCP(STCBase *base,
                          STCModule *module,
@@ -5433,7 +5704,7 @@ static int httpHandleTCP(STCBase *base,
 
   SocketExtension *extension = (SocketExtension*)socket->userData;
 
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "TCP Socket %s is READY, at=0x%x extension=0x%x\n",
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "TCP Socket %s is READY, at=0x%p extension=0x%p\n",
           socket->debugName,socket,extension);
 
   do {
@@ -5460,7 +5731,9 @@ static int httpHandleTCP(STCBase *base,
                                                         peerSocket->sd,
                                                         &(peerSocket->sslHandle)); /* RS_SSL_CONNECTION */
         if ((0 != rsStatus) || (NULL == peerSocket->sslHandle)) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "httpserver failed to negotiate TLS with peer; closing socket\n");
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, 
+		  "httpserver failed to negotiate TLS with peer; closing socket, rsStatus=%d skt.dbg.name=%s\n",
+		  rsStatus,(peerSocket ? peerSocket->debugName : "NONE"));
           socketClose(peerSocket, &returnCode, &reasonCode);
           break;
         }
@@ -5473,7 +5746,9 @@ static int httpHandleTCP(STCBase *base,
                                peerSocket->sd,
                                true);
         if ((0 != rc) || (NULL == peerSocket->tlsSocket)) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "httpserver failed to negotiate TLS with peer; closing socket\n");
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, 
+		  "httpserver failed to negotiate TLS with peer; closing socket, tlsInit.rc=%d skt.dbg.name=%s\n",
+		  rc,(peerSocket ? peerSocket->debugName : "NONE"));
           socketClose(peerSocket, &returnCode, &reasonCode);
           break;
         }
@@ -5503,61 +5778,218 @@ static int httpHandleTCP(STCBase *base,
       break; /* end server socket processing */
 
     } else {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "handle peer socket read\n");
-
-      SocketExtension *peerExtension = extension;
-      HttpConversation *conversation = (HttpConversation*)extension->protocolHandler;
-
-      if (NULL == conversation) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "*** peerExtension protocolHandler is NULL ***\n");
-        /* we can't do a full conversation cleanup, just close the socket and unregister the socketExtension, leaks be damned */
-        socketClose(peerExtension->socket, &returnCode,&reasonCode);
-        handlerStatus = 8;
-        break; /* end peer socket processing */
-      }
-
-      if (conversation->shouldClose) {
-        /* immediately unregister the socketExtension so we can't enqueue more than one CLOSE_CONVERSATION request */
-        stcReleaseSocketExtension(base, peerExtension);
-
-        serializeConsiderCloseEnqueue(conversation,FALSE);
-
-        break; /* end peer socket processing */
-      }
-
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "peerExtension at 0x%x, httpConversation at 0x%x\n", 
-              peerExtension, conversation);
-
-#if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_RS_TLS)
-      int sxStatus = sxUpdateTLSInfo(peerExtension,
-                                     1); /* prevent multiple ioctl calls on repeated reads */
-      if (0 != sxStatus) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "error from sxUpdateTLSInfo: %d\n", sxStatus);
-      } else if ((RS_TLS_WANT_TLS & peerExtension->tlsFlags) &&
-                 (0 == (RS_TLS_HAVE_TLS & peerExtension->tlsFlags)))
-      {
-        if (0 == (tlsWarnCounter % TLS_WARN_FREQUENCY)) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "Connection is insecure! TLS needed but not found on socket.\n");
-        }
-        tlsWarnCounter++;
-      } else if ((RS_TLS_WANT_PEERCERT & peerExtension->tlsFlags) &&
-                 (0 == (RS_TLS_HAVE_PEERCERT & peerExtension->tlsFlags)))
-      {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Connection is insecure! Peer certificate wanted but not found.\n");
-      }
-#endif
-
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "handle read JEDHTTP convo\n");
-      /* if successful, these methods enqueue work */
-      if (conversation->wsSession){
-        doWSReadWork(conversation,READ_BUFFER_SIZE);
-      } else {
-        doHttpReadWork(conversation,READ_BUFFER_SIZE);
+      bool shouldBreak = false;
+      handlerStatus = handlePeerSocketRead(base,module,socket,extension,&shouldBreak);
+      if (shouldBreak){
+        break;
       }
     } /* end peer socket handling */
     
   } while(0);
 
+  return handlerStatus;
+}
+
+typedef struct PipeSocketEntry_tag{
+  int uniqueID;
+  Socket *demuxSocket;
+  Socket *handlerSocket;  /* used by http/tcp code */
+  Socket *muxSocket;      
+} PipeSocketEntry;
+
+static PipeSocketEntry *getOrMakePipeSocketEntry(HttpServer *server, 
+						 STCModule *module, 
+						 Socket *demuxSocket, 
+						 int uniqueID,
+						 int *pipeError){
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "getOrMake=%d\n",uniqueID);
+  PipeSocketEntry *entry = htIntGet(server->syntheticPipeSockets,uniqueID);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "ht result = 0x%p\n",entry);
+
+  if (entry == NULL){
+    int fdsToHttp[2] ={ -1, -1};  /* readEnd, writeEnd */
+    int fdsFromHttp[2] ={ -1, -1};
+    if (pipe(fdsToHttp)){
+      *pipeError = errno;
+      return NULL;
+    }
+    if (pipe(fdsFromHttp)){
+      *pipeError = errno;
+      return NULL;
+    }
+    int httpRequestIn = fdsToHttp[0];
+    int httpResponseOut = fdsFromHttp[1];
+    int httpRequestOut = fdsToHttp[1];
+    int httpResponseIn = fdsFromHttp[0];
+
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2,"hanlderSocket pipes %d %d\n",httpRequestIn,httpResponseOut);
+    Socket *handlerSocket = makePipeBasedSyntheticSocket(IPPROTO_SYNTHETIC_PIPE_HANDLER,httpRequestIn,httpResponseOut);
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2,"muxSocket pipes %d %d\n",httpResponseIn,httpRequestOut);
+    Socket *muxSocket = makePipeBasedSyntheticSocket(IPPROTO_SYNTHETIC_PIPE_MULTIPLEXER,httpResponseIn,httpRequestOut);
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2,"handlerSocket=0x%p mux(fwd)socket=0x%p\n",handlerSocket,muxSocket);
+    SocketExtension *handlerExtension = makeSocketExtension(handlerSocket,
+							     server->slh,
+							     FALSE, /* allocateInSLH */
+							     NULL,
+							     READ_BUFFER_SIZE);
+    SocketExtension *muxExtension = makeSocketExtension(muxSocket,
+							server->slh,
+							FALSE, /* allocateInSLH */
+							NULL,
+							READ_BUFFER_SIZE);
+    
+    handlerSocket->userData = handlerExtension;
+    muxSocket->userData = muxExtension;
+
+    HttpConversation *httpConversation = makeHttpConversation(handlerExtension,(HttpServer*)(module->data));
+
+    stcRegisterSocketExtension(server->base, handlerExtension, STC_MODULE_JEDHTTP);
+    stcRegisterSocketExtension(server->base, muxExtension, STC_MODULE_JEDHTTP);
+
+    entry = (PipeSocketEntry*)safeMalloc(sizeof(PipeSocketEntry),"PipeSocketEntry");
+    entry->uniqueID = uniqueID;
+    entry->demuxSocket = demuxSocket;
+    entry->handlerSocket = handlerSocket;
+    entry->muxSocket = muxSocket;
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "PSEntry at 0x%p\n",entry );
+    zowedump(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, (char*)entry,sizeof(PipeSocketEntry));
+    muxExtension->protocolHandler = entry;
+
+    htIntPut(server->syntheticPipeSockets,uniqueID,entry);
+  }
+  return entry; 
+}
+
+/* this is called when PIPE has data 
+ */
+
+/* this method *only* runs in the STCBase main thread, putting and effective mutex 
+   on the pipes that talk up/down to process that owns this httpserver */
+static int httpHandlePipe(STCBase *base,
+			  STCModule *module,
+			  Socket *socket){
+  int handlerStatus = 0;
+  int returnCode = 0;
+  int reasonCode = 0;
+  HttpServer *server = (HttpServer*)(module->data);
+  SocketExtension *extension = (SocketExtension*)socket->userData;
+  switch (socket->protocol){
+  case IPPROTO_SYNTHETIC_PIPE_DEMULTIPLEXER:  
+    {
+      /* every pipe chunk for read ready must be > 4 in size */
+      char *readBuffer = extension->readBuffer;
+      
+      int bytesRead = socketRead(socket,readBuffer,8,&returnCode,&reasonCode);
+      if (returnCode){
+        printf("pipe IO error 1 ret=%d reason=0x%x\n",returnCode,reasonCode);
+        return 12;
+      } else if (bytesRead != 8){
+        printf("pipe fragment short read 1\n");
+        return 12;
+      }
+      int magic = *((int*)readBuffer);
+      if (magic != TCP_FRAGMENT_MAGIC){
+	printf("pipe bad tunnel magic\n");
+	return 12;
+      }
+      int headerLength = *((uint16_t*)(readBuffer+4));
+      printf("pipe headerLength=0x%x\n",headerLength);
+      int expectedBytes = headerLength-8;
+      bytesRead = socketRead(socket,readBuffer+8,expectedBytes,&returnCode,&reasonCode);
+      if (returnCode){
+	printf("pipe IO error 2 ret=%d reason=0x%x\n",returnCode,reasonCode);
+	return 12;
+      } else if (bytesRead != expectedBytes){
+	printf("pipe fragment short read 1\n");
+	return 12;
+      }
+      TCPFragment *fragment = (TCPFragment*)readBuffer;
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "pipe header\n");
+      zowedump(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, readBuffer,headerLength);
+      bytesRead = socketRead(socket,readBuffer+headerLength,fragment->payloadLength,&returnCode,&reasonCode);
+      if (returnCode){
+	printf("pipe IO error 3 ret=%d reason=0x%x\n",returnCode,reasonCode);
+	return 12;
+      } else if (bytesRead != fragment->payloadLength){
+	printf("pipe fragment short read 1\n");
+	return 12;
+      }
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "pipe payload\n");
+      zowedump(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, readBuffer+headerLength,fragment->payloadLength);
+      
+      int uniqueID = fragment->remoteClientID;
+      int pipeErrno = 0;
+      PipeSocketEntry *entry = getOrMakePipeSocketEntry(server,module,socket,uniqueID,&pipeErrno);
+      if (entry){
+	Socket *forwardingSocket = entry->muxSocket;
+	
+	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "entry=0x%p forwardingSocket=0x%p %p\n",
+		entry,forwardingSocket,(forwardingSocket ? forwardingSocket->debugName : ""));
+	socketWrite(forwardingSocket,readBuffer+headerLength,fragment->payloadLength,&returnCode,&reasonCode);
+	if (returnCode){
+	  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "Pipe-forwarding tunneled Packet failed ret=%d, reason=0x%x\n",returnCode,reasonCode);
+	}
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "done forwarding\n");
+      } else{
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING, "pipe creation failure, errno was %d\n",pipeErrno);
+      }
+    }
+  break;
+  case IPPROTO_SYNTHETIC_PIPE_HANDLER:
+    {
+      /* simple case, we are just a normal socket, almost */
+      bool breakOuterLoop = false;
+      handlerStatus = handlePeerSocketRead(base,module,socket,extension,&breakOuterLoop);
+    }
+  break;
+  case IPPROTO_SYNTHETIC_PIPE_MULTIPLEXER:
+    {
+      /* tack on Fragment header and go back */
+      PipeSocketEntry *entry = (PipeSocketEntry*)extension->protocolHandler;
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "handlePipe MUX case, entry=0x%p\n",entry);
+      if (entry == NULL){
+	printf("no PipeSocketEntry found for socket %s\n",socket->debugName);
+      } else{
+	char *readBuffer = extension->readBuffer;
+	Socket *demuxSocket = entry->demuxSocket;
+	Socket *muxSocket = socket;  /* the one that is readable */
+	int bytesRead = socketRead(muxSocket,readBuffer,READ_BUFFER_SIZE,&returnCode,&reasonCode);
+	zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "MUX case: 0x%x bytes back from handler, ret=%d reason=0x%x\n",bytesRead,returnCode,reasonCode);
+	if (bytesRead > 0){
+	  int dumpLen = bytesRead > 0x400 ? 0x400 : bytesRead;
+	  zowedump(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, readBuffer,dumpLen);
+	  TCPFragment fragmentStorage;
+	  TCPFragment *fragment = &fragmentStorage;
+	  memset(fragment,0,sizeof(TCPFragment));
+	  fragment->magic = TCP_FRAGMENT_MAGIC;
+	  fragment->headerLength = sizeof(TCPFragment);
+	  fragment->type = TCP_FRAGMENT_TO_REMOTE;
+	  fragment->remoteClientID = entry->uniqueID;
+	  fragment->payloadLength = bytesRead;
+	  socketWrite(demuxSocket,(char*)fragment,sizeof(TCPFragment),&returnCode,&reasonCode);
+	  FILE *tempOut = fdopen(demuxSocket->pipeOutputSD,"w");
+	  if (tempOut){
+	    fflush(tempOut);
+	  } else{
+	    printf("could not make temp out\n");
+	  }
+	  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2, "MUX wrote to socket %s\n",demuxSocket->debugName);
+	  if (returnCode){
+	    printf("demultiplexing write failed ret=%d reason=0x%x\n",returnCode,reasonCode);
+	  } else{
+	    socketWrite(demuxSocket,readBuffer,bytesRead,&returnCode,&reasonCode);
+	    if (returnCode){
+	      printf("demultiplexing payload write failed ret=%d reason=0x%x\n",returnCode,reasonCode);
+	    }
+	  }
+	} else{
+	  printf("oddly, no data for MUX socket read\n");
+	}
+      }
+    }
+  break;
+  }
+  
   return handlerStatus;
 }
 
@@ -5570,7 +6002,7 @@ HttpResponse *pseudoRespond(HttpServer *server, HttpRequest *request, ShortLived
   response->standaloneTestMode = TRUE;
   parseURI(request);
   HttpService *service = findHttpService(server,request);
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "in pseudoRespond, service=0x%x\n",service);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "in pseudoRespond, service=0x%p\n",service);
   if (service){
     /* what about output streams */
     handleHttpService(server,service,request,response);
@@ -5766,7 +6198,7 @@ int httpWorkElementHandler(STCBase *base,
           }
         }
       } else{
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "WS Message received without wsSession! conversation 0x%X\n", conversation);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "WS Message received without wsSession! conversation 0x%p\n", conversation);
         conversation->shouldClose = TRUE;
       }
     }
@@ -5779,7 +6211,7 @@ int httpWorkElementHandler(STCBase *base,
       HttpWorkElement *workElement = (HttpWorkElement*)((char*)prefix + sizeof(WorkElementPrefix));
       HttpConversation *conversation = workElement->conversation;
       SocketExtension *socketExtension = conversation->socketExtension;
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "wkElt=0x%x convo=0x%x sockExt=0x%x\n",
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "wkElt=0x%p convo=0x%p sockExt=0x%p\n",
               workElement,conversation,socketExtension);
       int dumpLength = workElement->bufferLength;
       if (dumpLength > 1024){
@@ -5796,7 +6228,7 @@ int httpWorkElementHandler(STCBase *base,
           
       /* after sending a close response, close is ok */
       if (prefix->payloadCode == HTTP_WS_CLOSE_HANDSHAKE){
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "WS_CLOSE_HANDSHAKE: sent message, setting shouldClose. Conversation 0x%X\n",conversation);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "WS_CLOSE_HANDSHAKE: sent message, setting shouldClose. Conversation 0x%p \n",conversation);
         conversation->shouldClose = TRUE;
       }      
     }
@@ -5837,26 +6269,28 @@ int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
 void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 {
   /* server pointer will be copied/accessible from module->data */
-  STCModule *httpModule = stcRegisterModule(base,
-                                            STC_MODULE_JEDHTTP,
-                                            server,
-                                            httpHandleTCP,
-                                            NULL,
-                                            httpWorkElementHandler,
-                                            httpBackgroundHandler);
+  STCModule *httpModule = stcRegisterModule2(base,
+                                             STC_MODULE_JEDHTTP,
+                                             server,
+                                             httpHandleTCP,
+                                             NULL,
+                                             httpHandlePipe,
+                                             httpWorkElementHandler,
+                                             httpBackgroundHandler);
 }
 
 int mainHttpLoop(HttpServer *server){
   STCBase *base = server->base;
   /* server pointer will be copied/accessible from module->data */
-  STCModule *httpModule = stcRegisterModule(base,
-                                            STC_MODULE_JEDHTTP,
-                                            server,
-                                            httpHandleTCP,
-                                            NULL,
-                                            httpWorkElementHandler,
-                                            httpBackgroundHandler);
-
+  STCModule *httpModule = stcRegisterModule2(base,
+                                             STC_MODULE_JEDHTTP,
+                                             server,
+                                             httpHandleTCP,
+                                             NULL,
+                                             httpHandlePipe,
+                                             httpWorkElementHandler,
+                                             httpBackgroundHandler);
+  
   return stcBaseMainLoop(base, MAIN_WAIT_MILLIS);
 }
 

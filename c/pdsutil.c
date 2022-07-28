@@ -76,6 +76,7 @@ static int close(PDSIterator *iterator){
 
 int endPDSIterator(PDSIterator *iterator){
   close(iterator);
+  return 0;
 }
 
 /* is sort order guaranteed?? */
@@ -357,6 +358,117 @@ int memberExistsInDDName(char *ddname){
 #else
   return FALSE; /* hack */
 #endif
+}
+
+
+#define PRMLB_SUCCESS 0
+#define PRMLB_BUFFER_SIZE 0x1000
+
+ZOWE_PRAGMA_PACK
+
+typedef struct IEFPRMLBParms_tag{
+  char acronym[4];
+  char version;
+  char request;
+#define IEFPRMLB_ALLOCATE 1
+#define IEFPRMLB_FREE 2
+#define IEFPRMLB_READMEMBER 3
+#define IEFPRMLB_LIST 4
+  unsigned short flags1;
+  Addr31 rdsnInfo;
+  Addr31 s99bpr;
+  /* OFFSET 0x10 */
+  char   ddname[8];
+  char   consolid[4];
+  char   cart[8];
+  Addr31 msgbuf;
+  /* OFFSET 0x28 = 40 */
+  char   memname[8];
+  Addr31 readbuf;
+  /* OFFSET 0x34 = 52 */
+  Addr31 bufferAddr; /* input addr */
+  char   callerName[16];
+  /* OFFSET 0x48 */
+  char   reserved[12]; 
+  /* OFFSET 0x54 = 84 */
+  /* original base plist end */
+  char   allocDDName[8];
+  /* OFFSET 0x5C = 92 */
+} IEFPRMLBParms;
+
+typedef struct IEFZPMAP_tag{
+  char version;
+  char reserved01[3];
+  int  numberOfParmlibs;
+  int  listBufferSize;
+} IEFZPMAPList;
+
+typedef struct PRM_LIST_ENTRY_tag {
+  char  dsn[44];
+  char  volser[6];      /* if volser not supplied, will  be zeros and indicates DSN is cataloged */
+  char  reserved[6];   
+} PRM_LIST_ENTRY;
+
+typedef struct PRM_LIST_BUFFER_tag{
+  char           version;
+  char           res01;
+  unsigned short res02;
+  int            datasetCount;
+  int            bufferSize;
+  int            res0C;
+  PRM_LIST_ENTRY firstEntry;
+} PRM_LIST_BUFFER;
+
+ZOWE_PRAGMA_PACK_RESET
+
+int getParmlibs(char *outBuffer, int *reasonCodePtr){
+  int returnCode = 0;
+  int reasonCode = 0;
+  IEFZPMAPList *__ptr32 zpmap = (IEFZPMAPList *__ptr32)outBuffer;
+  zpmap->version = 1;
+  zpmap->listBufferSize = PRMLB_BUFFER_SIZE;
+  IEFPRMLBParms *__ptr32 parmlist = (IEFPRMLBParms *__ptr32)safeMalloc31(sizeof(IEFPRMLBParms),"IEFPRMLB Parmlist");
+  memset(parmlist,0,sizeof(IEFPRMLBParms));
+  memcpy(parmlist->acronym,"PRLB",4);
+  memcpy(parmlist->callerName,"ZOWEIEFPRMLBLIST",16);
+  parmlist->request = IEFPRMLB_LIST;
+  parmlist->bufferAddr = outBuffer;
+
+  __asm(ASM_PREFIX
+	" L    1,%0 \n"
+	" LLGT 15,16(0,0) \n" 
+	" L    15,772(,15) \n"
+	" L    15,456(,15) \n"  /* IEFPRMLB , prolly an alias of something else */
+#ifdef _LP64
+        " SAM31 \n"
+#endif
+	" PC   0(15)       \n"
+#ifdef _LP64
+	" SAM64 \n"
+#endif
+        " ST 15,%1 \n"
+        " ST 0,%2"
+	: 
+	: "m"(parmlist),"m"(returnCode),"m"(reasonCode)
+	:"r15");
+  *reasonCodePtr = reasonCode;
+  return returnCode;
+}
+
+int getParmlibCount(char *outputBuffer){
+  PRM_LIST_BUFFER *listBuffer = (PRM_LIST_BUFFER*)outputBuffer;
+  return listBuffer->datasetCount;
+}
+
+char *getParmlib(char *outputBuffer, int index, char **specificVolser){
+  PRM_LIST_BUFFER *listBuffer = (PRM_LIST_BUFFER*)outputBuffer;
+  int count = listBuffer->datasetCount;
+  if (index < 0 || index > count){
+    return NULL;
+  }
+  PRM_LIST_ENTRY *entries = (PRM_LIST_ENTRY*)&(listBuffer->firstEntry);
+  PRM_LIST_ENTRY *entry = (PRM_LIST_ENTRY*)&entries[index];
+  return entry->dsn;
 }
 
 #ifdef METTLE

@@ -30,10 +30,14 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <stdarg.h>
-#include <sys/stat.h>
+
+#ifndef __ZOWE_OS_WINDOWS
+#include <strings.h>
 #include <unistd.h>
+#endif
+
+#include <sys/stat.h>
 
 #endif
 
@@ -68,16 +72,16 @@ LibraryFunction libraryFunctionTable[LIBRARY_FUNCTION_COUNT]
    { "fseek",   (void*)fseek,    NULL, NULL},
    { "fwrite",  (void*)fwrite,   NULL, NULL},
    { "malloc",  (void*)malloc,   NULL, NULL},
-   { "memchr",  (void*)memchr,   NULL, NULL},
-   { "memcmp",  (void*)memcmp,   NULL, NULL},
-   { "memcpy",  (void*)memcpy,   SRBCLEAN, SRBCLEAN },
+   /*   { "memchr",  (void*)memchr,   NULL, NULL}, */
+   /*   { "memcmp",  (void*)memcmp,   NULL, NULL}, */
+   /*   { "memcpy",  (void*)memcpy,   SRBCLEAN, SRBCLEAN }, */
    { "memmove", (void*)memmove,  NULL, NULL},
-   { "memset",  (void*)memset,   SRBCLEAN, SRBCLEAN },
+   /* { "memset",  (void*)memset,   SRBCLEAN, SRBCLEAN }, */
    { "printf",  (void*)printf,   NULL, NULL},
    { "qsort",   (void*)qsort,    NULL, NULL},
-   { "strcmp",  (void*)strcmp,   NULL, NULL},
-   { "strcpy",  (void*)strcpy,   NULL, NULL},
-   { "strlen",  (void*)strlen,   SRBCLEAN, SRBCLEAN },
+   /* { "strcmp",  (void*)strcmp,   NULL, NULL}, */
+   /* { "strcpy",  (void*)strcpy,   NULL, NULL}, */
+   /* { "strlen",  (void*)strlen,   SRBCLEAN, SRBCLEAN },*/
    { "strspn",   (void*)strspn,   NULL, NULL},
    { "strstr",  (void*)strstr,   NULL, NULL},
    { "strtok",  (void*)strtok,   NULL, NULL},
