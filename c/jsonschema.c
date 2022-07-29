@@ -747,6 +747,7 @@ static VResult validateJSONArray(JsonValidator *validator,
     uniquenessSet = lhtCreate(257,NULL);
   }
   
+  
   for (int i=0; i<elementCount; i++){
     Json *itemValue = jsonArrayGetItem(array,i);
     accessPathPushIndex(accessPath,i);
@@ -756,8 +757,10 @@ static VResult validateJSONArray(JsonValidator *validator,
         addValidityChild(pendingException,elementResult.exception);
       }
     }
+    
     if (valueSpec->uniqueItems){
       int64_t longHash = jsonLongHash(itemValue);
+      
       if (lhtGet(uniquenessSet,longHash) != NULL){
         addValidityChild(pendingException,
                          makeValidityException(validator,
