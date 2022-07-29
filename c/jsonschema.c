@@ -747,6 +747,10 @@ static VResult validateJSONArray(JsonValidator *validator,
     uniquenessSet = lhtCreate(257,NULL);
   }
   
+  printf("start valueSpec=0x%p\n",valueSpec);
+  printf("start uniqueItems=%d, uniquenessSet=0x%p\n",valueSpec->uniqueItems, uniquenessSet);
+  
+  
   for (int i=0; i<elementCount; i++){
     Json *itemValue = jsonArrayGetItem(array,i);
     accessPathPushIndex(accessPath,i);
@@ -756,8 +760,19 @@ static VResult validateJSONArray(JsonValidator *validator,
         addValidityChild(pendingException,elementResult.exception);
       }
     }
+    
+    printf("i=%d, valueSpec=0x%p\n", i, valueSpec);
+    printf("i=%d, uniqueItems=%d, uniquenessSet=0x%p\n", i, valueSpec->uniqueItems, uniquenessSet);
+    
     if (valueSpec->uniqueItems){
+      
+      
+      
       int64_t longHash = jsonLongHash(itemValue);
+      
+      printf("i=%d, hash=0x%llx, valueSpec=0x%p\n", i, longHash, valueSpec);
+      printf("i=%d, hash=0x%llx, uniqueItems=%d, uniquenessSet=0x%p\n", i, longHash, valueSpec->uniqueItems, uniquenessSet);
+      
       if (lhtGet(uniquenessSet,longHash) != NULL){
         addValidityChild(pendingException,
                          makeValidityException(validator,
