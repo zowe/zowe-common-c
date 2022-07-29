@@ -26,6 +26,7 @@
 #include "cmutils.h"
 #include "zos.h"
 
+
 static int getCallersKey() {
 
   int key = 0;
@@ -44,9 +45,9 @@ static int getCallersKey() {
   return key;
 }
 
-#define IS_LE64 (!defined(METTLE) && defined(_LP64))
+/* #define IS_LE64 (!defined(METTLE) && defined(_LP64)) */
 
-#if !IS_LE64
+#ifndef __XPLINK__
 
 /* Disable these for LE 64-bit for now, the compile complains about GPR 4 */
 

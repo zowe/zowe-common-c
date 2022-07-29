@@ -175,8 +175,8 @@ typedef struct ELXLIST_tag {
 
 #define CROSS_MEMORY_SERVER_MAX_CMD_TASK_NUM  30
 
-typedef struct CrossMemoryServerGlobalArea_tag;
-typedef struct CrossMemoryService_tag;
+struct CrossMemoryServerGlobalArea_tag;
+struct CrossMemoryService_tag;
 
 typedef int (CrossMemoryServiceFunction)(struct CrossMemoryServerGlobalArea_tag *globalArea, struct CrossMemoryService_tag *service, void *parm);
 
@@ -232,7 +232,7 @@ typedef struct CrossMemoryServerGlobalArea_tag {
 
   int pcLogLevel;
 
-  PAD_LONG(0, RecoveryStatePool *pcssRecoveryPool);
+  PAD_LONG(0, struct RecoveryStatePool_tag *pcssRecoveryPool);
   CPID pcssStackPool;
 
   PAD_LONG(1, void *dynamicLinkageVector);  /* This is an opt-in feature for CMS 

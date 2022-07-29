@@ -1,0 +1,22 @@
+--- 
+zowe:
+  default:
+    port: 3000
+    hlq: "ZWE.PROD"
+  setup: 
+    certificate: 
+      pkcs12: ~
+      type: PKCS12
+    mvs: 
+      authLoadlib: ~
+      authPluginLib: IBMUSER.ZWEV2.CUST.ZWESAPL
+      foo: 3
+      goforit: true
+      hay: "Hay \" "
+      hlq:  "${{ zowe.default.hlq+\".BAZ\" }}"
+      hlq2: ${{ zowe.default.hlq+".BAZ" }}
+      port: ${{ zowe.default.port+1 }}
+      jcllib: IBMUSER.ZWEV2.CUST.JCLLIB
+      parmlib: IBMUSER.ZWEV2.CUST.PARMLIB
+      proclib: VENDOR.PROCLIB
+      

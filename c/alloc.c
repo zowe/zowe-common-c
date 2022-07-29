@@ -518,8 +518,10 @@ static char *safeMalloc64Internal(int size, char *site, long long token){
   }
 #if defined(METTLE) && defined(_LP64)
   res = getmain64((long long)sizeInMegabytes,NULL,NULL); 
-#elif defined(_LP64)    /* LE case */
+#elif defined(_LP64)   /* LE case */
   res = malloc(size);   /* According to Redpaper http://www.redbooks.ibm.com/redpapers/pdfs/redp9110.pdf allocated above bar */
+#elif defined(_MSC_VER) && defined(_M_X64) /* Windows 64 case */
+  res = malloc(size);
 #else
   res = NULL;  /* Invalid if not compiled _LP64 */
 #endif
