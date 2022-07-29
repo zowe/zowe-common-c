@@ -768,7 +768,7 @@ static VResult validateJSONArray(JsonValidator *validator,
       
       
       
-      int64_t longHash = jsonLongHash(itemValue);
+      long longHash = jsonLongHash(itemValue);
       
       printf("i=%d, hash=0x%llx, valueSpec=0x%p\n", i, longHash, valueSpec);
       printf("i=%d, hash=0x%llx, uniqueItems=%d, uniquenessSet=0x%p\n", i, longHash, valueSpec->uniqueItems, uniquenessSet);
