@@ -698,6 +698,9 @@ void *lhtGet(LongHashtable *lht, int64 key){
   LongHashEntry *prev = NULL;
   LongHashEntry* hashentry = lht->backbone[place];
   int loopCount = 0;
+  
+  printf("hashentry=0x%p, place=%d, lhtbackbone=0x%p\n", hashentry, place, lht->backbone);
+  dumpbuffer((char*)lht->backbone, 8*lht->backboneSize);
 
   if (hashentry != NULL){
     while (hashentry != NULL){
