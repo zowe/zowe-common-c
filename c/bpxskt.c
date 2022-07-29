@@ -107,6 +107,28 @@
 
 #endif
 
+/* xlclang and clang what prototypes, these are incomplete, but quiet the compiler */
+int BPXSOC();
+int BPXCON();
+int BPXGHN();
+int BPXSLP();
+int BPXCHR();
+int BPXBND();
+int BPXLSN();
+int BPXACP();
+int BPXSEL();
+int BPXOPT();
+int BPXGNM();
+int BPXSTO();
+int BPXRFM();
+int BPXHST();
+int BPXIOC();
+int BPXRED();
+int BPXWRT();
+int BPXFCT();
+int BPXCLO();
+
+
 #define SOCK_SO_REUSEADDR 0x00000004
 #define SOCK_SO_SNDBUF    0x00001001
 #define SOCK_SO_RCVBUF    0x00001002
@@ -132,7 +154,7 @@ int setSocketTrace(int toWhat) {
   return was;
 }
 
-void sleep(int seconds){
+unsigned int sleep(unsigned int seconds){
   int returnValue;
   int *returnValuePtr;
   
@@ -142,6 +164,7 @@ void sleep(int seconds){
   returnValuePtr = &returnValue;
 #endif
   BPXSLP(seconds,returnValuePtr); 
+  return returnValue;
 }
 
 void bpxSleep(int seconds)
@@ -151,6 +174,7 @@ void bpxSleep(int seconds)
 
 int socketInit(char *uniqueName){
   /* do nothing for now */
+  return 0;
 }
 
 SocketAddress *makeSocketAddr(InetAddr *addr, 
@@ -172,7 +196,7 @@ SocketAddress *makeSocketAddrIPv6(InetAddr *addr, unsigned short port){
   SocketAddress *address = (SocketAddress*)safeMalloc31(sizeof(SocketAddress),"BPX SocketAddress");
   memset(address,0,sizeof(SocketAddress));
   if (socketTrace){
-    printf("socket address at 0x%x\n",address);
+    printf("socket address at 0x%p\n",address);
   }
   address->length = 26;
   address->family = AF_INET6;
@@ -181,10 +205,16 @@ SocketAddress *makeSocketAddrIPv6(InetAddr *addr, unsigned short port){
     address->data6 = addr->data.data6;
   }
   if (socketTrace){
-    printf("about to return socket address at 0x%x\n",address);
+    printf("about to return socket address at 0x%p\n",address);
   }
   return address;
 }
+
+/* SD or, on windows the handle */
+int getSocketDebugID(Socket *s){
+  return s->sd;
+}
+
 
 /*--5---10---15---20---25---30---35---40---45---50---55---60---65---70---75---*/
 #define SO_ERROR    0x1007
@@ -207,7 +237,6 @@ Socket *tcpClient3(SocketAddress *socketAddress,
   int returnValue = 0;
   *returnCode = *reasonCode = 0;
   int *reasonCodePtr;
-  int status;
 
 #ifndef _LP64
   reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
@@ -252,11 +281,11 @@ Socket *tcpClient3(SocketAddress *socketAddress,
       /* EINPROGRESS is the expected return code here but we are just being careful by checking
          for EWOULDBLOCK as well
       */
-      if (status != 0){
+      if (returnValue){
         returnValue = 0;
         *returnCode  = 0;
         *reasonCode  = 0;
-        status = tcpStatus(&tempSocket, timeoutInMillis, 1, returnCode, reasonCode);
+        int status = tcpStatus(&tempSocket, timeoutInMillis, 1, returnCode, reasonCode);
         if (status == SD_STATUS_TIMEOUT) {
           int sd = socketVector[0];
           if (socketTrace) {
@@ -273,6 +302,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
             printf("BPXCLO for time out connect returnValue %d returnCode %d reasonCode %d\n",
                     returnValue, *returnCode, *reasonCode);
           }
+	
           return NULL;
         }
         *returnCode  = 0;
@@ -295,6 +325,9 @@ Socket *tcpClient3(SocketAddress *socketAddress,
         {
           returnValue = 0;
         }
+      } else{
+	/* all was good on 1st try, but why aren't we setting blocking mode here?
+	   seems inconsistent */
       }
     }
     else{
@@ -329,7 +362,8 @@ Socket *tcpClient3(SocketAddress *socketAddress,
     } else{
       Socket *socket = (Socket*)safeMalloc(sizeof(Socket),"Socket");
       socket->sd = socketVector[0];
-      sprintf(socket->debugName,"SD=%d",socket->sd);
+      socket->pipeOutputSD = 0;  /* nothing, not a reference to STDIN */
+      snprintf(socket->debugName,SOCKET_DEBUG_NAME_LENGTH,"SD=%d",socket->sd);
       socket->isServer = 0;
       socket->tlsFlags = tlsFlags;
       /* manual says returnCode and value only meaningful if return value = -1 */
@@ -358,6 +392,16 @@ Socket *tcpClient(SocketAddress *socketAddress,
   return tcpClient2(socketAddress,-1,returnCode,reasonCode);
 }
 
+Socket *makePipeBasedSyntheticSocket(int protocol, int inputFD, int outputFD){
+  Socket *socket = (Socket*)safeMalloc(sizeof(Socket),"Socket");
+  socket->sd = inputFD;
+  socket->pipeOutputSD = outputFD;
+  snprintf(socket->debugName,SOCKET_DEBUG_NAME_LENGTH,"PIPE(%d,%d)",inputFD,outputFD);
+  socket->isServer = 0;
+  socket->tlsFlags = 0;
+  socket->protocol = protocol;
+  return socket;
+}
 
 void socketFree(Socket *socket){
   safeFree((char*)socket,sizeof(Socket));
@@ -423,6 +467,9 @@ Socket *udpPeer(SocketAddress *socketAddress,
     }
   }
 }
+
+/* Forward decl */
+static int setSocketReuseAddr(int sd, int *returnCode, int *reasonCode);
 
 Socket *tcpServer2(InetAddr *addr,
                    int port,
@@ -498,7 +545,7 @@ Socket *tcpServer2(InetAddr *addr,
       dumpbuffer((char*)socketAddress,sizeof(SocketAddress));
       dumpbuffer((char*)addr,sizeof(InetAddr));
     }
-    setSocketReuseAddr(&sd,
+    setSocketReuseAddr(sd,
                        returnCode,
                        reasonCodePtr);
     if (returnValue != 0){
@@ -744,7 +791,7 @@ int getV4HostByName(char *string){
     /* dumpbuffer((char*)hostent,20); */
     for (i=0; i<hostent->length; i++){
       if (socketTrace){
-        printf("  addr[%d] = %x\n",i,hostent->addrList[i]);
+        printf("  addr[%d] = 0x%p\n",i,hostent->addrList[i]);
       }
       if (hostent->addrList[i]){
         numericAddress = *(hostent->addrList[i]);
@@ -1043,7 +1090,9 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
 int socketWrite(Socket *socket, const char *buffer, int desiredBytes, 
 	       int *returnCode, int *reasonCode){
   int status = 0;
-  int sd = socket->sd;
+  int sd = (IS_SYNTHETIC_PIPE(socket->protocol) ?
+            socket->pipeOutputSD :
+            socket->sd);
   int returnValue = 0;
   *returnCode = *reasonCode = 0;
   int *reasonCodePtr;
@@ -1207,10 +1256,9 @@ int getSocketOption(Socket *socket, int optionName, int *optionDataLength, char 
   }
 }
 
-int setSocketOption(Socket *socket, int level, int optionName, int optionDataLength, char *optionData,
-		    int *returnCode, int *reasonCode){
+static int setSDOption(int sd, int level, int optionName, int optionDataLength, char *optionData,
+		       int *returnCode, int *reasonCode){
   int status = 0;
-  int sd = socket->sd;
   int returnValue = 0;
   *returnCode = *reasonCode = 0;
   int *reasonCodePtr;
@@ -1243,6 +1291,12 @@ int setSocketOption(Socket *socket, int level, int optionName, int optionDataLen
   }
 }
 
+int setSocketOption(Socket *socket, int level, int optionName, int optionDataLength, char *optionData,
+		    int *returnCode, int *reasonCode){
+  return setSDOption(socket->sd,level,optionName,optionDataLength,optionData,returnCode,reasonCode);
+}
+
+
 int setSocketNoDelay(Socket *socket, int noDelay, int *returnCode, int *reasonCode){
   return setSocketOption(socket,IPPROTO_TCP,TCP_NODELAY,sizeof(int),(char*)&noDelay,returnCode,reasonCode);
 }
@@ -1255,9 +1309,9 @@ int setSocketReadBufferSize(Socket *socket, int bufferSize, int *returnCode, int
   return setSocketOption(socket,SOL_SOCKET,SOCK_SO_RCVBUF,sizeof(int),(char*)&bufferSize,returnCode,reasonCode);
 }
 
-int setSocketReuseAddr(Socket *socket, int *returnCode, int *reasonCode){
+static int setSocketReuseAddr(int sd, int *returnCode, int *reasonCode){
   int on = 1;
-  return setSocketOption(socket,SOL_SOCKET,SOCK_SO_REUSEADDR,sizeof(int),(char*)&on,returnCode,reasonCode);
+  return setSDOption(sd,SOL_SOCKET,SOCK_SO_REUSEADDR,sizeof(int),(char*)&on,returnCode,reasonCode);
 }
 
 int udpReceiveFrom(Socket *socket, 
@@ -1276,7 +1330,7 @@ int udpReceiveFrom(Socket *socket,
   int socketAddressSize = SOCKET_ADDRESS_SIZE_IPV4;
 
   if (socketTrace > 2){
-    printf("receiveFrom into buffer=0x%x bufLen=%d retVal=%d retCode=%d reasonCode=%d\n",
+    printf("receiveFrom into buffer=0x%p bufLen=%d retVal=%d retCode=%d reasonCode=%d\n",
            buffer,bufferLength,returnValue,*returnCode,*reasonCode);
   }
 
@@ -1300,7 +1354,7 @@ int udpReceiveFrom(Socket *socket,
     return -1;
   } else {
     if (socketTrace > 2){
-      printf("recvFrom into buffer=0x%x %d bytes\n",buffer,returnValue);fflush(stdout);
+      printf("recvFrom into buffer=0x%p %d bytes\n",buffer,returnValue);fflush(stdout);
     }
     *returnCode = 0;
     *reasonCode = 0;
@@ -1680,7 +1734,7 @@ int not_main(int argc, char **argv){
       sleep(1);
     }
   }
-  
+  return 0;  
 }
 
 

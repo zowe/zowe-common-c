@@ -33,7 +33,52 @@
 #include "utils.h"
 #include "charsets.h"
 
+#define CHARSETNAME_SIZE 15
+
+int getCharsetCode(const char *charsetName) {
+  char localArray[CHARSETNAME_SIZE + 1] = {0};
+
+  /* Check for null pointer */
+  if (charsetName == NULL) {
+    return -1;
+  }
+
+  /* Make sure last element is 0 */
+  if (strlen(charsetName) > CHARSETNAME_SIZE) {
+    return -1;
+  }
+  strcpy( localArray, charsetName);
+  strupcase (localArray);
+
+  if ((!strcmp(localArray, "ISO-8859-1"))  ||
+      (!strcmp(localArray, "ISO8859-1"))) {
+    return CCSID_ISO_8859_1;
+  }
+  else if (!strcmp(localArray, "IBM-1047")) {
+    return CCSID_IBM1047;
+  }
+  else if (!strcmp(localArray, "UTF-8")) {
+    return CCSID_UTF_8;
+  }
+  else if (!strcmp(localArray, "UTF-16")) {
+    return CCSID_UTF_16;
+  }
+  else if (!strcmp(localArray, "UTF-16BE")) {
+    return CCSID_UTF_16_BE;
+  }
+  else if (!strcmp(localArray, "UTF-16LE")) {
+    return CCSID_UTF_16_LE;
+  }
+  else {
+    return -1;
+  }
+}
+
+
 #ifdef __ZOWE_OS_WINDOWS
+
+/* JOE 1/20/22 */
+#include <Windows.h>
 
 /*
    Windows doc 
@@ -50,35 +95,59 @@
   IBM resources
     http://www-01.ibm.com/software/globalization/ccsid/ccsid_registered.html
 
-  HERE
-  1) what does 1200 really mean
-  2) wcTest -> convert to wideNative
-  3) 
 */
 
-int charsetToWideNative(char  *input, 
-                        int    inputLength, 
-                        int    inputCCSID,
-                        int    outputMode,
-                        char **outputArg,
-                        int    outputLength,
-                        ShortLivedHeap *slh,
-                        int   *conversionLength,
-                        int   *reasonCode){
-  LPWSTR outputBuffer;
+int convertCharset2(char *input, 
+                    int inputLength, 
+                    int inputCCSID,
+                    int outputMode,
+                    char **outputArg, 
+                    int outputLength, 
+                    int outputCCSID,
+                    ShortLivedHeap *slh, // optional
+                    int *conversionLength,
+                    int *reasonCode,
+                    char *workArea,
+                    int  workAreaLength){
+  char *wideTemp = NULL;
+  int  tempLength = 2 * inputLength; /* only allocated if needed */
+  bool needToFreeTemp = false;
+  if (workArea && (workAreaLength >= tempLength)){
+    wideTemp = workArea;
+  } else {
+    wideTemp = safeMalloc(tempLength,"WideTemp");
+    needToFreeTemp = true;
+  }
+  int wideCharCount = 0;
+  int required = MultiByteToWideChar(inputCCSID,0,input,inputLength,NULL,0);
+  int status = MultiByteToWideChar(inputCCSID,0,input,inputLength,(LPWSTR)wideTemp,inputLength); /* 2nd length is count of wchar */
+  if (status == 0){
+    *reasonCode = GetLastError();
+    if (needToFreeTemp){
+      safeFree(wideTemp,tempLength);
+    }
+    return CHARSET_CONVERSION_ROUTINE_FAILURE;
+  } else {
+    wideCharCount = status;
+  }
+  char *outputBuffer = NULL;
   if (outputMode == CHARSET_OUTPUT_USE_BUFFER){
     if (outputLength < 2*inputLength){
       return CHARSET_SHORT_BUFFER;
     }
-    outputBuffer = *((LPWSTR*)outputArg);
+    outputBuffer = *outputArg;
   } else if (outputMode == CHARSET_OUTPUT_SAFE_MALLOC){
     outputLength = 3*inputLength;
-    outputBuffer = (LPWSTR)safeMalloc(outputLength,"Conversion Temp Buffer");
+    outputBuffer = safeMalloc(outputLength,"ConversionBuffer");
   } else {
     outputLength = 3*inputLength;
-    outputBuffer = (LPWSTR)SLHAlloc(slh,outputLength);
+    outputBuffer = SLHAlloc(slh,outputLength);
   }
-  int status = MultiByteToWideChar(inputCCSID,0,input,inputLength,outputBuffer,outputLength);
+  
+  status = WideCharToMultiByte(outputCCSID,0,(LPWSTR)wideTemp,wideCharCount,outputBuffer,outputLength,NULL,NULL);
+  if (needToFreeTemp){
+    safeFree(wideTemp,tempLength);
+  }
   if (status == 0){
     *reasonCode = GetLastError();
     if (outputMode == CHARSET_OUTPUT_SAFE_MALLOC){
@@ -86,7 +155,7 @@ int charsetToWideNative(char  *input,
     }
     return CHARSET_CONVERSION_ROUTINE_FAILURE;
   } else {
-    *conversionLength = status*2;                      /* 2 because windows returns size in "wide chars" */
+    *conversionLength = status;
     if (outputMode == CHARSET_OUTPUT_SAFE_MALLOC){
       char *finalOutput = safeMalloc(*conversionLength,"Conversion Final Buffer");
       memcpy(finalOutput,(char*)outputBuffer,*conversionLength);
@@ -104,17 +173,23 @@ int convertCharset(char *input,
                    int inputLength, 
                    int inputCCSID,
                    int outputMode,
-                   char **output, 
+                   char **outputArg, 
                    int outputLength, 
                    int outputCCSID,
                    ShortLivedHeap *slh, // optional
-                   int *conversionOutputLength,
+                   int *conversionLength,
                    int *reasonCode){
-  
-  return 0;
+  return convertCharset2(input,inputLength,inputCCSID,
+                         outputMode,outputArg,outputLength,outputCCSID,
+                         slh,conversionLength,reasonCode,NULL,0);
 }
 
-#elif defined(__ZOWE_OS_ZOS)
+/* lots o'codes:
+   https://docs.microsoft.com/en-us/windows/win32/intl/code-page-identifiers
+*/
+
+
+#elif defined(__ZOWE_OS_ZOS) && !defined(__ZOWE_COMP_XLCLANG)
 
 /*
 
@@ -163,7 +238,11 @@ static const union {
 
 };
 
+#ifdef __ZOWE_COMP_XLCLANG
+#include "CUNHC.h"
+#else 
 #include "//'SYS1.SCUNHF(CUNHC)'"
+#endif
 
 int convertCharset(char *input, 
                    int inputLength, 
@@ -219,6 +298,7 @@ int convertCharset(char *input,
   case CHARSET_OUTPUT_USE_SLH:
     outputBuffer = SLHAlloc(slh,outputAllocLength);
     outputLength = outputAllocLength;
+    *output = outputBuffer;
     break;
   }
   parms.Targ_Buf_Ptr = outputBuffer;
@@ -249,11 +329,17 @@ int convertCharset(char *input,
 #endif
 
   *conversionOutputLength = (((char*)parms.Targ_Buf_Ptr) - outputBuffer);
+  if (TRACE_CHARSET_CONVERSION) {
+    printf("inputLen=%d reasonCode = %d src=%d targ=%d\n",inputLength,parms.Reason_Code,parms.Src_CCSID,parms.Targ_CCSID);
+    fflush(stdout);
+  }
+
   if (parms.Return_Code){
     if (outputMode == CHARSET_OUTPUT_SAFE_MALLOC){
       safeFree(parms.Targ_Buf_Ptr,outputAllocLength);
     }
     *reasonCode = parms.Return_Code;
+
     return CHARSET_CONVERSION_ROUTINE_FAILURE;
   } else {
     if (outputMode == CHARSET_OUTPUT_SAFE_MALLOC){
@@ -265,48 +351,11 @@ int convertCharset(char *input,
   }
 }
 
-#define CHARSETNAME_SIZE 15
-int getCharsetCode(const char *charsetName) {
-  char localArray[CHARSETNAME_SIZE + 1] = {0};
 
-  /* Check for null pointer */
-  if (charsetName == NULL) {
-    return -1;
-  }
 
-  /* Make sure last element is 0 */
-  if (strlen(charsetName) > CHARSETNAME_SIZE) {
-    return -1;
-  }
-# undef CHARSETNAME_SIZE
-  strcpy( localArray, charsetName);
-  strupcase (localArray);
-
-  if ((!strcmp(localArray, "ISO-8859-1"))  ||
-      (!strcmp(localArray, "ISO8859-1"))) {
-    return CCSID_ISO_8859_1;
-  }
-  else if (!strcmp(localArray, "IBM-1047")) {
-    return CCSID_IBM1047;
-  }
-  else if (!strcmp(localArray, "UTF-8")) {
-    return CCSID_UTF_8;
-  }
-  else if (!strcmp(localArray, "UTF-16")) {
-    return CCSID_UTF_16;
-  }
-  else if (!strcmp(localArray, "UTF-16BE")) {
-    return CCSID_UTF_16_BE;
-  }
-  else if (!strcmp(localArray, "UTF-16LE")) {
-    return CCSID_UTF_16_LE;
-  }
-  else {
-    return -1;
-  }
-}
-
-#elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) /* end of ZOWE_OS_ZOS */
+/* End of Traditional METAL and XLC cases, since linkage(OS64_NOSTACK) doesn't work in xlclang and clang 
+   some C code goes through here, too.  We should short circuit easy special cases here some day */
+#elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || (defined(__ZOWE_OS_ZOS) && defined(__ZOWE_COMP_XLCLANG))
 
 #include <iconv.h>
 #include <errno.h>
@@ -387,6 +436,7 @@ int convertCharset(char *input,
   case CHARSET_OUTPUT_USE_SLH:
     outputBuffer = SLHAlloc(slh,outputAllocLength);
     outputSize = outputAllocLength;
+    *output = outputBuffer;
     break;
   default:
     return CHARSET_INTERNAL_ERROR;

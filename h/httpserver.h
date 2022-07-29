@@ -18,6 +18,7 @@
 #include "json.h"
 #include "xml.h"
 #include "unixfile.h"
+#include "configmgr.h"
 #include "../jwt/jwt/jwt.h"
 
 /** \file 
@@ -134,6 +135,7 @@ typedef struct HttpResponse_tag{
   int             sessionTimeout;
 } HttpResponse;
 
+#define httpResponseServer(r) ((r)->conversation->server)
 
 typedef struct HttpTemplateTag_tag{
   char *placeName;
@@ -218,6 +220,10 @@ typedef struct HTTPServerConfig_tag {
   hashtable *userTimeouts;
   hashtable *groupTimeouts;
   int defaultTimeout;
+  /* The config manager is optional, but zss and other servers need 
+     a near-global way to get configuration data.
+     */
+  ConfigManager *configmgr;
 } HttpServerConfig;
 
 #define SESSION_TOKEN_COOKIE_NAME "jedHTTPSession"
@@ -231,8 +237,13 @@ typedef struct HttpServer_tag{
   uint64           serverInstanceUID;   /* may be something smart at some point. Now just startup STCK */
   void             *sharedServiceMem; /* address shared by all HttpServices */
   hashtable        *loggingIdsByName; /* contains a map of pluginID -> loggingID */
+  hashtable        *syntheticPipeSockets; /* uniqueID->PipeSocketEntry */
+  bool              singleUserMode;
+  char             *singleUserAuthBlob;
   char             *cookieName; /* name of the cookie, or SESSION_TOKEN_COOKIE_NAME otherwise */ 
 } HttpServer;
+
+#define httpServerConfigManager(s) ((s)->config->configmgr)
 
 typedef struct WSReadMachine_tag{
   int  state;
@@ -361,7 +372,11 @@ typedef struct WSSession_tag {
 //      B) If the compare-and-swap fails, restart from 1).
 
 typedef union HttpConversationSerialize_tag {
+#ifdef __ZOWE_OS_WINDOWS
+  _Atomic unsigned int serializedData;
+#else
   unsigned int       serializedData;
+#endif
   struct {
     char               shouldClose;    
     int                considerCloseEnqueued : 1;
@@ -424,11 +439,20 @@ HttpRequest *dequeueHttpRequest(HttpRequestParser *parser);
 HttpRequestParser *makeHttpRequestParser(ShortLivedHeap *slh);
 HttpResponse *makeHttpResponse(HttpRequest *request, ShortLivedHeap *slh, Socket *socket);
 
+/* Use this port along with an InetAddr of NULL to get an HTTP server that does not listen on TCP itself.
+   This seems useless, and would be, unless pipe tunnelling is used to give http requests without network
+   connections through httpServerEnablePipes.
+   */
+#define HTTP_DISABLE_TCP_PORT 0x00DEAD00
+
 HttpServer *makeHttpServer3(STCBase *base, InetAddr *ip, int tlsFlags, int port,
                             char *cookieName, int *returnCode, int *reasonCode);
 HttpServer *makeHttpServer2(STCBase *base, InetAddr *ip, int tlsFlags, int port,
                             int *returnCode, int *reasonCode);
 HttpServer *makeHttpServer(STCBase *base, int port, int *returnCode, int *reasonCode);
+
+
+int httpServerEnablePipes(HttpServer *server, int fromDispatchFD, int toDispatcherFD);
 
 #ifdef USE_RS_SSL
 HttpServer *makeSecureHttpServer2(STCBase *base, int port,
@@ -589,6 +613,8 @@ int setHttpSocketTrace(int toWhat);
 int setHttpCloseConversationTrace(int toWhat);
 int setHttpAuthTrace(int toWhat);
 #endif
+
+int isLowerCasePasswordAllowed();
 
 int httpServerInitJwtContext(HttpServer *self,
                              bool legacyFallback,

@@ -70,6 +70,25 @@ extern "C"
 
 char* e2a(char *buffer, int len);
 char* a2e(char *buffer, int len);
+  
+typedef struct CharsetOracle_tag {
+  int total;
+  int charBuckets[0x100];
+  int rangeBuckets[0x10];
+} CharsetOracle;
+
+#define CHARSET_ORACLE_EBCDIC_FAMILY  0x10000
+#define CHARSET_ORACLE_UTF_FAMILY     0x20000
+
+/** A Charset oracle is a string digester that can guess charsets
+    based upon what it is fed.   It's heuristic, so YMMV.
+*/
+  
+CharsetOracle *makeCharsetOracle(void);
+
+void freeCharsetOracle(CharsetOracle *oracle);
+void charsetOracleDigest(CharsetOracle *oracle, char *s, int len);
+int guessCharset(CharsetOracle *oracle, double *confidence);
 
 #ifdef __cplusplus 
 }

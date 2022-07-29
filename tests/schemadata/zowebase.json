@@ -1,0 +1,14 @@
+{
+    "$schema": "https://json-schema.org/draft/2019-09",
+    "$id": "https://zowe.org/schema/base",
+    "type": "object",
+    "properties": {
+        "A": {
+            "type": "string"
+        },
+        "Z": {
+            "$ref": "/schema/common#zoweZip"
+        }
+    }
+}
+

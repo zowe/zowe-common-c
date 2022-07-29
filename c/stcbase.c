@@ -107,11 +107,9 @@ int stcBaseMainLoop(STCBase *base, int selectTimeoutMillis)
   resetQueuedWorkEvent(base);
   while (!base->stopRequested)
   {
-#ifdef DEBUG
-    BASETRACE_ALWAYS("before main loop wait\n");
+    BASETRACE_VERBOSE("before main loop wait\n");
 #ifdef __ZOWE_OS_ZOS
-    BASETRACE_ALWAYS("MAIN_LOOP: tcb=0x%x qReadyECB=0x%x\n",getTCB(),base->qReadyECB);
-#endif
+    BASETRACE_VERBOSE("MAIN_LOOP: tcb=0x%x qReadyECB=0x%x\n",getTCB(),base->qReadyECB);
 #endif
     int readReady = FALSE;
     int readTheQueue = FALSE;
@@ -226,6 +224,16 @@ static int handleReadySocket(STCBase *base, Socket *readySocket){
           sts = 12;
         }
         break;
+      case IPPROTO_SYNTHETIC_PIPE_DEMULTIPLEXER:
+      case IPPROTO_SYNTHETIC_PIPE_HANDLER:
+      case IPPROTO_SYNTHETIC_PIPE_MULTIPLEXER:
+        if (module->pipeHandler){
+          sts = module->pipeHandler(base,module,readySocket);
+        } else {
+          BASETRACE_ALWAYS("IO ready on PIPE pseudo socket %s but no module PIPE handler!\n",readySocket->debugName);
+          sts = 12;
+        }
+        break;
       default:
         BASETRACE_ALWAYS("WARNING: non-TCP or UDP socket?\n");
         dumpbuffer((char*)readySocket, sizeof(Socket));
@@ -252,7 +260,7 @@ int stcHandleReadySockets(STCBase *base,
         Socket *readySocket = socketSet->sockets[i-1];
         int handlerStatus = handleReadySocket(base,readySocket);
         if (8 <= handlerStatus) {
-          BASETRACE_MAJOR("handleReadySocket error %d; removing sd=%d from socketSet\n", handlerStatus, sd);
+          BASETRACE_MAJOR("handleReadySocket error %d; removing winsocket=0x%x from socketSet\n", handlerStatus, readySocket->windowsSocket);
           /* remove socket from socketSet to prevent tight loop */
           socketSetRemove(socketSet, readySocket);
         }
@@ -371,28 +379,28 @@ void resetQueuedWorkEvent(STCBase *stcBase){
 
 #ifndef __ZOWE_OS_ZOS
 
-int stcBaseInit(STCBase *stcBase){
+int stcBaseInit(STCBase *base){
 #ifdef __ZOWE_OS_WINDOWS
-  stcBase->qReadyEvent = CreateEvent(NULL,TRUE,FALSE,"STCBase Q Ready Event");
-  if (stcBase->qReadyEvent == NULL){
+  base->qReadyEvent = CreateEvent(NULL,TRUE,FALSE,"STCBase Q Ready Event");
+  if (base->qReadyEvent == NULL){
     BASETRACE_ALWAYS("*** PANIC *** could not make qReadyEvent\n");
     fflush(stdout);
   } else {
-    BASETRACE_ALWAYS("STCBASE Q Ready Event handle = 0x%x\n",stcBase->qReadyEvent);
+    BASETRACE_ALWAYS("STCBASE Q Ready Event handle = 0x%x\n",base->qReadyEvent);
   }
 #elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
-  stcBase->socketSet = makeSocketSet(FD_SETSIZE-1);
+  base->socketSet = makeSocketSet(FD_SETSIZE-1);
 #ifdef __ZOWE_OS_AIX
-  stcBase->eventSockets = makeEventSockets();
-  socketSetAdd(stcBase->socketSet, stcBase->eventSockets[0]);
+  base->eventSockets = makeEventSockets();
+  socketSetAdd(base->socketSet, base->eventSockets[0]);
 #else
-  stcBase->eventSocket = makeEventSocket();
-  socketSetAdd(stcBase->socketSet, stcBase->eventSocket);
+  base->eventSocket = makeEventSocket();
+  socketSetAdd(base->socketSet, base->eventSocket);
 #endif
-  stcBase->logContext = makeLoggingContext();
-  logConfigureStandardDestinations(stcBase->logContext);
-  logConfigureComponent(stcBase->logContext,LOG_COMP_STCBASE,"STCBASE",LOG_DEST_PRINTF_STDERR,ZOWE_LOG_INFO);
-  stcBase->workQueue = makeQueue(QUEUE_ALL_BELOW_BAR);
+  base->logContext = makeLoggingContext();
+  logConfigureStandardDestinations(base->logContext);
+  logConfigureComponent(base->logContext,LOG_COMP_STCBASE,"STCBASE",LOG_DEST_PRINTF_STDERR,ZOWE_LOG_INFO);
+  base->workQueue = makeQueue(QUEUE_ALL_BELOW_BAR);
 #else
 #error Unknown OS
 #endif
@@ -405,25 +413,25 @@ void stcBaseTerm(STCBase *stcBase) {
 
 #endif /* not z/OS */
 
-STCModule* stcRegisterModule(STCBase *base,
-                             int moduleID,
-                             void *moduleData,
-                             int  (*tcpHandler)(STCBase *base, STCModule *module, Socket *socket),
-                             int  (*udpHandler)(STCBase *base, STCModule *module, Socket *socket),
-                             int  (*workElementHandler)(STCBase *base, STCModule *stcModule, WorkElementPrefix *prefix),
-                             int  (*backgroundHandler)(struct STCBase_tag *base, struct STCModule_tag *stcModule, int selectStatus))
+STCModule* stcRegisterModule2(STCBase *base,
+                              int moduleID,
+                              void *moduleData,
+                              int  (*tcpHandler)(STCBase *base, STCModule *module, Socket *socket),
+                              int  (*udpHandler)(STCBase *base, STCModule *module, Socket *socket),
+                              int  (*pipeHandler)(STCBase *base, STCModule *module, Socket *socket),
+                              int  (*workElementHandler)(STCBase *base, STCModule *stcModule, WorkElementPrefix *prefix),
+                              int  (*backgroundHandler)(struct STCBase_tag *base, struct STCModule_tag *stcModule, int selectStatus))
 {
   STCModule *module = (STCModule*)safeMalloc(sizeof(STCModule),"STC Module");
-#ifdef DEBUG
-  BASETRACE_ALWAYS("beginning register module at 0x%p, moduleID=%d, stcBase=0x%p\n",module,moduleID,base);
+  BASETRACE_VERBOSE("beginning register module at 0x%p, moduleID=%d, stcBase=0x%p\n",module,moduleID,base);
   fflush(stdout);
-#endif
   memset(module,0,sizeof(STCModule));
   memcpy(module->eyecatcher,"STCMODUL",8);
   module->id = moduleID;
   module->data = moduleData;
   module->tcpHandler = tcpHandler;
   module->udpHandler = udpHandler;
+  module->pipeHandler = pipeHandler;
   module->workElementHandler = workElementHandler;
   module->backgroundHandler = backgroundHandler;
 #ifdef DEBUG
@@ -433,6 +441,17 @@ STCModule* stcRegisterModule(STCBase *base,
   base->modules[MODULE_ID_TO_INDEX(moduleID)] = module;
   return module;
 }
+
+STCModule* stcRegisterModule(STCBase *base,
+                             int moduleID,
+                             void *moduleData,
+                             int  (*tcpHandler)(STCBase *base, STCModule *module, Socket *socket),
+                             int  (*udpHandler)(STCBase *base, STCModule *module, Socket *socket),
+                             int  (*workElementHandler)(STCBase *base, STCModule *stcModule, WorkElementPrefix *prefix),
+                             int  (*backgroundHandler)(struct STCBase_tag *base, struct STCModule_tag *stcModule, int selectStatus)){
+  return stcRegisterModule2(base,moduleID,moduleData,tcpHandler,udpHandler,NULL,workElementHandler,backgroundHandler);
+}
+
 
 /* For stcBaseSelect, Values <= 0 are non-normal statuses.
    positive values are masks */
@@ -471,30 +490,30 @@ int stcBaseSelect(STCBase *base,
 
 #elif defined(__ZOWE_OS_WINDOWS) 
 
-int stcBaseSelect(STCBase *stcBase,
+int stcBaseSelect(STCBase *base,
                   int timeout,             /* in milliseconds */
                   int checkWrite, int checkRead, 
                   int *returnCode, int *reasonCode){
 
-  SocketSet *socketSet = stcBase->socketSet;
+  SocketSet *socketSet = base->socketSet;
   HANDLE *currentEventSet = NULL;
   unsigned long *currentReadyEvents;      // for this socket set
   int failedToBuildEventSet = FALSE;
   int currentEventSetSize = -1;
-  if ((stcBase->currentEventSet == NULL) ||
-      (socketSet->revisionNumber > stcBase->socketSetRevisionNumber)) {
-    if (stcBase->currentEventSet != NULL){
+  if ((base->currentEventSet == NULL) ||
+      (socketSet->revisionNumber > base->socketSetRevisionNumber)) {
+    if (base->currentEventSet != NULL){
       BASETRACE_VERBOSE("should probably closeHandle on all previous events\n");
-      safeFree((char*)stcBase->currentEventSet,sizeof(HANDLE)*stcBase->currentEventSetSize);
-      safeFree((char*)stcBase->currentReadyEvents,sizeof(unsigned long)*stcBase->currentEventSetSize);
+      safeFree((char*)base->currentEventSet,sizeof(HANDLE)*base->currentEventSetSize);
+      safeFree((char*)base->currentReadyEvents,sizeof(unsigned long)*base->currentEventSetSize);
     }
     currentEventSetSize = socketSet->socketCount+1;
     currentEventSet = (HANDLE*)safeMalloc(sizeof(HANDLE)*currentEventSetSize,"Windows Event Set");
-    currentReadyEvents = (int*)safeMalloc(sizeof(unsigned long)*currentEventSetSize,"Windows Ready Socket booleans");
+    currentReadyEvents = (unsigned long*)safeMalloc(sizeof(unsigned long)*currentEventSetSize,"Windows Ready Socket booleans");
     for (int i=0; i<currentEventSetSize; i++){
       zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "event set build loop = %d\n",i);
       if (i==0){
-        currentEventSet[i] = stcBase->qReadyEvent;
+        currentEventSet[i] = base->qReadyEvent;
       } else {
         Socket *socket = socketSet->sockets[i-1];
         HANDLE socketEvent = CreateEvent(NULL,TRUE,FALSE,"Socket Event");
@@ -510,14 +529,14 @@ int stcBaseSelect(STCBase *stcBase,
         currentEventSet[i] = socketEvent;
       }
     }
-    stcBase->currentEventSetSize = currentEventSetSize;
-    stcBase->currentEventSet = currentEventSet;
-    stcBase->currentReadyEvents = currentReadyEvents;
-    stcBase->socketSetRevisionNumber = socketSet->revisionNumber;
+    base->currentEventSetSize = currentEventSetSize;
+    base->currentEventSet = currentEventSet;
+    base->currentReadyEvents = currentReadyEvents;
+    base->socketSetRevisionNumber = socketSet->revisionNumber;
   } else {
-    currentEventSetSize = stcBase->currentEventSetSize;
-    currentEventSet = stcBase->currentEventSet;
-    currentReadyEvents = stcBase->currentReadyEvents;
+    currentEventSetSize = base->currentEventSetSize;
+    currentEventSet = base->currentEventSet;
+    currentReadyEvents = base->currentReadyEvents;
   }
   
   if (failedToBuildEventSet){
@@ -637,8 +656,8 @@ static void extract(IEZCOM * __ptr32 * __ptr32 iezcom)
   parameters->listAddress = (Addr31)iezcom;
   parameters->fieldByte1 = 1;
   parameters->fieldByte2 = 0;
+  zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG3, "EXTRACT(2) parameters at 0x%p\n",parameters);
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "EXTRACT(2) parameters at 0x%p\n",parameters);
   dumpbuffer((char*)parameters,sizeof(ExtractParameters));
 #endif
   int parametersAsInt = (int)parameters;
@@ -656,8 +675,8 @@ static void extract(IEZCOM * __ptr32 * __ptr32 iezcom)
         :
         : "m"(parametersAsInt)
         : "r15");
+  zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG3, "EXTRACT parms after SVC\n");
 #ifdef DEBUG
-  zowelog(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG, "EXTRACT parms after SVC\n");
   dumpbuffer((char*)parameters,sizeof(ExtractParameters));
 #endif
 }

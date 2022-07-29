@@ -16,11 +16,14 @@
 #ifdef METTLE
 #  include <metal/metal.h>
 #  include <metal/stddef.h>
+#  include <metal/stdint.h>
 #else
 #  include <stddef.h>
+#  include <stdint.h>
 #endif /* METTLE */
 #include "zowetypes.h"
 #include "utils.h"
+#include "collections.h"
 
 /** \file
  *  \brief json.h is an implementation of an efficient low-level JSON writer and parser.
@@ -28,6 +31,8 @@
  *  The JSON handling here is designed for high-speed streaming output behavior
  *  and chunked input and output.   
  */
+
+typedef struct Json_tag Json;
 
 /**
  *   \brief  jsonPrinter represents a high-level stream to write JSON.
@@ -57,6 +62,10 @@ typedef struct jsonPrinter_tag {
   char *_conversionBuffer;
   int ioErrorFlag;
   int isInMultipartString;
+  bool (*filter)(void *filterContext,
+                 char *keyOrNull,
+                 Json *value);
+  void *filterContext;
 } jsonPrinter;
 
 typedef struct jsonBuffer_tag {
@@ -80,6 +89,11 @@ jsonPrinter *makeCustomJsonPrinter(void (*writeMethod)(jsonPrinter *,char *,int)
 jsonPrinter *makeCustomUtf8JsonPrinter(
     void (*writeMethod)(jsonPrinter *, char *, int),  void *object,
     int inputCCSID);
+
+/**
+ *  \brief Reset a printer to its starting state.
+ */
+void jsonPrinterReset(jsonPrinter *printer);
 
 jsonPrinter *makeBufferJsonPrinter(int inputCCSID, JsonBuffer *buf);
 
@@ -141,6 +155,13 @@ void jsonEndArray(jsonPrinter *p);
  */
 
 void jsonAddString(jsonPrinter *p, char *keyOrNull, char *value);
+
+/**
+ *
+ *  A special method for writing javascript data that goes beyond standard JSON writing.
+ *
+ */
+void jsonWriteParseably(jsonPrinter *p, char *text, int len, bool quote, bool escape, int inputCCSID);
 
 /** 
  * \brief Allows the caller to place a string representing well-formed JSON
@@ -332,8 +353,8 @@ JsonBuffer *makeJsonBuffer(void);
 void jsonBufferTerminateString(JsonBuffer *buffer);
 void jsonBufferRewind(JsonBuffer *buffer);
 void freeJsonBuffer(JsonBuffer *buffer);
+char *jsonBufferCopy(JsonBuffer *buffer);
 
-typedef struct Json_tag Json;
 typedef struct JsonObject_tag JsonObject;
 typedef struct JsonArray_tag JsonArray;
 typedef struct JsonProperty_tag JsonProperty;
@@ -346,10 +367,18 @@ struct Json_tag {
 #define JSON_TYPE_NULL 3
 #define JSON_TYPE_OBJECT 4
 #define JSON_TYPE_ARRAY 5
+  /* V2 parsing can yield the following additional types */
+#define JSON_TYPE_INT64 6
+#define JSON_TYPE_DOUBLE 7
 #define JSON_TYPE_ERROR 666
   int type;
   union {
     int number;
+    /* There two fields are being introduced to support 'proper' parsing of
+       numbers.   Up until 2022, this json library was not very friendly to floating 
+       point and integers with a >32-bit mantissa. */
+    int64_t integerValue;
+    double  floatValue;
     char *string;
     int boolean;
     JsonObject *object;
@@ -382,6 +411,8 @@ struct JsonError_tag {
 Json *jsonParseString(ShortLivedHeap *slh, char *jsonString, char* errorBufferOrNull, int errorBufferSize);
 Json *jsonParseUnterminatedString(ShortLivedHeap *slh, char *jsonString, int len, char* errorBufferOrNull, int errorBufferSize);
 Json *jsonParseFile(ShortLivedHeap *slh, const char *filename , char* errorBufferOrNull, int errorBufferSize);
+/* parseFile2 supports full-width integers and floating-point numbers */
+Json *jsonParseFile2(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize);
 Json *jsonParseUnterminatedUtf8String(ShortLivedHeap *slh, int outputCCSID,
                                       char *jsonUtf8String, int len,
                                       char *errorBufferOrNull, int errorBufferSize);
@@ -395,6 +426,8 @@ void jsonPrintArray(jsonPrinter* printer, JsonArray *array);
 
 int         jsonAsBoolean(Json *json);
 int         jsonAsNumber(Json *json);
+int64_t     jsonAsInt64(Json *json);
+double      jsonAsDouble(Json *json);
 char       *jsonAsString(Json *json);
 JsonArray  *jsonAsArray(Json *json);
 JsonObject *jsonAsObject(Json *json);
@@ -405,8 +438,15 @@ int jsonIsArray(Json *json);
 int jsonIsBoolean(Json *json);
 int jsonIsNull(Json *json);
 int jsonIsNumber(Json *json);
+/* V2 more specific number type */
+int jsonIsDouble(Json *json);
+int jsonIsInt64(Json *json);
 int jsonIsObject(Json *json);
 int jsonIsString(Json *json);
+
+/************** High Uniqueness Hash ******************/
+
+int64_t jsonLongHash(Json *json);
 
 /************** Array Accessors ***********************/
 
@@ -516,6 +556,140 @@ int         jsonIntProperty(JsonObject *object, char *propertyName, int *status,
 char       *jsonStringProperty(JsonObject *object, char *propertyName, int *status);
 JsonObject *jsonObjectProperty(JsonObject *object, char *propertyName, int *status);
 void        reportJSONDataProblem(void *jsonObject, int status, char *propertyName);
+
+/* JSON Builder interface.  This Interface allows the translation to JSON
+   form other formats, without going through json syntax parsing. 
+*/
+
+typedef struct JsonParser_tag JsonParser;
+typedef struct JsonTokenizer_tag JsonTokenizer;
+typedef struct JsonToken_tag JsonToken;
+
+#define JSON_PARSE_VERSION_1 1 /* incorrect numbers (only 32-bit integers) */
+#define JSON_PARSE_VERSION_2 2 /* numbers parse to int64 or a double */
+
+struct JsonParser_tag {
+  JsonTokenizer *tokenizer;
+  JsonToken *unreadToken;
+  ShortLivedHeap *slh;
+  CharStream *in;
+  Json *jsonError;
+  int   version;
+};
+
+typedef struct JsonBuilder_tag {
+  JsonParser parser;  /* must be first member to support casts */
+  Json *root;
+  int   traceLevel;
+} JsonBuilder;
+
+#define ZOWE_INTERNAL_TYPE "__zowe_internal_type__"
+#define ZOWE_UNEVALUATED "unevaluated"
+
+JsonBuilder *makeJsonBuilder(ShortLivedHeap *slh);
+
+#define JSON_BUILD_FAIL_PARENT_IS_SCALAR 12
+#define JSON_BUILD_FAIL_KEY_ON_ARRAY 16
+#define JSON_BUILD_FAIL_KEY_ON_ROOT 20
+#define JSON_BUILD_FAIL_NO_KEY_ON_OBJECT 24
+
+void freeJsonBuilder(JsonBuilder *builder, bool freeSLH);
+
+Json *jsonBuildObject(JsonBuilder *b,
+                      Json *parent,
+                      char *parentKey,
+                      int *errorCode);
+
+Json *jsonBuildArray(JsonBuilder *b,
+                     Json *parent,
+                     char *parentKey,
+                     int *errorCode);
+
+/**
+   This copies the string into memory owned by the builder/parser.  That is
+   the input string arg "s" is not incorporated into the result.
+*/
+Json *jsonBuildString(JsonBuilder *b,
+                      Json *parent,
+                      char *parentKey,
+                      char *s,
+                      int   sLen,
+                      int *errorCode);
+
+Json *jsonBuildInt(JsonBuilder *b,
+                   Json *parent,
+                   char *parentKey,
+                   int i,
+                   int *errorCode);
+
+/* This builds a V2 compatible integer, jsonBuiltInt does the legacy 32 bit integer */
+Json *jsonBuildInt64(JsonBuilder *b,
+                     Json *parent,
+                     char *parentKey,
+                     int64 i,
+                     int *errorCode);
+
+Json *jsonBuildDouble(JsonBuilder *b,
+                      Json *parent,
+                      char *parentKey,
+                      double d,
+                      int *errorCode);
+
+
+Json *jsonBuildBool(JsonBuilder *b,
+                    Json *parent,
+                    char *parentKey,
+                    bool  truthValue,
+                    int  *errorCode);
+
+Json *jsonBuildNull(JsonBuilder *b,
+                    Json *parent,
+                    char *parentKey,
+                    int *errorCode);
+
+
+char* jsonBuildKey(JsonBuilder *b, const char *key, int len);
+
+#define JSON_MERGE_STATUS_SUCCESS 0
+#define JSON_MERGE_STATUS_UNMERGEABLE_TYPES 1
+#define JSON_MERGE_STATUS_UNIMPLEMENTED 2
+
+/* Merging occurs when arrays match up to arays, or objects to objects */
+
+#define JSON_MERGE_FLAG_ARRAY_POLICY_MASK 0x000F
+
+#define JSON_MERGE_FLAG_CONCATENATE_ARRAYS 0x0001   /* len(merge) = len(a)+len(b) */
+#define JSON_MERGE_FLAG_MERGE_IN_PLACE     0x0002   /* len(merge) = max(len(a),len(b)), a overrides corresponding elements of b */
+#define JSON_MERGE_FLAG_TAKE_BASE          0x0003   /* len(merge) = len(b) */
+#define JSON_MERGE_FLAG_TAKE_OVERRIDES     0x0004   /* len(merge) = len(a) */
+
+Json *jsonMerge(ShortLivedHeap *slh, Json *overrides, Json *base, int flags, int *statusPtr);
+Json *jsonCopy(ShortLivedHeap *slh, Json *value);
+
+/* JSON Pointers */
+
+#define JSON_POINTER_NORMAL_KEY 1
+#define JSON_POINTER_INTEGER    2
+
+typedef struct JsonPointerElement_tag {
+  char *string;
+  int   type;
+} JsonPointerElement;
+
+/* These JSON pointers are *ABSOLUTE*, supporting relative is more work */
+
+typedef struct JsonPointer_tag {
+  ArrayList elements;
+} JsonPointer;
+
+JsonPointer *parseJsonPointer(char *s);
+void freeJsonPointer(JsonPointer *jp);
+void printJsonPointer(FILE *out, JsonPointer *jp);
+
+/* Some diagnostic-only functions */
+
+Json *jsonObjectGetPropertyValueLoud(JsonObject *object, const char *key);
+void jsonDumpObj(JsonObject *object);
 
 #endif	/* __JSON__ */
 

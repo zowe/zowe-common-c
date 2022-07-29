@@ -164,6 +164,7 @@ typedef struct TSBInfo_tag{
   IKTTSBX          *tsbx;
 } TSBInfo;
 
+struct DiscoveryContext_tag;
 
 typedef void SubsystemVisitor(struct DiscoveryContext_tag *context,
                               SSCT *ssctChain,
