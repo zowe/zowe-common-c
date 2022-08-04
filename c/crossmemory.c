@@ -2350,6 +2350,7 @@ CrossMemoryServer *makeCrossMemoryServer2(
   if (flags & CMS_SERVER_FLAG_DEBUG) {
     logSetLevel(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG);
     logSetLevel(NULL, LOG_COMP_ID_CMSPC, ZOWE_LOG_DEBUG);
+    logSetLevel(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG);
   }
 
   EightCharString cmsModule = {0};
