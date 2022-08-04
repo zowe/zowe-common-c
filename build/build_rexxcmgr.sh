@@ -90,14 +90,20 @@ xlclang \
   -D_OPEN_SYS_FILE_EXT=1 \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
+  -DUSE_ZOWE_TLS=1 \
   -DCONFIG_VERSION=\"2021-03-27\" \
   -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
   -I "${DEPS_DESTINATION}/${QUICKJS}" \
   -I ${COMMON}/h \
-  ${COMMON}/c/embeddedjs.c 
+  ${COMMON}/c/embeddedjs.c \
+  ${COMMON}/c/qjszos.c \
+  ${COMMON}/c/qjsnet.c
 
 # Hacking around weird link issue:
 ar x /usr/lpp/cbclib/lib/libibmcmp.a z_atomic.LIB64R.o
+
+GSKDIR=/usr/lpp/gskssl
+GSKINC="${GSKDIR}/include"
 
 xlc \
   -q64 \
@@ -106,9 +112,12 @@ xlc \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
   -DNEW_CAA_LOCATIONS=1 \
+  -DUSE_ZOWE_TLS=1 \
   -I "${COMMON}/h" \
   -I "${COMMON}/platform/posix" \
+  -I ${GSKINC} \
   -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
+  -I "${DEPS_DESTINATION}/${QUICKJS}" \
   -o "${COMMON}/bin/zwecfgle" \
   api.o \
   reader.o \
@@ -126,6 +135,8 @@ xlc \
   polyfill.o \
   debugutil.o \
   embeddedjs.o \
+  qjszos.o \
+  qjsnet.o \
   z_atomic.LIB64R.o \
   ${COMMON}/c/alloc.c \
   ${COMMON}/c/bpxskt.c \
@@ -148,13 +159,21 @@ xlc \
   ${COMMON}/c/xlate.c \
   ${COMMON}/c/yaml2json.c \
   ${COMMON}/c/zos.c \
-  ${COMMON}/c/zosfile.c
+  ${COMMON}/c/zosfile.c \
+  ${COMMON}/c/httpclient.c \
+  ${COMMON}/c/http.c \
+  ${COMMON}/c/tls.c \
+  ${COMMON}/c/socketmgmt.c \
+  ${COMMON}/c/fdpoll.c \
+  ${COMMON}/c/jcsi.c \
+  ${GSKDIR}/lib/GSKSSL64.x \
+  ${GSKDIR}/lib/GSKCMS64.x
 #then
 #  echo "Build successful"
 #  ls -l "${COMMON}/bin"
 #  exit 0
 #else
-#  # remove configmgr in case the linker had RC=4 and produced the binary
+  # remove configmgr in case the linker had RC=4 and produced the binary
 #  rm -f "${COMMON}/bin/configmgr"
 #  echo "Build failed"
 #  exit 8
