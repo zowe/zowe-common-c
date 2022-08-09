@@ -198,6 +198,31 @@ void zvtFreeEntry(ZVTEntry *entry) {
 
 }
 
+void *zvtGetCMSLookupRoutineAnchor(ZVT *zvt) {
+  return zvt->cmsGetterRoutine;
+}
+
+void *zvtSetCMSLookupRoutineAnchor(ZVT *zvt, void *anchor) {
+
+  void *oldAnchor = anchor;
+
+  int wasProblemState = supervisorMode(TRUE);
+
+  int originalKey = setKey(0);
+  {
+
+    cds((cds_t *)&oldAnchor, (cds_t *)zvt->cmsGetterRoutine, *(cds_t *)&anchor);
+
+  }
+  setKey(originalKey);
+
+  if (wasProblemState) {
+    supervisorMode(FALSE);
+  }
+
+  return oldAnchor;
+}
+
 
 /*
   This program and the accompanying materials are

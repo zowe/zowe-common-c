@@ -70,6 +70,10 @@ const CrossMemoryServerName CMS_DEFAULT_SERVER_NAME = {CROSS_MEMORY_DEFAULT_SERV
 #define TOSTR(number) #number
 #define INT_TO_STR(number) TOSTR(number)
 
+#define CMS_SIZE_OF_FIELD($struct, $field) ({ \
+  sizeof((($struct *)0)->$field); \
+})
+
 const char *CMS_RC_DESCRIPTION[] = {
   [RC_CMS_OK] = "Ok",
   [RC_CMS_ERROR] = "Error",
@@ -94,7 +98,7 @@ const char *CMS_RC_DESCRIPTION[] = {
   [RC_CMS_LPA_ADD_FAILED] = "Module not loaded into LPA",
   [RC_CMS_LPA_DELETE_FAILED] = "Module not deleted from LPA",
   [RC_CMS_SERVER_NOT_READY] = "Server is not running",
-  [RC_CMS_NAME_TOKEN_DELETE_FAILED] = "Global area name/token not deleted", 
+  [RC_CMS_NAME_TOKEN_DELETE_FAILED] = "Global area name/token not deleted",
   [RC_CMS_RACF_ROUTE_LIST_FAILED] = "RACROUTE list failed",
   [RC_CMS_PERMISSION_DENIED] = "Permission denied",
   [RC_CMS_PC_ENV_NOT_ESTABLISHED] = "PC environment not established",
@@ -113,7 +117,7 @@ const char *CMS_RC_DESCRIPTION[] = {
   [RC_CMS_SERVICE_NOT_RELOCATABLE] = "Service function out of range, service not relocated",
   [RC_CMS_MAIN_LOOP_FAILED] = "Main loop unexpectedly terminated",
   [RC_CMS_IMPROPER_SERVICE_AS] = "Invalid service address space",
-  [RC_CMS_BAD_SERVER_KEY] = "Core server started with wrong key", 
+  [RC_CMS_BAD_SERVER_KEY] = "Core server started with wrong key",
   [RC_CMS_RESMGR_NOT_ADDED] = "RESMGR not added",
   [RC_CMS_RESMGR_NOT_REMOVED] = "RESMGR not removed",
   [RC_CMS_RESMGR_NOT_LOCKED] = "RESMGR not locked",
@@ -125,7 +129,7 @@ const char *CMS_RC_DESCRIPTION[] = {
   [RC_CMS_ZERO_PC_NUMBER] = "PC is unavailable",
   [RC_CMS_WRONG_CLIENT_VERSION] = "Wrong client version",
   [RC_CMS_ZVTE_CHAIN_LOOP] = "Potential loop in the ZVTE chain detected",
-  [RC_CMS_ZVTE_CHAIN_NOT_LOCKED] = "ZVTE chain is not locked", 
+  [RC_CMS_ZVTE_CHAIN_NOT_LOCKED] = "ZVTE chain is not locked",
   [RC_CMS_ZVTE_CHAIN_NOT_RELEASED] = "ZVTE chain is not released",
   [RC_CMS_SNPRINTF_FAILED] = "snprintf failed",
   [RC_CMS_SLH_NOT_CREATED] = "Short lived heap is not created",
@@ -139,13 +143,13 @@ const char *CMS_RC_DESCRIPTION[] = {
   [RC_CMS_STDSVC_PARM_NULL] = "Service parameter list is NULL",
   [RC_CMS_STDSVC_PARM_BAD_EYECATCHER] = "Service parameter list has an invalid eyecatcher",
   [RC_CMS_NOT_APF_AUTHORIZED] = "Cross-memory server is not APF-authorized",
-  [RC_CMS_NO_STEPLIB] = "STEPLIB not found",  
+  [RC_CMS_NO_STEPLIB] = "STEPLIB not found",
   [RC_CMS_MODULE_NOT_IN_STEPLIB] = "Cross-memory server module not found in STEPLIB",
   [RC_CMS_SERVER_NAME_NULL] = "Server name is NULL",
   [RC_CMS_SERVICE_ENTRY_OCCUPIED] = "Service entry already occupied",
-  [RC_CMS_NO_STORAGE_FOR_MSG] = "No storage in the message queue",  
+  [RC_CMS_NO_STORAGE_FOR_MSG] = "No storage in the message queue",
   [RC_CMS_ALLOC_FAILED] = "Storage allocation failed",
-  [RC_CMS_NON_PRIVATE_MODULE] = "Module is loaded from common storage, ensure module is valid in STEPLIB",   
+  [RC_CMS_NON_PRIVATE_MODULE] = "Module is loaded from common storage, ensure module is valid in STEPLIB",
   [RC_CMS_BAD_DUB_STATUS] = "Bad dub status, verify that the started task user has an OMVS segment",
   [RC_CMS_MAX_RC + 1] = NULL
 };
@@ -1608,7 +1612,7 @@ ZOWE_PRAGMA_PACK_RESET
     memset((envAddr), 0, sizeof(PCRoutineEnvironment)); \
     memcpy((envAddr)->eyecatcher, PC_ROUTINE_ENV_EYECATCHER, sizeof((envAddr)->eyecatcher)); \
     (envAddr)->dummyCAA.rleTask = &(envAddr)->dummyRLETask; \
-    (envAddr)->dummyRLETask.anchor = &(envAddr)->dummyRLEAnchor; \ 
+    (envAddr)->dummyRLETask.anchor = &(envAddr)->dummyRLEAnchor; \
     (envAddr)->dummyRLEAnchor.metalDynamicLinkageVector = (cmsGlobalAreaAddr)->dynamicLinkageVector; \
     int returnCode = RC_CMS_OK; \
     __asm(" LA    12,0(,%0) " : : "r"(&(envAddr)->dummyCAA) : ); \
@@ -1838,7 +1842,7 @@ static void extractServiceFunctionAbendInfo(RecoveryContext * __ptr32 context,
 
   if (sdwa){
     int reason = 0;
-    
+
     int cc = (sdwa->flagsAndCode >> 12) & 0x00000FFF;
     int flags = (sdwa->flagsAndCode >> 24) & 0x000000FF;
     SDWAPTRS *sdwaptrs = NULL;
@@ -2828,7 +2832,7 @@ static CMSBuildTimestamp getServerBuildTimestamp() {
   return timestamp;
 }
 
-#ifndef _LP64 
+#ifndef _LP64
 
 static void *getCMSServerLookup(int *routineLengthPtr){
   void *routineAddress = NULL;
@@ -2870,10 +2874,10 @@ static void *getCMSServerLookup(int *routineLengthPtr){
       "         J     L$RETURN                Non error end                    \n"
       "L$NOZVT  XGR   15,15                   clear result                     \n"
       "         LGFI  0,8                     reason 8                         \n"
-      "         J     L$RETURN                                                 \n"         
+      "         J     L$RETURN                                                 \n"
       "L$NOZVTE XGR   15,15                   clear result                     \n"
       "         LGFI  0,12                    reason 12                        \n"
-      "         J     L$RETURN                                                 \n"         
+      "         J     L$RETURN                                                 \n"
       "L$NOCMSG XGR   15,15                   clear result                     \n"
       "         LGFI  0,16                    reason 16                         \n"
       "         J     L$RETURN                                                 \n"
@@ -2892,11 +2896,11 @@ static void *getCMSServerLookup(int *routineLengthPtr){
   return routineAddress;
 }
 
-#else 
+#else
 
-static void *getCMSServerLookup(int *routineLengthPtr){
-  void *routineAddress = NULL;
-  int routineLength;
+static const void *getCMSServerLookup(unsigned *routineLengthPtr) {
+  const void *routineAddress = NULL;
+  unsigned routineLength;
   __asm(ASM_PREFIX
       "         LARL  1,L$UXIT00                                               \n"
       "         STG   1,%0                                                     \n"
@@ -2935,10 +2939,10 @@ static void *getCMSServerLookup(int *routineLengthPtr){
       "         J     L$RETURN                Non error end                    \n"
       "L$NOZVT  XGR   15,15                   clear result                     \n"
       "         LGFI  0,8                     reason 8                         \n"
-      "         J     L$RETURN                                                 \n"         
+      "         J     L$RETURN                                                 \n"
       "L$NOZVTE XGR   15,15                   clear result                     \n"
       "         LGFI  0,12                    reason 12                        \n"
-      "         J     L$RETURN                                                 \n"         
+      "         J     L$RETURN                                                 \n"
       "L$NOCMSG XGR   15,15                   clear result                     \n"
       "         LGFI  0,16                    reason 16                        \n"
       "         J     L$RETURN                                                 \n"
@@ -2960,52 +2964,141 @@ static void *getCMSServerLookup(int *routineLengthPtr){
 
 #endif
 
+static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
+
+  unsigned routineLength = 0;
+  const void *routineMaster = getCMSServerLookup(&routineLength);
+  if (routineLength > CMS_SIZE_OF_FIELD(CMSLookupRoutineAnchor, routineBody)) {
+    return NULL;
+  }
 /* always give the routine its own page so that it might be marked executable
    as opposed to most ZVT storage which is unexecutable data */
-
-#define ZWECMSLK_LENGTH 0x1000
-
-static int installCMSLookupRoutine(ZVT *zvt){
-  int routineLength = 0;
-  char *routineMaster = getCMSServerLookup(&routineLength);
+// TODO do we still need to do that? It wasn't executable to begin with
+  CMSLookupRoutineAnchor *anchor = cmAlloc(sizeof(CMSLookupRoutineAnchor),
+                                           CMS_LOOKUP_ANCHOR_SUBPOOL,
+                                           CMS_LOOKUP_ANCHOR_KEY);
+  if (anchor == NULL) {
+    return NULL;
+  }
 
   int wasProblemState = supervisorMode(TRUE);
-  int status = RC_CMS_OK;
-  char *routineStorage = cmAlloc(ZWECMSLK_LENGTH, ZVT_SUBPOOL, ZVT_KEY);
-  if (routineStorage == NULL){
-    status = RC_CMS_NO_ROOM_FOR_CMS_GETTER;
-  } else{
-    int originalKey = setKey(0);
-    
-    memset(routineStorage,0,ZWECMSLK_LENGTH);
-    memcpy(routineStorage,routineMaster,routineLength);
-    zvt->version = ZVT_VERSION;
-    zvt->cmsGetterRoutine = (void*)routineStorage;
-    
-    setKey(originalKey);
+  int originalKey = setKey(0);
+  {
+    memset(anchor, 0, sizeof(CMSLookupRoutineAnchor));
+    memcpy(anchor->eyecatcher, CMS_LOOKUP_ANCHOR_EYECATCHER,
+           sizeof(anchor->eyecatcher));
+    anchor->version = CMS_LOOKUP_ANCHOR_VERSION;
+    anchor->key = CMS_LOOKUP_ANCHOR_KEY;
+    anchor->subpool = CMS_LOOKUP_ANCHOR_SUBPOOL;
+    anchor->size = sizeof(CMSLookupRoutineAnchor);
+    __stck((void *) &anchor->creationTime);
+
+    ASCB *ascb = getASCB();
+
+    char *jobName = getASCBJobname(ascb);
+    if (jobName) {
+      memcpy(anchor->jobName, jobName, sizeof(anchor->jobName));
+    } else {
+      memset(anchor->jobName, ' ', sizeof(anchor->jobName));
+    }
+    anchor->asid = ascb->ascbasid;
+
+    anchor->routineVersion = CMS_LOOKUP_ANCHOR_ROUTINE_VERSION;
+    memcpy(anchor->routineBody, routineMaster, routineLength);
   }
+  setKey(originalKey);
   if (wasProblemState) {
     supervisorMode(FALSE);
   }
 
-  return status;
+}
+
+static void deleteLookupRoutineAnchor(CMSLookupRoutineAnchor *anchor) {
+  cmFree(anchor, anchor->size, CMS_LOOKUP_ANCHOR_SUBPOOL,
+         CMS_LOOKUP_ANCHOR_KEY);
+}
+
+static bool isLookupRoutineAnchorValid(const CMSLookupRoutineAnchor *anchor,
+                                       const char **reason) {
+  if (memcmp(anchor->eyecatcher, CMS_LOOKUP_ANCHOR_EYECATCHER,
+             sizeof(anchor->eyecatcher))) {
+    *reason = "bad eyecatcher";
+    return false;
+  }
+  if (anchor->version > CMS_LOOKUP_ANCHOR_VERSION) {
+    *reason = "incompatible version";
+    return false;
+  }
+  if (anchor->size < sizeof(CMSLookupRoutineAnchor)) {
+    *reason = "insufficient size";
+    return false;
+  }
+  if (anchor->key != CMS_LOOKUP_ANCHOR_KEY) {
+    *reason = "unexpected key";
+    return false;
+  }
+  if (anchor->subpool != CMS_LOOKUP_ANCHOR_SUBPOOL) {
+    *reason = "unexpected subpool";
+    return false;
+  }
+  if (anchor->routineVersion < CMS_LOOKUP_ANCHOR_ROUTINE_VERSION) {
+    *reason = "outdated look-up routine";
+    return false;
+  }
+  *reason = "";
+  return true;
+}
+
+static int installCMSLookupRoutine(const CrossMemoryServer *server, ZVT *zvt) {
+
+  CMSLookupRoutineAnchor *existingAnchor = zvtGetCMSLookupRoutineAnchor(zvt);
+
+  const char *reasonInvalid = "";
+  if (existingAnchor != NULL) {
+    if (!isLookupRoutineAnchorValid(existingAnchor, &reasonInvalid)) {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+              CMS_LOG_LOOKUP_ANC_DISCARDED_MSG, existingAnchor, reasonInvalid);
+      zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+               existingAnchor, CMS_LOOKUP_ANCHOR_HEADER_SIZE);
+      existingAnchor = NULL;
+    }
+  }
+
+  if (existingAnchor != NULL) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+            CMS_LOG_LOOKUP_ANC_REUSED_MSG);
+    return RC_CMS_OK;
+  }
+
+  CMSLookupRoutineAnchor *newAnchor = makeLookupRoutineAnchor();
+  if (newAnchor == NULL) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+            CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG);
+    return RC_CMS_ALLOC_FAILED;
+  }
+
+  CMSLookupRoutineAnchor *installedAnchor =
+      zvtSetCMSLookupRoutineAnchor(zvt, newAnchor);
+  if (newAnchor != installedAnchor) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+            CMS_LOG_LOOKUP_ANC_RACE_MSG, installedAnchor);
+    deleteLookupRoutineAnchor(newAnchor);
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+            CMS_LOG_LOOKUP_ANC_DELETED_MSG, newAnchor);
+    newAnchor = NULL;
+  }
+
+  return RC_CMS_OK;
 }
 
 
 static int allocateGlobalResources(CrossMemoryServer *server) {
 
 #ifndef CROSS_MEMORY_SERVER_DEBUG
-  bool buildingZVTFromScratch = (zvtGet() == NULL);
-  
   zvtInit();
-  ZVT *zvt = zvtGet();
-
-  if (buildingZVTFromScratch ||
-      (zvt->version == 1 && ZVT_VERSION > 1)){
-    int installStatus = installCMSLookupRoutine(zvt);
-    if (installStatus){
-      return installStatus;
-    }
+  int installStatus = installCMSLookupRoutine(server, zvtGet());
+  if (installStatus) {
+    return installStatus;
   }
 #endif
 
@@ -3239,7 +3332,7 @@ static int establishPCRoutines(CrossMemoryServer *server) {
 	  server->globalArea->pcInfo.pcssSequenceNumber,
 	  server->globalArea->pcInfo.pccpPCNumber,
 	  server->globalArea->pcInfo.pccpSequenceNumber);
-	  
+
   return RC_CMS_OK;
 }
 

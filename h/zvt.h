@@ -67,8 +67,7 @@ typedef struct ZVTEntry_tag {
   uint16_t productMaint;
   char reserved4[2];
   char productDescription[32];
-  PAD_LONG(3, void *zisStubVector);
-  char reserved5[120];
+  char reserved5[128];
 
 } ZVTEntry;
 
@@ -106,6 +105,7 @@ typedef struct ZVT_tag {
   } zvteSlots;
 
   char reserved4[3864];
+
 } ZVT;
 
 ZOWE_PRAGMA_PACK_RESET
@@ -114,11 +114,30 @@ ZOWE_PRAGMA_PACK_RESET
 #pragma map(zvtGet, "ZVTGET")
 #pragma map(zvtAllocEntry, "ZVTAENTR")
 #pragma map(zvtFreeEntry, "ZVTFENTR")
+#pragma map(zvtGetCMSLookupRoutineAnchor, "ZVTGXMLR")
+#pragma map(zvtSetCMSLookupRoutineAnchor, "ZVTSXMLR")
 
 void zvtInit();
 ZVT *zvtGet();
 ZVTEntry *zvtAllocEntry();
 void zvtFreeEntry(ZVTEntry *entry);
+
+/**
+ * The function returns the cross-memory server look up routine anchor address;
+ * @param[in] zvt The ZVT to use.
+ * @return The anchor is returned.
+ */
+void *zvtGetCMSLookupRoutineAnchor(ZVT *zvt);
+
+/**
+ * The function sets the cross-memory look up routine anchor field to
+ * the provided value.
+ * @param[in] zvt The ZVT to be used.
+ * @param[in] anchor The anchor to be used.
+ * @return The anchor that has been set (if there has been a race condition,
+ * the return value will not be equal to the provided anchor).
+ */
+void *zvtSetCMSLookupRoutineAnchor(ZVT *zvt, void *anchor);
 
 #endif /* H_ZVT_H_ */
 
