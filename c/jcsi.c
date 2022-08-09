@@ -68,8 +68,10 @@ static int callCsi(CsiFn *csiFn, void *__ptr32 paramList, char* __ptr32 saveArea
 
   __asm(
       ASM_PREFIX
-#ifdef _LP64
+#ifdef __XPLINK__
       " L 13,%[saveArea] \n"
+#endif
+#ifdef _LP64
       " SAM31 \n"
       " SYSSTATE AMODE64=NO \n"
 #endif
