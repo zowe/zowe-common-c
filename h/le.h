@@ -189,8 +189,6 @@ typedef struct RLEAnchor_tag{
   char   eyecatcher[8]; /* RLEANCHR */
   int64  flags;
   CAA   *mainTaskCAA;
-  /* void **masterRTLVector; */ /* copied from CAA */
-
   /* METAL libraries are in some system vector,
      however, if applications want dynamic linking of their
      services, there must be an anchor point for them, too */
