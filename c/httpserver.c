@@ -3557,6 +3557,13 @@ static int handleHttpService(HttpServer *server,
   int recoveryRC = recoveryPush(service->name,
                                 RCVR_FLAG_RETRY | RCVR_FLAG_SDWA_TO_LOGREC | RCVR_FLAG_DELETE_ON_RETRY,
                                 NULL, extractABENDInfo, &abendInfo, NULL, NULL);
+
+  /*
+     TODO this function needs a new argument about recording program state at time of abend
+     Until then, currently recoveryPush will prevent a CEEDUMP
+     and if you need one, just comment out recoveryPush and recoveryPop
+  */
+
   if (recoveryRC != RC_RCV_OK) {
     if (recoveryRC == RC_RCV_CONTEXT_NOT_FOUND) {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "httpserver: error running service %s, recovery context not found\n",
