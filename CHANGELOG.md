@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `2.3.0`
+
+- Bugfix for lht functions of collections.c to avoid memory issues on negative keys
+
 ## `2.2.0`
 
 - Added a script 'dependencies.sh' which assists in managing external depedencies needed for project compilation

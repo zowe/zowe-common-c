@@ -694,6 +694,7 @@ void lhtDestroy(LongHashtable *lht){
 }
 
 void *lhtGet(LongHashtable *lht, int64 key){
+  key = key & 0x7FFFFFFFFFFFFFFFLL;
   int place = key%(lht->backboneSize);
   LongHashEntry *prev = NULL;
   LongHashEntry* hashentry = lht->backbone[place];
@@ -725,6 +726,7 @@ void *lhtGet(LongHashtable *lht, int64 key){
 
 /* returns whether replaced */
 int lhtPut(LongHashtable *ht, int64 key, void *value){
+  key = key & 0x7FFFFFFFFFFFFFFFLL;
   int place = key%(ht->backboneSize);
   LongHashEntry *entry = entry = ht->backbone[place];
   LongHashEntry *tail = NULL;
@@ -759,6 +761,7 @@ int lhtPut(LongHashtable *ht, int64 key, void *value){
 /* remove returns non-zero if it really removes anything
  */
 int lhtRemove(LongHashtable *ht, int64 key){
+  key = key & 0x7FFFFFFFFFFFFFFFLL;
   int place = key%(ht->backboneSize);
   LongHashEntry *prev = NULL;
   LongHashEntry *entry = entry = ht->backbone[place];
