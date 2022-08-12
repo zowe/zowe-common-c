@@ -373,37 +373,6 @@ typedef struct CrossMemoryServerStatus_tag {
   char descriptionNullTerm[64];
 } CrossMemoryServerStatus;
 
-typedef struct CMSLookupRoutineAnchor_tag {
-
-#define CMS_LOOKUP_ANCHOR_EYECATCHER   "ZWESISSV"
-#define CMS_LOOKUP_ANCHOR_VERSION      1
-#define CMS_LOOKUP_ANCHOR_KEY          CROSS_MEMORY_SERVER_KEY
-#define CMS_LOOKUP_ANCHOR_SUBPOOL      CROSS_MEMORY_SERVER_SUBPOOL
-#define CMS_LOOKUP_ANCHOR_HEADER_SIZE  0x28
-
-#define CMS_LOOKUP_ANCHOR_ROUTINE_VERSION 1
-
-  char eyecatcher[8];
-  uint8_t version;
-  uint8_t key;
-  uint8_t subpool;
-  char reserved1[1];
-  uint16_t size;
-  char reserved2[2];
-  /* Offset 0x10 */
-  uint64_t creationTime;
-  char jobName[8];
-  /* Offset 0x20 */
-  uint16_t asid;
-  char reserved22[4];
-
-  /* Offset 0x26 */
-  uint16_t routineVersion;
-  /* Offset 0x28 */
-  char routineBody[1024];
-
-} CMSLookupRoutineAnchor;
-
 ZOWE_PRAGMA_PACK_RESET
 
 #define LOG_COMP_ID_CMS       0x008F0001000C0001LLU
