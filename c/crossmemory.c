@@ -2832,6 +2832,44 @@ static CMSBuildTimestamp getServerBuildTimestamp() {
   return timestamp;
 }
 
+ZOWE_PRAGMA_PACK
+
+typedef struct CMSLookupRoutineAnchor_tag {
+
+#define CMS_LOOKUP_ANCHOR_EYECATCHER   "ZWECMSLK"
+#define CMS_LOOKUP_ANCHOR_VERSION      1
+#define CMS_LOOKUP_ANCHOR_KEY          ZVT_KEY
+#define CMS_LOOKUP_ANCHOR_SUBPOOL      ZVT_SUBPOOL
+#define CMS_LOOKUP_ANCHOR_HEADER_SIZE  0x30
+
+#define CMS_LOOKUP_ANCHOR_ROUTINE_VERSION 1
+
+  char jumpInstruction[4];
+  char eyecatcher[8];
+  uint8_t version;
+  uint8_t key;
+  uint8_t subpool;
+  char reserved1[1];
+  uint16_t size;
+  char reserved2[6];
+  /* Offset 0x18 */
+  uint64_t creationTime;
+  /* Offset 0x20 */
+  char jobName[8];
+  /* Offset 0x28 */
+  uint16_t asid;
+  /* Offset 0x2A */
+  char reserved3[4];
+
+  /* Offset 0x2E */
+  uint16_t routineVersion;
+  /* Offset 0x30 */
+  char routineBody[1024];
+
+} CMSLookupRoutineAnchor;
+
+ZOWE_PRAGMA_PACK_RESET
+
 #ifndef _LP64
 
 static void *getCMSServerLookup(int *routineLengthPtr){
@@ -2909,12 +2947,18 @@ static const void *getCMSServerLookup(unsigned *routineLengthPtr) {
       "         J     L$UXITEX                                                 \n"
       "L$UXIT00 DS    0H                                                       \n"
       "         J     L$UXITRT                                                 \n"
-      "         DC    CL8'ZWECMSLK'           ROUTINE NAME                     \n"
-	/* ZVT_KEY, ZVT_SUBPOOL */
-      "         DC    XL1'01'                 VERSION                          \n"
-      "         DC    XL1'" ZVT_KEY_STR "'      KEY                              \n"
-      "         DC    XL1'" ZVT_SUBPOOL_STR "'  SUBPOOL                          \n"
-      "         DC    XL5'0000000000'         Reserved                         \n"
+      "         DC    CL8' '                  Eyecatcher                       \n"
+      "         DC    XL1'00'                 Version                          \n"
+      "         DC    XL1'00'                 Key                              \n"
+      "         DC    XL1'00'                 Subpool                          \n"
+      "         DC    XL1'00'                 Reserved                         \n"
+      "         DC    XL2'0000'               Size                             \n"
+      "         DC    XL6'000000000000'       Reserved                         \n"
+      "         DC    XL8'0000000000000000'   Creation time                    \n"
+      "         DC    CL8' '                  Job name                         \n"
+      "         DC    XL2'0000'               ASID                             \n"
+      "         DC    XL4'00000000'           Reserved                         \n"
+      "         DC    XL2'0000'               Routine version                  \n"
       "L$UXITRT DS    0H                                                       \n"
       "         STMG  14,12,8(13)                                              \n"
       "         LLGT  14,16                   GET CVTPTR                       \n"
@@ -2968,7 +3012,7 @@ static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
 
   unsigned routineLength = 0;
   const void *routineMaster = getCMSServerLookup(&routineLength);
-  if (routineLength > CMS_SIZE_OF_FIELD(CMSLookupRoutineAnchor, routineBody)) {
+  if (routineLength > sizeof(CMSLookupRoutineAnchor)) {
     return NULL;
   }
 /* always give the routine its own page so that it might be marked executable
@@ -2985,6 +3029,7 @@ static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
   int originalKey = setKey(0);
   {
     memset(anchor, 0, sizeof(CMSLookupRoutineAnchor));
+    memcpy(anchor, routineMaster, routineLength);
     memcpy(anchor->eyecatcher, CMS_LOOKUP_ANCHOR_EYECATCHER,
            sizeof(anchor->eyecatcher));
     anchor->version = CMS_LOOKUP_ANCHOR_VERSION;
@@ -3002,9 +3047,7 @@ static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
       memset(anchor->jobName, ' ', sizeof(anchor->jobName));
     }
     anchor->asid = ascb->ascbasid;
-
     anchor->routineVersion = CMS_LOOKUP_ANCHOR_ROUTINE_VERSION;
-    memcpy(anchor->routineBody, routineMaster, routineLength);
   }
   setKey(originalKey);
   if (wasProblemState) {
