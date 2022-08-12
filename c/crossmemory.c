@@ -3013,6 +3013,9 @@ static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
   unsigned routineLength = 0;
   const void *routineMaster = getCMSServerLookup(&routineLength);
   if (routineLength > sizeof(CMSLookupRoutineAnchor)) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+            CMS_LOG_DEBUG_MSG_ID" Look-up routine length %d vs %d\n",
+            routineLength, sizeof(CMSLookupRoutineAnchor));
     return NULL;
   }
 /* always give the routine its own page so that it might be marked executable
@@ -3022,6 +3025,8 @@ static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
                                            CMS_LOOKUP_ANCHOR_SUBPOOL,
                                            CMS_LOOKUP_ANCHOR_KEY);
   if (anchor == NULL) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+            CMS_LOG_DEBUG_MSG_ID" Alloc failed for look-up anchor\n");
     return NULL;
   }
 
@@ -3054,6 +3059,7 @@ static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
     supervisorMode(FALSE);
   }
 
+  return anchor;
 }
 
 static void deleteLookupRoutineAnchor(CMSLookupRoutineAnchor *anchor) {
