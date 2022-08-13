@@ -204,18 +204,16 @@ void *zvtGetCMSLookupRoutineAnchor(ZVT *zvt) {
 
 void *zvtSetCMSLookupRoutineAnchor(ZVT *zvt, void *anchor) {
 
-  void *oldAnchor = anchor;
+  void *oldAnchor = zvt->cmsGetterRoutine;
 
   int wasProblemState = supervisorMode(TRUE);
-
   int originalKey = setKey(0);
   {
-
-    cds((cds_t *)&oldAnchor, (cds_t *)zvt->cmsGetterRoutine, *(cds_t *)&anchor);
-
+    if (cds((cds_t *)&oldAnchor, (cds_t *)&zvt->cmsGetterRoutine,
+            *(cds_t *)&anchor)) {
+    }
   }
   setKey(originalKey);
-
   if (wasProblemState) {
     supervisorMode(FALSE);
   }
