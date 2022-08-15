@@ -70,10 +70,6 @@ const CrossMemoryServerName CMS_DEFAULT_SERVER_NAME = {CROSS_MEMORY_DEFAULT_SERV
 #define TOSTR(number) #number
 #define INT_TO_STR(number) TOSTR(number)
 
-#define CMS_SIZE_OF_FIELD($struct, $field) ({ \
-  sizeof((($struct *)0)->$field); \
-})
-
 const char *CMS_RC_DESCRIPTION[] = {
   [RC_CMS_OK] = "Ok",
   [RC_CMS_ERROR] = "Error",
@@ -2876,80 +2872,18 @@ typedef struct CMSLookupRoutineAnchor_tag {
 
 ZOWE_PRAGMA_PACK_RESET
 
-#ifndef _LP64
+#ifdef _LP64
 
-static void *getCMSServerLookup(int *routineLengthPtr){
-  void *routineAddress = NULL;
-  int routineLength;
-  __asm(ASM_PREFIX
-      "         LARL  1,L$UXIT00                                               \n"
-      "         ST    1,%0                                                     \n"
-      "         LRL   1,L$RTNLEN                                               \n"
-      "         ST    1,%1                                                     \n"
-      "         J     L$UXITEX                                                 \n"
-      "L$UXIT00 DS    0H                                                       \n"
-      "         J     L$UXITRT                                                 \n"
-      "         DC    CL8'ZWECMSLK'           ROUTINE NAME                     \n"
-      "         DC    XL1'01'                 VERSION                          \n"
-      "         DC    XL1'" ZVT_KEY_STR "'      KEY                              \n"
-      "         DC    XL1'" ZVT_SUBPOOL_STR "'  SUBPOOL                          \n"
-      "         DC    XL5'0000000000'         Reserved                         \n"
-      "L$UXITRT DS    0H                                                       \n"
-      "         STM   14,12,12(13)                                             \n"
-      "         L     14,16                   GET CVTPTR                       \n"
-      "         L     14,X'8C'(,14)           GET ECVT                         \n"
-      "         L     14,X'CC'(,14)           GET CSRCTABL                     \n"
-      "         L     14,X'23C'(,14)          GET ZVT                          \n"
-      "         LTR   14,14                   TEST NON ZERO                    \n"
-      "         JZ    L$NOZVT                                                  \n"
-      "         L     14,X'9C'(,14)           FIRST ZVTE                       \n"
-      "ZVTELOOP LTR   14,14                   NULL CHECK ZVTE                  \n"
-      "         JZ    L$NOZVTE                                                 \n"
-      "         L     4,X'4C'(,14)            PRODUCT ANCHOR                   \n"
-      "         LARL  3,L$CMSRVG              LOAD CONSTANT                    \n"
-      "         CLC   0(8,4),0(3)             Is it RSCMSRVG                   \n"
-      "         JNE   ZVTECNTU                No CMS Global Server             \n"
-      "         L     1,0(,1)                 Server Name is First Arg         \n"
-      "         CLC   X'50'(16,4),0(1)        Is it the right server name      \n"
-      "         JE    ZVTEFND                 Found it !                       \n"
-      "ZVTECNTU LG    14,X'40'(,14)           ZVTE = ZVTE->NEXT                \n"
-      "         J     ZVTELOOP                Should limit by N, too           \n"
-      "ZVTEFND  LR    15,4                    return the CMS GA                \n"
-      "         J     L$RETURN                Non error end                    \n"
-      "L$NOZVT  XGR   15,15                   clear result                     \n"
-      "         LGFI  0,8                     reason 8                         \n"
-      "         J     L$RETURN                                                 \n"
-      "L$NOZVTE XGR   15,15                   clear result                     \n"
-      "         LGFI  0,12                    reason 12                        \n"
-      "         J     L$RETURN                                                 \n"
-      "L$NOCMSG XGR   15,15                   clear result                     \n"
-      "         LGFI  0,16                    reason 16                         \n"
-      "         J     L$RETURN                                                 \n"
-      "L$RETURN L     14,12(,13)              Restore everything but R15       \n"
-      "         LM    1,12,24(13)             Restore                          \n"
-      "         BR    14                                                       \n"
-      /* non executable code */
-      "         LTORG                                                          \n"
-      "L$CMSRVG DC    CL8'RSCMSRVG'                                            \n"
-      "L$RTNLEN DC    A(*-L$UXIT00)                                            \n"
-      "L$UXITEX DS    0H                                                       \n"
-      : "=m"(routineAddress),"=m"(routineLength)
-      :
-      : "r1");
-  *routineLengthPtr = routineLength;
-  return routineAddress;
-}
-
-#else
+// TODO more check are needed
 
 static const void *getCMSServerLookup(unsigned *routineLengthPtr) {
   const void *routineAddress = NULL;
   unsigned routineLength;
   __asm(ASM_PREFIX
       "         LARL  1,L$UXIT00                                               \n"
-      "         STG   1,%0                                                     \n"
+      "         STG   1,%[addr]                                                \n"
       "         LRL   1,L$RTNLEN                                               \n"
-      "         ST    1,%1                                                     \n"
+      "         ST    1,%[len]                                                 \n"
       "         J     L$UXITEX                                                 \n"
       "L$UXIT00 DS    0H                                                       \n"
       "         J     L$UXITRT                                                 \n"
@@ -2967,17 +2901,17 @@ static const void *getCMSServerLookup(unsigned *routineLengthPtr) {
       "         DC    XL2'0000'               Routine version                  \n"
       "L$UXITRT DS    0H                                                       \n"
       "         STMG  14,12,8(13)                                              \n"
-      "         LLGT  14,16                   GET CVTPTR                       \n"
-      "         LGF   14,X'8C'(,14)           GET ECVT                         \n"
-      "         LGF   14,X'CC'(,14)           GET CSRCTABL                     \n"
-      "         LGF   14,X'23C'(,14)          GET ZVT                          \n"
-      "         LTR   14,14                   TEST NON ZERO                    \n"
+      "         LLGT  14,16                   Get CVTPTR                       \n"
+      "         LGF   14,X'8C'(,14)           Get ECVT                         \n"
+      "         LGF   14,X'CC'(,14)           Get CSRCTABL                     \n"
+      "         LGF   14,X'23C'(,14)          Get ZVT                          \n"
+      "         LTR   14,14                   Test non zero                    \n"
       "         JZ    L$NOZVT                                                  \n"
-      "         LGF   14,X'9C'(,14)           FIRST ZVTE                       \n"
-      "ZVTELOOP LTR   14,14                   NULL CHECK ZVTE                  \n"
+      "         LGF   14,X'9C'(,14)           First ZVTE                       \n"
+      "ZVTELOOP LTR   14,14                   NULL check ZVTE                  \n"
       "         JZ    L$NOZVTE                                                 \n"
-      "         LGF   4,X'4C'(,14)            PRODUCT ANCHOR                   \n"
-      "         LARL  3,L$CMSRVG              LOAD CONSTANT                    \n"
+      "         LGF   4,X'4C'(,14)            Product anchor                   \n"
+      "         LARL  3,L$CMSRVG              Load constant                    \n"
       "         CLC   0(8,4),0(3)             Is it RSCMSRVG                   \n"
       "         JNE   ZVTECNTU                No CMS Global Server             \n"
       "         LG    1,0(,1)                 Server Name is First Arg         \n"
@@ -2987,32 +2921,34 @@ static const void *getCMSServerLookup(unsigned *routineLengthPtr) {
       "         J     ZVTELOOP                Should limit by N, too           \n"
       "ZVTEFND  LGR   15,4                    return the CMS GA                \n"
       "         J     L$RETURN                Non error end                    \n"
-      "L$NOZVT  XGR   15,15                   clear result                     \n"
-      "         LGFI  0,8                     reason 8                         \n"
+      "L$NOZVT  XGR   15,15                   Clear result                     \n"
+      "         LGFI  0,8                     Reason 8                         \n"
       "         J     L$RETURN                                                 \n"
-      "L$NOZVTE XGR   15,15                   clear result                     \n"
-      "         LGFI  0,12                    reason 12                        \n"
+      "L$NOZVTE XGR   15,15                   Clear result                     \n"
+      "         LGFI  0,12                    Reason 12                        \n"
       "         J     L$RETURN                                                 \n"
-      "L$NOCMSG XGR   15,15                   clear result                     \n"
-      "         LGFI  0,16                    reason 16                        \n"
+      "L$NOCMSG XGR   15,15                   Clear result                     \n"
+      "         LGFI  0,16                    Reason 16                        \n"
       "         J     L$RETURN                                                 \n"
-      "L$RETURN LG    14,8(,13)              Restore everything but R15,R0     \n"
-	/* "         DC    XL2'0000' \n"  */
-      "         LMG   1,12,32(13)            Restore                            \n"
+      "L$RETURN LG    14,8(,13)               Return address                   \n"
+      "         LMG   1,12,32(13)             Restore everything but R15,R0    \n"
       "         BR    14                                                       \n"
       /* non executable code */
       "         LTORG                                                          \n"
       "L$CMSRVG DC    CL8'RSCMSRVG'                                            \n"
       "L$RTNLEN DC    A(*-L$UXIT00)                                            \n"
       "L$UXITEX DS    0H                                                       \n"
-      : "=m"(routineAddress),"=m"(routineLength)
+      : [addr]"=m"(routineAddress), [len]"=m"(routineLength)
       :
-      : "r1");
+      : "r1"
+  );
   *routineLengthPtr = routineLength;
   return routineAddress;
 }
 
-#endif
+#else
+#error 64-bit is supported only
+#endif /* __LP64 */
 
 static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
 
