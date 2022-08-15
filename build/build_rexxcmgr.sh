@@ -102,7 +102,7 @@ xlclang \
 # Hacking around weird link issue:
 ar x /usr/lpp/cbclib/lib/libibmcmp.a z_atomic.LIB64R.o
 
-xlc \
+xlclang \
   -q64 \
   "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'),list()" \
   -D_OPEN_SYS_FILE_EXT=1 \
