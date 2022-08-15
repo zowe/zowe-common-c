@@ -140,7 +140,9 @@
 #define RC_CMS_BAD_DUB_STATUS               89
 #define RC_CMS_MODULE_QUERY_FAILED          90
 #define RC_CMS_NO_ROOM_FOR_CMS_GETTER       91
-#define RC_CMS_MAX_RC                       91
+#define RC_CMS_LANC_NOT_LOCKED              92
+#define RC_CMS_LANC_NOT_RELEASED            93
+#define RC_CMS_MAX_RC                       93
 
 extern const char *CMS_RC_DESCRIPTION[];
 
@@ -235,19 +237,18 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   PAD_LONG(0, struct RecoveryStatePool_tag *pcssRecoveryPool);
   CPID pcssStackPool;
 
-  PAD_LONG(1, void *dynamicLinkageVector);  /* This is an opt-in feature for CMS 
-					       Servers that want to offer Dynamic Linkage
-					       to some of their routines is an MVS/Metal/ASM 
-					       way.   That is to provide a well-known
-					       linkage vector with well-known offsets.
-					       
-					       The CMS server does stipulate anything about
-					       what these services are.
+  char padding0[4];
+  /* This is an opt-in feature for CMS Servers that want to offer Dynamic
+   * Linkage to some of their routines is an MVS/Metal/ASM way. That is to
+   * provide a well-known linkage vector with well-known offsets.
+   *
+   * The CMS server does not stipulate anything about what these services are.
+   *
+   * The ZIS (a CMS) server uses this for its plugins.
+	 */
+  PAD_LONG(1, void *userServerDynLinkVector);
 
-					       The ZIS (a CMS) server uses this for its plugins.
-					       
-					       */
-  char reserved3[484];
+  char reserved3[480];
 
   CrossMemoryService serviceTable[CROSS_MEMEORY_SERVER_MAX_SERVICE_COUNT];
 
@@ -988,12 +989,6 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 #endif
 #define CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_TEXT "Look-up routine anchor has not been created"
 #define CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG      CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_ID" "CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_TEXT
-
-#ifndef CMS_LOG_LOOKUP_ANC_RACE_MSG_ID
-#define CMS_LOG_LOOKUP_ANC_RACE_MSG_ID          CMS_MSG_PRFX"0256W"
-#endif
-#define CMS_LOG_LOOKUP_ANC_RACE_MSG_TEXT        "New look-up routine anchor is not installed due to race condition with anchor %p"
-#define CMS_LOG_LOOKUP_ANC_RACE_MSG             CMS_LOG_LOOKUP_ANC_RACE_MSG_ID" "CMS_LOG_LOOKUP_ANC_RACE_MSG_TEXT
 
 #endif /* H_CROSSMEMORY_H_ */
 

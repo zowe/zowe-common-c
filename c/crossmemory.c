@@ -1613,7 +1613,7 @@ ZOWE_PRAGMA_PACK_RESET
     memcpy((envAddr)->eyecatcher, PC_ROUTINE_ENV_EYECATCHER, sizeof((envAddr)->eyecatcher)); \
     (envAddr)->dummyCAA.rleTask = &(envAddr)->dummyRLETask; \
     (envAddr)->dummyRLETask.anchor = &(envAddr)->dummyRLEAnchor; \
-    (envAddr)->dummyRLEAnchor.metalDynamicLinkageVector = (cmsGlobalAreaAddr)->dynamicLinkageVector; \
+    (envAddr)->dummyRLEAnchor.metalDynamicLinkageVector = (cmsGlobalAreaAddr)->userServerDynLinkVector; \
     int returnCode = RC_CMS_OK; \
     __asm(" LA    12,0(,%0) " : : "r"(&(envAddr)->dummyCAA) : ); \
     int recoveryRC = RC_RCV_OK; \
@@ -2834,6 +2834,12 @@ static CMSBuildTimestamp getServerBuildTimestamp() {
 
 ZOWE_PRAGMA_PACK
 
+/* These QNAME and RNAME must NEVER change and be the same across all
+ * cross-memory servers. They are used for the look-up anchoe chain
+ * serialization. */
+static const QName LANC_QNAME  = {CMS_PROD_ID"    "};
+static const RName LANC_RNAME  = {8, "ISLUANC "};
+
 typedef struct CMSLookupRoutineAnchor_tag {
 
 #define CMS_LOOKUP_ANCHOR_EYECATCHER   "ZWECMSLK"
@@ -2864,7 +2870,7 @@ typedef struct CMSLookupRoutineAnchor_tag {
   /* Offset 0x2E */
   uint16_t routineVersion;
   /* Offset 0x30 */
-  char routineBody[1024];
+  char routineBody[1024]; // TODO can we use less or do we need a page?
 
 } CMSLookupRoutineAnchor;
 
@@ -3098,7 +3104,39 @@ static bool isLookupRoutineAnchorValid(const CMSLookupRoutineAnchor *anchor,
   return true;
 }
 
+static int lockLookupAnchor(ENQToken *enqToken) {
+  int lockRC = 0, lockRSN = 0;
+  lockRC = isgenqGetExclusiveLock(&LANC_QNAME, &LANC_RNAME, ISGENQ_SCOPE_SYSTEM,
+                                  enqToken, &lockRSN);
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+          CMS_LOG_DEBUG_MSG_ID" Look-up anchor lock RC = %d, RSN = 0x%08X:\n",
+          lockRC, lockRSN);
+  if (lockRC > 4) {
+    return RC_CMS_LANC_NOT_LOCKED;
+  }
+  return RC_CMS_OK;
+}
+
+static int unlockLookupAnchor(ENQToken *lockToken) {
+  int unlockRC = 0, unlockRSN = 0;
+  unlockRC = isgenqReleaseLock(lockToken, &unlockRSN);
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+          CMS_LOG_DEBUG_MSG_ID" Look-up anchor release RC = %d, RSN = 0x%08X:\n",
+          unlockRC, unlockRSN);
+  if (unlockRC > 4) {
+    return RC_CMS_LANC_NOT_RELEASED;
+  }
+  return RC_CMS_OK;
+}
+
 static int installCMSLookupRoutine(const CrossMemoryServer *server, ZVT *zvt) {
+
+  int status = RC_CMS_OK;
+  ENQToken lockToken;
+  int lockRC = lockLookupAnchor(&lockToken);
+  if (lockRC != RC_CMS_OK) {
+    return lockRC;
+  }
 
   CMSLookupRoutineAnchor *existingAnchor = zvtGetCMSLookupRoutineAnchor(zvt);
 
@@ -3116,28 +3154,28 @@ static int installCMSLookupRoutine(const CrossMemoryServer *server, ZVT *zvt) {
   if (existingAnchor != NULL) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
             CMS_LOG_LOOKUP_ANC_REUSED_MSG);
-    return RC_CMS_OK;
+    status = RC_CMS_OK;
+    goto out_unlock;
   }
 
   CMSLookupRoutineAnchor *newAnchor = makeLookupRoutineAnchor();
   if (newAnchor == NULL) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
             CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG);
-    return RC_CMS_ALLOC_FAILED;
+    status = RC_CMS_ALLOC_FAILED;
+    goto out_unlock;
   }
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+          CMS_LOG_LOOKUP_ANC_CREATED_MSG, newAnchor);
 
-  CMSLookupRoutineAnchor *installedAnchor =
-      zvtSetCMSLookupRoutineAnchor(zvt, newAnchor);
-  if (newAnchor != installedAnchor) {
-    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
-            CMS_LOG_LOOKUP_ANC_RACE_MSG, installedAnchor);
-    deleteLookupRoutineAnchor(newAnchor);
-    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
-            CMS_LOG_LOOKUP_ANC_DELETED_MSG, newAnchor);
-    newAnchor = NULL;
+  zvtSetCMSLookupRoutineAnchor(zvt, newAnchor);
+
+out_unlock:;
+  int unlockRC = unlockLookupAnchor(&lockToken);
+  if (unlockRC != RC_CMS_OK) {
+    status = status != RC_CMS_OK ? status : unlockRC;
   }
-
-  return RC_CMS_OK;
+  return status;
 }
 
 
