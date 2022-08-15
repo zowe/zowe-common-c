@@ -134,8 +134,7 @@ void *zvtGetCMSLookupRoutineAnchor(ZVT *zvt);
  * the provided value.
  * @param[in] zvt The ZVT to be used.
  * @param[in] anchor The anchor to be used.
- * @return The anchor that has been set (if there has been a race condition,
- * the return value will not be equal to the provided anchor).
+ * @return The old anchor.
  */
 void *zvtSetCMSLookupRoutineAnchor(ZVT *zvt, void *anchor);
 
