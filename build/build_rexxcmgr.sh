@@ -139,6 +139,8 @@ xlc \
   ${COMMON}/c/microjq.c \
   ${COMMON}/c/parsetools.c \
   ${COMMON}/c/pdsutil.c \
+  ${COMMON}/c/qjsnet.c \
+  ${COMMON}/c/qjszos.c \
   ${COMMON}/platform/posix/psxregex.c \
   ${COMMON}/c/recovery.c \
   ${COMMON}/c/rexxcmgr.c \
