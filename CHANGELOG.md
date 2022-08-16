@@ -3,6 +3,7 @@
 ## `2.3.0`
 
 - Bugfix for lht functions of collections.c to avoid memory issues on negative keys
+- Added a new build target, 'configmgr-rexx', which builds a version of configmgr that can be used within rexx scripts.
 
 ## `2.2.0`
 

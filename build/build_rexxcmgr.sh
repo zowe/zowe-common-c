@@ -39,6 +39,9 @@ MINOR=2
 PATCH=5
 VERSION="\"${MAJOR}.${MINOR}.${PATCH}\""
 
+GSKDIR=/usr/lpp/gskssl
+GSKINC="${GSKDIR}/include"
+
 xlclang \
   -c \
   -q64 \
@@ -99,16 +102,19 @@ xlclang \
 # Hacking around weird link issue:
 ar x /usr/lpp/cbclib/lib/libibmcmp.a z_atomic.LIB64R.o
 
-xlc \
+xlclang \
   -q64 \
   "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'),list()" \
   -D_OPEN_SYS_FILE_EXT=1 \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
   -DNEW_CAA_LOCATIONS=1 \
+  -DUSE_ZOWE_TLS=1 \
   -I "${COMMON}/h" \
   -I "${COMMON}/platform/posix" \
+  -I ${GSKINC} \
   -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
+  -I "${DEPS_DESTINATION}/${QUICKJS}" \
   -o "${COMMON}/bin/zwecfgle" \
   api.o \
   reader.o \
@@ -132,23 +138,35 @@ xlc \
   ${COMMON}/c/charsets.c \
   ${COMMON}/c/collections.c \
   ${COMMON}/c/configmgr.c \
+  ${COMMON}/c/embeddedjs.c \
+  ${COMMON}/c/fdpoll.c \
+  ${COMMON}/c/http.c \
+  ${COMMON}/c/httpclient.c \
   ${COMMON}/c/json.c \
+  ${COMMON}/c/jcsi.c \
   ${COMMON}/c/jsonschema.c \
   ${COMMON}/c/le.c \
   ${COMMON}/c/logging.c \
   ${COMMON}/c/microjq.c \
   ${COMMON}/c/parsetools.c \
   ${COMMON}/c/pdsutil.c \
+  ${COMMON}/c/qjsnet.c \
+  ${COMMON}/c/qjszos.c \
   ${COMMON}/platform/posix/psxregex.c \
   ${COMMON}/c/recovery.c \
   ${COMMON}/c/rexxcmgr.c \
   ${COMMON}/c/scheduling.c \
+  ${COMMON}/c/socketmgmt.c \
   ${COMMON}/c/timeutls.c \
+  ${COMMON}/c/tls.c \
   ${COMMON}/c/utils.c \
   ${COMMON}/c/xlate.c \
   ${COMMON}/c/yaml2json.c \
   ${COMMON}/c/zos.c \
-  ${COMMON}/c/zosfile.c
+  ${COMMON}/c/zosfile.c \
+  ${GSKDIR}/lib/GSKSSL64.x \
+  ${GSKDIR}/lib/GSKCMS64.x
+
 #then
 #  echo "Build successful"
 #  ls -l "${COMMON}/bin"
