@@ -2388,6 +2388,10 @@ CrossMemoryServer *makeCrossMemoryServer2(
     server->flags |= CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA;
   }
 
+  if (flags & CMS_SERVER_FLAG_RESET_LOOKUP) {
+    server->flags |= CROSS_MEMORY_SERVER_FLAG_RESET_LOOKUP;
+  }
+
   int allocResourcesRC = allocServerResources(server);
   if (allocResourcesRC != RC_CMS_OK) {
     safeFree31((char *)server, sizeof(CrossMemoryServer));
@@ -3009,6 +3013,20 @@ static void deleteLookupRoutineAnchor(CMSLookupRoutineAnchor *anchor) {
          CMS_LOOKUP_ANCHOR_KEY);
 }
 
+static int discardLookupRoutineAnchor(CrossMemoryServer *server) {
+
+  ZVT *zvt = zvtGet();
+  if (zvt == NULL) {
+    return RC_CMS_ZVT_NULL;
+  }
+
+  void *discardedAnchor = zvtSetCMSLookupRoutineAnchor(zvt, NULL);
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG,
+          discardedAnchor);
+
+  return RC_CMS_OK;
+}
+
 static bool isLookupRoutineAnchorValid(const CMSLookupRoutineAnchor *anchor,
                                        const char **reason) {
   if (memcmp(anchor->eyecatcher, CMS_LOOKUP_ANCHOR_EYECATCHER,
@@ -3089,7 +3107,7 @@ static int installCMSLookupRoutine(const CrossMemoryServer *server, ZVT *zvt) {
 
   if (existingAnchor != NULL) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
-            CMS_LOG_LOOKUP_ANC_REUSED_MSG);
+            CMS_LOG_LOOKUP_ANC_REUSED_MSG, existingAnchor);
     status = RC_CMS_OK;
     goto out_unlock;
   }
@@ -3691,6 +3709,7 @@ int backgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
 #define CMS_COMMAND_VERB_DISPLAY_SHORT  "DIS"
 #define CMS_COMMAND_VERB_DISPLAY_ABBRV  "D"
 #define CMS_COMMAND_VERB_COLD           "COLD"
+#define CMS_COMMAND_VERB_RESET_LOOKUP   "RESET(LOOKUP)"
 
 static char **tokenizeModifyCommand(ShortLivedHeap *slh, const char *command, unsigned short commandLength, unsigned int *tokenCount) {
 
@@ -4177,6 +4196,11 @@ static int handleModifyCommand(STCBase *base, CIB *cib, STCConsoleCommandType co
           server->flags |= CROSS_MEMORY_SERVER_FLAG_COLD_START;
           if (globalArea != NULL) {
             globalArea->serverFlags |= CROSS_MEMORY_SERVER_FLAG_COLD_START;
+          }
+        } else if (strcmp(commandVerb, CMS_COMMAND_VERB_RESET_LOOKUP) == 0) {
+          server->flags |= CROSS_MEMORY_SERVER_FLAG_RESET_LOOKUP;
+          if (globalArea != NULL) {
+            globalArea->serverFlags |= CROSS_MEMORY_SERVER_FLAG_RESET_LOOKUP;
           }
         } else {
           zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_BAD_CMD_MSG, commandVerb);
@@ -4831,6 +4855,13 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
       int cleanRC = discardGlobalResources(srv);
       if (cleanRC != RC_CMS_OK) {
         zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_GLB_CLEANUP_WARN_MSG, cleanRC);
+      }
+    }
+    if (srv->flags & CROSS_MEMORY_SERVER_FLAG_RESET_LOOKUP) {
+      int discardRC = discardLookupRoutineAnchor(srv);
+      if (discardRC != RC_CMS_OK) {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+                CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG, discardRC);
       }
     }
   }
