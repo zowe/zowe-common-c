@@ -2840,6 +2840,11 @@ ZOWE_PRAGMA_PACK
 static const QName LANC_QNAME  = {CMS_PROD_ID"    "};
 static const RName LANC_RNAME  = {8, "ISLUANC "};
 
+/**
+ * This struct maps the CMS look-up routine.
+ *
+ * IMPORTANT: any changes must be coordinated with @c getCMSLookupRoutine.
+ */
 typedef struct CMSLookupRoutineAnchor_tag {
 
 #define CMS_LOOKUP_ANCHOR_EYECATCHER   "ZWECMSLK"
@@ -2880,7 +2885,16 @@ ZOWE_PRAGMA_PACK_RESET
 
 // TODO more check are needed
 
-static const void *getCMSServerLookup(unsigned *routineLengthPtr) {
+/**
+ * Returns the look up routine and its length;
+ *
+ * IMPORTANT: any changes in this function must be coordinated with
+ * @c CMSLookupRoutineAnchor.
+ *
+ * @param[out] routineLengthPtr The look-up routine length including its header.
+ * @return the look-up routine mapped by @c CMSLookupRoutineAnchor.
+ */
+static const void *getCMSLookupRoutineAnchor(unsigned *routineLengthPtr) {
   const void *routineAddress = NULL;
   unsigned routineLength;
   __asm(ASM_PREFIX
@@ -2952,16 +2966,16 @@ static const void *getCMSServerLookup(unsigned *routineLengthPtr) {
 
 #else
 #error 64-bit is supported only
-#endif /* __LP64 */
+#endif /* _LP64 */
 
 static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
 
-  unsigned routineLength = 0;
-  const void *routineMaster = getCMSServerLookup(&routineLength);
-  if (routineLength > sizeof(CMSLookupRoutineAnchor)) {
+  unsigned anchorLength = 0;
+  const void *anchorMaster = getCMSLookupRoutineAnchor(&anchorLength);
+  if (anchorLength > sizeof(CMSLookupRoutineAnchor)) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
             CMS_LOG_DEBUG_MSG_ID" Look-up routine length %d vs %d\n",
-            routineLength, sizeof(CMSLookupRoutineAnchor));
+            anchorLength, sizeof(CMSLookupRoutineAnchor));
     return NULL;
   }
 /* always give the routine its own page so that it might be marked executable
@@ -2980,7 +2994,7 @@ static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
   int originalKey = setKey(0);
   {
     memset(anchor, 0, sizeof(CMSLookupRoutineAnchor));
-    memcpy(anchor, routineMaster, routineLength);
+    memcpy(anchor, anchorMaster, anchorLength);
     memcpy(anchor->eyecatcher, CMS_LOOKUP_ANCHOR_EYECATCHER,
            sizeof(anchor->eyecatcher));
     anchor->version = CMS_LOOKUP_ANCHOR_VERSION;

@@ -199,17 +199,17 @@ void zvtFreeEntry(ZVTEntry *entry) {
 }
 
 void *zvtGetCMSLookupRoutineAnchor(ZVT *zvt) {
-  return zvt->cmsGetterRoutine;
+  return zvt->cmsLookupRoutine;
 }
 
 void *zvtSetCMSLookupRoutineAnchor(ZVT *zvt, void *anchor) {
 
-  void *oldAnchor = zvt->cmsGetterRoutine;
+  void *oldAnchor = zvt->cmsLookupRoutine;
 
   int wasProblemState = supervisorMode(TRUE);
   int originalKey = setKey(0);
   {
-    if (cds((cds_t *)&oldAnchor, (cds_t *)&zvt->cmsGetterRoutine,
+    if (cds((cds_t *)&oldAnchor, (cds_t *)&zvt->cmsLookupRoutine,
             *(cds_t *)&anchor)) {
     }
   }

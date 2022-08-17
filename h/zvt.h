@@ -24,11 +24,9 @@ ZOWE_PRAGMA_PACK
 
 #define ZVT_OFFSET        0x023C
 #define ZVT_EYECATCHER    "ZOWEVT  "
-#define ZVT_VERSION       2   /* 2 introduces dynamic linking support */
+#define ZVT_VERSION       1
 #define ZVT_KEY           0
 #define ZVT_SUBPOOL       228
-#define ZVT_KEY_STR       "0"
-#define ZVT_SUBPOOL_STR   "E4"
 
 typedef struct ZVTEntry_tag {
 
@@ -71,8 +69,6 @@ typedef struct ZVTEntry_tag {
 
 } ZVTEntry;
 
-#define MAX_CMS_GETTER_ROUTINE_SIZE 0x100
-
 typedef struct ZVT_tag {
 
   char eyecatcher[8];
@@ -88,7 +84,7 @@ typedef struct ZVT_tag {
   /* Offset 0x20 */
   uint16_t asid;
   char reserved22[6];
-  PAD_LONG(9, void *cmsGetterRoutine); /* points at another page in 31-common */
+  PAD_LONG(9, void *cmsLookupRoutine); /* points at another page in 31-common */
   char reserved3[104];
 
   struct {
