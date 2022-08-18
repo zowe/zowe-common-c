@@ -241,8 +241,6 @@ typedef struct RLETask_tag{
     char threadDataFiller[32];
   };
 
-  int           sdwaBaseAddress;
-  char          sdwaCopy[SDWA_COPY_MAX];
 } RLETask;
 
 #ifdef __ZOWE_OS_ZOS
