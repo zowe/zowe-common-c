@@ -191,8 +191,32 @@ typedef struct CrossMemoryService_tag {
   PAD_LONG(1, void *serviceData);
 } CrossMemoryService;
 
+/*
+ * TODO this version must not be incremented until the following gets addressed.
+ *
+ * When a cross-memory server starts it uses cmsGetGlobalArea to check if
+ * there is already an existing area for this server. The function discards
+ * any areas with versions not equal to CROSS_MEMORY_SERVER_VERSION. If this
+ * value is changed one day, cmsGetGlobalArea will return NULL and the server
+ * will allocate another area with the new version.
+ *
+ * Since cmsGetGlobalArea is also used by clients, updating this version in
+ * the server will cause them to use the wrong global area (the old one) and
+ * since that old area is inactive, the client won't be able to use the server
+ * with the specified name. That can happen if a client uses an older ZSS:
+ * the cmsGetGlobalArea function will have an older CROSS_MEMORY_SERVER_VERSION
+ * value, which won't match the new version of the area the cross-memory server
+ * has created.
+ *
+ * Possible solutions:
+ *  - Make sure there are never more than 1 areas with valid versions (that is,
+ *    not CROSS_MEMORY_SERVER_DISCARDED_VERSION). So that client will just have
+ *    to deal with a single global area with the specified server name.
+ *  - Change the look up code to return the area with the highest version.
+ *
+ */
 #define CROSS_MEMORY_SERVER_VERSION             2
-#define CROSS_MEMORY_SERVER_DISCARDED_VERSION   0xDEADDA7A
+#define CROSS_MEMORY_SERVER_DISCARDED_VERSION   3735935610 /* 0xDEADDA7A */
 
 typedef struct CMSTimestamp_tag {
   char value[32];
