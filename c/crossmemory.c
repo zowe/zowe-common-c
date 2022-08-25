@@ -2870,20 +2870,18 @@ typedef struct CMSLookupRoutineAnchor_tag {
   /* Offset 0x28 */
   uint16_t asid;
   /* Offset 0x2A */
-  char reserved3[4];
+  char reserved3[20];
 
-  /* Offset 0x2E */
+  /* Offset 0x3E */
   uint16_t routineVersion;
-  /* Offset 0x30 */
-  char routineBody[1024]; // TODO can we use less or do we need a page?
+  /* Offset 0x40 */
+  char routineBody[448];
 
 } CMSLookupRoutineAnchor;
 
 ZOWE_PRAGMA_PACK_RESET
 
 #ifdef _LP64
-
-// TODO more check are needed
 
 /**
  * Returns the look up routine and its length;
@@ -2915,7 +2913,7 @@ static const void *getCMSLookupRoutineAnchor(unsigned *routineLengthPtr) {
       "         DC    XL8'0000000000000000'   Creation time                    \n"
       "         DC    CL8' '                  Job name                         \n"
       "         DC    XL2'0000'               ASID                             \n"
-      "         DC    XL4'00000000'           Reserved                         \n"
+      "         DC    XL20'00'                Reserved                         \n"
       "         DC    XL2'0000'               Routine version                  \n"
       "L$UXITRT DS    0H                                                       \n"
       "         STMG  14,12,8(13)                                              \n"
@@ -2992,9 +2990,8 @@ static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
             anchorLength, sizeof(CMSLookupRoutineAnchor));
     return NULL;
   }
-/* always give the routine its own page so that it might be marked executable
-   as opposed to most ZVT storage which is unexecutable data */
-// TODO do we still need to do that? It wasn't executable to begin with
+  // TODO if the cmutils alloc functions are changed to allocate non-executable
+  //  storage, this call will need to change
   CMSLookupRoutineAnchor *anchor = cmAlloc(sizeof(CMSLookupRoutineAnchor),
                                            CMS_LOOKUP_ANCHOR_SUBPOOL,
                                            CMS_LOOKUP_ANCHOR_KEY);
