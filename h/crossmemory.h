@@ -562,6 +562,27 @@ int cmsGetPCLogLevel(const CrossMemoryServerName *serverName);
 CrossMemoryServerStatus cmsGetStatus(const CrossMemoryServerName *serverName);
 CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 
+
+typedef CrossMemoryServerGlobalArea
+    *CMSLookupFunction(const CrossMemoryServerName *name, int *reasonCode);
+
+/**
+ * This macro returns the look-up routine mapped by @c CMSLookupFunction.
+ * @return The routine address, or NULL if the ZVT or the routine hasn't been
+ * found.
+ */
+#define cmsGetLookupFunction() ({ \
+  const CVT *cvt = *(CVT * __ptr32 *)0x10; \
+  const ECVT *ecvt = cvt->cvtecvt; \
+  const char *ecvtctbl = ecvt->ecvtctbl;\
+  const ZVT * __ptr32 *zvt = (const ZVT * __ptr32 *)(ecvtctbl + ZVT_OFFSET); \
+  CMSLookupFunction *result = (CMSLookupFunction *)NULL; \
+  if (*zvt != NULL) { \
+    result = (CMSLookupFunction *)(*zvt)->cmsLookupRoutine; \
+  } \
+  result; \
+});
+
 /* default message IDs (users of crossmemory.c can potentially redefine them) */
 
 /* 001 - 099 should be used by the application that use the core cross memory server */
