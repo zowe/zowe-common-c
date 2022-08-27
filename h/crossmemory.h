@@ -563,15 +563,22 @@ CrossMemoryServerStatus cmsGetStatus(const CrossMemoryServerName *serverName);
 CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 
 
+#if defined(METTLE) && defined(_LP64)
+
 typedef CrossMemoryServerGlobalArea
     *CMSLookupFunction(const CrossMemoryServerName *name, int *reasonCode);
+
+#define RSN_CMSLOOKUP_OK      0
+#define RSN_CMSLOOKUP_NOCMS   2
+#define RSN_CMSLOOKUP_NOZVT   4
+#define RSN_CMSLOOKUP_LOOP    16
 
 /**
  * This macro returns the look-up routine mapped by @c CMSLookupFunction.
  * @return The routine address, or NULL if the ZVT or the routine hasn't been
  * found.
  */
-#define cmsGetLookupFunction() ({ \
+#define CMS_GET_LOOKUP_FUNCTION() ({ \
   const CVT *cvt = *(CVT * __ptr32 *)0x10; \
   const ECVT *ecvt = cvt->cvtecvt; \
   const char *ecvtctbl = ecvt->ecvtctbl;\
@@ -582,6 +589,37 @@ typedef CrossMemoryServerGlobalArea
   } \
   result; \
 });
+
+typedef struct CMSDynlinkEnv_tag {
+  char eyecatcher[8];
+#define CMS_DYNLINK_ENV_EYECATCHER  "ZWEDLENV"
+  CAA dummyCAA;
+  RLETask dummyRLETask;
+  char filler0[4];
+  RLEAnchor dummyRLEAnchor;
+} CMSDynlinkEnv;
+
+/**
+ * This macro establishes an environment in R12 which allows using the functions
+ * provided by the dynamic linkage vector in the provided
+ * @c CrossMemoryServerGlobalArea.
+ *
+ * IMPORTANT:
+ *  - R12 must be reserved in your Metal C application
+ *  - This must be used at the top level of your application
+ *
+ */
+#define CMS_SETUP_DYNLINK_ENV(cmsAnchorAddr) \
+  CMSDynlinkEnv cmsDLEnv = { \
+    .eyecatcher = CMS_DYNLINK_ENV_EYECATCHER, \
+  }; \
+  cmsDLEnv.dummyCAA.rleTask = &cmsDLEnv.dummyRLETask; \
+  cmsDLEnv.dummyRLETask.anchor = &cmsDLEnv.dummyRLEAnchor; \
+  cmsDLEnv.dummyRLEAnchor.metalDynamicLinkageVector = \
+    (cmsAnchorAddr)->userServerDynLinkVector; \
+  __asm(" LA 12,0(,%0) " : : "r"(&cmsDLEnv.dummyCAA) : )
+
+#endif /* defined(METTLE) && defined(_LP64) */
 
 /* default message IDs (users of crossmemory.c can potentially redefine them) */
 
