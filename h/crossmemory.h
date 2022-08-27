@@ -565,7 +565,7 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 
 #if defined(METTLE) && defined(_LP64)
 
-typedef CrossMemoryServerGlobalArea
+typedef const CrossMemoryServerGlobalArea
     *CMSLookupFunction(const CrossMemoryServerName *name, int *reasonCode);
 
 #define RSN_CMSLOOKUP_OK      0
@@ -588,7 +588,7 @@ typedef CrossMemoryServerGlobalArea
     result = (CMSLookupFunction *)(*zvt)->cmsLookupRoutine; \
   } \
   result; \
-});
+})
 
 typedef struct CMSDynlinkEnv_tag {
   char eyecatcher[8];
@@ -600,23 +600,40 @@ typedef struct CMSDynlinkEnv_tag {
 } CMSDynlinkEnv;
 
 /**
+ * The macro checks whether the provided cross-memory server supports dynamic
+ * linkage.
+ *
+ * @parm[in] cmsGlobalArea The cross-memory global area.
+ * @return @c true if the cross-memory server supports dynamic linkage.
+ */
+#define CMS_DYNLINK_SUPPORTED(cmsGlobalArea) ({ \
+  bool result = false;                         \
+  if ((cmsGlobalArea)->userServerDynLinkVector != NULL) { \
+    result = true; \
+  } \
+  result; \
+})
+
+/**
  * This macro establishes an environment in R12 which allows using the functions
  * provided by the dynamic linkage vector in the provided
  * @c CrossMemoryServerGlobalArea.
+ *
+ * @parm[in] cmsGlobalArea The cross-memory global area.
  *
  * IMPORTANT:
  *  - R12 must be reserved in your Metal C application
  *  - This must be used at the top level of your application
  *
  */
-#define CMS_SETUP_DYNLINK_ENV(cmsAnchorAddr) \
+#define CMS_SETUP_DYNLINK_ENV(cmsGlobalArea) \
   CMSDynlinkEnv cmsDLEnv = { \
     .eyecatcher = CMS_DYNLINK_ENV_EYECATCHER, \
   }; \
   cmsDLEnv.dummyCAA.rleTask = &cmsDLEnv.dummyRLETask; \
   cmsDLEnv.dummyRLETask.anchor = &cmsDLEnv.dummyRLEAnchor; \
   cmsDLEnv.dummyRLEAnchor.metalDynamicLinkageVector = \
-    (cmsAnchorAddr)->userServerDynLinkVector; \
+    (cmsGlobalArea)->userServerDynLinkVector; \
   __asm(" LA 12,0(,%0) " : : "r"(&cmsDLEnv.dummyCAA) : )
 
 #endif /* defined(METTLE) && defined(_LP64) */
