@@ -23,7 +23,7 @@ as -mgoff -mobject -mflag=nocont --TERM --RENT -aegimrsx=zos.asm zos.s
 as -mgoff -mobject -mflag=nocont --TERM --RENT -aegimrsx=qsam.asm qsam.s
 as -mgoff -mobject -mflag=nocont --TERM --RENT -aegimrsx=metalio.asm metalio.s
 
-ld -b rent -b case=mixed -b map -b xref -b reus -e main -o ${COMMON}/bin/zwecfg31 zwecfg31.o metalio.o qsam.o zos.o timeutls.o utils.o alloc.o
+ld -b rent -b case=mixed -b map -b xref -b reus -e main -o ${COMMON}/bin/ZWECFG31 zwecfg31.o metalio.o qsam.o zos.o timeutls.o utils.o alloc.o
 
 # Step 2: Build 64 Bit Metal program to be called from REXX to call LE64
 
@@ -37,5 +37,5 @@ as -mgoff -mobject -mflag=nocont --TERM --RENT -aegimrsx=zos.asm zos.s
 as -mgoff -mobject -mflag=nocont --TERM --RENT -aegimrsx=qsam.asm qsam.s
 as -mgoff -mobject -mflag=nocont --TERM --RENT -aegimrsx=metalio.asm metalio.s
 
-ld -b rent -b case=mixed -b map -b xref -b reus -e main -o ${COMMON}/bin/zwecfg64 rex2le64.o metalio.o qsam.o zos.o timeutls.o utils.o alloc.o
+ld -b rent -b case=mixed -b map -b xref -b reus -e main -o ${COMMON}/bin/ZWECFG64 rex2le64.o metalio.o qsam.o zos.o timeutls.o utils.o alloc.o
 
