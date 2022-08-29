@@ -32,6 +32,6 @@ mv content bak && mkdir -p content
 # move real files to the content folder
 echo "$SCRIPT_NAME coping files should be in pax ..."
 cd "$SCRIPT_DIR/content"
-cp ../bak/bin/zwecfg31 .
-cp ../bak/bin/zwecfg64 .
-cp ../bak/bin/zwecfgle .
+cp ../bak/bin/ZWECFG31 .
+cp ../bak/bin/ZWECFG64 .
+cp ../bak/bin/ZWECFGLE .
