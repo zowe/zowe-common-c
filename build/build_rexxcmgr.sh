@@ -39,9 +39,6 @@ MINOR=2
 PATCH=5
 VERSION="\"${MAJOR}.${MINOR}.${PATCH}\""
 
-GSKDIR=/usr/lpp/gskssl
-GSKINC="${GSKDIR}/include"
-
 xlclang \
   -c \
   -q64 \
@@ -93,16 +90,22 @@ xlclang \
   -D_OPEN_SYS_FILE_EXT=1 \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
+  -DUSE_ZOWE_TLS=1 \
   -DCONFIG_VERSION=\"2021-03-27\" \
   -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
   -I "${DEPS_DESTINATION}/${QUICKJS}" \
   -I ${COMMON}/h \
-  ${COMMON}/c/embeddedjs.c 
+  ${COMMON}/c/embeddedjs.c \
+  ${COMMON}/c/qjszos.c \
+  ${COMMON}/c/qjsnet.c
 
 # Hacking around weird link issue:
 ar x /usr/lpp/cbclib/lib/libibmcmp.a z_atomic.LIB64R.o
 
-xlclang \
+GSKDIR=/usr/lpp/gskssl
+GSKINC="${GSKDIR}/include"
+
+xlc \
   -q64 \
   "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'),list()" \
   -D_OPEN_SYS_FILE_EXT=1 \
@@ -132,47 +135,45 @@ xlclang \
   polyfill.o \
   debugutil.o \
   embeddedjs.o \
+  qjszos.o \
+  qjsnet.o \
   z_atomic.LIB64R.o \
   ${COMMON}/c/alloc.c \
   ${COMMON}/c/bpxskt.c \
   ${COMMON}/c/charsets.c \
   ${COMMON}/c/collections.c \
   ${COMMON}/c/configmgr.c \
-  ${COMMON}/c/embeddedjs.c \
-  ${COMMON}/c/fdpoll.c \
-  ${COMMON}/c/http.c \
-  ${COMMON}/c/httpclient.c \
   ${COMMON}/c/json.c \
-  ${COMMON}/c/jcsi.c \
   ${COMMON}/c/jsonschema.c \
   ${COMMON}/c/le.c \
   ${COMMON}/c/logging.c \
   ${COMMON}/c/microjq.c \
   ${COMMON}/c/parsetools.c \
   ${COMMON}/c/pdsutil.c \
-  ${COMMON}/c/qjsnet.c \
-  ${COMMON}/c/qjszos.c \
   ${COMMON}/platform/posix/psxregex.c \
   ${COMMON}/c/recovery.c \
   ${COMMON}/c/rexxcmgr.c \
   ${COMMON}/c/scheduling.c \
-  ${COMMON}/c/socketmgmt.c \
   ${COMMON}/c/timeutls.c \
-  ${COMMON}/c/tls.c \
   ${COMMON}/c/utils.c \
   ${COMMON}/c/xlate.c \
   ${COMMON}/c/yaml2json.c \
   ${COMMON}/c/zos.c \
   ${COMMON}/c/zosfile.c \
+  ${COMMON}/c/httpclient.c \
+  ${COMMON}/c/http.c \
+  ${COMMON}/c/tls.c \
+  ${COMMON}/c/socketmgmt.c \
+  ${COMMON}/c/fdpoll.c \
+  ${COMMON}/c/jcsi.c \
   ${GSKDIR}/lib/GSKSSL64.x \
   ${GSKDIR}/lib/GSKCMS64.x
-
 #then
 #  echo "Build successful"
 #  ls -l "${COMMON}/bin"
 #  exit 0
 #else
-#  # remove configmgr in case the linker had RC=4 and produced the binary
+  # remove configmgr in case the linker had RC=4 and produced the binary
 #  rm -f "${COMMON}/bin/configmgr"
 #  echo "Build failed"
 #  exit 8
@@ -186,3 +187,4 @@ xlclang \
 # SPDX-License-Identifier: EPL-2.0
 # 
 # Copyright Contributors to the Zowe Project.
+
