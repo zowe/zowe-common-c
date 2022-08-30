@@ -90,6 +90,50 @@ typedef struct socketAddr_tag{
 
 ZOWE_PRAGMA_PACK_RESET
 
+#ifndef __LONGNAME__
+
+#define getLocalHostName GETLOCHN
+#define getSocketDebugID GETSOCDI
+#define getLocalHostAddress GETLOCAD
+#define getAddressByName GETADRBN
+#define getSocketName GETSOCNM
+#define getSocketName2 GETSOCN2
+#define tcpClient TCPCLIE1
+#define getSocketOption GTSKTOPT
+#define tcpClient2 TCPCLIE2
+#define tcpServer TCPSERVR
+#define tcpClient3 TCPCLIE3
+#define tcpServer2 TCPSERV2
+#define makePipeBasedSyntheticSocket MAKSPSOC
+#define bpxSleep BPXSLEEP
+#define tcpIOControl TCPIOCTR
+#define udpPeer UDPPEER
+#define udpReceiveFrom UDPRECVF
+#define udpSendTo UDPSENDT
+#define makeSocketSet MAKSOCST
+#define freeSocketSet FRESOCST
+#define socketSetAdd SOCSTADD
+#define socketSetRemove SOCSTREM
+#define tcpStatus TCPSTTUS
+#define socketRead SOCREAD
+#define socketWrite SOCWRITE
+#define setSocketTimeout SETSKTTO
+#define setSocketNoDelay SETSKTND
+#define setSocketWriteBufferSize SETSKTWB
+#define setSocketReadBufferSize SETSKTRB
+#define setSocketBlockingMode SETSOCBM
+#define setSocketOption SETSKTOP
+#define socketSend SOCKSEND
+#define socketAccept SOCACCPT
+#define socketClose SOCCLOSE
+#define extendedSelect EXSELECT
+#define makeSocketAddr MACSOCAD
+#define makeSocketAddrIPv6 MACSOCA6
+#define freeSocketAddr FRESOCAD
+#define socketFree SOCFREE
+
+#endif
+
 #elif defined(__ZOWE_OS_WINDOWS)
 
 #include <Ws2tcpip.h>
@@ -267,14 +311,10 @@ int getSocketName2(Socket *socket, SocketAddress *socketAddress); /* AKA getpeer
 Socket *tcpClient(SocketAddress *socketAddress,
 		  int *returnCode, int *reasonCode);
 
-#define getSocketOption gtsktopt
-
 int getSocketOption(Socket *socket, int optionName, int *optionDataLength, char *optionData,
         int *returnCode, int *reasonCode);
 
-#define tcpClient2 tcpclie2
-
-Socket *tcpClient2(SocketAddress *socketAddress, 
+Socket *tcpClient2(SocketAddress *socketAddress,
 		   int timeoutInMillis,
 		   int *returnCode, /* errnum */
 		   int *reasonCode); /* errnum - JR's */
@@ -283,8 +323,6 @@ Socket *tcpServer(InetAddr *addr, /* usually NULL/0 */
                   int port,
 		  int *returnCode,
 		  int *reasonCode);
-
-#define tcpClient3 tcpclie3
 
 Socket *tcpClient3(SocketAddress *socketAddress,
        int timeoutInMillis,
@@ -414,17 +452,6 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
 int socketWrite(Socket *socket, const char *buffer, int desiredBytes, 
 	       int *returnCode, int *reasonCode);
 
-/* TBD: Not sure about guarding these defined with LONGNAME; shouldn't
-   a bunch of other functions also be given short aliases? */
-#ifndef __LONGNAME__
-
-#define setSocketTimeout setsktto
-#define setSocketNoDelay setsktnd
-#define setSocketWriteBufferSize setsktwb
-#define setSocketReadBufferSize setsktrb
-
-#endif
-
 int setSocketTimeout(Socket *socket, int timeout,
 		     int *returnCode, int *reasonCode);
 
@@ -433,8 +460,6 @@ int setSocketWriteBufferSize(Socket *socket, int bufferSize, int *returnCode, in
 int setSocketReadBufferSize(Socket *socket,  int bufferSize, int *returnCode, int *reasonCode);
 int setSocketBlockingMode(Socket *socket, int isNonBlocking,
                           int *returnCode, int *reasonCode);
-
-#define setSocketOption setsktop
 
 int setSocketOption(Socket *socket, int level, int optionName, int optionDataLength, char *optionData,
                     int *returnCode, int *reasonCode);

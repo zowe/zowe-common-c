@@ -254,10 +254,14 @@ extern LoggingContext *theLoggingContext;
 #define removeLocalLoggingContext RMLLGCTX
 #define getLoggingContext GTLOGCTX
 #define setLoggingContext STLOGCTX
+#define zowelog ZOWELOG
+#define zowedump ZOWEDUMP
 #define logConfigureDestination LGCFGDST
 #define logConfigureDestination2 LGCFGDS2
 #define logConfigureStandardDestinations LGCFGSTD
 #define logConfigureComponent LGCFGCMP
+#define logSetLevel LGSETLVL
+#define logGetLevel LGGETLVL
 #define logShouldTraceInternal LGSHTRCE
 #define logGetExternalContext LGGLOGCX
 #define logSetExternalContext LGSLOGCX

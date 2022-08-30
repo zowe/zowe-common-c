@@ -147,6 +147,7 @@ typedef int ntFunction();
 ntFunction **getNameTokenFunctionTable();
 int getNameTokenValue(int level, char *name, char *token);
 int createNameTokenPair(int level, char *name, char *token);
+int deleteNameTokenPair(int level, char *name);
 
 typedef struct SYSOUT_struct{
   char * __ptr32 dcb;
@@ -166,6 +167,10 @@ typedef struct SYSOUT_struct{
 #define authWTOPrintf AWTOPRNF
 #define sendWTO SENDWTO
 #define qsamPrintf QSAMPRNF
+#define printf PRINTF
+#define fflush FFLUSH
+#define setjmp SETJMP
+#define longjmp LONGJMP
 #endif
 
 SYSOUT *getSYSOUTStruct(char *ddname, SYSOUT *existingSysout, char *buffer);

@@ -43,15 +43,20 @@ typedef struct dayMonth {
 } dayStamp;
 
 #ifndef __LONGNAME__
-#define convertTODToLocal convtodl
-#define stckToTimestamp stckconv
-#define timestampToSTCK convtod
-#define timeFromMidnight midnight
+#define getSTCK GETSTCK
+#define getSTCKU GETSTCKU
+#define convertTODToLocal CONVTODL
+#define timeZoneDifferenceFor TZDIFFOR
+#define stckToTimestamp STCKCONV
+#define timestampToSTCK CONVTOD
+#define timeFromMidnight MIDNIGHT
 #define stckFromYYYYMMDD STCKYYMD
-#define elapsedTime elpstime
-#define stckToUnix stckUnix
-#define unixToTimestamp convunix
-#define getDayAndMonth gtdaymnt
+#define elapsedTime ELPSTIME
+#define stckToUnix STCKUNIX
+#define stckToUnixSecondsAndMicros STCK2USM
+#define unixToTimestamp CONVUNIX
+#define getDayAndMonth GTDAYMNT
+#define snprintLocalTime SNPRNTLT
 #endif
 
 /*
