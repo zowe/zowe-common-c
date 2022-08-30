@@ -205,7 +205,9 @@ static void writeJSONToREXX1(EXCOMContext *context, Json *json, int varLength,
     fprintf(out,"*** PANIC *** unknown JSON type %d\n",json->type);
     break;
   }
-  fprintf(out,"back from write REXX\n");
+  if (context->mgr->traceLevel >= 1){
+    fprintf(out,"back from write REXX\n");
+  }
 }
 
 static void writeJSONToREXX(REXXInvocation *invocation, ConfigManager *mgr, Json *json, char *stem, char *separator){
@@ -214,6 +216,18 @@ static void writeJSONToREXX(REXXInvocation *invocation, ConfigManager *mgr, Json
   memcpy(context->varName,stem,stemLen);
   writeJSONToREXX1(context,json,stemLen,separator,0);
   freeEXCOMContext(context);
+}
+
+static void traceValidityException(ConfigManager *mgr, int depth, ValidityException *exception){
+  for (int i=0; i<depth; i++){
+    fprintf(mgr->traceOut,"  ");
+  }
+  fprintf(mgr->traceOut,"%s\n",exception->message);
+  ValidityException *child = exception->firstChild;
+  while (child){
+    traceValidityException(mgr,depth+1,child);
+    child = child->nextSibling;
+  }
 }
 
 static void copyValidityException(EXCOMContext *context, ValidityException *exception, int depth, int varLength){
@@ -341,7 +355,11 @@ static int rexxValidate(ConfigManager *mgr,
   int validateStatus = cfgValidate(mgr,validator,configName);
   fprintf(mgr->traceOut,"validateStatus=%d\n",validateStatus);
   if (validateStatus == JSON_VALIDATOR_HAS_EXCEPTIONS){
-    writeValidityExceptionToRexx(invocation,mgr,validator->topValidityException,stem);
+    if (!strcmp(stem, "STDOUT")) {
+      traceValidityException(mgr,0,validator->topValidityException);
+    } else {
+      writeValidityExceptionToRexx(invocation,mgr,validator->topValidityException,stem);
+    }
   } else if (validateStatus == JSON_VALIDATOR_INTERNAL_FAILURE){
     fprintf(mgr->traceOut,"validation internal failure: %s",validator->errorMessage);
   }
@@ -405,7 +423,6 @@ static int rexxEntry(ConfigManager *mgr, REXXInvocation *invocation){
   if (!strcmp(arg0,"setTraceLevel")){
     status = rexxSetTraceLevel(mgr,invocation,invocation->argCount,copiedArgs);
   } else if (!strcmp(arg0,"addConfig")){
-    fprintf(out,"rexxcmgr chose addConfig\n");
     status = rexxAddConfig(mgr,invocation,invocation->argCount,copiedArgs);
   } else if (!strcmp(arg0,"setConfigPath")){
     status = rexxSetConfigPath(mgr,invocation,invocation->argCount,copiedArgs);
@@ -440,7 +457,7 @@ int REXXCMGR(REXXInvocation *invocation){
     if (invocation->traceLevel >= 1){
       printf("configmgr made at 0x%p\n",theConfigManager);
     }
-    theConfigManager->traceOut = fopen("/u/zossteam/jdevlin/git2022/zss/deps/zowe-common-c/tests/rexxcmgr.txt","w");
+    theConfigManager->traceOut = fopen("//dd:cmgrout","w");
   }
   FILE *out = theConfigManager->traceOut;
   if (invocation->traceLevel >= 1){
