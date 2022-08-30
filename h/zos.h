@@ -15,7 +15,9 @@
 
 #ifndef __LONGNAME__
 
+#define extractPSW EXTRPSW
 #define supervisorMode SUPRMODE
+#define setKey SETKEY
 #define ddnameExists DDEXISTS
 #define atomicIncrement ATOMINCR
 
@@ -24,20 +26,32 @@
 #define getParentTCB GTPRTTCB
 #define getNextSiblingTCB GTNXSTCB
 
-#define getCVTPrefix GETCVTPR
+#define getCVT GETCVT
+#define getATCVT GETATCVT
 #define getIEACSTBL  GETCSTBL
+#define getCVTPrefix GETCVTPR
+#define getECVT GETECVT
+#define getTCB GETTCB
+#define getSTCB GETSTCB
+#define getOTCB GETOTCB
+#define getASCB GETASCB
+#define getASXB GETASXB
+#define getASSB GETASSB
+#define getJSAB GETJSAB
 
 #define getSysplexName GTSPLXNM
 #define getSystemName GTSYSTNM
 
+#define getDSAB GETDSAB
 #define dsabIsOMVS DSABOMVS
+#define locate LOCATE
 
 #define getR13 GETR13
 #define getR12 GETR12
 
 #define getASCBJobname GETASCBJ
 
-#define loadByName LOADBYNAM
+#define loadByName LOADBYNA
 #define loadByNameLocally LOADBNML
 
 #define isCallerLocked        ZOSCLCKD
@@ -1430,6 +1444,8 @@ int locate(char *dsn, int *volserCount, char *firstVolser);
 #define VERIFY_CHANGE 0x10
 #define VERIFY_SUPERVISOR 0x01 /* perform check in supervisor mode */
 
+#ifndef __LONGNAME__
+
 #define getAddressSpaceAcee GADSACEE
 #define getTaskAcee GTSKACEE
 #define setTaskAcee STSKACEE
@@ -1442,6 +1458,12 @@ int locate(char *dsn, int *volserCount, char *firstVolser);
 #define safVerify6 SAFVRFY6
 #define safVerify7 SAFVRFY7
 
+#define safAuth SAFAUTH
+#define safAuthStatus SAFAUTHS
+#define safStat SAFSTAT
+#define getSafProfileMaxLen GETSAFPL
+
+#endif
 
 ACEE *getAddressSpaceAcee(void);
 ACEE *getTaskAcee(void);

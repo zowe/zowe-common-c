@@ -415,11 +415,13 @@ ZOWE_PRAGMA_PACK_RESET
 #define cmsStartMainLoop CMCMAINL
 #define cmsGetGlobalArea CMGETGA
 #define cmsAddConfigParm CMADDPRM
+#define cmsTestAuth CMTSAUTH
 #define cmsCallService CMCMSRCS
 #define cmsCallService2 CMCALLS2
 #define cmsCallService3 CMCALLS3
 #define cmsPrintf CMCMSPRF
-#define vcmsPrintf CMCMSVPF 
+#define vcmsPrintf CMCMSVPF
+#define cmsHexDump CMHEXDMP
 #define cmsGetConfigParm CMGETPRM
 #define cmsGetConfigParmUnchecked CMGETPRU
 #define cmsGetPCLogLevel CMGETLOG

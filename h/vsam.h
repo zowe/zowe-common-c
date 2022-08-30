@@ -319,8 +319,13 @@ typedef struct linkDDNames{
 
 ZOWE_PRAGMA_PACK_RESET
 
-
+#ifndef __LONGNAME__
+#define makeACB MAKEACB
 #define opencloseACB VOPCLACB
+#define openACB OPENACB
+#define closeACB CLOSEACB
+#define modRPL MODRPL
+#define point VSPOINT
 #define putRecord VPUTREC
 #define getRecord VGETREC
 #define makeDataBuffer VMKDBUFF
@@ -332,6 +337,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define allocateDataset VALLOCDS
 #define defineAIX VDEFAIX
 #define deleteCluster DELCLUST
+#endif
 
 char *makeACB(char *ddname,int acbLen,int macrf1,int macrf2,int rplSubint,int rplType,int rplLen,int keyLen,int opCode1,int opCode2,int recLen,int bufLen);
 int opencloseACB(char *acb, int mode, int svc);
