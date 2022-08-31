@@ -484,6 +484,7 @@ int zosWait(void *ecb, int clearFirst){
         :
         : "r"(ecbAsInteger)
         : "r15");
+  return 0;
 }
 
 int zosWaitList(void *ecbList, int numberToWait){
@@ -499,6 +500,7 @@ int zosWaitList(void *ecbList, int numberToWait){
         :
         : "r"(ecbListAsInteger), "r"(numberToWait)
         : "r15");
+  return 0;
 }
 
 int zosPost(void *ecb, int completionCode){
@@ -507,6 +509,7 @@ int zosPost(void *ecb, int completionCode){
         :
         : "r"(ecbAsInteger), "r"(completionCode)
         : "r15");
+  return 0;
 }
 
 #define schedulingDSECTs SKDDSECT

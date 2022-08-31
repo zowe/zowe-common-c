@@ -2004,9 +2004,9 @@ void recoveryGetABENDCode(SDWA *sdwa, int *completionCode, int *reasonCode) {
 
   if (flag & 0x04) {
     char *sdwadata = (char*)sdwa;
-    SDWAPTRS *sdwaptrs = (SDWAPTRS *)(sdwa->sdwaxpad);
+    SDWAPTRS *sdwaptrs = (SDWAPTRS *)INT2PTR(sdwa->sdwaxpad);
     if (sdwaptrs != NULL) {
-      char *sdwarc1 = (char *)sdwaptrs->sdwasrvp;
+      char *sdwarc1 = (char *)INT2PTR(sdwaptrs->sdwasrvp);
       if (sdwarc1 != NULL) {
         rsn = *(int * __ptr32)(sdwarc1 + 44);
       }

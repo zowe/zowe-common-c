@@ -25,8 +25,8 @@
 #error z/OS targets are supported only
 #endif
 
-#define turn_on_HOB(x) x = (TextUnit* __ptr32) ((int) x | 0x80000000)
-#define turn_off_HOB(x) x = (TextUnit* __ptr32) ((int) x & 0x7FFFFFFF)
+#define turn_on_HOB(x) x = (TextUnit* __ptr32) INT2PTR((int) x | 0x80000000)
+#define turn_off_HOB(x) x = (TextUnit* __ptr32) INT2PTR((int) x & 0x7FFFFFFF)
 
 #define S99VRBAL 0x01     /* Allocation                      */
 #define S99VRBUN 0x02     /* Unallocation                    */
