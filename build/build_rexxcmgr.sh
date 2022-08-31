@@ -118,7 +118,7 @@ xlc \
   -I ${GSKINC} \
   -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
   -I "${DEPS_DESTINATION}/${QUICKJS}" \
-  -o "${COMMON}/bin/ZWECFGLE" \
+  -o "${COMMON}/bin/ZWERXCFG" \
   api.o \
   reader.o \
   scanner.o \
