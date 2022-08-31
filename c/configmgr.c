@@ -429,7 +429,7 @@ static bool addPathElement(ConfigManager *mgr, CFGConfig *config, char *pathElem
   regmatch_t matches[10];
   regex_t *argPattern = regexAlloc();
   /* Nice Regex test site */
-  char *pat = "^(LIBRARY|DIR|FILE|PARMLIBS)\\(([^)]+)\\)$";
+  char *pat = "^(LIBRARY|DIR|FILE|PARMLIBS|PARMLIB)\\(([^)]+)\\)$";
   int compStatus = regexComp(argPattern,pat,REG_EXTENDED);
   if (compStatus != 0){
     
