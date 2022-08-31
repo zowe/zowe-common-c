@@ -34,4 +34,4 @@ echo "$SCRIPT_NAME coping files should be in pax ..."
 cd "$SCRIPT_DIR/content"
 cp ../bak/bin/ZWECFG31 .
 cp ../bak/bin/ZWECFG64 .
-cp ../bak/bin/ZWECFGLE .
+cp ../bak/bin/ZWERXCFG .
