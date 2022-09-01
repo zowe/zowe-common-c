@@ -1223,13 +1223,14 @@ static void showHelp(FILE *out){
   fprintf(out,"      -w <path>           : workspace directory\n");
   fprintf(out,"      -c                  : compact output for jq and extract commands\n");
   fprintf(out,"      -r                  : raw string output for jq and extract commands\n");
+  fprintf(out,"      -m <memberName>     : member name to find the zowe config in each PARMLIBs specified\n");
   fprintf(out,"      -p <configPath>     : list of colon-separated configPathElements - see below\n");
   fprintf(out,"    commands:\n");
   fprintf(out,"      extract <jsonPath>  : prints value to stdout\n");
   fprintf(out,"      validate            : just loads and validates merged configuration\n");
   fprintf(out,"      env <outEnvPath>    : prints merged configuration to a file as a list of environment vars\n");
   fprintf(out,"    configPathElement: \n");
-  fprintf(out,"      LIB(datasetName) - a library that can contain config data\n");
+  fprintf(out,"      PARMLIB(datasetName) - a library that can contain config data\n");
   fprintf(out,"      FILE(filename)   - the name of a file containing Yaml\n");
   fprintf(out,"      PARMLIBS         - all PARMLIBS that are defined to this running Program in ZOS, nothing if not on ZOS\n");
 }
