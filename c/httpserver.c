@@ -3557,17 +3557,24 @@ static int handleHttpService(HttpServer *server,
   int recoveryRC = recoveryPush(service->name,
                                 RCVR_FLAG_RETRY | RCVR_FLAG_SDWA_TO_LOGREC | RCVR_FLAG_DELETE_ON_RETRY,
                                 NULL, extractABENDInfo, &abendInfo, NULL, NULL);
+
+  /*
+     TODO this function needs a new argument about recording program state at time of abend
+     Until then, currently recoveryPush will prevent a CEEDUMP
+     and if you need one, just comment out recoveryPush and recoveryPop
+  */
+
   if (recoveryRC != RC_RCV_OK) {
     if (recoveryRC == RC_RCV_CONTEXT_NOT_FOUND) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "httpserver: error running service %s, recovery context not found\n",
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "httpserver: error running service %s, recovery context not found\n",
           service->name);
     }
     else if (recoveryRC == RC_RCV_ABENDED) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "httpserver: ABEND %03X-%02X averted when handling %s\n",
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "httpserver: ABEND %03X-%02X averted when handling %s\n",
           abendInfo.completionCode, abendInfo.reasonCode, service->name);
     }
     else {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "httpserver: error running service %s unknown recovery code %d\n",
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "httpserver: error running service %s unknown recovery code %d\n",
           service->name, recoveryRC);
     }
     return handleServiceFailed(conversation, service, response);
@@ -4167,7 +4174,7 @@ void respondWithUnixFileContentsWithAutocvtMode (HttpService* service, HttpRespo
   int reasonCode;
   int status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
 
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "finfo:\n");
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "finfo:\n");
 #ifdef DEBUG
   dumpbuffer((char*)&info, sizeof(FileInfo));
 #endif
@@ -4305,7 +4312,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 
   if(status == 0) {
     int filenameLen = strlen(absolutePath);
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Request for file=%s\n",absolutePath);
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Request for file=%s\n",absolutePath);
     int dotPos = lastIndexOf(absolutePath, filenameLen, '.');
     int isDotFile = FALSE;
     if (dotPos > 0 && (absolutePath[dotPos-1] == '/')){
@@ -4316,7 +4323,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     long fileSize = fileInfoSize(&info);
     int ccsid = fileInfoCCSID(&info);
     char *mimeType = getMimeType2(extension,&isBinary,isDotFile, ccsid);
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "File ccsid=%d, mimetype=%s isBinary=%s\n",
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "File ccsid=%d, mimetype=%s isBinary=%s\n",
             ccsid,mimeType,isBinary ? "true" : "false");
     char tmperr[256] = {0};
     time_t mtime = fileInfoUnixModificationTime(&info);
@@ -4375,12 +4382,12 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 
     if (isBinary || ccsid == -1) {
       writeHeader(response);
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Streaming binary for %s\n", absolutePath);
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Streaming binary for %s\n", absolutePath);
       
       streamBinaryForFile2(response, NULL, in, ENCODING_CHUNKED, asB64);
     } else {
       writeHeader(response);
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Streaming %d for %s\n", ccsid, absolutePath);
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Streaming %d for %s\n", ccsid, absolutePath);
 
       /* TBD: This isn't really an OS dependency, but this is what I had
          to do to get this working on Linux. The problem is that there really
@@ -4418,7 +4425,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
              respondWithError(response, HTTP_STATUS_BAD_REQUEST, "source/target encoding value parsing error.");
              return;
            }
-	         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Sending with forced conversion between %d and %d\n", 
+	         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Sending with forced conversion between %d and %d\n", 
                    sscanfSource, sscanfTarget);
            streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, sEncoding, tEncoding, asB64);
         }
@@ -4428,12 +4435,12 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
         }
     }
     else if(ccsid == 0) {
-	    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Sending with default conversion between %d and %d\n", 
+	    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Sending with default conversion between %d and %d\n", 
               NATIVE_CODEPAGE, webCodePage);
       streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
     }
     else {
-	    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Sending with tagged conversion between %d and %d\n", 
+	    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Sending with tagged conversion between %d and %d\n", 
               ccsid, webCodePage);
       streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, ccsid, webCodePage, asB64);
     }
@@ -4449,7 +4456,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     finishResponse(response);
   }
   else {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "File not found within respondWithUnixFile.. This may be a problem\n");
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "File not found within respondWithUnixFile.. This may be a problem\n");
     respondWithUnixFileNotFound(response, jsonMode);
     // Response is finished on return
   }
@@ -4556,26 +4563,28 @@ void respondWithJsonError(HttpResponse *response, char *error, int statusCode, c
 static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
-  int bufferSize = FILE_STREAM_BUFFER_SIZE;
-  char buffer[bufferSize+4];
-  int encodedLength;
   ChunkedOutputStream *stream = NULL;
 
   if ((response && socket) || (!response && !socket)) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "bad arguments: either response or socket must be not NULL, never both\n");	
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "bad arguments: either response or socket must be not NULL, never both\n");	
     return 8;
   }
   if (encoding == ENCODING_GZIP) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "GZIP encoding not implemented\n");	
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "GZIP encoding not implemented\n");	
     return 8;
   }
   if (encoding == ENCODING_CHUNKED && !response) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "bad arguments: response must be not NULL to use chunked encoding\n");	
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "bad arguments: response must be not NULL to use chunked encoding\n");	
     return 8;
   }
   if (encoding == ENCODING_CHUNKED) {
     stream = makeChunkedOutputStreamInternal(response);
   }
+
+  int bufferSize = FILE_STREAM_BUFFER_SIZE;
+  char *buffer = safeMalloc(bufferSize+4, "streamBinaryBuffer");
+  int encodedLength;
+
   while (!fileEOF(in)) {
     int bytesRead = fileRead(in,buffer,bufferSize,&returnCode,&reasonCode);
     if (bytesRead <= 0) {
@@ -4607,6 +4616,8 @@ static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile
     finishChunkedOutput(stream, NO_TRANSLATE);
   }
 
+  safeFree(buffer, bufferSize+4);
+
   return 0;
 }
 
@@ -4623,35 +4634,35 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
   int returnCode = 0;
   int reasonCode = 0;
   int bytesSent = 0;
-  int bufferSize = FILE_STREAM_BUFFER_SIZE;
-  char buffer[bufferSize+4];
-  char translation[(2*bufferSize)+4]; /* UTF inflation tolerance */
-  int encodedLength;
   ChunkedOutputStream *stream = NULL;
-
 
   /* Q: How do we find character encoding for unix file? 
      A: You can't. There is no equivalent of USS character encoding tags on
         other Unix systems. Hence, things like the .htaccess (for Apache).
   */
   if ((response && socket) || (!response && !socket)) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "bad arguments: either response or socket must be not NULL, never both\n");	
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "bad arguments: either response or socket must be not NULL, never both\n");	
     return 8;
   }
   switch (encoding){
   case ENCODING_CHUNKED:
     if (!response) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "bad arguments: response must be not NULL to use chunked encoding\n");	
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "bad arguments: response must be not NULL to use chunked encoding\n");	
       return 8;
     }
     stream = makeChunkedOutputStreamInternal(response);
     /* fallthrough */
-  case ENCODING_SIMPLE:
+  case ENCODING_SIMPLE: {
+    int bufferSize = FILE_STREAM_BUFFER_SIZE;
+    char *buffer = safeMalloc(bufferSize+4, "streamTextBuffer");
+    char *translation = safeMalloc((2*bufferSize)+4, "streamTextConvertBuffer"); /* UTF inflation tolerance */
+    int encodedLength;
+
     while (!fileEOF(in)){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "WARNING: UTF8 might not be aligned properly: preserve 3 bytes for the next read cycle to fix UTF boundaries\n");
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "WARNING: UTF8 might not be aligned properly: preserve 3 bytes for the next read cycle to fix UTF boundaries\n");
       int bytesRead = fileRead(in,buffer,bufferSize,&returnCode,&reasonCode);
       if (bytesRead <= 0) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG2,
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
                 "Text streaming has ended. (return = 0x%x, reason = 0x%x)\n",
                 returnCode, reasonCode);
         break;
@@ -4693,7 +4704,7 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
                             &reasonCode);
 
         if (inLen != translationLength) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "streamTextForFile(%d (%s), %d (%s), %d, %d, %d, %d): "
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "streamTextForFile(%d (%s), %d (%s), %d, %d, %d, %d): "
                  "after sending %d bytes got translation length error; expected %d, got %d\n",
                  getSocketDebugID(socket), socket->debugName, 
                  in->fd, in->pathname,
@@ -4704,7 +4715,7 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
           dumpbuffer(translation,translationLength);
         }
         if (rc != 0){
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "iconv rc = %d, bytesRead=%d xlateLength=%d\n",rc,bytesRead,translationLength);
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "iconv rc = %d, bytesRead=%d xlateLength=%d\n",rc,bytesRead,translationLength);
         }
 
         outPtr = translation;
@@ -4714,7 +4725,7 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
       char *encodedBuffer = NULL;
       if (asB64) {
         if (outLen % 3) { 
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
         }
         allocSize = ENCODE64_SIZE(outLen)+1;
         encodedBuffer = encodeBase64(NULL, outPtr, outLen, &encodedLength, FALSE);
@@ -4733,7 +4744,10 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
       /* finish the chunked output here because finishResponse will not flush this stream's data */
       finishChunkedOutput(stream, NO_TRANSLATE);
     }
+    safeFree(buffer, bufferSize+4);
+    safeFree(translation, (2*bufferSize)+4);
     break;
+  }
   case ENCODING_GZIP:
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "HELP - not implemented\n");
     break;
