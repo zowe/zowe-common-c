@@ -380,13 +380,14 @@ void charStreamFree(CharStream *s);
 #define SEQ_LESS -1
 #define SEQ_ERROR 4
 
-#ifndef __LONGNAME__
 #define padWithSpaces padwspcs
 #define replaceTerminateNulls rpltrmnl
 #define convertIntToString cnvintst
+#define compareSequences compseqs
+
+#ifndef __LONGNAME__
 #define hexToDec HEXTODEC
 #define decToHex DECTOHEX
-#define compareSequences compseqs
 #define decimalToOctal DEC2OCT
 #define convertUnixToISO UNX2ISO
 #define matchWithWildcards MATCHWLD
@@ -430,9 +431,9 @@ const char* strrstr(const char * base, const char * find);
 
 void trimRight(char *str, int length);
 
-#if defined(__cplusplus)                                                        
+#if defined(__cplusplus)
 }           /* end of extern "C" */
-#endif                                                                          
+#endif
 
 #ifndef __LONGNAME__
 #define isPassPhrase               ISPASPHR

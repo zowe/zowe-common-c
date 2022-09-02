@@ -1444,8 +1444,6 @@ int locate(char *dsn, int *volserCount, char *firstVolser);
 #define VERIFY_CHANGE 0x10
 #define VERIFY_SUPERVISOR 0x01 /* perform check in supervisor mode */
 
-#ifndef __LONGNAME__
-
 #define getAddressSpaceAcee GADSACEE
 #define getTaskAcee GTSKACEE
 #define setTaskAcee STSKACEE
@@ -1457,6 +1455,8 @@ int locate(char *dsn, int *volserCount, char *firstVolser);
 #define safVerify5 SAFVRFY5
 #define safVerify6 SAFVRFY6
 #define safVerify7 SAFVRFY7
+
+#ifndef __LONGNAME__
 
 #define safAuth SAFAUTH
 #define safAuthStatus SAFAUTHS

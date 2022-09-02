@@ -96,13 +96,10 @@ ZOWE_PRAGMA_PACK_RESET
 #define getSocketDebugID GETSOCDI
 #define getLocalHostAddress GETLOCAD
 #define getAddressByName GETADRBN
-#define getSocketName GETSOCNM
 #define getSocketName2 GETSOCN2
 #define tcpClient TCPCLIE1
 #define getSocketOption GTSKTOPT
-#define tcpClient2 TCPCLIE2
 #define tcpServer TCPSERVR
-#define tcpClient3 TCPCLIE3
 #define tcpServer2 TCPSERV2
 #define makePipeBasedSyntheticSocket MAKSPSOC
 #define bpxSleep BPXSLEEP
@@ -122,7 +119,6 @@ ZOWE_PRAGMA_PACK_RESET
 #define setSocketWriteBufferSize SETSKTWB
 #define setSocketReadBufferSize SETSKTRB
 #define setSocketBlockingMode SETSOCBM
-#define setSocketOption SETSKTOP
 #define socketSend SOCKSEND
 #define socketAccept SOCACCPT
 #define socketClose SOCCLOSE
@@ -311,8 +307,12 @@ int getSocketName2(Socket *socket, SocketAddress *socketAddress); /* AKA getpeer
 Socket *tcpClient(SocketAddress *socketAddress,
 		  int *returnCode, int *reasonCode);
 
+#define getSocketOption gtsktopt
+
 int getSocketOption(Socket *socket, int optionName, int *optionDataLength, char *optionData,
         int *returnCode, int *reasonCode);
+
+#define tcpClient2 tcpclie2
 
 Socket *tcpClient2(SocketAddress *socketAddress,
 		   int timeoutInMillis,
@@ -323,6 +323,8 @@ Socket *tcpServer(InetAddr *addr, /* usually NULL/0 */
                   int port,
 		  int *returnCode,
 		  int *reasonCode);
+
+#define tcpClient3 tcpclie3
 
 Socket *tcpClient3(SocketAddress *socketAddress,
        int timeoutInMillis,
@@ -460,6 +462,8 @@ int setSocketWriteBufferSize(Socket *socket, int bufferSize, int *returnCode, in
 int setSocketReadBufferSize(Socket *socket,  int bufferSize, int *returnCode, int *reasonCode);
 int setSocketBlockingMode(Socket *socket, int isNonBlocking,
                           int *returnCode, int *reasonCode);
+
+#define setSocketOption setsktop
 
 int setSocketOption(Socket *socket, int level, int optionName, int optionDataLength, char *optionData,
                     int *returnCode, int *reasonCode);
