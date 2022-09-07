@@ -602,7 +602,16 @@ static void initLogMessagePrefix(LogMessagePrefix *prefix) {
   ASCB *ascb = getASCB();
   char *jobName = getASCBJobname(ascb);
   TCB *tcb = getTCB();
-  snprintf(prefix->text, sizeof(prefix->text), "%22.22s %8.8s %8p(%04X) %8p  ", currentTime.text, jobName, ascb, ascb->ascbasid, tcb);
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wpointer-to-int-cast"
+#endif
+  snprintf(prefix->text, sizeof(prefix->text), "%22.22s %8.8s %08X(%04X) %08X  ",
+           currentTime.text, jobName, (unsigned) ascb, ascb->ascbasid,
+           (unsigned) tcb);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
   prefix->text[sizeof(prefix->text) - 1] = ' ';
 }
 
