@@ -146,22 +146,24 @@ int lastIndexOf(const char *str, int len, char c) {
   return -1;
 }
 
-int indexOfString(char *str, int len, char *searchString, int startPos){
-  int searchLen = strlen(searchString);
-  int lastPossibleStart = len-searchLen;
-  int pos = startPos;
-
-  if (startPos > lastPossibleStart){
-    return -1;
-  }
-  while (pos <= lastPossibleStart){
-    if (!memcmp(str+pos,searchString,searchLen)){
-      return pos;
+int indexOfString(const char *sourceString, size_t sourceLength, const char *searchString, size_t startPos) {
+  if (sourceString == NULL || sourceLength == 0 || searchString == NULL) return - 1;
+  size_t searchLength = strlen(searchString);
+  if (searchLength == 0) return -1;
+  const char * currPos = sourceString + startPos;
+  const char * endPos = sourceString + sourceLength - searchLength;
+  char firstChar = searchString[0];
+  while (currPos <= endPos) {
+    size_t bytesRemaining = endPos - currPos + 1;
+    currPos = memchr(currPos, firstChar, bytesRemaining);
+    if (currPos == NULL) break;
+    if (memcmp(currPos, searchString, searchLength) == 0) {
+      return currPos - sourceString;
     }
-    pos++;
+    currPos++;
   }
   return -1;
-}
+}  
 
 int lastIndexOfString(char *str, int len, char *searchString) {
   int searchLen = strlen(searchString);
@@ -384,10 +386,10 @@ token* tknGetStandard(char *str, int len, int start){
   for (i=start; i<len; i++){
     char c = str[i];
     if (c == '@' ||
-	c == '#' ||
-	c == '$' ||
+    c == '#' ||
+    c == '$' ||
         c == '.' ||
-	isCharAN(c)){
+    isCharAN(c)){
       if (!inToken){                                         
         inToken = 1;
         tokenStart = i;
@@ -515,9 +517,9 @@ int tknLength(token *t){
 }
 
 static char hexDigits[16] ={ '0', '1', '2', '3',
-			     '4', '5', '6', '7', 
-			     '8', '9', 'A', 'B',
-			     'C', 'D', 'E', 'F'};
+                 '4', '5', '6', '7', 
+                 '8', '9', 'A', 'B',
+                 'C', 'D', 'E', 'F'};
 
 static char hexDigitsLower[16] = { '0', '1', '2', '3',
     '4', '5', '6', '7',
@@ -611,10 +613,10 @@ void dumpBufferToStream(const char *buffer, int length, /* FILE* */void *traceOu
     for (pos=0; pos<32; pos++){
 
       if (((index+pos)%4 == 0) && ((index+pos)%32 != 0)){
-	if ((index+pos)%16 == 0){
-	  lineBuffer[linePos++] = ' ';
-	}
-	lineBuffer[linePos++] = ' ';
+    if ((index+pos)%16 == 0){
+      lineBuffer[linePos++] = ' ';
+    }
+    lineBuffer[linePos++] = ' ';
       }
       if ((index+pos)<length){
         linePos = hexFill(lineBuffer,linePos,0,2,0,(0xFF&buffer[index+pos])); /* sprintf(lineBuffer+linePos,"%0.2x",(int)(0xFF&buffer[index+pos])); */
@@ -664,8 +666,8 @@ void hexdump(char *buffer, int length, int nominalStartAddress, int formatWidth,
     memcpy(lineBuffer+8,pad1,pad1Len);
     for (pos=0; pos<formatWidth; pos++){
       if ((index+pos)<length){
-	simpleHexFill(lineBuffer+linePos,2,(int)(0xFF&buffer[index+pos]));
-	linePos += 2;
+    simpleHexFill(lineBuffer+linePos,2,(int)(0xFF&buffer[index+pos]));
+    linePos += 2;
         /* linePos += sprintf(lineBuffer+linePos,"%0.2x",(int)(0xFF&buffer[index+pos])); */
       } else{
         linePos += sprintf(lineBuffer+linePos,"  ");
@@ -718,10 +720,10 @@ void dumpbufferA(const char *buffer, int length){
     for (pos=0; pos<32; pos++){
 
       if (((index+pos)%4 == 0) && ((index+pos)%32 != 0)){
-	if ((index+pos)%16 == 0){
-	  lineBuffer[linePos++] = ' ';
-	}
-	lineBuffer[linePos++] = ' ';
+    if ((index+pos)%16 == 0){
+      lineBuffer[linePos++] = ' ';
+    }
+    lineBuffer[linePos++] = ' ';
       }
       if ((index+pos)<length){
         linePos = hexFill(lineBuffer,linePos,0,2,0,(0xFF&buffer[index+pos])); /* sprintf(lineBuffer+linePos,"%0.2x",(int)(0xFF&buffer[index+pos])); */
@@ -915,46 +917,46 @@ char *cleanURLParamValue(ShortLivedHeap *slh, char *value){
     switch (state){
     case URL_PARM_NORMAL:
       if (c == '%'){
-	state = URL_PARM_PERCENT;
+    state = URL_PARM_PERCENT;
       } else if (c == '+'){
-	cleanValue[pos++] = ' ';
+    cleanValue[pos++] = ' ';
       } else{
-	cleanValue[pos++] = c;
-	}
+    cleanValue[pos++] = c;
+    }
       break;
     case URL_PARM_PERCENT:
       if (c == '%'){
-	cleanValue[pos++] = '%';
+    cleanValue[pos++] = '%';
       } else if ((c >= '2') && (c <= '7')){
-	state = URL_PARM_PERCENT_NUMBER;
-	numChar = c;
+    state = URL_PARM_PERCENT_NUMBER;
+    numChar = c;
       } else{
-	cleanValue[pos++] = '%';
+    cleanValue[pos++] = '%';
         cleanValue[pos++] = c;
-	state = URL_PARM_NORMAL;
+    state = URL_PARM_NORMAL;
       }
       break;
     case URL_PARM_PERCENT_NUMBER:
       highDigit = (numChar-'0')*0x10;
       if ((c >= '0') && (c <= '9')){
-	cleanValue[pos++] = ascii[highDigit+(c-'0')];
-	/* printf("highDigit %x (c-0) %x\n",highDigit,(c-'0')); */
-	state = URL_PARM_NORMAL;
+    cleanValue[pos++] = ascii[highDigit+(c-'0')];
+    /* printf("highDigit %x (c-0) %x\n",highDigit,(c-'0')); */
+    state = URL_PARM_NORMAL;
       } else if ((c >= 'a') && (c <= 'f')){
-	cleanValue[pos++] = ascii[highDigit+10+(c-'a')];
-	state = URL_PARM_NORMAL;
+    cleanValue[pos++] = ascii[highDigit+10+(c-'a')];
+    state = URL_PARM_NORMAL;
       } else if ((c >= 'A') && (c <= 'F')){
-	cleanValue[pos++] = ascii[highDigit+10+(c-'A')];
-	state = URL_PARM_NORMAL;
+    cleanValue[pos++] = ascii[highDigit+10+(c-'A')];
+    state = URL_PARM_NORMAL;
       } else if (c == '%'){
-	cleanValue[pos++] = '%';
+    cleanValue[pos++] = '%';
         cleanValue[pos++] = numChar;
-	state = URL_PARM_PERCENT;
+    state = URL_PARM_PERCENT;
       } else{
-	cleanValue[pos++] = '%';
+    cleanValue[pos++] = '%';
         cleanValue[pos++] = numChar;
-	cleanValue[pos++] = c;
-	state = URL_PARM_NORMAL;
+    cleanValue[pos++] = c;
+    state = URL_PARM_NORMAL;
       }
       break;
     }
@@ -1039,9 +1041,9 @@ int decodeBase64(char *s, char *result){
 }
 
 static char binToB64[] ={0x41,0x42,0x43,0x44,0x45,0x46,0x47,0x48,0x49,0x4A,0x4B,0x4C,0x4D,0x4E,0x4F,0x50,
-			 0x51,0x52,0x53,0x54,0x55,0x56,0x57,0x58,0x59,0x5A,0x61,0x62,0x63,0x64,0x65,0x66,
-			 0x67,0x68,0x69,0x6A,0x6B,0x6C,0x6D,0x6E,0x6F,0x70,0x71,0x72,0x73,0x74,0x75,0x76,
-			 0x77,0x78,0x79,0x7A,0x30,0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0x2B,0x2F};
+             0x51,0x52,0x53,0x54,0x55,0x56,0x57,0x58,0x59,0x5A,0x61,0x62,0x63,0x64,0x65,0x66,
+             0x67,0x68,0x69,0x6A,0x6B,0x6C,0x6D,0x6E,0x6F,0x70,0x71,0x72,0x73,0x74,0x75,0x76,
+             0x77,0x78,0x79,0x7A,0x30,0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0x2B,0x2F};
 
 static char binToEB64[] ={0xc1,0xc2,0xc3,0xc4,0xc5,0xc6,0xc7,0xc8,0xc9,0xd1,0xd2,0xd3,0xd4,0xd5,0xd6,0xd7,
                           0xd8,0xd9,0xe2,0xe3,0xe4,0xe5,0xe6,0xe7,0xe8,0xe9,0x81,0x82,0x83,0x84,0x85,0x86,
@@ -1596,7 +1598,7 @@ int stringListContains(StringList *list, char *s){
     StringListElt *elt = list->head;
     while (elt){
       if (!strcmp(elt->string,s)){
-	return 1;
+    return 1;
       }
       elt = elt->next;
     }
