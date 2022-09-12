@@ -747,6 +747,7 @@ static VResult validateJSONArray(JsonValidator *validator,
     uniquenessSet = lhtCreate(257,NULL);
   }
   
+  
   for (int i=0; i<elementCount; i++){
     Json *itemValue = jsonArrayGetItem(array,i);
     accessPathPushIndex(accessPath,i);
@@ -756,8 +757,10 @@ static VResult validateJSONArray(JsonValidator *validator,
         addValidityChild(pendingException,elementResult.exception);
       }
     }
+    
     if (valueSpec->uniqueItems){
-      long longHash = jsonLongHash(itemValue);
+      int64_t longHash = jsonLongHash(itemValue);
+      
       if (lhtGet(uniquenessSet,longHash) != NULL){
         addValidityChild(pendingException,
                          makeValidityException(validator,
@@ -793,8 +796,8 @@ static VResult validateJSONString(JsonValidator *validator,
       addValidityChild(pendingException,
                        makeValidityException(validator,
                                              validityMessage(validator,
-                                                             "string too long (len=%d) '%s' > MAX=%d at %s",
-                                                             len,s,lim,validatorAccessPath(validator))));
+                                                             "string too long (len=%d) '%s' %d > MAX=%d at %s",
+                                                             len,s,len,lim,validatorAccessPath(validator))));
     }
   }
   if (valueSpec->validatorFlags & JS_VALIDATOR_MIN_LENGTH){
@@ -803,8 +806,8 @@ static VResult validateJSONString(JsonValidator *validator,
       addValidityChild(pendingException,
                        makeValidityException(validator,
                                              validityMessage(validator,
-                                                             "string too short (len=%d) '%s' %d < MAX=%d at %s",
-                                                             len,s,lim,validatorAccessPath(validator))));
+                                                             "string too short (len=%d) '%s' %d < MIN=%d at %s",
+                                                             len,s,len,lim,validatorAccessPath(validator))));
     }
   }
   if (valueSpec->pattern && (valueSpec->regexCompilationError == 0)){
