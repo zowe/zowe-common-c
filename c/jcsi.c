@@ -57,7 +57,7 @@ int loadCsi() {
         : :"r0","r1","r15");
 
   if (status == 0) {
-    csiFn = (CsiFn)entryPoint;
+    csiFn = (CsiFn)INT2PTR(entryPoint);
   }
   zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG2, "IGGCSI00 0x%p LOAD status = 0x%x\n", csiFn, status);
   return status;
@@ -68,8 +68,10 @@ static int callCsi(CsiFn *csiFn, void *__ptr32 paramList, char* __ptr32 saveArea
 
   __asm(
       ASM_PREFIX
-#ifdef _LP64
+#ifdef __XPLINK__
       " L 13,%[saveArea] \n"
+#endif
+#ifdef _LP64
       " SAM31 \n"
       " SYSSTATE AMODE64=NO \n"
 #endif

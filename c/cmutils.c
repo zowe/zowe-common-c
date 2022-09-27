@@ -47,7 +47,7 @@ static int getCallersKey() {
 
 /* #define IS_LE64 (!defined(METTLE) && defined(_LP64)) */
 
-#if !(!defined(METTLE) && defined(_LP64))
+#ifndef __XPLINK__
 
 /* Disable these for LE 64-bit for now, the compile complains about GPR 4 */
 
