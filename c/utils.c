@@ -222,7 +222,7 @@ int indexOfStringInsensitive(char *str, int len, char *searchString, int startPo
   return -1;
 }
 
-int upchar(char c){
+static int upchar(char c){
   char low = (char)(c & 0xf);
   char high = (char)(c &0xf0);
                                           
@@ -1424,14 +1424,14 @@ int base32Encode (int alphabet,
 }
 
 
-ListElt *cons(void *data, ListElt *list){
+static ListElt *cons(void *data, ListElt *list){
   ListElt *newList = (ListElt*)safeMalloc(sizeof(ListElt),"ListElt");
   newList->data = data;
   newList->next = list;
   return newList;
 }
 
-ListElt *cons64(void *data, ListElt *list){
+static ListElt *cons64(void *data, ListElt *list){
   ListElt *newList = (ListElt*)safeMalloc(sizeof(ListElt),"ListElt");
   newList->data = data;
   newList->next = list;

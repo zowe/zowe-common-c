@@ -240,9 +240,6 @@ int createNameTokenPair(int level, char *name, char *token){
   return retcode;
 }
 
-/* External function deleteNameTokenPair - code never referenced in metalio.c
-   and is not defined in metalio.h for use elsewhere.
-*/
 int deleteNameTokenPair(int level, char *name){
   int persopt = NT_NOPERSIST; /* no persist */
   int retcode;

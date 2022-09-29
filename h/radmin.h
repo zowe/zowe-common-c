@@ -266,7 +266,7 @@ typedef struct RadminStatus_tag {
  * Specific wrapper data structures and definitions.
  */
 
-#pragma map(radminExtractUserProfiles, "RADMXUP")
+#pragma map(radminExtractProfiles, "RADMXPRF")
 #pragma map(radminExtractBasicUserProfileInfo, "RADMXBUP")
 #pragma map(radminExtractBasicGenresProfileInfo, "RADMXBRP")
 #pragma map(radminExtractBasicGroupProfileInfo, "RADMXBGP")

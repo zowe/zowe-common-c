@@ -139,7 +139,10 @@
 #define RC_CMS_NON_PRIVATE_MODULE           88
 #define RC_CMS_BAD_DUB_STATUS               89
 #define RC_CMS_MODULE_QUERY_FAILED          90
-#define RC_CMS_MAX_RC                       90
+#define RC_CMS_NO_ROOM_FOR_CMS_GETTER       91
+#define RC_CMS_LANC_NOT_LOCKED              92
+#define RC_CMS_LANC_NOT_RELEASED            93
+#define RC_CMS_MAX_RC                       93
 
 extern const char *CMS_RC_DESCRIPTION[];
 
@@ -188,8 +191,32 @@ typedef struct CrossMemoryService_tag {
   PAD_LONG(1, void *serviceData);
 } CrossMemoryService;
 
+/*
+ * TODO this version must not be incremented until the following gets addressed.
+ *
+ * When a cross-memory server starts it uses cmsGetGlobalArea to check if
+ * there is already an existing area for this server. The function discards
+ * any areas with versions not equal to CROSS_MEMORY_SERVER_VERSION. If this
+ * value is changed one day, cmsGetGlobalArea will return NULL and the server
+ * will allocate another area with the new version.
+ *
+ * Since cmsGetGlobalArea is also used by clients, updating this version in
+ * the server will cause them to use the wrong global area (the old one) and
+ * since that old area is inactive, the client won't be able to use the server
+ * with the specified name. That can happen if a client uses an older ZSS:
+ * the cmsGetGlobalArea function will have an older CROSS_MEMORY_SERVER_VERSION
+ * value, which won't match the new version of the area the cross-memory server
+ * has created.
+ *
+ * Possible solutions:
+ *  - Make sure there are never more than 1 areas with valid versions (that is,
+ *    not CROSS_MEMORY_SERVER_DISCARDED_VERSION). So that client will just have
+ *    to deal with a single global area with the specified server name.
+ *  - Change the look up code to return the area with the highest version.
+ *
+ */
 #define CROSS_MEMORY_SERVER_VERSION             2
-#define CROSS_MEMORY_SERVER_DISCARDED_VERSION   0xDEADDA7A
+#define CROSS_MEMORY_SERVER_DISCARDED_VERSION   3735935610 /* 0xDEADDA7A */
 
 typedef struct CMSTimestamp_tag {
   char value[32];
@@ -234,7 +261,18 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   PAD_LONG(0, struct RecoveryStatePool_tag *pcssRecoveryPool);
   CPID pcssStackPool;
 
-  char reserved3[492];
+  char padding0[4];
+  /* This is an opt-in feature for CMS Servers that want to offer Dynamic
+   * Linkage to some of their routines is an MVS/Metal/ASM way. That is to
+   * provide a well-known linkage vector with well-known offsets.
+   *
+   * The CMS server does not stipulate anything about what these services are.
+   *
+   * The ZIS (a CMS) server uses this for its plugins.
+	 */
+  PAD_LONG(1, void *userServerDynLinkVector);
+
+  char reserved3[480];
 
   CrossMemoryService serviceTable[CROSS_MEMEORY_SERVER_MAX_SERVICE_COUNT];
 
@@ -296,6 +334,7 @@ typedef struct CrossMemoryServer_tag {
 #define CROSS_MEMORY_SERVER_FLAG_TERM_ENDED   0x00000008
 #define CROSS_MEMORY_SERVER_FLAG_CHECKAUTH    0x00000010
 #define CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA    0x00000020
+#define CROSS_MEMORY_SERVER_FLAG_RESET_LOOKUP 0x00000040
   STCBase * __ptr32 base;
   CMSStarCallback * __ptr32 startCallback;
   CMSStopCallback * __ptr32 stopCallback;
@@ -376,10 +415,13 @@ ZOWE_PRAGMA_PACK_RESET
 #define cmsStartMainLoop CMCMAINL
 #define cmsGetGlobalArea CMGETGA
 #define cmsAddConfigParm CMADDPRM
+#define cmsTestAuth CMTSAUTH
 #define cmsCallService CMCMSRCS
 #define cmsCallService2 CMCALLS2
 #define cmsCallService3 CMCALLS3
 #define cmsPrintf CMCMSPRF
+#define vcmsPrintf CMCMSVPF
+#define cmsHexDump CMHEXDMP
 #define cmsGetConfigParm CMGETPRM
 #define cmsGetConfigParmUnchecked CMGETPRU
 #define cmsGetPCLogLevel CMGETLOG
@@ -398,6 +440,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define CMS_SERVER_FLAG_CHECKAUTH             0x00000004
 #define CMS_SERVER_FLAG_DEV_MODE              0x00000008
 #define CMS_SERVER_FLAG_DEV_MODE_LPA          0x00000010
+#define CMS_SERVER_FLAG_RESET_LOOKUP          0x00000020
 
 #define CMS_SERVICE_FLAG_NONE                 0x00000000
 #define CMS_SERVICE_FLAG_SPACE_SWITCH         0x00000001
@@ -520,6 +563,82 @@ int cmsGetConfigParmUnchecked(const CrossMemoryServerName *serverName,
 int cmsGetPCLogLevel(const CrossMemoryServerName *serverName);
 CrossMemoryServerStatus cmsGetStatus(const CrossMemoryServerName *serverName);
 CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
+
+
+#if defined(METTLE) && defined(_LP64)
+
+typedef const CrossMemoryServerGlobalArea
+    *CMSLookupFunction(const CrossMemoryServerName *name, int *reasonCode);
+
+#define RSN_CMSLOOKUP_OK      0
+#define RSN_CMSLOOKUP_NOCMS   2
+#define RSN_CMSLOOKUP_NOZVT   4
+#define RSN_CMSLOOKUP_LOOP    16
+
+/**
+ * This macro returns the look-up routine mapped by @c CMSLookupFunction.
+ * @return The routine address, or NULL if the ZVT or the routine hasn't been
+ * found.
+ */
+#define CMS_GET_LOOKUP_FUNCTION() ({ \
+  const CVT *cvt = *(CVT * __ptr32 *)0x10; \
+  const ECVT *ecvt = cvt->cvtecvt; \
+  const char *ecvtctbl = ecvt->ecvtctbl;\
+  const ZVT * __ptr32 *zvt = (const ZVT * __ptr32 *)(ecvtctbl + ZVT_OFFSET); \
+  CMSLookupFunction *result = (CMSLookupFunction *)NULL; \
+  if (*zvt != NULL) { \
+    result = (CMSLookupFunction *)(*zvt)->cmsLookupRoutine; \
+  } \
+  result; \
+})
+
+typedef struct CMSDynlinkEnv_tag {
+  char eyecatcher[8];
+#define CMS_DYNLINK_ENV_EYECATCHER  "ZWEDLENV"
+  CAA dummyCAA;
+  RLETask dummyRLETask;
+  char filler0[4];
+  RLEAnchor dummyRLEAnchor;
+} CMSDynlinkEnv;
+
+/**
+ * The macro checks whether the provided cross-memory server supports dynamic
+ * linkage.
+ *
+ * @parm[in] cmsGlobalArea The cross-memory global area.
+ * @return @c true if the cross-memory server supports dynamic linkage.
+ */
+#define CMS_DYNLINK_SUPPORTED(cmsGlobalArea) ({ \
+  bool result = false;                         \
+  if ((cmsGlobalArea)->userServerDynLinkVector != NULL) { \
+    result = true; \
+  } \
+  result; \
+})
+
+/**
+ * This macro establishes an environment in R12 which allows using the functions
+ * provided by the dynamic linkage vector in the provided
+ * @c CrossMemoryServerGlobalArea.
+ *
+ * @parm[in] cmsGlobalArea The cross-memory global area.
+ *
+ * IMPORTANT:
+ *  - R12 must be reserved in your Metal C application
+ *  - This must be used at the top level of your application
+ *
+ */
+#define CMS_SETUP_DYNLINK_ENV(cmsGlobalArea) \
+  CMSDynlinkEnv cmsDLEnv = { \
+    .eyecatcher = CMS_DYNLINK_ENV_EYECATCHER, \
+  }; \
+  cmsDLEnv.dummyCAA.rleTask = &cmsDLEnv.dummyRLETask; \
+  cmsDLEnv.dummyRLETask.anchor = &cmsDLEnv.dummyRLEAnchor; \
+  cmsDLEnv.dummyRLEAnchor.metalDynamicLinkageVector = \
+    (cmsGlobalArea)->userServerDynLinkVector; \
+  __asm(" LA 12,0(,%0) " : : "r"(&cmsDLEnv.dummyCAA) : )
+
+#endif /* defined(METTLE) && defined(_LP64) */
 
 /* default message IDs (users of crossmemory.c can potentially redefine them) */
 
@@ -944,6 +1063,48 @@ CrossMemoryServerName cmsMakeServerName(const char *nameNullTerm);
 #endif
 #define CMS_LOG_DUB_ERROR_MSG_TEXT              "Bad dub status %d (%d,0x%04X), verify that the started task user has an OMVS segment"
 #define CMS_LOG_DUB_ERROR_MSG                   CMS_LOG_DUB_ERROR_MSG_ID" "CMS_LOG_DUB_ERROR_MSG_TEXT
+
+#ifndef CMS_LOG_LOOKUP_ANC_CREATED_MSG_ID
+#define CMS_LOG_LOOKUP_ANC_CREATED_MSG_ID       CMS_MSG_PRFX"0251I"
+#endif
+#define CMS_LOG_LOOKUP_ANC_CREATED_MSG_TEXT     "Look-up routine anchor has been created at %p"
+#define CMS_LOG_LOOKUP_ANC_CREATED_MSG          CMS_LOG_LOOKUP_ANC_CREATED_MSG_ID" "CMS_LOG_LOOKUP_ANC_CREATED_MSG_TEXT
+
+#ifndef CMS_LOG_LOOKUP_ANC_REUSED_MSG_ID
+#define CMS_LOG_LOOKUP_ANC_REUSED_MSG_ID        CMS_MSG_PRFX"0252I"
+#endif
+#define CMS_LOG_LOOKUP_ANC_REUSED_MSG_TEXT      "Look-up routine anchor at % p has been reused"
+#define CMS_LOG_LOOKUP_ANC_REUSED_MSG           CMS_LOG_LOOKUP_ANC_REUSED_MSG_ID" "CMS_LOG_LOOKUP_ANC_REUSED_MSG_TEXT
+
+#ifndef CMS_LOG_LOOKUP_ANC_DELETED_MSG_ID
+#define CMS_LOG_LOOKUP_ANC_DELETED_MSG_ID       CMS_MSG_PRFX"0253I"
+#endif
+#define CMS_LOG_LOOKUP_ANC_DELETED_MSG_TEXT     "Look-up routine anchor at % p has been deleted"
+#define CMS_LOG_LOOKUP_ANC_DELETED_MSG          CMS_LOG_LOOKUP_ANC_DELETED_MSG_ID" "CMS_LOG_LOOKUP_ANC_DELETED_MSG_TEXT
+
+#ifndef CMS_LOG_LOOKUP_ANC_DISCARDED_MSG_ID
+#define CMS_LOG_LOOKUP_ANC_DISCARDED_MSG_ID     CMS_MSG_PRFX"0254W"
+#endif
+#define CMS_LOG_LOOKUP_ANC_DISCARDED_MSG_TEXT   "Look-up routine anchor at %p has been discarded due to %s:"
+#define CMS_LOG_LOOKUP_ANC_DISCARDED_MSG        CMS_LOG_LOOKUP_ANC_DISCARDED_MSG_ID" "CMS_LOG_LOOKUP_ANC_DISCARDED_MSG_TEXT
+
+#ifndef CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_ID
+#define CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_ID   CMS_MSG_PRFX"0255E"
+#endif
+#define CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_TEXT "Look-up routine anchor has not been created"
+#define CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG      CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_ID" "CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_TEXT
+
+#ifndef CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG_ID
+#define CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG_ID     CMS_MSG_PRFX"0256I"
+#endif
+#define CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG_TEXT   "Look-up routine anchor at %p has been explicitly discarded"
+#define CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG        CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG_ID" "CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG_TEXT
+
+#ifndef CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG_ID
+#define CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG_ID    CMS_MSG_PRFX"0257W"
+#endif
+#define CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG_TEXT  "Look-up routine anchor discard RC = %d"
+#define CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG       CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG_ID" "CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG_TEXT
 
 #endif /* H_CROSSMEMORY_H_ */
 

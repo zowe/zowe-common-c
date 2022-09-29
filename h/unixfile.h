@@ -393,6 +393,16 @@ int setFileTrace(int toWhat);
    reason code is perhaps platform specific debugging info
  */
 
+#ifndef __LONGNAME__
+
+#define fileWrite   FILWRITE
+#define fileGetChar FILGTCHR
+#define fileCopy    FILECOPY
+#define fileRename  FILRNAME
+#define fileDelete  FILDLETE
+
+#endif 
+
 UnixFile *fileOpen(const char *filename, int options, int mode, int bufferSize, int *returnCode, int *reasonCode);
 
 int fileRead(UnixFile *file, char *buffer, int desiredBytes, 
@@ -478,6 +488,19 @@ int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode);
 
 #define USS_MAX_PATH_LENGTH 1023
 #define USS_MAX_FILE_NAME   255
+
+#endif
+
+#ifndef __LONGNAME__ 
+
+#define fileInfoIsDirectory FNFOISDR 
+#define fileInfoSize        FNFOSIZE 
+#define fileInfoCCSID       FNFOCCID
+#define fileUnixCreaionime  FILUXCRT
+#define fileEOF             FILISOEF
+#define fileGetINode        FILGINOD
+#define fileGetDeviceID     FILDEVID
+#define fileClose           FILCLOSE
 
 #endif
 

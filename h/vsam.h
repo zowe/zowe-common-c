@@ -319,8 +319,12 @@ typedef struct linkDDNames{
 
 ZOWE_PRAGMA_PACK_RESET
 
-
+#define makeACB makeACB
 #define opencloseACB VOPCLACB
+#define openACB openACB
+#define closeACB closeACB
+#define modRPL modRPL
+#define point point
 #define putRecord VPUTREC
 #define getRecord VGETREC
 #define makeDataBuffer VMKDBUFF
