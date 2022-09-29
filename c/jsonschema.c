@@ -1290,10 +1290,10 @@ static VResult validateJSON(JsonValidator *validator,
     if (!eq){
       if (jsonIsString(valueSpec->constValue)) {
         return simpleFailure(validator,"unequal constant value at %s expecting value '%s' of type '%s'",
-                             validatorAccessPath(validator), jsonAsString(valueSpec->constValue), valueSpec->type);
+                             validatorAccessPath(validator), jsonAsString(valueSpec->constValue), getJSTypeName(valueSpec->type));
       } else if (jsonIsNumber(valueSpec->constValue)) {
         return simpleFailure(validator,"unequal constant value at %s expecting value '%d' of type '%s'",
-                             validatorAccessPath(validator), jsonAsNumber(valueSpec->constValue), valueSpec->type);
+                             validatorAccessPath(validator), jsonAsNumber(valueSpec->constValue), getJSTypeName(valueSpec->type));
       } else {
         return simpleFailure(validator,"unequal constant value at %s",
                              validatorAccessPath(validator));
@@ -1326,7 +1326,7 @@ static VResult validateJSON(JsonValidator *validator,
     }
     if (!matched){
       if (strlen(validValues) > 0) {
-        return simpleFailure(validator,"no matching enum value at %s expecting one of [%s] of type '%s'",
+        return simpleFailure(validator,"no matching enum value at %s expecting one of '[%s]' of type '%s'",
                              validatorAccessPath(validator), validValues, getJSTypeName(valueSpec->type));
       } else {
         return simpleFailure(validator,"no matching enum value at %s",
