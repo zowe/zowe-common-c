@@ -81,7 +81,7 @@ int cfgGetIntC(ConfigManager *mgr, const char *configName, int *result, int argC
 int cfgGetBooleanC(ConfigManager *mgr, const char *configName, bool *result, int argCount, ...);
 /* returns JUST a Json, in case you need to get something we havent written a convenience for. */
 /* if you need to get for example an int array, you CAN use a path with "0" to get index 0. */
-int cfgGetAnyC(ConfigManager *mgr, const char *configName, Json **result, JsonPointer *jp);
+int cfgGetAnyC(ConfigManager *mgr, const char *configName, Json **result, int argCount, ...);
 
 
 /** result is null-terminated, when set, and not a copy */
