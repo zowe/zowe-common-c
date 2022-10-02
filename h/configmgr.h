@@ -73,11 +73,16 @@ int loadConfigurations(ConfigManager *mgr, const char *configName);
 /* Json-oriented value getters */
 
 int cfgGetStringJ(ConfigManager *mgr, const char *configName, char **result, JsonPointer *jp);
+int cfgGetAnyJ(ConfigManager *mgr, const char *configName, Json **result, JsonPointer *jp);
 
 /* Convenience getters for C Programmers, that don't require building paths, string allocation, etc */
 
 int cfgGetIntC(ConfigManager *mgr, const char *configName, int *result, int argCount, ...);
 int cfgGetBooleanC(ConfigManager *mgr, const char *configName, bool *result, int argCount, ...);
+/* returns JUST a Json, in case you need to get something we havent written a convenience for. */
+/* if you need to get for example an int array, you CAN use a path with "0" to get index 0. */
+int cfgGetAnyC(ConfigManager *mgr, const char *configName, Json **result, JsonPointer *jp);
+
 
 /** result is null-terminated, when set, and not a copy */
 int cfgGetStringC(ConfigManager *mgr, const char *configName, char **result, int argCount, ...);
