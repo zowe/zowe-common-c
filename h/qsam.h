@@ -16,23 +16,30 @@
 #ifndef __LONGNAME__
 
 
-#define hasVaryingRecordLength HASVRLEN
-#define makeQSAMBuffer MKQSMBUF
-#define freeQSAMBuffer FRQSMBUF
-#define putlineV PUTLNEV
-#define getlineV GETLNEV
-#define getEODADBuffer GTEODBUF
-#define freeEODADBuffer FREODBUF
+#define malloc24 MALLOC24
+#define openSAM OPENSAM
 #define getSAMLength GTSAMLN
 #define getSAMBlksize GTSAMBS
 #define getSAMLrecl GTSAMLR
 #define getSAMCC GTSAMCC
 #define getSAMRecfm GTSAMRF
+#define putline PUTLINE
+#define getline GETLINE
+#define getEODADBuffer GTEODBUF
+#define freeEODADBuffer FREODBUF
+#define getline2 GETLINE2
+#define makeQSAMBuffer MKQSMBUF
+#define freeQSAMBuffer FRQSMBUF
+#define putlineV PUTLNEV
+#define getlineV GETLNEV
+#define closeSAM CLOSESAM
+#define openEXCP OPENEXCP
+#define closeEXCP CLOSEXCP
+#define hasVaryingRecordLength HASVRLEN
+#define bpamDeleteMember BPAMDELM
 #define bpamFind BPAMFIND
 #define bpamRead BPAMREAD
 #define bpamRead2 BPAMRD2
-#define openEXCP OPENEXCP
-#define closeEXCP CLOSEXCP
 
 #endif
 
