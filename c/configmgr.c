@@ -1836,6 +1836,12 @@ static void ensureLE64(){
 
 #ifdef CMGRTEST
 int main(int argc, char **argv){
+  ensureLE64();
+  printf("Getting ASCB...\n");
+  ASCB *ascb = getASCB();
+  dumpbuffer(ascb, 384);
+  fflush(stdout);
+  
   LoggingContext *logContext = makeLoggingContext();
   logConfigureStandardDestinations(logContext);
   if (argc >= 3 && !strcmp("-script",argv[1])){
