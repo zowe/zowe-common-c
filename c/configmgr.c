@@ -63,6 +63,7 @@
 #include "microjq.h"
 #include "configmgr.h"
 #ifdef __ZOWE_OS_ZOS
+#include "zos.h"
 #include "pdsutil.h"
 #endif 
 
