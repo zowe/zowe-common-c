@@ -1840,7 +1840,7 @@ int main(int argc, char **argv){
   ensureLE64();
   printf("Getting ASCB...\n");
   ASCB *ascb = getASCB();
-  dumpbuffer(ascb, 384);
+  dumpbuffer((char *)ascb, 384);
   fflush(stdout);
   
   LoggingContext *logContext = makeLoggingContext();
