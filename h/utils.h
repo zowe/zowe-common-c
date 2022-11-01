@@ -32,7 +32,12 @@ extern "C" {
 #define indexOf INDEXOF
 #define indexOfString IDXSTR
 #define lastIndexOfString LIDXSTR
+#define lastIndexOf LINDEXOF
 #define indexOfStringInsensitive IDXSTRNS
+#define isZeros ISZEROS
+#define isBlanks ISBLANKS
+#define hasText HASTEXT
+#define parseInt PARSEINT
 #endif
 
 char * strcopy_safe(char * dest, const char * source, int dest_size);
@@ -69,6 +74,7 @@ int parseInt(const char *str, int start, int end);
 #ifndef __LONGNAME__
 #define parseInitialInt PSINTINT
 #define nullTerminate NULLTERM
+#define isCharAN ISCHARAN
 #define tknGetDecimal TKGTDCML
 #define tknGetQuoted TKGTQOTD
 #define tknGetAlphanumeric TKGTANUM
@@ -77,6 +83,8 @@ int parseInt(const char *str, int start, int end);
 #define tknGetTerminating TKGTTERM
 #define tknTextEquals TKTXEQLS
 #define freeToken FREETKN
+#define tknText TKNTEXT
+#define tknInt TKNINT
 #define tknLength TKNLNGTH
 #endif
 
@@ -111,9 +119,11 @@ int tknLength(token *t);
 #ifndef __LONGNAME__
 #define dumpbuffer DMPBUFFR
 #define dumpbufferA DMPBUFFA
+#define hexFill HEXFILL
 #define simpleHexFill SMPHXFIL
 #define simpleHexPrint SMPHXPRT
 #define simpleHexPrintLower SMPHXPRL
+#define hexdump HEXDUMP
 #define dumpbuffer2 DMPBFFR2
 #define dumpBufferToStream DMPBFFRS
 #define compareIgnoringCase CMPIGNCS
@@ -159,8 +169,6 @@ typedef struct ListElt_tag {
   struct ListElt_tag *next;
 } ListElt;
 
-ListElt *cons(void *data, ListElt *list);
-
 /**
  *    \brief  The ShortLivedHeap is a memory manager for large numbers of small allocations followed by a single bulk deallocation,
  *
@@ -183,11 +191,17 @@ typedef struct ShortLivedHeap_tag{
 #ifndef __LONGNAME__
 #define makeShortLivedHeap MAKESLH
 #define makeShortLivedHeap64 MAKSLH64
+#define SLHAlloc SLHALLOC
+#define SLHFree SLHFREE
 #define noisyMalloc NYMALLOC
-#define decodeBase32 DECODB32
-#define encodeBase32 ENCODB32
+#define base32Encode DECODB32
+#define base32Decode ENCODB32
 #define decodeBase64 DECODB64
+#define decodeBase64Unterminated DECDB64U
 #define encodeBase64 ENCODB64
+#define encodeBase64NoAlloc ENCDB64N
+#define base64ToBase64url B642BURL
+#define base64urlToBase64 B64URLTB
 #define cleanURLParamValue CLNURLPV
 #define percentEncode PCTENCOD
 #define destructivelyUnasciify DSTUNASC
@@ -371,6 +385,16 @@ void charStreamFree(CharStream *s);
 #define convertIntToString cnvintst
 #define compareSequences compseqs
 
+#ifndef __LONGNAME__
+#define hexToDec HEXTODEC
+#define decToHex DECTOHEX
+#define decimalToOctal DEC2OCT
+#define convertUnixToISO UNX2ISO
+#define matchWithWildcards MATCHWLD
+#define stringIsDigit STRISDIG
+#define trimRight TRMRIGHT
+#endif
+
 int padWithSpaces(char *str,
                   int actualLength,
                   int handleNullSymbols,
@@ -407,16 +431,14 @@ const char* strrstr(const char * base, const char * find);
 
 void trimRight(char *str, int length);
 
-#if defined(__cplusplus)                                                        
+#if defined(__cplusplus)
 }           /* end of extern "C" */
-#endif                                                                          
+#endif
 
 #ifndef __LONGNAME__
-#define isLowerCasePasswordAllowed ISLWCPWD
 #define isPassPhrase               ISPASPHR
 #endif
 
-int isLowerCasePasswordAllowed();
 bool isPassPhrase(const char *password);
 
 #endif

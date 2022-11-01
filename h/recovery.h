@@ -350,7 +350,6 @@ typedef struct RecoveryContext_tag {
 #define recoveryUpdateRouterServiceInfo RCVRURSI
 #define recoveryUpdateStateServiceInfo RCVRUSSI
 #define recoveryGetABENDCode RCVRGACD
-#define runFunctioninESTAE RCVRNFNE
 #endif
 
 #ifdef __ZOWE_OS_ZOS

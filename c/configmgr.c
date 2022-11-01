@@ -948,8 +948,8 @@ static Json *varargsDereference(Json *json, int argCount, va_list args, int *err
       }
       int arraySize = jsonArrayGetCount(array);
       if (index >= arraySize){
-	*errorReason = JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS;
-	return NULL;
+        *errorReason = JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS;
+        return NULL;
       }
       value = jsonArrayGetItem(array,index);
     } else if (jsonIsObject(value)){
@@ -961,19 +961,19 @@ static Json *varargsDereference(Json *json, int argCount, va_list args, int *err
       }
       Json *newValue = jsonObjectGetPropertyValue(object,key);
       if (newValue == NULL){
-	if (traceLevel >= 2){
-	  jsonObjectGetPropertyValueLoud(object,key);
-	  jsonPrinter *p = makeJsonPrinter(stdoutFD());
-	  jsonEnablePrettyPrint(p);
-	  jsonPrint(p,value);
-	  printf("\n");
-	  jsonDumpObj(object);
-	  fflush(stdout);
-	}
+        if (traceLevel >= 2){
+          jsonObjectGetPropertyValueLoud(object,key);
+          jsonPrinter *p = makeJsonPrinter(stdoutFD());
+          jsonEnablePrettyPrint(p);
+          jsonPrint(p,value);
+          printf("\n");
+          jsonDumpObj(object);
+          fflush(stdout);
+        }
         *errorReason = JSON_POINTER_TOO_DEEP;
         return NULL;
       } else{
-	value = newValue;
+        value = newValue;
       }
     } else {
       if (traceLevel >= 1){
