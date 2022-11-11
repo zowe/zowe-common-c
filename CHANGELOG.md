@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `2.5.0`
+
+- Added embeddedjs command "xplatform.appendFileUTF8" for appending to files rather than writing whole files.
+
 ## `2.3.0`
 
 - Bugfix for lht functions of collections.c to avoid memory issues on negative keys
