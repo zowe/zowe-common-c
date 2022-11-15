@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `2.5.0`
+
+- Bugfix that the configmgr binary would always return rc=0. Now, it has various return codes for the various internal errors or config invalid responses.
+
 ## `2.3.0`
 
 - Bugfix for lht functions of collections.c to avoid memory issues on negative keys
