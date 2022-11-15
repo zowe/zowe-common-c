@@ -2,6 +2,7 @@
 
 ## `2.5.0`
 
+- Added embeddedjs command "xplatform.appendFileUTF8" for appending to files rather than writing whole files.
 - Bugfix that the configmgr binary would always return rc=0. Now, it has various return codes for the various internal errors or config invalid responses.
 
 ## `2.3.0`
