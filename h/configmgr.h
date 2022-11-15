@@ -31,6 +31,7 @@ typedef struct ConfigManager_tag{
 #define JSON_POINTER_TOO_DEEP 101
 #define JSON_POINTER_ARRAY_INDEX_NOT_INTEGER 102
 #define JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS 103
+#define JSON_POINTER_PARSE_ERROR 104
 
 /* These eventually need ZWE unique messages */
 #define ZCFG_SUCCESS 0
@@ -45,9 +46,17 @@ typedef struct ConfigManager_tag{
 #define ZCFG_BAD_TRACE_LEVEL 9
 #define ZCFG_UNKNOWN_REXX_FUNCTION 10
 #define ZCFG_NO_CONFIG_DATA 11
+#define ZCFG_BAD_ARGS 12
+#define ZCFG_IO_ERROR 13
+#define ZCFG_VALIDATION_INTERNAL_ERROR 14
+#define ZCFG_JQ_PARSE_ERROR 15
+/* Normal way to tell people the program succeded but their config is bad */
+#define ZCFG_CONFIG_FAILED_VALIDATION 99
+
 #define ZCFG_POINTER_TOO_DEEP JSON_POINTER_TOO_DEEP
 #define ZCFG_POINTER_ARRAY_INDEX_NOT_INTEGER JSON_POINTER_ARRAY_INDEX_NOT_INTEGER 
 #define ZCFG_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS 
+#define ZCFG_POINTER_PARSE_ERROR JSON_POINTER_PARSE_ERROR
 
 
 ConfigManager *makeConfigManager(void);
