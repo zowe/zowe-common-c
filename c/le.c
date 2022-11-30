@@ -213,6 +213,10 @@ RLEAnchor *makeRLEAnchor(){
 
 #endif /* __ZOWE_OS_ZOS */
 
+  anchor->flags |= RLE_FLAGS_VERSIONED;
+  anchor->version = RLE_ANCHOR_VERSION;
+  anchor->size = sizeof(RLEAnchor);
+
   return anchor;
 }
 
@@ -282,6 +286,27 @@ void termRLEEnvironment() {
 }
 #endif
 
+int setRLEApplicationAnchor(RLEAnchor *anchor, void *applicationAnchor) {
+  if (!(anchor->flags & RLE_FLAGS_VERSIONED)) {
+    return -1;
+  }
+  if (anchor->version < RLE_ANCHOR_VERSION_USER_APPL_ANCHOR_SUPPORT) {
+    return -1;
+  }
+  anchor->userApplicationAnchor = applicationAnchor;
+  return 0;
+}
+
+int getRLEApplicationAnchor(const RLEAnchor *anchor, void **applicationAnchor) {
+  if (!(anchor->flags & RLE_FLAGS_VERSIONED)) {
+    return -1;
+  }
+  if (anchor->version < RLE_ANCHOR_VERSION_USER_APPL_ANCHOR_SUPPORT) {
+    return -1;
+  }
+  *applicationAnchor = anchor->userApplicationAnchor;
+  return 0;
+}
 
 /*
   This program and the accompanying materials are
