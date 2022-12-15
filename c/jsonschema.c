@@ -401,7 +401,7 @@ static VResult validateType(JsonValidator *validator,
     trace(validator,depth,"typeCode=%d shifted=0x%x mask=0x%x\n",typeCode,(1 << typeCode),valueSpec->typeMask);
   }
   if (((1 << typeCode) & valueSpec->typeMask) == 0){
-    return simpleFailure(validator,"type '%s' not permitted at %s expecting type '%s'",
+    return simpleFailure(validator,"type '%s' not permitted at %s; expecting type '%s'",
                          getJSTypeName(typeCode),validatorAccessPath(validator),
                          getJSTypeName(valueSpec->type));
   } else {
@@ -1289,10 +1289,10 @@ static VResult validateJSON(JsonValidator *validator,
     bool eq = jsonEquals(value,valueSpec->constValue);
     if (!eq){
       if (jsonIsString(valueSpec->constValue)) {
-        return simpleFailure(validator,"unequal constant value at %s expecting value '%s' of type '%s'",
+        return simpleFailure(validator,"unequal constant value at %s; expecting value '%s' of type '%s'",
                              validatorAccessPath(validator), jsonAsString(valueSpec->constValue), getJSTypeName(valueSpec->type));
       } else if (jsonIsNumber(valueSpec->constValue)) {
-        return simpleFailure(validator,"unequal constant value at %s expecting value '%d' of type '%s'",
+        return simpleFailure(validator,"unequal constant value at %s; expecting value '%d' of type '%s'",
                              validatorAccessPath(validator), jsonAsNumber(valueSpec->constValue), getJSTypeName(valueSpec->type));
       } else {
         return simpleFailure(validator,"unequal constant value at %s",
@@ -1303,8 +1303,14 @@ static VResult validateJSON(JsonValidator *validator,
     }
   } else if (valueSpec->enumeratedValues){
     bool matched = false;
-    /* it should at most require this much space... */
-    char *validValues = SLHAlloc(validator->evalHeap, (valueSpec->enumeratedValuesCount * (sizeof(Json*) + 2)) + 1);
+    /* As we go through the valid enum values, record them in comma separated
+     * form for displaying at the tail end of the error message.
+     */
+    unsigned int validValuesMaxSize = (valueSpec->enumeratedValuesCount * (sizeof(Json*) + 3)) + 1;
+    char *validValues = SLHAlloc(validator->evalHeap, validValuesMaxSize);
+    if (validValues) {
+      memset(validValues, 0, validValuesMaxSize);
+    }
     for (int ee=0; ee<valueSpec->enumeratedValuesCount; ee++){
       Json *enumValue = valueSpec->enumeratedValues[ee];
       if (jsonEquals(value,enumValue)){
@@ -1312,21 +1318,28 @@ static VResult validateJSON(JsonValidator *validator,
         break;
       }
       if (jsonIsString(enumValue)) {
-        strcat(validValues, jsonAsString(enumValue));
+        if (validValues) {
+          strcat(validValues, jsonAsString(enumValue));
+        }
       } else if (jsonIsNumber(enumValue)) {
-        int numberOfDigits = snprintf(NULL, 0, "%d", jsonAsNumber(enumValue));
-        char *numberAsString = SLHAlloc(validator->evalHeap, numberOfDigits + 1);
-        memset(numberAsString, 0, numberOfDigits + 1);
-        snprintf(numberAsString, numberOfDigits + 1, "%d", jsonAsNumber(enumValue));
-        strcat(validValues, jsonAsString(enumValue));
+        if (validValues) {
+          int numberOfDigits = snprintf(NULL, 0, "%d", jsonAsNumber(enumValue)) + 1;
+          int numberAsStringSize = numberOfDigits + 1; // + null
+          char *numberAsString = SLHAlloc(validator->evalHeap, numberAsStringSize);
+          if (numberAsString) {
+            memset(numberAsString, 0, numberAsStringSize);
+            snprintf(numberAsString, numberAsStringSize, "%d", jsonAsNumber(enumValue));
+            strcat(validValues, numberAsString);
+          }
+        }
       }
-      if (strlen(validValues) > 0 && ee < valueSpec->enumeratedValuesCount - 1) {
+      if (validValues && strlen(validValues) > 0 && ee < valueSpec->enumeratedValuesCount - 1) {
         strcat(validValues, ", ");
       }
     }
     if (!matched){
-      if (strlen(validValues) > 0) {
-        return simpleFailure(validator,"no matching enum value at %s expecting one of '[%s]' of type '%s'",
+      if (validValues && strlen(validValues) > 0) {
+        return simpleFailure(validator,"no matching enum value at %s; expecting one of values '[%s]' of type '%s'",
                              validatorAccessPath(validator), validValues, getJSTypeName(valueSpec->type));
       } else {
         return simpleFailure(validator,"no matching enum value at %s",
