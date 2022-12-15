@@ -660,6 +660,61 @@ static int writeFully(char *filename, const char *data, int length){
   }
 }
 
+static int appendToFile(char *filename, const char *data, int length) {
+  FILE *out = fopen(filename, "a");
+  if (!out){
+    return errno;
+  }
+  int res = fwrite(data, 1, length, out);
+  if (res != length){
+    fclose(out);
+    return -1;
+  } else {
+    fclose(out);
+    return 0;
+  }
+}
+
+/* (filename, ccsid) ccsid -1 implies guess best for platform, 0 implies don't translate */
+static JSValue xplatformAppendFileUTF8(JSContext *ctx, JSValueConst this_val,
+                                       int argc, JSValueConst *argv){
+  size_t size;
+  size_t length;
+
+  NATIVE_STR(filename,nativeFilename,0);
+  if (!filename){
+    return JS_EXCEPTION;
+  }
+
+  int targetCCSID;
+  JS_ToInt32(ctx, &targetCCSID, argv[1]);
+
+  size_t cLen;
+  const char *content = JS_ToCStringLen(ctx, &cLen, argv[2]);
+  if (!content){
+    return JS_EXCEPTION;
+  }
+
+  if (targetCCSID < 0){
+    char *nativeContent = safeMalloc(cLen+1,"xplatformAppendFileUtf8");
+    memcpy(nativeContent,content,cLen);
+    nativeContent[cLen] = 0;
+    convertToNative(nativeContent,cLen);
+    int status = appendToFile(nativeFilename,(const char *)nativeContent,cLen);
+    JS_FreeCString(ctx, filename);
+    safeFree(nativeContent,cLen+1);
+    return JS_NewInt64(ctx,(int64_t)status);
+  } else if (targetCCSID == 0) {
+    int status = appendToFile(nativeFilename,content,cLen);
+    JS_FreeCString(ctx, filename);
+    return JS_NewInt64(ctx,(int64_t)status);
+  } else {
+    printf("string from specific encoding not yet implemented\n");
+    return JS_EXCEPTION;
+  }
+  
+}
+
 /* (filename, ccsid) ccsid -1 implies guess best for platform, 0 implies don't translate */
 static JSValue xplatformStoreFileUTF8(JSContext *ctx, JSValueConst this_val,
                                       int argc, JSValueConst *argv){
@@ -724,6 +779,7 @@ static char AUTO_DETECT_ASCII[12] = {0x41, 0x55, 0x54, 0x4f, 0x5f, 0x44, 0x45, 0
 static char NO_CONVERT_ASCII[11] = {0x4e, 0x4f, 0x5f, 0x43, 0x4f, 0x4e, 0x56, 0x45, 0x52, 0x54,  0x00 };
 static char loadFileUTF8ASCII[13] = {0x6c, 0x6f, 0x61, 0x64, 0x46, 0x69, 0x6c, 0x65, 0x55, 0x54, 0x46, 0x38,  0x00 };
 static char storeFileUTF8ASCII[14] = {0x73, 0x74, 0x6f, 0x72, 0x65, 0x46, 0x69, 0x6c, 0x65, 0x55, 0x54, 0x46, 0x38,  0x00 };
+static char appendFileUTF8ASCII[15] = {0x61, 0x70, 0x70, 0x65, 0x6e, 0x64, 0x46, 0x69, 0x6c, 0x65, 0x55, 0x54, 0x46, 0x38,  0x00 };
 static char tcpPingASCII[8] ={0x74, 0x63, 0x70, 0x50, 0x69, 0x6e, 0x67,  0x00};
 
 static const JSCFunctionListEntry xplatformFunctions[] = {
@@ -733,6 +789,7 @@ static const JSCFunctionListEntry xplatformFunctions[] = {
   JS_CFUNC_DEF(stringFromBytesASCII, 4, xplatformStringFromBytes),
   JS_CFUNC_DEF(loadFileUTF8ASCII, 2, xplatformLoadFileUTF8),
   JS_CFUNC_DEF(storeFileUTF8ASCII, 3, xplatformStoreFileUTF8),
+  JS_CFUNC_DEF(appendFileUTF8ASCII, 3, xplatformAppendFileUTF8),
   JS_CFUNC_DEF(getpidASCII, 0, xplatformGetpid),
   JS_PROP_INT32_DEF(AUTO_DETECT_ASCII, -1, JS_PROP_CONFIGURABLE ),
   JS_PROP_INT32_DEF(NO_CONVERT_ASCII, -1, JS_PROP_CONFIGURABLE ),

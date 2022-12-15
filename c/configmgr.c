@@ -948,8 +948,8 @@ static Json *varargsDereference(Json *json, int argCount, va_list args, int *err
       }
       int arraySize = jsonArrayGetCount(array);
       if (index >= arraySize){
-	*errorReason = JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS;
-	return NULL;
+        *errorReason = JSON_POINTER_ARRAY_INDEX_OUT_OF_BOUNDS;
+        return NULL;
       }
       value = jsonArrayGetItem(array,index);
     } else if (jsonIsObject(value)){
@@ -961,19 +961,19 @@ static Json *varargsDereference(Json *json, int argCount, va_list args, int *err
       }
       Json *newValue = jsonObjectGetPropertyValue(object,key);
       if (newValue == NULL){
-	if (traceLevel >= 2){
-	  jsonObjectGetPropertyValueLoud(object,key);
-	  jsonPrinter *p = makeJsonPrinter(stdoutFD());
-	  jsonEnablePrettyPrint(p);
-	  jsonPrint(p,value);
-	  printf("\n");
-	  jsonDumpObj(object);
-	  fflush(stdout);
-	}
+        if (traceLevel >= 2){
+          jsonObjectGetPropertyValueLoud(object,key);
+          jsonPrinter *p = makeJsonPrinter(stdoutFD());
+          jsonEnablePrettyPrint(p);
+          jsonPrint(p,value);
+          printf("\n");
+          jsonDumpObj(object);
+          fflush(stdout);
+        }
         *errorReason = JSON_POINTER_TOO_DEEP;
         return NULL;
       } else{
-	value = newValue;
+        value = newValue;
       }
     } else {
       if (traceLevel >= 1){
@@ -1638,7 +1638,7 @@ static int simpleMain(int argc, char **argv){
   bool jqRaw     = false;
   if (argc == 1){
     showHelp(traceOut);
-    return 0;
+    return ZCFG_BAD_ARGS;
   }
 
   while (argx < argc){
@@ -1669,7 +1669,7 @@ static int simpleMain(int argc, char **argv){
       if (strlen(nextArg) && nextArg[0] == '-'){
         fprintf(traceOut,"\n *** unknown option *** '%s'\n",nextArg);
         showHelp(traceOut);
-        return 0;
+        return ZCFG_BAD_ARGS;
       } else {
         break;
       }
@@ -1686,12 +1686,12 @@ static int simpleMain(int argc, char **argv){
   if (schemaList == NULL){
     fprintf(traceOut,"Must specify schema list with at least one schema");
     showHelp(traceOut);
-    return 0;
+    return ZCFG_BAD_JSON_SCHEMA;
   }
   if (configPath == NULL){
     fprintf(traceOut,"Must specify config path\n");
     showHelp(traceOut);
-    return 0;
+    return ZCFG_BAD_CONFIG_PATH;
   }
 
   ConfigManager *mgr = makeConfigManager();
@@ -1702,7 +1702,7 @@ static int simpleMain(int argc, char **argv){
   int schemaLoadStatus = cfgLoadSchemas(mgr,configName,schemaList);
   if (schemaLoadStatus){
     fprintf(traceOut,"Failed to load schemas rsn=%d\n",schemaLoadStatus);
-    return 0;
+    return schemaLoadStatus;
   }
   if (parmlibMemberName != NULL){
     cfgSetParmlibMemberName(mgr,configName,parmlibMemberName);
@@ -1711,7 +1711,7 @@ static int simpleMain(int argc, char **argv){
   int configPathStatus = cfgSetConfigPath(mgr,configName,configPath);
   if (configPathStatus){
     fprintf(traceOut,"Problems with config path rsn=%d\n",configPathStatus);
-    return 0;
+    return configPathStatus;
   }
 
   trace(mgr,DEBUG,"ConfigMgr built at 0x%p\n",mgr);
@@ -1720,7 +1720,7 @@ static int simpleMain(int argc, char **argv){
   if (argx >= argc){
     printf("\n *** No Command Seen ***\n\n");
     showHelp(traceOut);
-    return 0;
+    return ZCFG_BAD_ARGS;
   }
   command = argv[argx++];
   trace(mgr,DEBUG,"command = %s\n",command);
@@ -1730,7 +1730,7 @@ static int simpleMain(int argc, char **argv){
   int loadStatus = cfgLoadConfiguration(mgr,configName);
   if (loadStatus){
     trace(mgr,INFO,"Failed to load configuration, element may be bad, or less likey a bad merge\n");
-    return 0;
+    return loadStatus;
   }
   trace(mgr,DEBUG,"configuration parms are loaded\n");
   if (!strcmp(command,"validate")){ /* just a testing mode */
@@ -1744,21 +1744,25 @@ static int simpleMain(int argc, char **argv){
     switch (validateStatus){
     case JSON_VALIDATOR_NO_EXCEPTIONS:
       trace(mgr,INFO,"No validity Exceptions\n");
+      return ZCFG_SUCCESS;
       break;
     case JSON_VALIDATOR_HAS_EXCEPTIONS:
       {
         trace(mgr,INFO,"Validity Exceptions:\n");
         traceValidityException(mgr,0,validator->topValidityException);
       }
+      return ZCFG_CONFIG_FAILED_VALIDATION;
       break;
     case JSON_VALIDATOR_INTERNAL_FAILURE:
       trace(mgr,INFO,"validation internal failure");
+      return ZCFG_VALIDATION_INTERNAL_ERROR;
       break;
     }
     freeJsonValidator(validator);
   } else if (!strcmp(command,"jq")){
     if (argx >= argc){
       trace(mgr,INFO,"jq requires at least one filter argument");
+      return ZCFG_BAD_ARGS;
     } else {
       JQTokenizer jqt;
       memset(&jqt,0,sizeof(JQTokenizer));
@@ -1773,20 +1777,23 @@ static int simpleMain(int argc, char **argv){
         int evalStatus = evalJQ(cfgGetConfigData(mgr,configName),jqTree,stdout,flags,mgr->traceLevel);
         if (evalStatus != 0){
           trace(mgr, INFO,"micro jq eval problem %d\n",evalStatus);
+          return evalStatus;
         }
       } else {
         trace(mgr, INFO, "Failed to parse jq expression\n");
+        return ZCFG_JQ_PARSE_ERROR;
       }
     }
   } else if (!strcmp(command,"extract")){
     if (argx >= argc){
       trace(mgr,INFO,"extract command requires a json path\n");
+      return ZCFG_BAD_ARGS;
     } else {
       char *path = argv[argx++];
       JsonPointer *jp = parseJsonPointer(path);
       if (jp == NULL){
         trace(mgr,INFO,"Could not parse JSON pointer '%s'\n",path);
-        return 0;
+        return ZCFG_POINTER_PARSE_ERROR;
       }
       if (mgr->traceLevel >= 1){
         printJsonPointer(mgr->traceOut,jp);
@@ -1799,6 +1806,7 @@ static int simpleMain(int argc, char **argv){
   } else if (!strcmp(command, "env")) {
     if (argx >= argc){
       trace(mgr, INFO, "env command requires an env file path\n");
+      return ZCFG_BAD_ARGS;
     } else {
       char *outputPath = argv[argx++];
       Json *config = cfgGetConfigData(mgr,configName);
@@ -1808,10 +1816,11 @@ static int simpleMain(int argc, char **argv){
         fclose(out);
       } else {
         trace (mgr, INFO, "failed to open output file '%s' - %s\n", outputPath, strerror(errno));
+        return ZCFG_IO_ERROR;
       }
     }
   }
-  return 0;
+  return ZCFG_SUCCESS;
 }
 
 /* a diagnostic function that can be used if other logging initialization bugs come up */
