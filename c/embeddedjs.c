@@ -1990,8 +1990,34 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
     }
     buf = js_load_file(ctx, &buf_len, nameToLoad);
     if (!buf){
-      fprintf(stderr,"Could not load module name '%s'\n",nativeName);
+      fprintf(stderr,"js_load_file failure. A file requested module '%s' but it could not be loaded.\n",nativeName);
       fflush(stderr);
+#ifdef __ZOWE_OS_ZOS
+      fprintf(stderr,"Getting file info for diagnosis\n");
+      int returnCode = 0, reasonCode = 0, status = 0;
+      FileInfo info = {0};
+      char nativeExtension[modNameLen+4];
+      snprintf(nativeExtension, modNameLen+4, "%s.js", nativeName); 
+      status = fileInfo(nativeExtension, &info, &returnCode, &reasonCode);
+      if (status) {
+        fprintf(stderr, "Could not get file info for %s.js. status=%d, rc=%d, rsn=%d\n", nativeName, status, returnCode, reasonCode);
+        fflush(stderr);
+      } else {
+        short ccsid = info.ccsid;
+        fprintf(stderr, "File found with ccsid=%d\n",ccsid);
+        fflush(stderr);
+        char readBuf[256];
+        int bytesRead = fileRead(nativeExtension, readBuf, 256, &returnCode, &reasonCode);
+        if (bytesRead>0) {
+          fprintf(stderr, "First 256 bytes of module=%256.256s\n",readBuf);
+          fflush(stderr);
+        } else {
+          fprintf(stderr, "Could not read the file. rc=%d, rsn=%d\n",returnCode, reasonCode);
+          fflush(stderr);
+        }
+      }
+#endif
+
       JS_ThrowReferenceError(ctx, "could not load module filename '%s'",
 			     nameToLoad);
       return NULL;
