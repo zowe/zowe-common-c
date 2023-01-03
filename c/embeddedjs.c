@@ -2007,13 +2007,18 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
         fprintf(stderr, "File found with ccsid=%d\n",ccsid);
         fflush(stderr);
         char readBuf[256];
-        int bytesRead = fileRead(nativeExtension, readBuf, 256, &returnCode, &reasonCode);
-        if (bytesRead>0) {
-          fprintf(stderr, "First 256 bytes of module=%256.256s\n",readBuf);
-          fflush(stderr);
+        UnixFile moduleFile = fileOpen(nativeExtension, FILE_OPTION_READ_ONLY, 0, 0, &returnCode, &reasonCode);
+        if (rc==0) {
+          int bytesRead = fileRead(moduleFile, readBuf, 256, &returnCode, &reasonCode);
+          if (rc==0) {
+            fprintf(stderr, "First 256 bytes of module=%256.256s\n",readBuf);
+            fflush(stderr);
+          } else {
+            fprintf(stderr, "Could not read the file. rc=%d, rsn=%d\n",returnCode, reasonCode);
+            fflush(stderr);
+          }
         } else {
-          fprintf(stderr, "Could not read the file. rc=%d, rsn=%d\n",returnCode, reasonCode);
-          fflush(stderr);
+          fprintf(stderr, "Could not open file, rc=%d, rsn=%d\n", returnCode, reasonCode);
         }
       }
 #endif
