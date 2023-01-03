@@ -2007,10 +2007,10 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
         fprintf(stderr, "File found with ccsid=%d\n",ccsid);
         fflush(stderr);
         char readBuf[256];
-        UnixFile moduleFile = fileOpen(nativeExtension, FILE_OPTION_READ_ONLY, 0, 0, &returnCode, &reasonCode);
-        if (rc==0) {
+        UnixFile *moduleFile = fileOpen(nativeExtension, FILE_OPTION_READ_ONLY, 0, 0, &returnCode, &reasonCode);
+        if (returnCode==0) {
           int bytesRead = fileRead(moduleFile, readBuf, 256, &returnCode, &reasonCode);
-          if (rc==0) {
+          if (returnCode==0) {
             fprintf(stderr, "First 256 bytes of module=%256.256s\n",readBuf);
             fflush(stderr);
           } else {
