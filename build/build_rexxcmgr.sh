@@ -118,7 +118,7 @@ xlc \
   -I ${GSKINC} \
   -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
   -I "${DEPS_DESTINATION}/${QUICKJS}" \
-  -o "${COMMON}/bin/zwecfgle" \
+  -o "${COMMON}/bin/ZWERXCFG" \
   api.o \
   reader.o \
   scanner.o \
@@ -187,3 +187,4 @@ xlc \
 # SPDX-License-Identifier: EPL-2.0
 # 
 # Copyright Contributors to the Zowe Project.
+

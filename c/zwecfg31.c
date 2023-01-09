@@ -89,26 +89,33 @@ static REXXEnv *getOrMakeREXXEnv(IRXENVB *envBlock){
       printf("Start making REXX ENV\n");
     }
     int loadStatus = 0;
-    printf("JOE.0\n");
-    int initEP = (int)loadByName("ZWECFG64",&loadStatus);   
-    printf("loadByName ep=0x%x\n",initEP);
+    int initEP = (int)loadByName("ZWECFG64",&loadStatus);
+    if (traceLevel >= 1) {
+      printf("loadByName ep=0x%x\n",initEP);
+    }
     if (initEP == 0 || loadStatus){
       printf("Failed to load 'ZWECFG64', status=%d\n",loadStatus);
       return NULL;
     } else{
-      printf("initEP=0x%p\n",initEP);
+      if (traceLevel >= 1) {
+        printf("initEP=0x%p\n",initEP);
+      }
       initEP &= 0x7FFFFFFE; /* remove DOO-DOO */
     }
     loadStatus = 0;
-    printf("before second load\n");
+    if (traceLevel >= 1) {
+      printf("before second load\n");
+    }
     int irxexcomEP = (int)loadByName("IRXEXCOM",&loadStatus);
-    printf("after second load, status=%d\n");
+    if (traceLevel >= 1) {
+      printf("after second load, status=%d\n",loadStatus);
+    }
     if (irxexcomEP == 0 || loadStatus){
       printf("Failed to load 'IRXEXCOM', status=%d\n",loadStatus);
       return NULL;
     } else{
       if (traceLevel >= 1){
-	printf("irxexcomEP=0x%p\n",irxexcomEP);
+	      printf("irxexcomEP=0x%p\n",irxexcomEP);
       }
       irxexcomEP &= 0x7FFFFFFE; /* remove DOO-DOO */
     }
@@ -256,7 +263,9 @@ int main(int argc, char *argv){
 	:"=m"(r0),"=m"(r1)
 	::"r8");
   Addr31 envBlock = (Addr31)r0;
-  printf("ZWECFG31 REXX Call Start\n");
+  if (traceLevel >= 1) {
+    printf("ZWECFG31 REXX Call Start\n");
+  }
   IRXEFPL *efpl = (IRXEFPL*)INT2PTR(r1);
   if (traceLevel >= 1){
     printf("EFPL at 0x%p, r1 = 0x%x\n",efpl,r1);

@@ -25,10 +25,13 @@
    */
 
 #ifndef __LONGNAME__
+#define malloc31 MALLOC31
+#define free31 FREE31
 #define safeMalloc SAFEMLLC
 #define safeMalloc2 SAFEMLC2
 #define safeMalloc31 SAFMLC31
 #define safeMalloc31Key8 SAFMLC38
+#define safeFree SAFEFREE
 #define safeFree31 SAFFRE31
 #define safeFree31Key8 SAFFRE38
 #define safeFree64 SAFFRE64
@@ -39,6 +42,8 @@
 #define safeMalloc64v2 SAMLC642
 #define safeFree64v3 SAFRE643
 #define safeMalloc64v3 SAMLC643
+#define allocECSA ALLCECSA
+#define freeECSA FREEECSA
 #endif
 
 char *malloc31(int size);

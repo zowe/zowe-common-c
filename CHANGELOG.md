@@ -1,8 +1,15 @@
 # Zowe Common C Changelog
 
+## `2.5.0`
+
+- Added embeddedjs command "xplatform.appendFileUTF8" for appending to files rather than writing whole files.
+- Bugfix that the configmgr binary would always return rc=0. Now, it has various return codes for the various internal errors or config invalid responses.
+
 ## `2.3.0`
 
 - Bugfix for lht functions of collections.c to avoid memory issues on negative keys
+- Added a new build target, 'configmgr-rexx', which builds a version of configmgr that can be used within rexx scripts.
+- Bugfix the help message on configmgr
 
 ## `2.2.0`
 
