@@ -123,6 +123,7 @@ typedef struct PatternProperty_tag {
 
 typedef struct JSValueSpec_tag {
   int      typeMask;
+  int      type;
   int      enumeratedValuesCount;
   Json   **enumeratedValues;
   Json    *constValue;
@@ -400,8 +401,9 @@ static VResult validateType(JsonValidator *validator,
     trace(validator,depth,"typeCode=%d shifted=0x%x mask=0x%x\n",typeCode,(1 << typeCode),valueSpec->typeMask);
   }
   if (((1 << typeCode) & valueSpec->typeMask) == 0){
-    return simpleFailure(validator,"type '%s' not permitted at %s",
-                         getJSTypeName(typeCode),validatorAccessPath(validator));
+    return simpleFailure(validator,"type '%s' not permitted at %s; expecting type '%s'",
+                         getJSTypeName(typeCode),validatorAccessPath(validator),
+                         getJSTypeName(valueSpec->type));
   } else {
     return simpleSuccess();
   }
@@ -864,7 +866,7 @@ static VResult validateJSONNumber(JsonValidator *validator,
       addValidityChild(pendingException,
                        makeValidityException(validator,
                                              validityMessage(validator,
-                                                             "value too small, %f %s MAX=%f at %s",
+                                                             "value too small, %f %s MIN=%f at %s",
                                                              d,
                                                              (valueSpec->exclusiveMinimum ? "<=" : "<"),
                                                              lim,
@@ -908,7 +910,7 @@ static VResult validateJSONInteger(JsonValidator *validator,
       addValidityChild(pendingException,
                        makeValidityException(validator,
                                              validityMessage(validator,
-                                                             "value too small, %lld %s MAX=%lld at %s",
+                                                             "value too small, %lld %s MIN=%lld at %s",
                                                              i,
                                                              (valueSpec->exclusiveMinimum ? "<=" : "<"),
                                                              lim,
@@ -1286,23 +1288,63 @@ static VResult validateJSON(JsonValidator *validator,
   if (valueSpec->constValue){
     bool eq = jsonEquals(value,valueSpec->constValue);
     if (!eq){
-      return simpleFailure(validator,"unequal constant value at %s",
-                           validatorAccessPath(validator));
+      if (jsonIsString(valueSpec->constValue)) {
+        return simpleFailure(validator,"unequal constant value at %s; expecting value '%s' of type '%s'",
+                             validatorAccessPath(validator), jsonAsString(valueSpec->constValue), getJSTypeName(valueSpec->type));
+      } else if (jsonIsNumber(valueSpec->constValue)) {
+        return simpleFailure(validator,"unequal constant value at %s; expecting value '%d' of type '%s'",
+                             validatorAccessPath(validator), jsonAsNumber(valueSpec->constValue), getJSTypeName(valueSpec->type));
+      } else {
+        return simpleFailure(validator,"unequal constant value at %s",
+                             validatorAccessPath(validator));
+      }
     } else {
       return simpleSuccess();
     }
   } else if (valueSpec->enumeratedValues){
     bool matched = false;
+    /* As we go through the valid enum values, record them in comma separated
+     * form for displaying at the tail end of the error message.
+     */
+    unsigned int validValuesMaxSize = (valueSpec->enumeratedValuesCount * (sizeof(Json*) + 3)) + 1;
+    char *validValues = SLHAlloc(validator->evalHeap, validValuesMaxSize);
+    if (validValues) {
+      memset(validValues, 0, validValuesMaxSize);
+    }
     for (int ee=0; ee<valueSpec->enumeratedValuesCount; ee++){
       Json *enumValue = valueSpec->enumeratedValues[ee];
       if (jsonEquals(value,enumValue)){
         matched = true;
         break;
       }
+      if (jsonIsString(enumValue)) {
+        if (validValues) {
+          strcat(validValues, jsonAsString(enumValue));
+        }
+      } else if (jsonIsNumber(enumValue)) {
+        if (validValues) {
+          int numberOfDigits = snprintf(NULL, 0, "%d", jsonAsNumber(enumValue)) + 1;
+          int numberAsStringSize = numberOfDigits + 1; // + null
+          char *numberAsString = SLHAlloc(validator->evalHeap, numberAsStringSize);
+          if (numberAsString) {
+            memset(numberAsString, 0, numberAsStringSize);
+            snprintf(numberAsString, numberAsStringSize, "%d", jsonAsNumber(enumValue));
+            strcat(validValues, numberAsString);
+          }
+        }
+      }
+      if (validValues && strlen(validValues) > 0 && ee < valueSpec->enumeratedValuesCount - 1) {
+        strcat(validValues, ", ");
+      }
     }
     if (!matched){
-      return simpleFailure(validator,"no matching enum value at %s",
-                           validatorAccessPath(validator));
+      if (validValues && strlen(validValues) > 0) {
+        return simpleFailure(validator,"no matching enum value at %s; expecting one of values '[%s]' of type '%s'",
+                             validatorAccessPath(validator), validValues, getJSTypeName(valueSpec->type));
+      } else {
+        return simpleFailure(validator,"no matching enum value at %s",
+                             validatorAccessPath(validator));
+      }
     } else {
       return simpleSuccess();
     }
@@ -1658,9 +1700,9 @@ static JSValueSpec *makeValueSpec(JsonSchemaBuilder *builder,
     
   }
   for (int i=0; i<typeNameArrayLength; i++){
-    int typeCode = getJSTypeForName(builder,typeNameArray[i]);
-    spec->typeMask |= (1 << typeCode);
-    if (typeCode == JSTYPE_NUMBER){
+    spec->type = getJSTypeForName(builder,typeNameArray[i]);
+    spec->typeMask |= (1 << spec->type);
+    if (spec->type == JSTYPE_NUMBER){
       /* numbers allow integers, but not the converse */
       spec->typeMask |= (1 << JSTYPE_INTEGER);
     }
