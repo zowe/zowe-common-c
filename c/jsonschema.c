@@ -123,7 +123,6 @@ typedef struct PatternProperty_tag {
 
 typedef struct JSValueSpec_tag {
   int      typeMask;
-  int      type;
   int      enumeratedValuesCount;
   Json   **enumeratedValues;
   Json    *constValue;
@@ -192,6 +191,8 @@ typedef struct JSValueSpec_tag {
 
   /* back/up pointer */
   struct JSValueSpec_tag *parent;
+
+  int      type;
 } JSValueSpec;
 
 typedef struct AccessPathUnion_tag {
