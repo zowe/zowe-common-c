@@ -57,30 +57,44 @@
 */
 
 int main(int argc, char **argv){
+  if (argc < 2){
+    printf("must supply a command of either 'cert' or 'dn'\n");
+  }
   char *command = argv[1];
-  char *fakecert = "HUM-DE-DUM, I AM A CERTIFICATE";
   char userid[9];
-
-
-  FILE *ptr;
-  ptr = fopen("apimtst.der","rb");
-  printf("pointer=%p\n",ptr);
-  fflush(stdout);
-  char buffer[4096];
-  memset(buffer,0,4096);
-  int bytesRead = fread(buffer,1,4096,ptr);
-  printf("bytesRead=%d\n",bytesRead);
-  fflush(stdout);
-  fclose( ptr );
-  dumpbuffer(buffer,bytesRead);
   int retCode = 0;
   int reason = 0;
-  int rc = getUseridByCertificate(buffer, bytesRead, userid, &retCode, &reason);
 
-  if (rc){
-    printf("Could not get userid, racfFC=0x%x, reason=0x%x\n",retCode,reason);
-  } else {
-    printf("Userid: %s\n",userid);
+  
+
+  if (!strcmp(command,"cert")){
+    FILE *ptr;
+    ptr = fopen("apimtst.der","rb");
+    printf("pointer=%p\n",ptr);
+    fflush(stdout);
+    char buffer[4096];
+    memset(buffer,0,4096);
+    int bytesRead = fread(buffer,1,4096,ptr);
+    printf("bytesRead=%d\n",bytesRead);
+    fflush(stdout);
+    fclose( ptr );
+    dumpbuffer(buffer,bytesRead);
+    int rc = getUseridByCertificate(buffer, bytesRead, userid, &retCode, &reason);
+    if (rc){
+      printf("Could not get userid, racfFC=0x%x, reason=0x%x\n",retCode,reason);
+    } else {
+      printf("Userid: %s\n",userid);
+    }
+  } else if (!strcmp(command,"dn")){
+    char *fakeDN = "FooBarBaz";
+    int rc = getUseridByDN(fakeDN, strlen(fakeDN), userid, &retCode, &reason);
+    if (rc){
+      printf("Could not get userid, racfFC=0x%x, reason=0x%x\n",retCode,reason);
+    } else {
+      printf("Userid: %s\n",userid);
+    }
+  } else{
+    printf("unknown command '%s'\n",command);
   }
 
   return 0;
