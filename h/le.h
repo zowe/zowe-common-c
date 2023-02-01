@@ -182,8 +182,12 @@ typedef struct LibraryFunction_tag{
  */
 #define RLE_RTL_64      0x0001
 #define RLE_RTL_XPLINK  0x0002
+#define RLE_FLAGS_VERSIONED 0x0004
 
 #define RLE_ANCHOR_EYECATCHER "RLEANCHR"
+
+#define RLE_ANCHOR_VERSION 2
+#define RLE_ANCHOR_VERSION_USER_APPL_ANCHOR_SUPPORT 2
 
 typedef struct RLEAnchor_tag{
   char   eyecatcher[8]; /* RLEANCHR */
@@ -193,6 +197,9 @@ typedef struct RLEAnchor_tag{
      however, if applications want dynamic linking of their
      services, there must be an anchor point for them, too */
   PAD_LONG(0, void  *metalDynamicLinkageVector);
+  int32_t version;
+  uint32_t size;
+  PAD_LONG(1, void  *userApplicationAnchor);
 } RLEAnchor;
 
 /* An RLE Task can run in SRB mode or TCB Mode or switchably depending on run
@@ -261,6 +268,8 @@ ZOWE_PRAGMA_PACK_RESET
 #define termRLEEnvironment LETMRLEE
 #define makeFakeCAA LEMKFCAA
 #define abortIfUnsupportedCAA LEARTCAA
+#define setRLEApplicationAnchor LESETANC
+#define getRLEApplicationAnchor LEGETANC
 
 #endif
 
@@ -353,6 +362,22 @@ void termRLEEnvironment();
 char *makeFakeCAA(char *stackArea, int stackSize);
 
 void abortIfUnsupportedCAA();
+
+/**
+ * Set the user application field
+ * @param[in,out] anchor the RLE anchor.
+ * @param[in] applicationAnchor the application anchor.
+ * @return 0 if success, -1 if the RLE anchor is incompatible.
+ */
+int setRLEApplicationAnchor(RLEAnchor *anchor, void *applicationAnchor);
+
+/**
+ * Get the user application field
+ * @param[in] anchor the RLE anchor.
+ * @param[out] applicationAnchor the application anchor.
+ * @return 0 if success, -1 if the RLE anchor is incompatible.
+ */
+int getRLEApplicationAnchor(const RLEAnchor *anchor, void **applicationAnchor);
 
 #endif /* __LE__ */
 
