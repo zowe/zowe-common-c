@@ -48,15 +48,17 @@
 #define MAP_LOTUS_NOTES_ID_TO_USERID 0x0002
 
 #define MAP_CERTIFICATE_TO_USERID 0x0006
+#define MAP_DN_TO_USERID 0x0008
 
 #define MAX_CERT_SIZE 4096
+#define MAX_DN_SIZE 246 /* according to doc! */
 
 #define IRRSIM00_WORKAREA_LENGTH 1024
 
-
 /* last arg must be at least 9 chars in length */
-int getUseridByCertificate(char *certificate, int certificateLength, char *useridBuffer,
-                           int *racfRC, int *racfReason){
+static int getUseridByExternalInfo(int functionCode,
+                                   char *data, int dataLength, char *useridBuffer,
+                                   int *racfRC, int *racfReason){
 
 #pragma pack(packed)
   ALLOC_STRUCT31(
@@ -76,19 +78,37 @@ int getUseridByCertificate(char *certificate, int certificateLength, char *useri
      char     workArea[IRRSIM00_WORKAREA_LENGTH];
      uint32_t certificateLength;
      char     certificate[MAX_CERT_SIZE];
+     uint16_t distinguishedNameLength;
+     char     distinguishedName[MAX_DN_SIZE];
      )
     );
 #pragma pack(reset)
   
   memset(parms31,0,sizeof(*parms31));
-  parms31->functionCode = MAP_CERTIFICATE_TO_USERID;
+  parms31->functionCode = functionCode;
   parms31->highbitZero = 0x80000000;
   parms31->useridLength = 0;
-  if (certificateLength > MAX_CERT_SIZE){
-    return 12;
-  } else{
-    memcpy(parms31->certificate, certificate, certificateLength);
-    parms31->certificateLength = certificateLength;
+  switch (functionCode){
+  case MAP_CERTIFICATE_TO_USERID:
+    if (dataLength > MAX_CERT_SIZE){
+      FREE_STRUCT31(STRUCT31_NAME(parms31));
+      return RUSERMAP_PARM_TOO_BIG;
+    } else{
+      memcpy(parms31->certificate, data, dataLength);
+      parms31->certificateLength = dataLength;
+    } 
+    break;
+  case MAP_DN_TO_USERID:
+    if (dataLength > MAX_DN_SIZE){
+      FREE_STRUCT31(STRUCT31_NAME(parms31));
+      return RUSERMAP_PARM_TOO_BIG;
+    } else{
+      memcpy(parms31->distinguishedName, data, dataLength);
+      parms31->distinguishedNameLength = dataLength;
+    } 
+    break;
+  default:
+    return RUSERMAP_BAD_FUNCTION_CODE;
   }
 
   int rc = 0;
@@ -97,6 +117,20 @@ int getUseridByCertificate(char *certificate, int certificateLength, char *useri
   dumpbuffer((char*)parms31,sizeof(*parms31));
   */
   __asm(ASM_PREFIX
+        /* We get the routine pointer for IRRSIM00 by an, *ahem*, direct approach.
+           These offsets are stable, and this avoids linker/pragma mojo,
+           This offsets are available in SYS1.CSSLIB(IRRSIM00)
+
+             4002 8000 5F01 5F02 5F02 1F 5F00 0F
+             1008 9002 8000 8F20 8F08 E0 8F00 7F
+
+           This means 28th 4byte slot (0x28 * 4 = 0xA0),
+             put that in register 0 
+           of CVT-CSRTABLE->SAF
+             put that in register 15
+               add the two togeter (1EF0)
+                 and there's your routine
+             */
         " LLGT 15,X'10'(,0) \n"   /* Get the CVT */
         " LLGT 15,X'220'(,15) \n" /* CSRTABLE */
         " LLGT 15,X'28'(,15) \n"  /* Some RACF Routin Vector */
@@ -114,7 +148,7 @@ int getUseridByCertificate(char *certificate, int certificateLength, char *useri
         ",%[userid]"
         ",%[cert]"
         ",%[z]"   /* appl userid */
-        ",%[z]"   /* Distinguished name */
+        ",%[dn]"  /* Distinguished name */
         ",%[z])" /* registry name, which is NULL with high bit set */
         ",VL,MF=(E,%[parmlist]) \n"
 
@@ -132,6 +166,7 @@ int getUseridByCertificate(char *certificate, int certificateLength, char *useri
           [racfRC]"m"(parms31->racfRC),
           [racfRSN]"m"(parms31->racfReason),
           [userid]"m"(parms31->useridLength),   /* must point at pre-pended length */
+          [dn]"m"(parms31->distinguishedNameLength),
           [cert]"m"(parms31->certificateLength),
           [parmlist]"m"(parms31->parmlistStorage)
         :"r14","r15");
@@ -151,7 +186,16 @@ int getUseridByCertificate(char *certificate, int certificateLength, char *useri
   
   return safRC;
 }
+  
+int getUseridByCertificate(char *certificate, int certificateLength, char *useridBuffer,
+                           int *racfRC, int *racfReason){
+  return getUseridByExternalInfo(MAP_CERTIFICATE_TO_USERID,certificate,certificateLength,useridBuffer,racfRC,racfReason);
+}
 
+int getUseridByDN(char *distinguishedName, int distinguishedNameLength, char *useridBuffer,
+                  int *racfRC, int *racfReason){
+  return getUseridByExternalInfo(MAP_DN_TO_USERID,distinguishedName,distinguishedNameLength,useridBuffer,racfRC,racfReason);
+}
 
 
 /*

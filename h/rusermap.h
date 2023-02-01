@@ -13,11 +13,16 @@
 #define __ZOWE_RUSERMAP__ 1
 
 #define RUSERMAP_SAF_SUCCESS 0
+/* zowe-defined top-level return codes */
+#define RUSERMAP_PARM_TOO_BIG 16
+#define RUSERMAP_BAD_FUNCTION_CODE 20
+
 #define RUSERMAP_RACF_FAILURE 8
 #define RUSERMAP_RACF_REASON_NOAUTH 0x14
 #define RUSERMAP_RACF_REASON_NOUSERID 0x18
 #define RUSERMAP_RACF_REASON_BADCERT 0x1C
 #define RUSERMAP_RACF_REASON_NOUSER_FOR_CERT 0x20
+#define RUSERMAP_RACF_REASON_BAD_DN 0x28
 
 /** 
   getUseridByCertificate() gets the SAF Userid for a certificate, if one had been previously
@@ -36,6 +41,14 @@
 
 int getUseridByCertificate(char *certificate, int certificateLength, char *useridBuffer,
                            int *racfRC, int *racfReason);
+
+/* getUseridByDN works just like getUseridByCertificate, except it takes Distinguihed Name (aka DN) 
+   in UTF-8 format.  
+   */
+
+int getUseridByDN(char *distinguishedName, int distinguishedNameLength, char *useridBuffer,
+                  int *racfRC, int *racfReason);
+
 
 
 #endif
