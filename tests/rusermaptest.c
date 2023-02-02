@@ -87,7 +87,8 @@ int main(int argc, char **argv){
     }
   } else if (!strcmp(command,"dn")){
     char *fakeDN = "FooBarBaz";
-    int rc = getUseridByDN(fakeDN, strlen(fakeDN), userid, &retCode, &reason);
+    char *fakeRegistry = "zowe.org";
+    int rc = getUseridByDN(fakeDN, strlen(fakeDN), fakeRegistry, strlen(fakeRegistry), userid, &retCode, &reason);
     if (rc){
       printf("Could not get userid, racfFC=0x%x, reason=0x%x\n",retCode,reason);
     } else {
