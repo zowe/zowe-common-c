@@ -15,7 +15,9 @@
 
 #ifndef __LONGNAME__
 
+#define extractPSW EXTRPSW
 #define supervisorMode SUPRMODE
+#define setKey SETKEY
 #define ddnameExists DDEXISTS
 #define atomicIncrement ATOMINCR
 
@@ -24,20 +26,32 @@
 #define getParentTCB GTPRTTCB
 #define getNextSiblingTCB GTNXSTCB
 
-#define getCVTPrefix GETCVTPR
+#define getCVT GETCVT
+#define getATCVT GETATCVT
 #define getIEACSTBL  GETCSTBL
+#define getCVTPrefix GETCVTPR
+#define getECVT GETECVT
+#define getTCB GETTCB
+#define getSTCB GETSTCB
+#define getOTCB GETOTCB
+#define getASCB GETASCB
+#define getASXB GETASXB
+#define getASSB GETASSB
+#define getJSAB GETJSAB
 
 #define getSysplexName GTSPLXNM
 #define getSystemName GTSYSTNM
 
+#define getDSAB GETDSAB
 #define dsabIsOMVS DSABOMVS
+#define locate LOCATE
 
 #define getR13 GETR13
 #define getR12 GETR12
 
 #define getASCBJobname GETASCBJ
 
-#define loadByName LOADBYNAM
+#define loadByName LOADBYNA
 #define loadByNameLocally LOADBNML
 
 #define isCallerLocked        ZOSCLCKD
@@ -177,7 +191,14 @@ typedef struct cvt_tag{
   char cvtflags[4];
   Addr31 cvtrt03;
   char cvtrs180[8];
-  char iAmTired[0x98];
+  char unmapped188[0x50];
+  /* OFFSET 0x1D8 */
+  Addr31 cvtstck;   /* TSO Stack routine */
+  short  cvtmaxmp;  /* max CPU address available in this IPL */
+  short  cvtbsm2;   /* literally a a BSM 0,2 instruction     */
+  /* OFFSET 0x1E0 */
+  char unmapped1E0[0x40];
+  /* OFFSET 0x220 */
   Addr31 cvtcsrt;  /* callable services */
   Addr31 cvtaqtop; /* pnter to allocation queue lock area */
   Addr31 cvtvvmdi; /* owned by (P)LPA search algorithm */
@@ -297,9 +318,10 @@ typedef struct cvt_tag{
   Addr31 cvtjterm; /*   Auxiliary storage management job termination resource manager */
 
   /* OFFSET 0x400 */
-  char  unmapped400[0xB0]; 
+  char  unmapped400[0xAC]; 
   
-  /* OFFSET 0x4B0 */
+  /* OFFSET 0x4AC */
+  Addr31 cvtsmext; /*   address of CVTVSTGX an extension containing storage layout info */
   Addr31 cvtnucmp; /*   address of nucleus map, array of 16-byte entries */
   /*
     many, many slots follow this point.
@@ -429,11 +451,29 @@ typedef struct ecvt_tag{
   short ecvtptim;     /* time value for parallel detach (RTM) */
   Addr31 ecvtjcct;     /* JES Communication Control Table */
   /* Offset 0x120 */
-  char unmapped1[0x30];
+  Addr31 ecvtlsab;     /* Logger Services Anchor Block */
+  Addr31 ecvtetpe;     /* V(IEAVETPE) */
+  Addr31 ecvtsymt;     /* System static Symbol table - Mapped by SYMBT withing ASASYMBP */
+  Addr31 ecvtesym;     /* V(IEAVESYM) */
+  char unmapped1[0x20];
+  /* Offset 0x150 */
   char ecvthdnm[8];
   char ecvtlpnm[8];
   char ecvtvmnm[8];
-  char unmapped2[0x74];
+  /* Offset 0x168 */
+  Addr31 ecvtgrm;    /* V(CRG52GRM) */
+  Addr31 ecvtseif;   /* V(CRG52SEI) */
+  /* Offset 0x170 */
+  Addr31 ecvtaes;    /* V(IEAVEAES) */
+  Addr31 ecvtrsmt;   /* Addr registration services management table */
+  char   ecvtmmem[16];
+  /* Offset 0x188 */
+  Addr31 ecvtipa;    /* Addr of Initzltn Parameter Area - like "D IPLINFO" */
+  char   ecvtmmet[16]; 
+  Addr31 ecvtmmeq;
+  /* Offset 0x1A0 */
+  char unmapped2[0x3C];
+  /* OFFSET 0x1DC */
   int  ecvtpseq;
   char ecvtpown[16];
   char ecvtpnam[16];
@@ -442,6 +482,10 @@ typedef struct ecvt_tag{
   char ecvtpmod[2];
   char ecvtpdvl;
   char ecvtttfl;     /* transaction trace flags */
+  /* OFFSET 0x208 */
+  char unmapped208[0x3D0-0x208]; 
+  /* OFFSET 0x3D0 */
+  Addr31 ecvtizugsp;      /* ZOSMF info */
   /* more unmapped fields here */
 } ECVT;
 
@@ -526,10 +570,77 @@ typedef struct ocvt_tag{  /* see SYS1.MACLIB(BPXZOCVT) */
 } OCVT;
 
 /* Request blocks are octopus-chameleon hybrids.  The documentation
-   is paleolithic and confusing.
-
-   
+   is paleolithic and confusing.  Multiple OS generations are vestigially visible in these
+   blocks.  Which of the myriad flags currently drive behavior of dispatch (scheduler) 
+   is profound and frustrating quetsion.
  */
+
+typedef struct RBPrefix_tag{
+  char      reserved[0x20];
+  Addr31    rbxsb;            /* the extended status block, where modern state info is stored */
+  short     reserved24;
+  char      rbkeysta;         /* key and state of IRB */
+  char      rbflags2;
+  int64     rbrtpsw1;         /* Modern PSW Mask */
+  int64     rbrtpsw2;         /* Modern PSW Address unioned with a boatload of crap */
+  char      rbflags1;
+#define RBFLAGS1_RBSLOCK 0x80  /* RB non-dispatchable until BCP CVTSYLK reset */
+#define RBFLAGS1_RBXWAIT 0x40  /* SVC Wait in progress */
+#define RBFLAGS1_RBABEND 0x20
+#define RBFLAGS1_RBXWPRM 0x10
+#define RBFLAGS1_RBLONGWT 0x04  /* Long wait */ 
+#define RBFLAGS1_RBSCB    0x02  /* Has STAE/ESTAE */
+#define RBFALSG1_RBSSSYN 0x01
+  char      rbflags3;
+#define RBFLAGS3_RBWTECB 0x80 /* wait was issued with ECB provided */
+  short     rbxwaiti;         /* wait index */
+  char      rbwcsa;
+  char      rbinlnth;         /* ILC */
+  unsigned short rbintcod;    /* Interrupt Code */
+} RBPrefix;
+
+#define RB_PREFIX_OFFSET (-64)
+#define RBPRFXST (-32)
+
+#define PRBEND   0x68
+#define SIRBEND  0xA8
+#define TIRBEND  0x68
+#define IRBEND   0x60
+#define SVRBEND  0xD0
+
+#define PRBLEN (PRBEND-RBPRFXST)
+#define SIRBLEN (SIRBEND-RBPRFXST)
+#define TIRBLEN (TIRBEND-RBPRFXST)
+#define IRBLEN (IRBEND-RBPRFXST)
+#define SVRBLEN (SVRBEND-RBPRFXST)
+#define MAX_RB_LEN SVRBEND
+
+#define RB_TYPE_PRB 0    /* Program RB, normal stuff */
+#define RB_TYPE_IRB 2    /* Interrupt */
+#define RB_TYPE_TIRB 3   /* what are these used as, laundry baskets on every third Wednesday */
+#define RB_TYPE_SIRB 4 
+#define RB_TYPE_SVRB 6   /* System call */
+
+
+typedef struct RB_tag{
+  char           aCompleteMess[8];
+  unsigned short systemDependent08;
+  char           rbStab1;   /* Status and Attributes */
+  char           rbStab2;   /* Status and Attributes */
+#define RBSTAB2_RBLINK_IS_TCB  0x80
+#define RBSTAB2_IS_QUEUED      0x40  /* ie. is active */
+#define RBSTAB2_FREE_STORAGE   0x02  /* free storage at exit */
+#define RBSTAT2_RBECBWT        0x01  /* read the Data areas book */
+  int            rbEPOrCDE;          /* Entry point or CDE (24 bit for CDE) */
+  int64          rbopsw;             /* old PSW, 31 bit style */
+  /* Offset 0x18 */
+  Addr31         systemDependent18;
+  int            rblink;             /* wait count and 24 bit pointer, shoot me now */
+  /* Offset 0x20 */
+  unsigned int   rbgrs[16];          /* 32 bit register values */
+  /* Offset 0x60 */
+  char           variantData[0x40];  /* RB's are a mess */
+} RB;
 
 typedef struct IKJRB_tag{
   char     stuff[0x0C];
@@ -552,38 +663,38 @@ typedef struct tcb_tag{
   char tcbflgs3; 
   char tcbflgs4; /* 0x20 */
   char tcbflgs5;
-  char tcblmp;   /* task limiting priority */
-  char tcbdsp;   /* task dispatching priority */
-  Addr31 tcblls;  /* addr of last elt (LLE) in Load List */
-  Addr31 tcbjlb;  /* addr of joblib DCB */
-  int  tcbjpq;  /* last cde in job pack areas 1+31 or 8+24 format */
+  char tcblmp;     /* task limiting priority */
+  char tcbdsp;     /* task dispatching priority */
+  Addr31 tcblls;   /* addr of last elt (LLE) in Load List */
+  Addr31 tcbjlb;   /* addr of joblib DCB */
+  int  tcbjpq;     /* last cde in job pack areas 1+31 or 8+24 format */
   int  tcbgrs[16]; /* 0x30 General Register Save Area */
-  Addr31 tcbfsa; /* 0x70 first prob program save area */
+  Addr31 tcbfsa;   /* 0x70 first prob program save area */
   struct tcb_tag *__ptr32 tcbtcb;  /* tcb chain in address space */
   Addr31 tcbtme;
   Addr31 tcbjstcb; /* first job step TCB or this TCB is key 0 */
-  Addr31 tcbntc;  /* 0x80 attach stuff */
-  Addr31 tcbotc;  /* originating task */
+  Addr31 tcbntc;   /* 0x80 attach stuff */
+  Addr31 tcbotc;   /* originating task */
   Addr31 tcbltc;
   Addr31 tcbiqe;  /* interrupt queue element IQE */
-  Addr31 tcbecb; /* 0x90 ECB to be posted for task term */
-  char tcbtsflg; /* time-sharing flags */
-  char tcbstpct; /* number of set task starts */
-  char tcbtslp; /* limit prty of TS task */
-  char tcbtsdp; /* disp prty of TS task */
-  Addr31 tcbrd; /* DPQE-8 for job step serialization, aka TCBPQE */
-  Addr31 tcbae; /* list origin of AQE's for this task serialization */
-  char tcbnstae; /* 0xA0 STAE flags */
+  Addr31 tcbecb;  /* 0x90 ECB to be posted for task term */
+  char tcbtsflg;  /* time-sharing flags */
+  char tcbstpct;  /* number of set task starts */
+  char tcbtslp;   /* limit prty of TS task */
+  char tcbtsdp;   /* disp prty of TS task */
+  Addr31 tcbrd;   /* DPQE-8 for job step serialization, aka TCBPQE */
+  Addr31 tcbae;   /* list origin of AQE's for this task serialization */
+  char tcbnstae;  /* 0xA0 STAE flags */
   char tcbstabb[3]; /* current stae control block */
-  Addr31 tcbtct;  /* timing control table - SMF */
-  Addr31 tcbuser;  /* user word, shouldn't be used!! */
-  int tcbscndy; /* secondary nondispatchability bits */
-  int tcbmdids; /* 0xB0 reserved for model-dep support */
-  Addr31 tcbjscb; /* JSCB (job step control block), high-8 also abend recursion bits, TCBRECDE */
-  Addr31 tcbssat; /* subsystem affinity table */
-  Addr31 tcbiobrc; /* IOB restore chain */
-  Addr31 tcbexcpd; /* 0xC0 EXCP debug area */
-  Addr31 tcbext1; /* os-vs common extension ICB311 */
+  Addr31 tcbtct;    /* timing control table - SMF */
+  Addr31 tcbuser;   /* user word, shouldn't be used!! */
+  int tcbscndy;     /* secondary nondispatchability bits */
+  int tcbmdids;     /* 0xB0 reserved for model-dep support */
+  Addr31 tcbjscb;   /* JSCB (job step control block), high-8 also abend recursion bits, TCBRECDE */
+  Addr31 tcbssat;   /* subsystem affinity table */
+  Addr31 tcbiobrc;  /* IOB restore chain */
+  Addr31 tcbexcpd;  /* 0xC0 EXCP debug area */
+  Addr31 tcbext1;   /* os-vs common extension ICB311 */
   char tcbdsp4;
   char tcbdsp5;
   char tcbflgs6;
@@ -593,8 +704,20 @@ typedef struct tcb_tag{
   char tcbsysct; /* # of outstanding system must-complete requests ICB497 */
   char tcbstmct; /* # of outstanding step must-complete requests ICB497 */
   Addr31 tcbext2; /* 0xD0 OS-VS common extension */
-  char undifferentiated1[0x2C]; 
-  char undifferentiated2[0x38]; /* 0x100 */
+  int    tcbr0D4; /* reserved */
+  Addr31 tcbxsb;  /* 0xD8     */
+  Addr31 tcbback; /* 0xDC - previous entry on queue */
+  Addr31 tcbrtwa; /* 0xE0 - Pointer to RTM2 work area */
+  char undifferentiated1[0x1C]; 
+  /* OFFSET 0x100 */
+  char     tcbtcbid[4];   /* eyecatcher */
+  Addr31   tcbrtm12;
+  char     tcbscbky;   
+  char     tcbestrm;
+  char     tcbertyp;
+  char     tcbmode;
+  /* 0x10C */
+  char undifferentiated2[0x2C]; /* 0x100 */
   Addr31 tcbstcb;
   char undifferentiated3[0x18]; /* 0x100 */
   Addr31 tcbsenv; /* securirt environment, 0 or ACEE, 0 means use ASCB/ASXB env */
@@ -603,17 +726,88 @@ typedef struct tcb_tag{
 } TCB;
 
 typedef struct stcb_tag{
-  char undifferentiated1[0xD8];
+  char   stcbstcb[4];   /* eyecatcher */
+  Addr31 stcbracp;      /* RACF Pointer */
+  Addr31 stcbdivf;      /* first DIV DOA control block */
+  Addr31 stcbdivl;      /* last DIV DOA control block */
+  /* OFFSET 0x10 */
+  unsigned short stcbafns;
+  short          stcbctsc;   /* consecutive dispatches remaining */
+  Addr31         stcbessa;
+  char           stcbr018;           /* reserved */
+  char           stcbflg1; 
+  unsigned short stcbr01a;
+  unsigned int   stcbcmp;    /* completion code broken int 8-12-12 bit sections */
+  /* OFFSET 0x20 */
+  Addr31         stcbalov;   /* work unit access list virtual address */
+  Addr31         stcbald;    /* work uint access list designator, part real address, part table size */
+  Addr31         stcbducv;   /* DUCT virtual address */
+  Addr31         stcbducr;   /* DUCT real address */
+  /* Offset 0x30 */
+  unsigned int   stcbars[16];/* Access register save area for 16 registers */
+  /* Offset 0x70 */
+  Addr31         stcblssd;   /* Virtual Address of the LSSD for the task */
+  Addr31         stcblsdp;   /* Linkage Stack Entry Descriptor (LSED pointer) */
+  Addr31         stcbrmef;   /* Pointer to head of task-related Resource Manager queue */
+  Addr31         stcbrmel;   /* Pointer to tal of task-related Resource Manager queue */
+  /* Offset 0x80 */
+  Addr31         stcbestk;   /* Virtual Address of the LSED representing empty linkage stack */ 
+  char           stcbflg2;
+  char           stcbflg3;
+  unsigned short stcbnstp;   /* Count of requests to ignore SRB to task percolations */
+  Addr31         stcbtlsd;   /* Address of task-related LSSD for the Linkage stack */
+  Addr31         stcbtlsp;   /* Address of task-related initial LSED for the Linkage stack */
+  /* Offset 0x90 */
+  char           stcbttkn[16]; /* TToken for this task, see data area book for details */
+  /* OFFSET 0xA0 */
+  char undifferentiatedA0[0x18];
+  /* OFFSET 0xB8 */
+  Addr31         stcbdfts;   /* Address of DFP-SMSX Structure for this task */
+  Addr31         stcbjsab;   /* Address of JSAB - Job Scheduler Address Block */
+  /* OFFSET 0xC0 */
+  Addr31         stcbttcb;   /* Address of TCPIP Extension block */
+  unsigned int   stcbrfsv;   /* Registration service indicators */
+  Addr31         stcbnttp;   /* Address of Task Level Name/Token Header */
+  unsigned int   stcbcon;    /* Address of IXLCONNS in effect for this task, Sysplex stuff */
+  /* OFFSET 0xD0 */
+  unsigned short stcbarct;   /* RSM # of reference patterns for address space virtual storage */
+  unsigned short stcbdrct;   /* RSM # of reference patterns for dataspace virtual storage */
+  unsigned int   stcbdfp;    /* Owned by DFP */
   Addr31 stcbotcb;
   Addr31 stcbdcxh; /* address of the job pack queue cde extensions hash table.  
                       ownership: contents supervisor (csv)
                       serialization: local lock. */
-  char undifferentiated2[0x120]; /* gets us to 0x200 */
+  /* OFFSET 0xE0 */
+  Addr31         stcbsjst;
+  Addr31         stcbatad;
+  Addr31         stcbweb;    /* Address of the task's WEB */
+  unsigned int   stcbseqn;   /* RB Sequence Number */
+  /* OFFSET 0xF0 */
+  unsigned short stcbxcnt;   /* count of outstanding EXCP's */
+  char undifferentiated2[0x200-0xF2]; /* gets us to 0x200 */
+  /* OFFSET 0x200 */
   Addr31 stcbotca; /* Address of OTCB Alternate Anchor For Cleanup 
                       Ownership: USS
                       Serialization: run under this task. */
   Addr31 stcblaa;  /* Address of LE Library Anchor Area */
   Addr31 stcbpie;  /* Address of PIE control block */
+  char   stcbpmsk; /* Program mask at time of SPIE initiation */
+  char   stcbflg8; /* Flags include 80-ESPIE-(not-SPIE), 40-ESPIE-SRB-SHOULD-CALL-LE */
+  short  stcbspov; /* count of SPIE/ESPIE overrdies */
+  /* Offset 0x210 */
+  Addr31 stcbrbp;  /* Address of RB which had the program interrupt */
+  char   reserved214;
+  char   stcbilc;  /* instruction length code */
+  unsigned short stcbintc;  /* PIC code */
+  char   stcbppsw[8]; /* PSW at program interrupt */
+  /* Offset 0x220 */
+  Addr31 stcbrpp;     /* PICA (SPIE definition) */
+  Addr31 stcbfrpq;    /* Free RPP queue header */
+  Addr31 stcblscr;    /* Linkage stack control register at time of error for ESPIE */
+  unsigned int stcbsars[16];  /* Access registers at time of error */
+  /* offset 0x26C */
+  char   stcbwork[4]; /* Work area used during ESPIE */
+  
 } STCB;
 
 /* See for OMVS structs:
@@ -651,14 +845,14 @@ typedef struct otcb_tag{
   char           otcbflagsb2; /* flag set 2 */
   char           otcbflagsb3; /* flag set 3 - ACEE/RACF stuff */
   char           otcbflagsb4; /* flag set 4 */
-  int            otcbpprt; /* thread id part */
-  int            otcbseqno; /* ditto */
-  int            otcbsigglags; /* */
+  int            otcbpprt;    /* thread id part, in two 4-byte pieces */
+  int            otcbseqno;   /* ditto */
+  int            otcbsigflags; /* */
   /* OFFSET 0x20 */
   char           undifferentiated1[0x40];
   /* OFFSET 0x60 */
   Addr31         otcbotim;
-  Addr31         otcboabp;
+  Addr31         otcboabp;     /* the per-process extenions BPXZOAPB */
   char           stuff[8];
   /* OFFSET 0x70 */
   Addr31         otcbptlcppsdptr;      /* Ptrace local Ppsd pointer */
@@ -707,6 +901,17 @@ typedef struct otcb_tag{
   int            otcbosenvseqn; /* 2nd half of OSENV token, the sequence number */
 } OTCB;
 
+
+
+typedef struct LLE_tag{
+  struct LLE_tag *__ptr32     llechn;
+  struct IHACDE_tag *__ptr32  llecdpt;
+  unsigned short              llecount;
+  unsigned short              llesysct;
+} LLE;
+
+
+
 typedef struct IHACDE_tag{
   struct IHACDE_tag *__ptr32 next;
   Addr31                     cdrrbp;    /* address of RB that had module, or not, kinda complex */
@@ -718,7 +923,15 @@ typedef struct IHACDE_tag{
   char                       cdattrb;   /* flags */
   char                       cdsp;      /* Module subpoolID */
   char                       cdattr;    /* flag byte */
-  char                       cdattr2; 
+#define IHACDE_ATTR_NIP               0x80
+#define IHACDE_ATTR_NIC               0x40
+#define IHACDE_ATTR_REENTERABLE       0x20
+#define IHACDE_ATTR_SERIALLY_REUSABLE 0x10
+#define IHACDE_ATTR_NOT_REUSABLE      0x08
+#define IHACDE_ATTR_MINOR_CDE         0x04
+#define IHACDE_ATTR_MODULE_IN_JPA     0x02
+#define IHACDE_ATTR_NOT_LOADABLE_ONLY 0x01
+  char                       cdattr2;
   char                       cdattr3; 
   char                       cdattr4;   /* reserved for future flags */
 } IHACDE;
@@ -1035,6 +1248,55 @@ TCB *getNextSiblingTCB(TCB *tcb);
 
  */
 
+typedef struct JSCB_tag{
+  char      undocumentedStuff[0xBC]; /* Really.   Look at the MVS Data Area books */
+  int       jscrsv01;                /* reserved */
+  int       jschpcea;                /* Address of JES Process Control Element, low three byte, 24 byte pointer */
+  Addr31    jscbshr;                 /* Assembly Chain (VSAM) */
+  Addr31    jscbtcp;                 /* TIOT Chaining Element Chain (VSAM) */
+  Addr31    jscbpcc;                 /* Private Catalog Control Block (VSAM) */
+  /* Offset 0xD0 */
+  Addr31    jscbtcbp;                /* Address of the initiators TCB */
+  Addr31    jscbijsc;                /* Address of the JSCB of the initiator that attached this job step */
+  Addr31    jscbdbtb;                /* DEB table for this job step */
+  Addr31    jscbid;                  /* Job Serial Number */
+  /* Offset 0xE0 */
+  int       jscbdcb;                 /* Don't touch this */
+  int       jscbstep;                /* Step number, starting at 1, high byte only  */
+  char      undifferentiatedE8[0xC];
+  Addr31    jscbqmpi;                /* Address of Queue Manager Parameter Area, which has some valuable data */
+  char      undifferentiatedF8[0x8];
+  /* Offset 0x100 */
+  Addr31    jscbcscb;                /* Addr of CSCB Command Scheduling Block */
+  /* theres a *LOT* of crufty JES stuff after here, really weird stuff, not all noted here */
+  
+  char      undifferentiated104[0x130-0x104]; 
+  /* Offset 0x130 */
+  uint16_t  jscbsono;                /* # of SYSOUT Data Sets + 1 */
+  uint16_t  jscbcrb2;                /* see manual */
+  uint64_t  jscbfrba;                /* Relative Byte Address of First Journal Block */
+  Addr31    jscbssib;                /* Life-of-JOB SSIB */
+  /* Offset 0x140 */
+  Addr31    jscdsabq;                /* QDB for DSAB Chain */
+  uint32_t  jscgddno;                /* Counter used by Dynalloc to generate DD Names */
+  uint32_t  jscsct;                  /* Low 3 bytes are SVA of SCT, use SWAREQ to get pointer */
+  Addr31    jsctmcor;                /* Address of TIOT main storage mgmt area */
+  /* Offset 0x150 */
+  Addr31    jscbvata;                /* Address of VAT Used during restart */
+  uint16_t  jscrsv08;
+  uint16_t  jscbodno;                /* Counter used by dynamic output for desciptors */
+  uint16_t  jscddnum;                /* # of DDNames allocated, both in-use and not */
+  char      jscrsv33;
+  char      jscbswsp;                /* SWA Subpool */
+  Addr31    jscbact;                 /* Active JSCB */
+  /* Offset 0x160 */
+  Addr31    jscrsv09;
+  Addr31    jscbeacb;                /* Address of Event Log ACB */
+
+  /* Offset 0x168 */
+  char      jscbpgnm[8];             /* Job Step Program Name */
+} JSCB;
+
 #define GETDSAB_PLIST_LENGTH 16
 
 #define DSABFLG4_DSABHIER 0x10
@@ -1123,6 +1385,46 @@ typedef struct TIOTEntry_tag{
   int       tioejfcb;      /* this evil thing is 24 high bits of SWA index, and last byte of status bits */
 } TIOTEntry;
 
+/* Mapped by IRRPIDTA macro */
+
+/* IDTA Version */
+#define IDTA_VERSION_0001       0x0001  /* Version 1 of IDTA */
+#define IDTA_CURRENT_VERSION    0x0001
+
+#define IDTA_IDT_BUFFER_LEN_MIN 1024    /* Token Buffer Length Minimum Size (1024) */
+
+/* IDTA idt_type */
+#define IDTA_JWT_IDT_Type       0x0001  /* Indicates the token is a JWT */
+
+/* IDTA idt_prop_out flag */
+#define IDTA_SAF_IDT_RETURN     0x8000  /* Token was returned by SAF */
+#define IDTA_IDT_AUTH_DONE      0x4000  /* Token Authentication Complete */
+#define IDTA_IDT_SIGNED         0x2000  /* Token has a signature */
+
+/* IDTA idt_prop_in flag */
+#define IDTA_End_User_IDT       0x8000  /* Token is input from an end user */
+
+/* Idenitity Token Generation Return Code */
+#define IDTA_IDT_GEN_RC_SUCC          0
+#define IDTA_IDT_GEN_RC_UNSIGN        3
+#define IDTA_IDT_GEN_RC_ICSF_UNAVAIL  4
+#define IDTA_IDT_GEN_RC_ICSF_ERR      5
+
+
+typedef struct IDTA_tag {
+  char            id[4];      /* eyecatcher IDTA */
+  unsigned short  version;
+  unsigned short  length;
+  void * __ptr32  idtBufferPtr;
+  int             idtBufferLen;
+  int             idtLen;
+  unsigned short  idtType;
+  unsigned short  idtGenRc;
+  unsigned short  idtPropOut;
+  unsigned short  idtPropIn;
+  char            reserved[8];
+} IDTA;
+
 ZOWE_PRAGMA_PACK_RESET
 
 DSAB *getDSAB(char *ddname);
@@ -1132,6 +1434,7 @@ int dsabIsOMVS(DSAB *dsab);
 
 int locate(char *dsn, int *volserCount, char *firstVolser);
 
+#define VERIFY_GENERATE_IDT        0x800
 #define VERIFY_WITHOUT_LOG         0x400
 #define VERIFY_WITHOUT_STAT_UPDATE 0x200
 #define VERIFY_WITHOUT_MFA 0x100
@@ -1150,6 +1453,17 @@ int locate(char *dsn, int *volserCount, char *firstVolser);
 #define safVerify3 SAFVRFY3
 #define safVerify4 SAFVRFY4
 #define safVerify5 SAFVRFY5
+#define safVerify6 SAFVRFY6
+#define safVerify7 SAFVRFY7
+
+#ifndef __LONGNAME__
+
+#define safAuth SAFAUTH
+#define safAuthStatus SAFAUTHS
+#define safStat SAFSTAT
+#define getSafProfileMaxLen GETSAFPL
+
+#endif
 
 ACEE *getAddressSpaceAcee(void);
 ACEE *getTaskAcee(void);
@@ -1188,6 +1502,14 @@ int safVerify5(int options,
                char *applicationName,
                int  sessionType,
                int  *racfStatus, int *racfReason);
+
+int safVerify6(int options, char *userid, char *password,
+              ACEE **aceeHandle,
+              int *racfStatus, int *racfReason, IDTA *idta);
+
+int safVerify7(int options, char *userid, char *password,
+              ACEE **aceeHandle, char *appl,
+              int *racfStatus, int *racfReason, IDTA *idta);
 
 /* second flag set */
 #define SAF_AUTH_ATTR_ALTER       0x80 

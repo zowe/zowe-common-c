@@ -27,11 +27,6 @@
 #include "zowetypes.h"
 #include "zos.h"
 
-#ifndef METTLE
-  #ifdef _LP64
-  #error Metal C 31/64-bit and LE 31-bit are supported only
-  #endif
-#endif
 
 /*
  * System mappings. These need to be in sync with the official doc.
@@ -271,7 +266,7 @@ typedef struct RadminStatus_tag {
  * Specific wrapper data structures and definitions.
  */
 
-#pragma map(radminExtractUserProfiles, "RADMXUP")
+#pragma map(radminExtractProfiles, "RADMXPRF")
 #pragma map(radminExtractBasicUserProfileInfo, "RADMXBUP")
 #pragma map(radminExtractBasicGenresProfileInfo, "RADMXBRP")
 #pragma map(radminExtractBasicGroupProfileInfo, "RADMXBGP")

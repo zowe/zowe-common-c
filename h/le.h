@@ -39,13 +39,14 @@ ZOWE_PRAGMA_PACK
      0x218 holds CEECAACEDB
      */
 
+
 typedef struct CAA_tag{
   char   ceecaaflag0;
   char   reserved001;
   char   ceecaalangp;  /* PL/I flags */
   char   reserved003[5];
   Addr31 ceecaabos;           /* start of current storage segment */
-  Addr31 ceecaaeoc;           /* end of current storage segment */
+  Addr31 ceecaaeos;           /* end of current storage segment */
   char   reserved010[0x034];
   short  reserved044;
   short  ceecaatorc;          /* thread return code */
@@ -74,7 +75,16 @@ typedef struct CAA_tag{
   Addr31 ceecaaecov;     /* 0x234 routine vector, important */
   int    ceecaactofsv;   /* 0x238 what is this? */
   Addr31 ceecaatrtspcae; /* 0x23C Another routine vector ?? */
+#ifdef NEW_CAA_LOCATIONS
+  char   reserved240[16];
+  /* these two slots are occupied by Zowe Common C stuff and don't seem to have any use in LE currently */
+  Addr31 loggingContext; /* see logging text */
+  Addr31 rleTask;        /* normally reserved, but
+                              we use this for a pointer to the
+                              RLE Task */
+#else
   char   reserved240[24];
+#endif
   Addr31 ceecaaTCASrvUserWord; /* 0x258 */
   Addr31 ceecaaTCASrvWorkArea;
   Addr31 ceecaaTCASrvGetmain;
@@ -87,11 +97,15 @@ typedef struct CAA_tag{
   char   reserved27C[4];
   Addr31 ceecaalws;     /* 0x280 PL/I LWS */
   Addr31 ceecaasavr;    /* register save?  fer what?? */
+#ifdef NEW_CAA_LOCATIONS 
+  char   reserved288[36];
+#else
   char   reserved288[28];
   Addr31 loggingContext; /* see logging text */
   Addr31 rleTask;        /* normally reserved, but
-                              we use this for a pointer to the
-                              RLE Task */
+                            we use this for a pointer to the
+                            RLE Task */
+#endif
   char   ceecaasystm;   /* 0x2AC */
   char   ceecaahrdwr;
   char   ceecaasbsys;
@@ -168,12 +182,24 @@ typedef struct LibraryFunction_tag{
  */
 #define RLE_RTL_64      0x0001
 #define RLE_RTL_XPLINK  0x0002
+#define RLE_FLAGS_VERSIONED 0x0004
+
+#define RLE_ANCHOR_EYECATCHER "RLEANCHR"
+
+#define RLE_ANCHOR_VERSION 2
+#define RLE_ANCHOR_VERSION_USER_APPL_ANCHOR_SUPPORT 2
 
 typedef struct RLEAnchor_tag{
   char   eyecatcher[8]; /* RLEANCHR */
   int64  flags;
   CAA   *mainTaskCAA;
-  void **masterRTLVector; /* copied from CAA */
+  /* METAL libraries are in some system vector,
+     however, if applications want dynamic linking of their
+     services, there must be an anchor point for them, too */
+  PAD_LONG(0, void  *metalDynamicLinkageVector);
+  int32_t version;
+  uint32_t size;
+  PAD_LONG(1, void  *userApplicationAnchor);
 } RLEAnchor;
 
 /* An RLE Task can run in SRB mode or TCB Mode or switchably depending on run
@@ -193,9 +219,11 @@ typedef struct RLEAnchor_tag{
    are better off in 31-bit land
    */
 
+#define RLE_TASK_EYECATCHER "RTSK"
+
 /* Warning: must be kept in sync with RLETASK in scheduling.c */
 typedef struct RLETask_tag{
-  char         eyecatcher[4]; /* "RTSK"; */
+  char         eyecatcher[4]; /* "RTSK" */
 
   int          statusIndicator;
   int          flags;
@@ -220,8 +248,6 @@ typedef struct RLETask_tag{
     char threadDataFiller[32];
   };
 
-  int           sdwaBaseAddress;
-  char          sdwaCopy[SDWA_COPY_MAX];
 } RLETask;
 
 #ifdef __ZOWE_OS_ZOS
@@ -242,18 +268,19 @@ ZOWE_PRAGMA_PACK_RESET
 #define termRLEEnvironment LETMRLEE
 #define makeFakeCAA LEMKFCAA
 #define abortIfUnsupportedCAA LEARTCAA
+#define setRLEApplicationAnchor LESETANC
+#define getRLEApplicationAnchor LEGETANC
 
 #endif
 
-char *getCAA();
-void showRTL();
+char *getCAA(void);
+void showRTL(void);
 
 #else /*  not __ZOWE_OS_ZOS - */
 
 #define RLE_TASK_TCB_CAPABLE 0x0001
 #define RLE_TASK_RECOVERABLE 0x0010
 #define RLE_TASK_DISPOSABLE  0x0020
-
 
 typedef struct RLEAnchor_tag{
   char   eyecatcher[8]; /* RLEANCHR */
@@ -335,6 +362,22 @@ void termRLEEnvironment();
 char *makeFakeCAA(char *stackArea, int stackSize);
 
 void abortIfUnsupportedCAA();
+
+/**
+ * Set the user application field
+ * @param[in,out] anchor the RLE anchor.
+ * @param[in] applicationAnchor the application anchor.
+ * @return 0 if success, -1 if the RLE anchor is incompatible.
+ */
+int setRLEApplicationAnchor(RLEAnchor *anchor, void *applicationAnchor);
+
+/**
+ * Get the user application field
+ * @param[in] anchor the RLE anchor.
+ * @param[out] applicationAnchor the application anchor.
+ * @return 0 if success, -1 if the RLE anchor is incompatible.
+ */
+int getRLEApplicationAnchor(const RLEAnchor *anchor, void **applicationAnchor);
 
 #endif /* __LE__ */
 

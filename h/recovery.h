@@ -295,7 +295,7 @@ typedef struct RecoveryContext_tag {
   char sdumpxSaveArea[72];
 } RecoveryContext;
 
-typedef struct RecoveryStatePool_tag RecoveryStatePool;
+struct RecoveryStatePool_tag;
 
 ZOWE_PRAGMA_PACK_RESET
 
@@ -350,7 +350,6 @@ typedef struct RecoveryContext_tag {
 #define recoveryUpdateRouterServiceInfo RCVRURSI
 #define recoveryUpdateStateServiceInfo RCVRUSSI
 #define recoveryGetABENDCode RCVRGACD
-#define runFunctioninESTAE RCVRNFNE
 #endif
 
 #ifdef __ZOWE_OS_ZOS
@@ -401,7 +400,7 @@ int recoveryEstablishRouter(int flags);
 *   of the RC_RCV_xxxx error codes.
 *****************************************************************************/
 int recoveryEstablishRouter2(RecoveryContext *userContext,
-                             RecoveryStatePool *userStatePool,
+                             struct RecoveryStatePool_tag *userStatePool,
                              int flags);
 
 /*****************************************************************************
@@ -415,7 +414,7 @@ int recoveryEstablishRouter2(RecoveryContext *userContext,
 * Return value:
 *   State pool structure on success or NULL on failure.
 *****************************************************************************/
-RecoveryStatePool *recoveryMakeStatePool(unsigned int stateCount);
+struct RecoveryStatePool_tag *recoveryMakeStatePool(unsigned int stateCount);
 
 /*****************************************************************************
 * Remove a user state pool.
@@ -428,7 +427,7 @@ RecoveryStatePool *recoveryMakeStatePool(unsigned int stateCount);
 * Return value:
 *   N/A
 *****************************************************************************/
-void recoveryRemoveStatePool(RecoveryStatePool *statePool);
+void recoveryRemoveStatePool(struct RecoveryStatePool_tag *statePool);
 
 #endif /* RCVR_CPOOL_STATES */
 

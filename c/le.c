@@ -30,10 +30,14 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <stdarg.h>
-#include <sys/stat.h>
+
+#ifndef __ZOWE_OS_WINDOWS
+#include <strings.h>
 #include <unistd.h>
+#endif
+
+#include <sys/stat.h>
 
 #endif
 
@@ -68,16 +72,16 @@ LibraryFunction libraryFunctionTable[LIBRARY_FUNCTION_COUNT]
    { "fseek",   (void*)fseek,    NULL, NULL},
    { "fwrite",  (void*)fwrite,   NULL, NULL},
    { "malloc",  (void*)malloc,   NULL, NULL},
-   { "memchr",  (void*)memchr,   NULL, NULL},
-   { "memcmp",  (void*)memcmp,   NULL, NULL},
-   { "memcpy",  (void*)memcpy,   SRBCLEAN, SRBCLEAN },
+   /*   { "memchr",  (void*)memchr,   NULL, NULL}, */
+   /*   { "memcmp",  (void*)memcmp,   NULL, NULL}, */
+   /*   { "memcpy",  (void*)memcpy,   SRBCLEAN, SRBCLEAN }, */
    { "memmove", (void*)memmove,  NULL, NULL},
-   { "memset",  (void*)memset,   SRBCLEAN, SRBCLEAN },
+   /* { "memset",  (void*)memset,   SRBCLEAN, SRBCLEAN }, */
    { "printf",  (void*)printf,   NULL, NULL},
    { "qsort",   (void*)qsort,    NULL, NULL},
-   { "strcmp",  (void*)strcmp,   NULL, NULL},
-   { "strcpy",  (void*)strcpy,   NULL, NULL},
-   { "strlen",  (void*)strlen,   SRBCLEAN, SRBCLEAN },
+   /* { "strcmp",  (void*)strcmp,   NULL, NULL}, */
+   /* { "strcpy",  (void*)strcpy,   NULL, NULL}, */
+   /* { "strlen",  (void*)strlen,   SRBCLEAN, SRBCLEAN },*/
    { "strspn",   (void*)strspn,   NULL, NULL},
    { "strstr",  (void*)strstr,   NULL, NULL},
    { "strtok",  (void*)strtok,   NULL, NULL},
@@ -86,7 +90,7 @@ LibraryFunction libraryFunctionTable[LIBRARY_FUNCTION_COUNT]
 #endif
 };
 
-char *getCAA(){
+char *getCAA(void){
   char *realCAA = NULL;
 
 #if !defined(METTLE) && defined(_LP64)
@@ -162,15 +166,15 @@ static LibraryFunction *findLibraryFunction(int rtlVectorOffset){
 
 #define ESTIMATED_RTL_VECTOR_SIZE 0xB00
 
-void showRTL(){
+void showRTL(void){
   CAA *caa = (CAA*)getCAA();
   void **rtlVector = caa->runtimeLibraryVectorTable;
-  printf("RTL Vector at 0x%x\n",rtlVector);
+  printf("RTL Vector at 0x%p\n",rtlVector);
   dumpbuffer((char*)rtlVector,ESTIMATED_RTL_VECTOR_SIZE);
   int estimatedEntries = ESTIMATED_RTL_VECTOR_SIZE / 4;
   for (int i=2; i<estimatedEntries; i++){
     char *stub = rtlVector[i];
-    printf("i = %d offset=0x%03x at 0x%x\n",i,i*sizeof(int),stub);
+    printf("i = %d offset=0x%03x at 0x%p\n",i,(int)(i*sizeof(int)),stub);
     dumpbuffer(stub,0x40);
 
     int offset = i * 4;
@@ -187,7 +191,7 @@ void showRTL(){
 RLEAnchor *makeRLEAnchor(){
   RLEAnchor *anchor = (RLEAnchor*)safeMalloc31(sizeof(RLEAnchor),"RLEAnchor");
   memset(anchor,0,sizeof(RLEAnchor));
-  memcpy(anchor->eyecatcher,"RLEANCHR",8);
+  memcpy(anchor->eyecatcher,RLE_ANCHOR_EYECATCHER,8);
 
 #ifdef __ZOWE_OS_ZOS
 
@@ -202,14 +206,16 @@ RLEAnchor *makeRLEAnchor(){
 #ifdef METTLE
   CAA *caa = (CAA*)safeMalloc31(sizeof(CAA),"METTLE CAA");
   anchor->mainTaskCAA = caa;
-  anchor->masterRTLVector = NULL; /* we don't have one of these, yet */
 #else
   CAA *caa = (CAA*)getCAA();
   anchor->mainTaskCAA = caa;
-  anchor->masterRTLVector = caa->runtimeLibraryVectorTable;
 #endif
 
 #endif /* __ZOWE_OS_ZOS */
+
+  anchor->flags |= RLE_FLAGS_VERSIONED;
+  anchor->version = RLE_ANCHOR_VERSION;
+  anchor->size = sizeof(RLEAnchor);
 
   return anchor;
 }
@@ -240,9 +246,9 @@ void returnGlobalEnvironment(void){
 RLETask *makeRLETask(RLEAnchor *anchor,
                      int taskFlags,
                      int functionPointer(RLETask *task)){
-  RLETask *task = (RLETask*)safeMalloc31(sizeof(RLETask),"RTSK");
+  RLETask *task = (RLETask*)safeMalloc31(sizeof(RLETask),RLE_TASK_EYECATCHER);
   memset(task,0,sizeof(RLETask));
-  memcpy(task->eyecatcher,"RTSK",4);
+  memcpy(task->eyecatcher,RLE_TASK_EYECATCHER,4);
   task->flags = taskFlags;
   task->anchor = anchor;
   return task;
@@ -280,6 +286,27 @@ void termRLEEnvironment() {
 }
 #endif
 
+int setRLEApplicationAnchor(RLEAnchor *anchor, void *applicationAnchor) {
+  if (!(anchor->flags & RLE_FLAGS_VERSIONED)) {
+    return -1;
+  }
+  if (anchor->version < RLE_ANCHOR_VERSION_USER_APPL_ANCHOR_SUPPORT) {
+    return -1;
+  }
+  anchor->userApplicationAnchor = applicationAnchor;
+  return 0;
+}
+
+int getRLEApplicationAnchor(const RLEAnchor *anchor, void **applicationAnchor) {
+  if (!(anchor->flags & RLE_FLAGS_VERSIONED)) {
+    return -1;
+  }
+  if (anchor->version < RLE_ANCHOR_VERSION_USER_APPL_ANCHOR_SUPPORT) {
+    return -1;
+  }
+  *applicationAnchor = anchor->userApplicationAnchor;
+  return 0;
+}
 
 /*
   This program and the accompanying materials are

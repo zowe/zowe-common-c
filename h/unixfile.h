@@ -152,7 +152,7 @@ typedef struct BPXYSTAT_tag{
   int      ownerGID;
   int64    fileSize;
   int      lastAccessTime;  /* unix seconds for these time valus */
-  int      lastModficationTime;
+  int      lastModificationTime;
   int      lastFileStatusChangeTime;
   short    majorNumber; /* if special */
   short    minorNumber;
@@ -269,8 +269,8 @@ typedef struct BPXYATT_tag {
   /* End of Version 1 */
   int     fileFormat:8;
   int     reserved2:24;
-  int     fileTagCCSID:16;
-  int     fileTagFlags:16;
+  unsigned int fileTagCCSID:16;
+  unsigned int fileTagFlags:16;
   char    reserved3[8];
   /* End of Version 2 */
   int64   accessTime2;
@@ -393,6 +393,16 @@ int setFileTrace(int toWhat);
    reason code is perhaps platform specific debugging info
  */
 
+#ifndef __LONGNAME__
+
+#define fileWrite   FILWRITE
+#define fileGetChar FILGTCHR
+#define fileCopy    FILECOPY
+#define fileRename  FILRNAME
+#define fileDelete  FILDLETE
+
+#endif 
+
 UnixFile *fileOpen(const char *filename, int options, int mode, int bufferSize, int *returnCode, int *reasonCode);
 
 int fileRead(UnixFile *file, char *buffer, int desiredBytes, 
@@ -405,9 +415,16 @@ int fileGetChar(UnixFile *file, int *returnCode, int *reasonCode);
 
 int fileCopy(const char *existingFile, const char *newFile, int *retCode, int *resCode);
 
+int fileCopyConverted(const char *existingFileName, const char *newFileName,
+                      int existingCCSID, int newCCSID,
+                      int *retCode, int *resCode);
+
 int fileRename(const char *oldFileName, const char *newFileName, int *returnCode, int *reasonCode);
 
 int fileDelete(const char *fileName, int *returnCode, int *reasonCode);
+
+/* POSIX dirname() essentially, dirname must be aslong as max(10,path) */
+int fileDirname(const char *path, char *dirname);
 
 /* FileInfo is a generic, opaque typedef that contains a data structure that can give the following 
    info about a file 
@@ -474,6 +491,19 @@ int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode);
 
 #endif
 
+#ifndef __LONGNAME__ 
+
+#define fileInfoIsDirectory FNFOISDR 
+#define fileInfoSize        FNFOSIZE 
+#define fileInfoCCSID       FNFOCCID
+#define fileUnixCreaionime  FILUXCRT
+#define fileEOF             FILISOEF
+#define fileGetINode        FILGINOD
+#define fileGetDeviceID     FILDEVID
+#define fileClose           FILCLOSE
+
+#endif
+
 int fileInfoIsDirectory(const FileInfo *info);
 int64 fileInfoSize(const FileInfo *info);
 #if defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
@@ -481,11 +511,16 @@ int setFileInfoCCSID(int ccsid);
 #endif
 int fileInfoCCSID(const FileInfo *info);
 int fileInfoUnixCreationTime(const FileInfo *info);
+int fileInfoUnixModificationTime(const FileInfo *info);
 int fileUnixMode(const FileInfo *info);
 int fileEOF(const UnixFile *file);
 int fileGetINode(const FileInfo *file);
 int fileGetDeviceID(const FileInfo *file);
+int fileInfoOwnerGID(const FileInfo *file);
+int fileInfoOwnerUID(const FileInfo *file);
+
 int fileClose(UnixFile *file, int *returnCode, int *reasonCode);
+
 
 int directoryMake(const char *pathName, int mode, int *returnCode, int *reasonCode);
 int directoryDelete(const char *pathName, int *returnCode, int *reasonCode);

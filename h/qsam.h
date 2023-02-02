@@ -16,23 +16,30 @@
 #ifndef __LONGNAME__
 
 
-#define hasVaryingRecordLength HASVRLEN
-#define makeQSAMBuffer MKQSMBUF
-#define freeQSAMBuffer FRQSMBUF
-#define putlineV PUTLNEV
-#define getlineV GETLNEV
-#define getEODADBuffer GTEODBUF
-#define freeEODADBuffer FREODBUF
+#define malloc24 MALLOC24
+#define openSAM OPENSAM
 #define getSAMLength GTSAMLN
 #define getSAMBlksize GTSAMBS
 #define getSAMLrecl GTSAMLR
 #define getSAMCC GTSAMCC
 #define getSAMRecfm GTSAMRF
+#define putline PUTLINE
+#define getline GETLINE
+#define getEODADBuffer GTEODBUF
+#define freeEODADBuffer FREODBUF
+#define getline2 GETLINE2
+#define makeQSAMBuffer MKQSMBUF
+#define freeQSAMBuffer FRQSMBUF
+#define putlineV PUTLNEV
+#define getlineV GETLNEV
+#define closeSAM CLOSESAM
+#define openEXCP OPENEXCP
+#define closeEXCP CLOSEXCP
+#define hasVaryingRecordLength HASVRLEN
+#define bpamDeleteMember BPAMDELM
 #define bpamFind BPAMFIND
 #define bpamRead BPAMREAD
 #define bpamRead2 BPAMRD2
-#define openEXCP OPENEXCP
-#define closeEXCP CLOSEXCP
 
 #endif
 
@@ -117,15 +124,15 @@
 #define DCB_RECFM_FBS 0x98                                            
 #define DCB_RECFM_VBS 0x58                                            
 
-typedef __packed struct dcbExtension{ /* Aka, the DCBE */
+typedef _Packed struct dcbExtension{ /* Aka, the DCBE */
   char id[4];
   short int len;
   char rsvd006[2];
   void * __ptr32 dcb;
   unsigned int rela;
-  __packed union {
+  _Packed union {
     char flg1;       /* Set by OPEN processing */
-    __packed struct {
+    _Packed struct {
       int open : 1;
       int md31 : 1;
       int slbi : 1;
@@ -133,9 +140,9 @@ typedef __packed struct dcbExtension{ /* Aka, the DCBE */
       int rsvd010_4 : 4;
     };
   };
-  __packed union {
+  _Packed union {
     char flg2;       /* Set by requestor prior to OPEN */
-    __packed struct {
+    _Packed struct {
       int rmode31 : 1;
       int pasteod : 1;
       int rsvd011_2 : 1;
@@ -147,9 +154,9 @@ typedef __packed struct dcbExtension{ /* Aka, the DCBE */
     };
   };
   short int nstr;
-  __packed union {
+  _Packed union {
     char flg3;       /* Set by requestor prior to OPEN */
-    __packed struct {
+    _Packed struct {
       int large   : 1;
       int fixedbuf: 1;
       int eadscb  : 1;
@@ -170,8 +177,8 @@ typedef __packed struct dcbExtension{ /* Aka, the DCBE */
 } DCBExtension;
 
 /* map dcbDevice at 0 size is 20 */
-typedef __packed struct dcbDevice{
-  __packed struct dcbExtension * __ptr32 dcbe;
+typedef _Packed struct dcbDevice{
+  _Packed struct dcbExtension * __ptr32 dcbe;
   char unmapped[16]; /* A complex, device type sensitive, portion of the DCB that we do not need */
 } DCBDevice;
                                                                       
@@ -179,7 +186,7 @@ typedef __packed struct dcbDevice{
 #define DCB_COMMON_OFFSET 0x14                                        
 #define VB_RECORD_OFFSET 4
 
-typedef __packed struct dcbCommon{
+typedef _Packed struct dcbCommon{
   /* OFFSET 0x14 */
   char bufno;    /* 0 if no pool */                                   
   int  bufcb:24; /* buffer pool control block = 000001 if no pool */  
@@ -221,7 +228,7 @@ typedef __packed struct dcbCommon{
 /* map dcbBBQCommon at 52 (0x34) BSAM/BPAM/QSAM common - size 20 */
 #define DCB_BBQ_COMMON_OFFSET 0x34
                                                                       
-typedef __packed struct dcbBBQCommon {
+typedef _Packed struct dcbBBQCommon {
   char optionCodes;  /* OPTCD */
   int  check:24;     /* or internal QSAM ERROR RTN */
   int  synad;        /* synchns err rtn addr, =1 if not set */
@@ -237,7 +244,7 @@ typedef __packed struct dcbBBQCommon {
 /* map dcbBsamBpamInterface at 72 (0x48) */
 #define DCB_BSAM_BPAM_OFFSET 0x48
 
-typedef __packed struct dcbBsamBpamInterface{
+typedef _Packed struct dcbBsamBpamInterface{
   char ncp;      /* MAX NUM OF OUTSTANDING READ/WRITES */   
   int  eobr:24;  /* internal AM use */                      
   int  eobw;     /* internal AM use */                      
@@ -246,7 +253,7 @@ typedef __packed struct dcbBsamBpamInterface{
   int  cnp;      /* control, note, point */                 
 } DCBBBQInterface;
 
-typedef __packed struct {
+typedef _Packed struct {
   DCBDevice Device;
   DCBCommon Common;
   DCBBBQCommon BBQCommon;
@@ -256,7 +263,7 @@ typedef __packed struct {
 /* There is lots of code that adds 4 bytes to skip past the DCB
    open list that preceeds the DCB.  Do not declare additional
    variables prior to the DCB.                                 */
-typedef __packed struct {
+typedef _Packed struct {
   union {
     DCBSAM * __ptr32 OpenCloseList;
     unsigned int OpenCloseListOptions;
@@ -279,7 +286,7 @@ typedef __packed struct {
 #define OPEN_CLOSE_EXTEND  0x0E000000
 #define OPEN_CLOSE_OUTINX  0x06000000
 
-typedef __packed struct {
+typedef _Packed struct {
   char flag1;
   char flag2;
   char sens0;
@@ -295,7 +302,7 @@ typedef __packed struct {
   char seek[8];
 } IOB;
 
-typedef __packed struct DECB_tag{
+typedef _Packed struct DECB_tag{
   int ecb;
   char type1;  /* 0x80 - "S" coded for length */
   char type2;  /* 0x80 is a suggestion */

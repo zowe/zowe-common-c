@@ -11,8 +11,13 @@
 #ifndef RS_ICSFP11_H_
 #define RS_ICSFP11_H_
 
+#ifdef __ZOWE_OS_ZOS
 #include <csnpdefs.h>
 #include <csfbext.h>
+#else
+typedef char CK_UTF8CHAR;
+typedef char CK_CHAR;
+#endif
 
 typedef struct RS_ICSFP11_HANDLE_tag {
   char tokenName[32];
@@ -103,10 +108,13 @@ int rs_icsfp11_getRandomBytes(const ICSFP11_HANDLE_T *token_handle,
                               unsigned char *randbuf, int *randbuf_len,
                               int *out_rc, int *out_reason);
 
+/* JOE - this is a duplicate of a later header */
+/*
 int rs_icsfp11_createToken(const char *in_name,
                            ICSFP11_TOKENATTRS_T *in_tokenattrs,
                            ICSFP11_HANDLE_T **out_handle,
                            int *out_rc, int *out_reason);
+*/
 
 /**
  * If the token with the specified name exists, and the current user has access it,
@@ -158,7 +166,7 @@ int rs_icsfp11_findObjectsByLabel(
 int rs_icsfp11_findObjectsByLabelAndClass(
                     const ICSFP11_HANDLE_T *in_token_handle,
                     const char *in_label,
-                    CK_ULONG in_objectClass,
+                    unsigned int in_objectClass,
                     const char *in_appname,
                     ICSFP11_HANDLE_T **out_handles,
                     int *out_numfound,
@@ -188,14 +196,6 @@ int rs_icsfp11_getObjectApplicationAttribute(const ICSFP11_HANDLE_T *in_object_h
 int rs_icsfp11_getObjectValue(const ICSFP11_HANDLE_T *in_object_handle,
                               unsigned char* out_value, int* out_value_len,
                               int *out_rc, int *out_reason);
-
-/**
- * Create a token by name (max 32 chars).
- */
-int rs_icsfp11_createToken(const char *in_name,
-                           const ICSFP11_TOKENATTRS_T *in_tokenattrs,
-                           ICSFP11_HANDLE_T **out_handle,
-                           int *out_rc, int *out_reason);
 
 /**
  * Delete a token by handle, or by name.

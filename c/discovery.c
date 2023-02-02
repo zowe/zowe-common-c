@@ -97,6 +97,9 @@ DiscoveryContext *makeDiscoveryContext(ShortLivedHeap *outerSLH, ZOSModel *model
   context->slh = slh;
   
   context->model = model;
+  zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG,
+          "mDCntxt() model=%p pSN=\'%.16s\'\n", model,
+          model ? model->privilegedServerName.nameSpacePadded : "");
   if (model != NULL) {
     context->privilegedServerName = model->privilegedServerName;
   } else {
@@ -256,7 +259,7 @@ static ASCB *getASCBByASID(int asid){
   CVT *cvt = getCVT();
   ASVT *asvt = (ASVT*)cvt->cvtasvt;
   
-  ASCB *ascb = (ASCB*)asvt->asvtenty;
+  ASCB *ascb = (ASCB*)INT2PTR(asvt->asvtenty);
   while (ascb){
     if (ascb->ascbasid == asid){
       return ascb;
@@ -315,12 +318,34 @@ static int walkTCBs1(DiscoveryContext *context,
   return 0;
 }
 
+
+int walkTCBs(DiscoveryContext *context,
+	     ASCB *ascb,
+	     TCB *tcb,
+	     void (*visitor)(DiscoveryContext *discoveryContext,
+			     void   *visitorContext,
+			     int     depth,
+			     ASCB   *ascb,
+			     TCB    *tcb,
+			     char   *mustBeNull),
+	     void *visitorContext){
+  if (ascb){
+    ASXB *asxb = (ASXB*)ascb->ascbasxb;
+    TCB *firstTCB = (TCB*)getStructCopy(context,ascb,0,asxb->asxbftcb,sizeof(TCB));
+    walkTCBs1(context,ascb,firstTCB,(TCB*)ANY_TCB,0,visitor,visitorContext,NULL);
+  }
+  return 0;
+}
+
+
 static void visitSSCTEntry(DiscoveryContext *context, 
                            SSCT *ssctChain, GDA *gda, int subsystemTypeMask,
                            char *specificBestName){
   zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "SSCT %.4s at 0x%x specificBestName ptr is 0x%x\n",&(ssctChain->sname),ssctChain,specificBestName);fflush(stdout);
-  dumpbuffer((char*)ssctChain,sizeof(SSCT));
-  void *usr1 = (void*)ssctChain->ssctsuse;
+  if (context->ssctTraceLevel >= 1){
+    dumpbuffer((char*)ssctChain,sizeof(SSCT));
+  }
+  void *usr1 = (void*)INT2PTR(ssctChain->ssctsuse);
   zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "user pointer at 0x%x COMMON?=%s\n",usr1,isPointerCommon(gda,usr1) ? "YES" : "NO");
   if (isPointerCommon(gda,usr1)){
     if (context->ssctTraceLevel >= 1){
@@ -329,7 +354,7 @@ static void visitSSCTEntry(DiscoveryContext *context,
     char *sname = &(ssctChain->sname[0]);
     char *usrData = (char*)usr1;
     zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "sname=%4.4s\n",sname);
-    if (!memcmp(sname,"CICS",4)){
+    if (!memcmp(sname,"CICS",4) && (context->ssctTraceLevel >= 1)){
       dumpbuffer(usrData+0x08,6);
     }
     fflush(stdout);
@@ -425,7 +450,7 @@ static void ispfAnchorVisitor(DiscoveryContext *context,
            */
         if (tcbfsa[10] == *((int*)"ISPF")){
           /* printf("WOO HOO\n"); */
-          int *tldHandle = (int*)tcbfsa[6];
+          int *tldHandle = (int*)INT2PTR(tcbfsa[6]);
           int *tldPtr = (int*)((int*)getStructCopy(context,ascb,0,tldHandle,4))[0];
           /* printf("tldPtr=0x%x\n",tldPtr); */
           if (tldPtr){
@@ -559,7 +584,9 @@ int findSessions(DiscoveryContext *context,
     memcpy(nmiBuffer->filters[0].NWMFilterResourceName,"TN3270  ",8);   /* is this wrong if TN3270 is not name of TN3270 sever */
 
     zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "request\n");
-    dumpbuffer((char*)nmiBuffer,0x100);
+    if (context->vtamTraceLevel >= 1){
+      dumpbuffer((char*)nmiBuffer,0x100);
+    }
     attempts++;
 
     ZISNWMJobName jobName = {.value = "TCPIP   "};
@@ -712,6 +739,7 @@ int findSessions(DiscoveryContext *context,
       break;   /* if we ever get a good result, leave the while loop */
     }
   }
+  return 0;
 }
 
 /************************** ZOS Model Maintenance ********************************/
@@ -733,7 +761,7 @@ static void gatherStartedTasks(DiscoveryContext *context, ZOSModel *model){
   StartedTaskVisitor *userVisitor = model ? model->startedTaskVisitor : NULL;
   void* userVisitorData = model ? model->visitorsData : NULL;
 
-  ASCB *ascb = (ASCB*)asvt->asvtenty;
+  ASCB *ascb = (ASCB*)INT2PTR(asvt->asvtenty);
   while (ascb){
     char *jobname = getASCBJobname(ascb);
     char *jobnameCopy = SLHAlloc(context->slh,12);
@@ -792,13 +820,13 @@ static void scanTSBs(ZOSModel *model){
         zowedump(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG2,(char*)tsbxCopy,sizeof(IKTTSBX));
       }
       TSBInfo *tsbInfo = (TSBInfo*)SLHAlloc(model->tsbScanSLH,sizeof(TSBInfo));
-      tsbInfo->ascb = (ASCB*)(tsbCopy->tcbstatAndASCB & 0x00FFFFFF);
+      tsbInfo->ascb = (ASCB*)INT2PTR(tsbCopy->tcbstatAndASCB & 0x00FFFFFF);
       tsbInfo->tsb = tsbCopy;
       tsbInfo->tsbx = tsbxCopy;
       char     *luname = &(tsbCopy->tsbtrmid[0]);
       htPut(tsbTable,luname,tsbInfo);
 
-      tsb = (IKJTSB*)(tsbxCopy->flagAndFwdPointer&0xFFFFFF);
+      tsb = (IKJTSB*)INT2PTR(tsbxCopy->flagAndFwdPointer&0xFFFFFF);
     } else{
       tsb = NULL;
     }
@@ -896,7 +924,10 @@ ZOSModel *makeZOSModel2(CrossMemoryServerName *privilegedServerName,
 
   model->slowScanExpiry = DEFAULT_SSCT_INTERVAL;
   if (privilegedServerName != NULL) {
+    zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG,
+            "makeZOSModel case 1 %p\n", privilegedServerName);
     model->privilegedServerName = *privilegedServerName;
+    dumpbuffer((char*)&(model->privilegedServerName),16);
   } else  {
     model->privilegedServerName = zisGetDefaultServerName();
   }

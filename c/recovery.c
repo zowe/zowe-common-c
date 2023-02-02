@@ -17,12 +17,16 @@
 #include <metal/stdio.h>
 #include <metal/stdlib.h>
 #include <metal/string.h>
+#include <metal/stdint.h>
+#include <metal/inttypes.h>
 #include "metalio.h"
 #else
 #include "stddef.h"
 #include "stdlib.h"
 #include "stdio.h"
 #include "string.h"
+#include "stdint.h"
+#include "inttypes.h"
 #endif
 
 #include "zowetypes.h"
@@ -68,7 +72,7 @@ struct sigaction prevSIGSEGVAction;
 #ifdef __ZOWE_OS_ZOS
 
 #ifndef METTLE
-#if (!defined(_LP64) && defined(__XPLINK__)) || (defined(_LP64) && !defined(__XPLINK__))
+#if (defined(_LP64) && !defined(__XPLINK__))
 #error "unsupported linkage convention"
 #endif
 #endif
@@ -466,7 +470,7 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         USING RCVCTX,11                                                \n"
       "         CLC   RCXEYECT,=C'RSRCVCTX' EYECATHER IS VALID?                \n"
       "         BNE   RCVRET              NO, LEAVE                            \n"
-#if !defined(METTLE) && !defined(_LP64)
+#if !defined(METTLE) && !defined(__XPLINK__)
       /* check if the LE ESTAE needs to handle this */
       "         L     12,RCXCAA           LOAD CAA                             \n"
       "         USING CEECAA,12                                                \n"
@@ -530,6 +534,17 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         LG    5,RSTAFEV           ANALYSIS FUNCTION ENVIRONMENT        \n"
       "         BASR  7,6                 CALL ANALYSIS FUNCTION               \n"
       "         NOPR  0                                                        \n"
+#elif !defined(METTLE) && defined(__XPLINK__) /* 31 by elimination */
+      "         LR    1,11                CONTEXT AS THE FIRST PARM            \n"
+      "         LR    2,9                 SDWA AS THE SECOND PARM              \n"
+      "         L     3,RSTAFUD           USER DATA AS THE THIRD PARM          \n"
+      "         LG    4,RSTRGPR+32        STACK                                \n"
+      "         LG    12,RSTRGPR+96       CAA                                  \n"
+      "         LLGT  6,RSTAFEP           ANALYSIS FUNCTION ENTRY POINT        \n"
+      "         LG    5,RSTAFEV           ANALYSIS FUNCTION ENVIRONMENT        \n"
+      "         BASR  7,6                 CALL ANALYSIS FUNCTION               \n"
+      "         DC    XL2'4700'                                                \n"
+      "         DC    XL2'0000'                                                \n"
 #else
 #ifdef _LP64
       "         STG   11,RSTUFPB          SAVE CONTEXT AS THE FIRST PARM       \n"
@@ -602,6 +617,17 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         LG    5,RSTCFEV           CLEAN-UP FUNCTION ENVIRONMENT        \n"
       "         BASR  7,6                 CALL CLEAN-UP FUNCTION               \n"
       "         NOPR  0                                                        \n"
+#elif !defined(METTLE) && defined(__XPLINK__) /* by elimination */
+      "         LR    1,11                CONTEXT AS THE FIRST PARM            \n"
+      "         LR    2,9                 SDWA AS THE SECOND PARM              \n"
+      "         L     3,RSTCFUD           USER DATA AS THE THIRD PARM          \n"
+      "         LG    4,RSTRGPR+32        STACK                                \n"
+      "         LG    12,RSTRGPR+96       CAA                                  \n"
+      "         LLGT  6,RSTCFEP           CLEAN-UP FUNCTION ENTRY POINT        \n"
+      "         LG    5,RSTCFEV           CLEAN-UP FUNCTION ENVIRONMENT        \n"
+      "         BASR  7,6                 CALL CLEAN-UP FUNCTION               \n"
+      "         DC    XL2'4700'                                                \n"
+      "         DC    XL2'0000'                                                \n"
 #else
 #ifdef _LP64
       "         STG   11,RSTUFPB          SAVE CONTEXT AS THE FIRST PARM       \n"
@@ -1563,6 +1589,17 @@ static RecoveryStateEntry *addRecoveryStateEntry(RecoveryContext *context, char 
     newEntry->cleanupFunctionEnvironment = ((uint64 *)userCleanupFunction)[0];
     newEntry->cleanupFunctionEntryPoint = ((void **)userCleanupFunction)[1];
   }
+#elif !defined(METTLE) && defined(__XPLINK__) /* 31 by elimination */
+  if (userAnalysisFunction != NULL) {
+    uint32_t *xplink31FunctionPointerBlob = (uint32_t*)userAnalysisFunction;
+    newEntry->analysisFunctionEnvironment = (uint64_t)xplink31FunctionPointerBlob[4];
+    newEntry->analysisFunction  = (void *__ptr32)xplink31FunctionPointerBlob[5];
+  }
+  if (userCleanupFunction != NULL) {
+    uint32_t *xplink31FunctionPointerBlob = (uint32_t*)userCleanupFunction;
+    newEntry->cleanupFunctionEnvironment  = (uint64_t)xplink31FunctionPointerBlob[4];
+    newEntry->cleanupFunctionEntryPoint   = (void *__ptr32)xplink31FunctionPointerBlob[5];
+  }
 #else
   newEntry->analysisFunction = (void * __ptr32 )userAnalysisFunction;
   newEntry->cleanupFunctionEntryPoint = (void * __ptr32 )userCleanupFunction;
@@ -1705,6 +1742,7 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
     return RC_RCV_ALLOC_FAILED;
   }
 
+
   newEntry->linkageStackToken = linkageStackToken;
 
   /* Extract key from the newly created stacked state. IPK cannot be used
@@ -1742,13 +1780,15 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
       "         LA    11,L'RSTSTFR       SIZE OF STACK FRAME BUFFER            \n"
 #if defined(_LP64) && !defined(METTLE)
       "         LA    14,2048(4)         ADDRESS OF STACK FRAME                \n"
+#elif defined(__XPLINK__) && !defined(METTLE)
+      "         LA    14,2048(4)         ADDRESS OF STACK FRAME                \n"
 #else
       "         LGR   14,13              ADDRESS OF STACK FRAME                \n"
 #endif
       "         LGR   15,11              SIZE OF STACK FRAME                   \n"
       "         STMG  0,15,RSTRGPR       SAVE GRPs FOR RETRY                   \n"
       "         MVCL  10,14              SAVE STACK FRAME                      \n"
-#if !defined(_LP64)
+#if !defined(_LP64) && !defined(__XPLINK__)
       "         L     10,4(13)           ADDRESS OF PREVIOUS SAVE AREA         \n"
       "         MVC   RSTCGPR(60),12(10) CALLER'S REGISTERS                    \n"
 #elif defined(_LP64) && defined(METTLE)
@@ -1767,7 +1807,7 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
       "         LLC   2,RSTKEY           LOAD KEY TO R2                        \n"
       "         SPKA  0(2)               RESTORE KEY                           \n"
       "         MVCL  14,10              RESTORE STACK FRAME ON RETRY          \n"
-#if !defined(_LP64)
+#if !defined(_LP64) && !defined(__XPLINK__) 
       "         L     10,4(13)           ADDRESS OF PREVIOUS SAVE AREA         \n"
       "         MVC   12(60,10),RSTCGPR  RESTORE CALLER'S REGISTERS            \n"
 #elif defined(_LP64) && defined(METTLE)
@@ -2004,9 +2044,9 @@ void recoveryGetABENDCode(SDWA *sdwa, int *completionCode, int *reasonCode) {
 
   if (flag & 0x04) {
     char *sdwadata = (char*)sdwa;
-    SDWAPTRS *sdwaptrs = (SDWAPTRS *)(sdwa->sdwaxpad);
+    SDWAPTRS *sdwaptrs = (SDWAPTRS *)INT2PTR(sdwa->sdwaxpad);
     if (sdwaptrs != NULL) {
-      char *sdwarc1 = (char *)sdwaptrs->sdwasrvp;
+      char *sdwarc1 = (char *)INT2PTR(sdwaptrs->sdwasrvp);
       if (sdwarc1 != NULL) {
         rsn = *(int * __ptr32)(sdwarc1 + 44);
       }

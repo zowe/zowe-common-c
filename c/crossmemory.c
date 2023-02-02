@@ -35,6 +35,7 @@
 #include "lpa.h"
 #include "nametoken.h"
 #include "zos.h"
+#include "recovery.h"
 #include "printables_for_dump.h"
 #include "qsam.h"
 #include "resmgr.h"
@@ -71,12 +72,81 @@ const CrossMemoryServerName CMS_DEFAULT_SERVER_NAME = {CROSS_MEMORY_DEFAULT_SERV
 
 const char *CMS_RC_DESCRIPTION[] = {
   [RC_CMS_OK] = "Ok",
+  [RC_CMS_ERROR] = "Error",
+  [RC_CMS_PARM_NULL] = "PC handler parameter list is NULL",
+  [RC_CMS_PARM_BAD_EYECATCHER] = "Cross-memory server parameter list has an invalid eyecatcher",
+  [RC_CMS_FUNCTION_ID_OUT_OF_RANGE] = "Service ID is out of range",
+  [RC_CMS_GLOBAL_AREA_NULL] = "Global area address is NULL",
+  [RC_CMS_GLOBAL_AREA_BAD_EYECATCHER] = "Global area has an invalid eyecatcher",
+  [RC_CMS_SERVER_NULL] = "Server address is NULL in global area",
+  [RC_CMS_FUNCTION_NULL] = "Service function address is NULL",
+  [RC_CMS_AXSET_FAILED] = "PC not set, AXSET failed",
+  [RC_CMS_LXRES_FAILED] = "PC not set, LXRES failed",
+  [RC_CMS_ETCRE_FAILED] = "PC not set, build entry table failed",
+  [RC_CMS_ETCON_FAILED] = "PC not set, ETCON failed",
+  [RC_CMS_DUPLICATE_SERVER] = "A duplicate server is running",
+  [RC_CMS_ISGENQ_FAILED] = "Server not locked, ISGENQ failed",
+  [RC_CMS_ECSA_ALLOC_FAILED] = "ECSA storage allocation failed",
+  [RC_CMS_NAME_TOKEN_CREATE_FAILED] = "Global area name/token not created",
+  [RC_CMS_SERVER_NOT_AVAILABLE] = "Server not available",
+  [RC_CMS_NAME_TOKEN_NOT_FOUND] = "Global area name/token not found",
+  [RC_CMS_NAME_TOKEN_BAD_EYECATCHER] = "Global area name/token has an invalid eyecatcher",
+  [RC_CMS_LPA_ADD_FAILED] = "Module not loaded into LPA",
+  [RC_CMS_LPA_DELETE_FAILED] = "Module not deleted from LPA",
   [RC_CMS_SERVER_NOT_READY] = "Server is not running",
+  [RC_CMS_NAME_TOKEN_DELETE_FAILED] = "Global area name/token not deleted",
+  [RC_CMS_RACF_ROUTE_LIST_FAILED] = "RACROUTE list failed",
   [RC_CMS_PERMISSION_DENIED] = "Permission denied",
-  [RC_CMS_SERVER_ABENDED] = "Cross-memory call ABENDed",
+  [RC_CMS_PC_ENV_NOT_ESTABLISHED] = "PC environment not established",
+  [RC_CMS_PC_ENV_NOT_TERMINATED] = "PC environment not terminated",
+  [RC_CMS_PC_SERVICE_ABEND_DETECTED] = "PC service abended",
+  [RC_CMS_PC_RECOVERY_ENV_FAILED] = "PC recovery environment failed",
+  [RC_CMS_SERVER_ABENDED] = "Cross-memory server abended",
+  [RC_CMS_VSNPRINTF_FAILED] = "vsnprintf failed",
+  [RC_CMS_MESSAGE_TOO_LONG] = "Message too long",
+  [RC_CMS_LOGGING_CNTX_NOT_FOUND] = "Logging context not found",
+  [RC_CMS_RECOVERY_CNTX_NOT_FOUND] = "Recovery context not found",
+  [RC_CMS_SERVICE_NOT_INITIALIZED] = "Service is not initialized",
+  [RC_CMS_ZVT_NULL] = "ZVT is NULL",
+  [RC_CMS_ZVTE_NULL] = "ZVTE is NULL",
+  [RC_CMS_ZVTE_NOT_ALLOCATED] = "ZVTE allocation failed",
+  [RC_CMS_SERVICE_NOT_RELOCATABLE] = "Service function out of range, service not relocated",
+  [RC_CMS_MAIN_LOOP_FAILED] = "Main loop unexpectedly terminated",
+  [RC_CMS_IMPROPER_SERVICE_AS] = "Invalid service address space",
+  [RC_CMS_BAD_SERVER_KEY] = "Core server started with wrong key",
+  [RC_CMS_RESMGR_NOT_ADDED] = "RESMGR not added",
+  [RC_CMS_RESMGR_NOT_REMOVED] = "RESMGR not removed",
+  [RC_CMS_RESMGR_NOT_LOCKED] = "RESMGR not locked",
+  [RC_CMS_RESMGR_NAMETOKEN_FAILED] = "RESMGR name/token not retrieved",
   [RC_CMS_WRONG_SERVER_VERSION] = "Wrong server version",
+  [RC_CMS_LATENT_PARM_NULL] = "Latent parameter is NULL",
+  [RC_CMS_USER_PARM_NULL] = "Cross-memory server parameter list is NULL",
+  [RC_CMS_PC_HDLR_PARM_BAD_EYECATCHER] = "PC handler parameter list has an invalid eyecatcher",
+  [RC_CMS_ZERO_PC_NUMBER] = "PC is unavailable",
   [RC_CMS_WRONG_CLIENT_VERSION] = "Wrong client version",
+  [RC_CMS_ZVTE_CHAIN_LOOP] = "Potential loop in the ZVTE chain detected",
+  [RC_CMS_ZVTE_CHAIN_NOT_LOCKED] = "ZVTE chain is not locked",
+  [RC_CMS_ZVTE_CHAIN_NOT_RELEASED] = "ZVTE chain is not released",
+  [RC_CMS_SNPRINTF_FAILED] = "snprintf failed",
+  [RC_CMS_SLH_NOT_CREATED] = "Short lived heap is not created",
+  [RC_CMS_MSG_QUEUE_NOT_CREATED] = "Message queue is not created",
+  [RC_CMS_CONFIG_HT_NOT_CREATED] = "Server config hash table is not created",
+  [RC_CMS_SLH_ALLOC_FAILED] = "Short lived heap memory allocation failed",
+  [RC_CMS_UNKNOWN_PARM_TYPE] = "Unknown config parameter type",
+  [RC_CMS_CONFIG_PARM_NAME_TOO_LONG] = "Config parameter key name is too long",
+  [RC_CMS_CHAR_PARM_TOO_LONG] = "Value of config parameter is too long",
+  [RC_CMS_CONFIG_PARM_NOT_FOUND] = "Config parameter not found",
+  [RC_CMS_STDSVC_PARM_NULL] = "Service parameter list is NULL",
+  [RC_CMS_STDSVC_PARM_BAD_EYECATCHER] = "Service parameter list has an invalid eyecatcher",
+  [RC_CMS_NOT_APF_AUTHORIZED] = "Cross-memory server is not APF-authorized",
+  [RC_CMS_NO_STEPLIB] = "STEPLIB not found",
+  [RC_CMS_MODULE_NOT_IN_STEPLIB] = "Cross-memory server module not found in STEPLIB",
   [RC_CMS_SERVER_NAME_NULL] = "Server name is NULL",
+  [RC_CMS_SERVICE_ENTRY_OCCUPIED] = "Service entry already occupied",
+  [RC_CMS_NO_STORAGE_FOR_MSG] = "No storage in the message queue",
+  [RC_CMS_ALLOC_FAILED] = "Storage allocation failed",
+  [RC_CMS_NON_PRIVATE_MODULE] = "Module is loaded from common storage, ensure module is valid in STEPLIB",
+  [RC_CMS_BAD_DUB_STATUS] = "Bad dub status, verify that the started task user has an OMVS segment",
   [RC_CMS_MAX_RC + 1] = NULL
 };
 
@@ -482,7 +552,7 @@ typedef struct CrossMemoryServerDumpServiceParm_tag {
 
 #define CMS_DUMP_SERVICE_PARM_EYECATCHER  "ZWESXDSV"
 #define CMS_DUMP_SERVICE_VERSION          1
-  // TODO we can improve the data size limit by passing the data address itself
+  /*  TODO we can improve the data size limit by passing the data address itself */
 #define CMS_DUMP_SERVICE_MAX_DATA_SIZE    512
 #define CMS_DUMP_SERVICE_MAX_DESC_SIZE    32
 
@@ -532,7 +602,16 @@ static void initLogMessagePrefix(LogMessagePrefix *prefix) {
   ASCB *ascb = getASCB();
   char *jobName = getASCBJobname(ascb);
   TCB *tcb = getTCB();
-  snprintf(prefix->text, sizeof(prefix->text), "%22.22s %8.8s %08X(%04X) %08X  ", currentTime.text, jobName, ascb, ascb->ascbasid, tcb);
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wpointer-to-int-cast"
+#endif
+  snprintf(prefix->text, sizeof(prefix->text), "%22.22s %8.8s %08X(%04X) %08X  ",
+           currentTime.text, jobName, (unsigned) ascb, ascb->ascbasid,
+           (unsigned) tcb);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
   prefix->text[sizeof(prefix->text) - 1] = ' ';
 }
 
@@ -562,7 +641,7 @@ static void printWithPrefix(LoggingContext *context, LoggingComponent *component
     if (lineIdx == 0) {
       initLogMessagePrefix(&prefix);
     }
-    printf("%.*s%.*s\n", sizeof(prefix.text), prefix.text, nextLineLength, nextLine);
+    printf("%.*s%.*s\n", (int)sizeof(prefix.text), prefix.text, (int)nextLineLength, nextLine);
     nextLine += (nextLineLength + 1);
   }
 
@@ -941,25 +1020,21 @@ int cmsAddConfigParm(CrossMemoryServer *server,
   return RC_CMS_OK;
 }
 
-ZOWE_PRAGMA_PACK
-
-typedef struct RACFEnityName_tag {
+typedef struct SAFEnityName_tag {
   short bufferLength;
   short entityLength;
   char entityName[255];
   char padding[7];
-} RACFEnityName;
+} SAFEnityName;
 
-typedef enum RACFAccessAttribute_tag {
-  RACF_ACCESS_ATTRIBUTE_READ = 0x02,
-  RACF_ACCESS_ATTRIBUTE_UPDATE = 0x04,
-  RACF_ACCESS_ATTRIBUTE_CONTROL = 0x08,
-  RACF_ACCESS_ATTRIBUTE_ALTER = 0x08,
-} RACFAccessAttribute;
+typedef enum SAFAccessAttribute_tag {
+  SAF_ACCESS_ATTRIBUTE_READ = 0x02,
+  SAF_ACCESS_ATTRIBUTE_UPDATE = 0x04,
+  SAF_ACCESS_ATTRIBUTE_CONTROL = 0x08,
+  SAF_ACCESS_ATTRIBUTE_ALTER = 0x08,
+  } SAFAccessAttribute;
 
-ZOWE_PRAGMA_PACK_RESET
-
-static void racfEntityNameInit(RACFEnityName *string, char *cstring, char padChar) {
+static void safEntityNameInit(SAFEnityName *string, char *cstring, char padChar) {
   memset(string->entityName, padChar, sizeof(string->entityName));
   unsigned int cstringLength = strlen(cstring);
   unsigned int copyLength = cstringLength > sizeof(string->entityName) ? sizeof(string->entityName) : cstringLength;
@@ -1127,7 +1202,7 @@ static int racrouteLIST(char *className, int *racfRC, int *racfRSN) {
 
 __asm("GLBFSTAP RACROUTE REQUEST=FASTAUTH,MF=L" : "DS"(GLBFSTAP));
 
-static int racroutFASTAUTH(ACEE *acee, char *className, char *profileName, RACFAccessAttribute accessLevel,
+static int racroutFASTAUTH(ACEE *acee, char *className, char *profileName, SAFAccessAttribute accessLevel,
                            int *racfRC, int *racfRSN, int traceLevel) {
 
   __asm("GLBFSTAP RACROUTE REQUEST=FASTAUTH,MF=L" : "DS"(fastauthParmList));
@@ -1140,8 +1215,8 @@ static int racroutFASTAUTH(ACEE *acee, char *className, char *profileName, RACFA
 
   EightCharString class;
   eightCharStringInit(&class, className, ' ');
-  RACFEnityName profile;
-  racfEntityNameInit(&profile, profileName, ' ');
+  SAFEnityName profile;
+  safEntityNameInit(&profile, profileName, ' ');
 
   int safRC = 0;
 
@@ -1185,6 +1260,8 @@ static bool isAuthCheckRequired(const CrossMemoryServerGlobalArea *globalArea) {
 }
 
 static bool isCallerAuthorized(CrossMemoryServerGlobalArea *globalArea,
+                               char *className,
+                               char *entityName,
                                bool noSAFRequested) {
 
   if (noSAFRequested) {
@@ -1212,12 +1289,32 @@ static bool isCallerAuthorized(CrossMemoryServerGlobalArea *globalArea,
   }
 
   int racfRC = 0, racfRSN = 0;
-  int safRC = racroutFASTAUTH(callerACEEAddr, "FACILITY", CROSS_MEMORY_SERVER_RACF_PROFILE, RACF_ACCESS_ATTRIBUTE_READ, &racfRC, &racfRSN, 0);
+  int safRC = racroutFASTAUTH(callerACEEAddr, className, entityName, SAF_ACCESS_ATTRIBUTE_READ, &racfRC, &racfRSN, 0);
   if (safRC != 0) {
     return FALSE;
   }
 
   return TRUE;
+}
+
+bool cmsTestAuth(CrossMemoryServerGlobalArea *globalArea,
+                  const char *className,
+                  const char *entityName) {
+  ACEE callerACEE;
+  ACEE *callerACEEAddr = NULL;
+  cmGetCallerAddressSpaceACEE(&callerACEE, &callerACEEAddr);
+  if (callerACEEAddr == NULL) {
+    return FALSE;
+  }
+  int racfRC = 0, racfRSN = 0;
+  int safRC = racroutFASTAUTH(callerACEEAddr, (char *)className,
+                              (char *)entityName,
+                              SAF_ACCESS_ATTRIBUTE_READ, &racfRC, &racfRSN, 0);
+  if (safRC != 0) {
+    return FALSE;
+  }
+  return TRUE;
+
 }
 
 ZOWE_PRAGMA_PACK
@@ -1510,6 +1607,7 @@ typedef struct PCRoutineEnvironment_tag {
   CAA dummyCAA;
   RLETask dummyRLETask;
   char filler0[4];
+  RLEAnchor dummyRLEAnchor;
   RecoveryContext recoveryContext;
 } PCRoutineEnvironment;
 ZOWE_PRAGMA_PACK_RESET
@@ -1519,6 +1617,8 @@ ZOWE_PRAGMA_PACK_RESET
     memset((envAddr), 0, sizeof(PCRoutineEnvironment)); \
     memcpy((envAddr)->eyecatcher, PC_ROUTINE_ENV_EYECATCHER, sizeof((envAddr)->eyecatcher)); \
     (envAddr)->dummyCAA.rleTask = &(envAddr)->dummyRLETask; \
+    (envAddr)->dummyRLETask.anchor = &(envAddr)->dummyRLEAnchor; \
+    (envAddr)->dummyRLEAnchor.metalDynamicLinkageVector = (cmsGlobalAreaAddr)->userServerDynLinkVector; \
     int returnCode = RC_CMS_OK; \
     __asm(" LA    12,0(,%0) " : : "r"(&(envAddr)->dummyCAA) : ); \
     int recoveryRC = RC_RCV_OK; \
@@ -1728,9 +1828,87 @@ static int handleStandardService(CrossMemoryServer *server, CrossMemoryServerPar
   return status;
 }
 
+typedef struct ABENDInfo_tag {
+  char eyecatcher[8];
+#define ABEND_INFO_EYECATCHER "CMSABEDI"
+  int completionCode;
+  int reasonCode;
+} ABENDInfo;
+
+typedef struct SDWAARC1_tag{
+  char    blob[0x1C8];   /* Access Registers start at D8 */
+} SDWAARC1;
+
+static void extractServiceFunctionAbendInfo(RecoveryContext * __ptr32 context,
+					    SDWA * __ptr32 sdwa,
+					    void * __ptr32 userData){
+  authWTOPrintf("ZOWE ZIS plugin encountered an abend\n");
+  ABENDInfo *info = (ABENDInfo *)userData;
+
+  if (sdwa){
+    int reason = 0;
+
+    int cc = (sdwa->flagsAndCode >> 12) & 0x00000FFF;
+    int flags = (sdwa->flagsAndCode >> 24) & 0x000000FF;
+    SDWAPTRS *sdwaptrs = NULL;
+    SDWAARC4 *sdwaarc4 = NULL;
+    SDWAARC1 *sdwaarc1 = NULL;
+
+    if (flags & 0x04) {
+      char *sdwadata = (char*)sdwa;
+      sdwaptrs = (SDWAPTRS *)(sdwa->sdwaxpad);
+      if (sdwaptrs != NULL) {
+	char *sdwarc1 = (char *)sdwaptrs->sdwasrvp;
+	if (sdwarc1 != NULL) {
+	  reason = *(int * __ptr32)(sdwarc1 + 44);
+	}
+	sdwaarc4 = (SDWAARC4*)(sdwaptrs->sdwaxeme);
+	sdwaarc1 = (SDWAARC1*)(sdwaptrs->sdwasrvp);
+      }
+    }
+    authWTOPrintf("SDWA Code 0x%03x, reason=0x%x flags=0x%03x\n",cc,reason,flags);
+    authWTOPrintf("TCB:  0x%08x\n",*((int*)CURRENT_TCB));
+    authWTOPrintf("PIC:  0x%04X\n",(uint16_t)sdwa->sdwaintp);
+    authWTOPrintf("EC1:  0x%016llx\n",(uint64_t)sdwa->sdwaec1);
+    authWTOPrintf("EC2:  0x%016llx\n",(uint64_t)sdwa->sdwaec2);
+    if (sdwaarc4){
+      authWTOPrintf("BEA:  0x%llx\n",sdwaarc4->sdwabea);
+    }
+    for (int i=0; i<16; i++){
+      if (sdwaarc4){
+	authWTOPrintf("R%2d: %016llX ",i,(sdwaarc4->gprs[i]));
+      } else{
+	authWTOPrintf("R%2d: __xxxx__%08X ",i,(sdwa->lowGPRs[i]));
+      }
+      if ((i % 4) == 3){
+	authWTOPrintf("\n");
+      }
+    }
+    if (sdwaarc1){
+      authWTOPrintf("SDWAARC1 (has CR's and AR's)\n");
+      /* dumpbuffer((char*)sdwaarc1,0x118); */
+    }
+    int codeWindowSize = 0x60;
+    /* do things that touch memory after dumping anything of value from the SDWA */
+    uint64_t failedInstructionAddress = (sdwa->sdwaec1&0x7FFFFFFF);
+    authWTOPrintf("Code near PSW at 0x%llx\n",failedInstructionAddress);
+    char *codePointer = (char*)(failedInstructionAddress & (~3));
+    codePointer -= 20;
+    for (int i=0; i<10; i++){
+      authWTOPrintf("Inst Stream at 0x%08p: 0x%08x\n",codePointer,*((int*)codePointer));
+      codePointer += 4;
+    }
+    authWTOPrintf("end of abended PC call info\n");
+  } else{
+    authWTOPrintf("No SDWA for ABEND, this is going to be some tough sledding.\n");
+  }
+}
+
+
 static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
                                    bool isSpaceSwitchPC) {
 
+  ABENDInfo abendInfo;
   LatentParmList *latentParmList = parmList->latentParmList;
   CrossMemoryServerGlobalArea *globalArea = latentParmList->parm1;
 
@@ -1759,6 +1937,8 @@ static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
   }
 
   if (!isCallerAuthorized(globalArea,
+                          "FACILITY",
+                          CROSS_MEMORY_SERVER_RACF_PROFILE,
                           localParmList.flags & CMS_PARMLIST_FLAG_NO_SAF_CHECK))
   {
     return RC_CMS_PERMISSION_DENIED;
@@ -1790,9 +1970,18 @@ static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
 
   int returnCode = RC_CMS_OK;
 
+#ifdef CMS_ABEND_DIAG
+  int pushRC = recoveryPush("CMS service function call",
+                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY |
+                            RCVR_FLAG_SDWA_TO_LOGREC,
+                            "RCMS",
+                            extractServiceFunctionAbendInfo, &abendInfo,
+                            NULL, NULL);
+#else
   int pushRC = recoveryPush("CMS service function call",
                             RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY | RCVR_FLAG_PRODUCE_DUMP,
                             "RCMS", NULL, NULL, NULL, NULL);
+#endif
 
   if (pushRC == RC_RCV_OK) {
 
@@ -1846,9 +2035,15 @@ static int handleProgramCall(PCHandlerParmList *parmList, bool isSpaceSwitchPC) 
 
   int returnCode = RC_CMS_OK;
 
+#ifdef CMS_ABEND_DIAG
+  int pushRC = recoveryPush("CMS PC handler",
+                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY | RCVR_FLAG_SDWA_TO_LOGREC,
+                            "RCMS", NULL, NULL, NULL, NULL);
+#else
   int pushRC = recoveryPush("CMS PC handler",
                             RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY,
                             "RCMS", NULL, NULL, NULL, NULL);
+#endif
 
   if (pushRC == RC_RCV_OK) {
 
@@ -1958,6 +2153,11 @@ static void *getMyModuleAddressAndSize(unsigned int *size) {
   void *rb = tcb->tcbrbp;
 
   IHACDE *cde = (IHACDE *)(*(int *)((char *)rb + 0x0C) & 0x00FFFFFF);
+
+  if (cde->cdattr & IHACDE_ATTR_MINOR_CDE) {
+    // CDXLMJP is the major CDE and not the extent list if this CDE is minor
+    cde = (IHACDE *)cde->cdxlmjp;
+  }
 
   void *xtlst = cde->cdxlmjp;
 
@@ -2136,6 +2336,8 @@ CrossMemoryServer *makeCrossMemoryServer(STCBase *base,
 
 }
 
+static int getCurrentModuleName(EightCharString * __ptr32 result);
+
 CrossMemoryServer *makeCrossMemoryServer2(
     STCBase *base,
     const CrossMemoryServerName *name,
@@ -2154,6 +2356,18 @@ CrossMemoryServer *makeCrossMemoryServer2(
     return NULL;
   }
 
+  if (flags & CMS_SERVER_FLAG_DEBUG) {
+    logSetLevel(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG);
+    logSetLevel(NULL, LOG_COMP_ID_CMSPC, ZOWE_LOG_DEBUG);
+    logSetLevel(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG);
+  }
+
+  EightCharString cmsModule = {0};
+  if (getCurrentModuleName(&cmsModule)) {
+    *reasonCode = RC_CMS_MODULE_QUERY_FAILED;
+    return NULL;
+  }
+
   CrossMemoryServer *server = (CrossMemoryServer *)safeMalloc31(sizeof(CrossMemoryServer), "CrossMemoryServer");
   memset(server, 0, sizeof(CrossMemoryServer));
   memcpy(server->eyecatcher, CMS_EYECATCHER, sizeof(server->eyecatcher));
@@ -2161,7 +2375,7 @@ CrossMemoryServer *makeCrossMemoryServer2(
   server->moduleAddressLocal = getMyModuleAddressAndSize(&server->moduleSize);
   server->name = name ? *name : CMS_DEFAULT_SERVER_NAME;
   memcpy(server->ddname.text, CMS_DDNAME, sizeof(server->ddname.text));
-  memcpy(server->dsname.text, CMS_MODULE, sizeof(server->dsname.text));
+  memcpy(server->dsname.text, &cmsModule, sizeof(server->dsname.text));
 
   server->startCallback = startCallback;
   server->stopCallback = stopCallback;
@@ -2171,10 +2385,6 @@ CrossMemoryServer *makeCrossMemoryServer2(
   server->pcssStackPoolSize = CMS_MAIN_PCSS_STACK_POOL_SIZE;
   server->pcssRecoveryPoolSize = CMS_MAIN_PCSS_RECOVERY_POOL_SIZE;
 
-  if (flags & CMS_SERVER_FLAG_DEBUG) {
-    logSetLevel(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG);
-    logSetLevel(NULL, LOG_COMP_ID_CMSPC, ZOWE_LOG_DEBUG);
-  }
   if (flags & CMS_SERVER_FLAG_COLD_START) {
     server->flags |= CROSS_MEMORY_SERVER_FLAG_COLD_START;
   }
@@ -2185,6 +2395,10 @@ CrossMemoryServer *makeCrossMemoryServer2(
   bool devMode = flags & CMS_SERVER_FLAG_DEV_MODE;
   if ((flags & CMS_SERVER_FLAG_DEV_MODE_LPA) || CMS_LPA_DEV_MODE || devMode) {
     server->flags |= CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA;
+  }
+
+  if (flags & CMS_SERVER_FLAG_RESET_LOOKUP) {
+    server->flags |= CROSS_MEMORY_SERVER_FLAG_RESET_LOOKUP;
   }
 
   int allocResourcesRC = allocServerResources(server);
@@ -2627,10 +2841,362 @@ static CMSBuildTimestamp getServerBuildTimestamp() {
   return timestamp;
 }
 
+ZOWE_PRAGMA_PACK
+
+/* These QNAME and RNAME must NEVER change and be the same across all
+ * cross-memory servers. They are used for the look-up anchoe chain
+ * serialization. */
+static const QName LANC_QNAME  = {CMS_PROD_ID"    "};
+static const RName LANC_RNAME  = {8, "ISLUANC "};
+
+/**
+ * This struct maps the CMS look-up routine.
+ *
+ * IMPORTANT: any changes must be coordinated with @c getCMSLookupRoutine.
+ */
+typedef struct CMSLookupRoutineAnchor_tag {
+
+#define CMS_LOOKUP_ANCHOR_EYECATCHER   "ZWECMSLK"
+#define CMS_LOOKUP_ANCHOR_VERSION      1
+#define CMS_LOOKUP_ANCHOR_KEY          ZVT_KEY
+#define CMS_LOOKUP_ANCHOR_SUBPOOL      ZVT_SUBPOOL
+#define CMS_LOOKUP_ANCHOR_HEADER_SIZE  0x30
+
+#define CMS_LOOKUP_ANCHOR_ROUTINE_VERSION 1
+
+  char jumpInstruction[4];
+  char eyecatcher[8];
+  uint8_t version;
+  uint8_t key;
+  uint8_t subpool;
+  char reserved1[1];
+  uint16_t size;
+  char reserved2[6];
+  /* Offset 0x18 */
+  uint64_t creationTime;
+  /* Offset 0x20 */
+  char jobName[8];
+  /* Offset 0x28 */
+  uint16_t asid;
+  /* Offset 0x2A */
+  char reserved3[20];
+
+  /* Offset 0x3E */
+  uint16_t routineVersion;
+  /* Offset 0x40 */
+  char routineBody[448];
+
+} CMSLookupRoutineAnchor;
+
+ZOWE_PRAGMA_PACK_RESET
+
+#ifdef _LP64
+
+/**
+ * Returns the look up routine and its length;
+ *
+ * IMPORTANT: any changes in this function must be coordinated with
+ * @c CMSLookupRoutineAnchor.
+ *
+ * @param[out] routineLengthPtr The look-up routine length including its header.
+ * @return the look-up routine mapped by @c CMSLookupRoutineAnchor.
+ */
+static const void *getCMSLookupRoutineAnchor(unsigned *routineLengthPtr) {
+  const void *routineAddress = NULL;
+  unsigned routineLength;
+  __asm(ASM_PREFIX
+      "         LARL  1,L$UXIT00                                               \n"
+      "         STG   1,%[addr]                                                \n"
+      "         LRL   1,L$RTNLEN                                               \n"
+      "         ST    1,%[len]                                                 \n"
+      "         J     L$UXITEX                                                 \n"
+      /*
+       * GPRs used in the routine:
+       *  0  - reason code
+       *  1  - parm list
+       *  2  - server name
+       *  3  - work register
+       *  4  - current anchor
+       *  5  - ZVTe loop counter
+       *  10 - base register
+       *  13 - save area
+       *  14 - work register
+       *  15 - return value (CMS anchor)
+       *
+       */
+      "L$UXIT00 DS    0H                                                       \n"
+      "         J     L$UXITRT                                                 \n"
+      "         DC    CL8' '                  Eyecatcher                       \n"
+      "         DC    XL1'00'                 Version                          \n"
+      "         DC    XL1'00'                 Key                              \n"
+      "         DC    XL1'00'                 Subpool                          \n"
+      "         DC    XL1'00'                 Reserved                         \n"
+      "         DC    XL2'0000'               Size                             \n"
+      "         DC    XL6'000000000000'       Reserved                         \n"
+      "         DC    XL8'0000000000000000'   Creation time                    \n"
+      "         DC    CL8' '                  Job name                         \n"
+      "         DC    XL2'0000'               ASID                             \n"
+      "         DC    XL20'00'                Reserved                         \n"
+      "         DC    XL2'0000'               Routine version                  \n"
+      "L$UXITRT DS    0H                                                       \n"
+      "         STMG  14,12,8(13)                                              \n"
+      "         PUSH  USING                                                    \n"
+      "         DROP                                                           \n"
+      "         LARL  10,L$UXITRT                                              \n"
+      "         USING L$UXITRT,10                                              \n"
+      "         LLGT  14,16                   Get CVTPTR                       \n"
+      "         LLGT  14,X'8C'(,14)           Get ECVT                         \n"
+      "         LLGT  14,X'CC'(,14)           Get CSRCTABL                     \n"
+      "         LLGT  14,X'23C'(,14)          Get ZVT                          \n"
+      "         LTR   14,14                   Test non zero                    \n"
+      "         JZ    L$NOZVT                                                  \n"
+      "         LGHI  5,"INT_TO_STR(CMS_MAX_ZVTE_CHAIN_LENGTH)" Max ZVTEs      \n"
+      "         LG    14,X'98'(,14)           First ZVTE                       \n"
+      "         LG    2,0(,1)                 Server name address (1st arg)    \n"
+      "ZVTELOOP DS    0H                                                       \n"
+      "         LTR   14,14                   NULL check ZVTE                  \n"
+      "         JZ    L$NOZVTE                End of the ZVTE chain            \n"
+      "         AGHI  5,-1                    Decrement the loop counter       \n"
+      "         JNP   L$LOOPIN                Exit if looping                  \n"
+      "         LTG   4,X'48'(,14)            Product anchor                   \n"
+      "         JZ    ZVTECNTU                No anchor, skip                  \n"
+      "         CLC   0(8,4),L$CMSRVG         Is it RSCMSRVG                   \n"
+      "         JNE   ZVTECNTU                Not a valid CMS anchor           \n"
+      "         CLC   X'50'(16,4),0(2)        Is it the right server name      \n"
+      "         JNE   ZVTECNTU                No, look further                 \n"
+      "         LLGF  3,8(0,4)                Load the version                 \n"
+      "         CLG   3,L$CMSDVR              Discarded version?               \n"
+      "         JNE   ZVTEFND                 Good version, found it!          \n"
+      "ZVTECNTU DS    0H                                                       \n"
+      "         LG    14,X'40'(,14)           ZVTE = ZVTE->NEXT                \n"
+      "         J     ZVTELOOP                Should limit by N, too           \n"
+      "ZVTEFND  DS    0H                                                       \n"
+      "         LGR   15,4                    Return the CMS GA                \n"
+      "         XGR   0,0                     Reason 0                         \n"
+      "         J     L$RETURN                Non error end                    \n"
+      "L$NOZVTE DS    0H                                                       \n"
+      "         XGR   15,15                   Clear result                     \n"
+      "         LGFI  0,"INT_TO_STR(RSN_CMSLOOKUP_NOCMS)"                      \n"
+      "         J     L$RETURN                                                 \n"
+      "L$NOZVT  DS    0H                                                       \n"
+      "         XGR   15,15                   Clear result                     \n"
+      "         LGFI  0,"INT_TO_STR(RSN_CMSLOOKUP_NOZVT)"                      \n"
+      "         J     L$RETURN                                                 \n"
+      "L$LOOPIN DS    0H                                                       \n"
+      "         XGR   15,15                   Clear result                     \n"
+      "         LGFI  0,"INT_TO_STR(RSN_CMSLOOKUP_LOOP)"                       \n"
+      "         J     L$RETURN                                                 \n"
+      "L$RETURN DS    0H                                                       \n"
+      "         LG    3,8(,1)                 Reason code address (2nd arg)    \n"
+      "         ST    0,0(0,3)                Store the reason code            \n"
+      "         LMG   1,12,32(13)             Restore GPRs except R13-R15, R0  \n"
+      "         LG    14,8(,13)               Return address                   \n"
+      "         BR    14                                                       \n"
+      /* non executable code */
+      "         LTORG                                                          \n"
+      "L$CMSRVG DC    CL8'"CMS_GLOBAL_AREA_EYECATCHER"'                        \n"
+      "L$CMSDVR DC    FD'"INT_TO_STR(CROSS_MEMORY_SERVER_DISCARDED_VERSION)"'  \n"
+      "L$RTNLEN DC    A(*-L$UXIT00)                                            \n"
+      "         POP   USING                                                    \n"
+      "L$UXITEX DS    0H                                                       \n"
+      : [addr]"=m"(routineAddress), [len]"=m"(routineLength)
+      :
+      : "r1"
+  );
+  *routineLengthPtr = routineLength;
+  return routineAddress;
+}
+
+#else
+#error 64-bit is supported only
+#endif /* _LP64 */
+
+static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
+
+  unsigned anchorLength = 0;
+  const void *anchorMaster = getCMSLookupRoutineAnchor(&anchorLength);
+  if (anchorLength > sizeof(CMSLookupRoutineAnchor)) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+            CMS_LOG_DEBUG_MSG_ID" Look-up routine length %d vs %d\n",
+            anchorLength, sizeof(CMSLookupRoutineAnchor));
+    return NULL;
+  }
+  // TODO if the cmutils alloc functions are changed to allocate non-executable
+  //  storage, this call will need to change
+  CMSLookupRoutineAnchor *anchor = cmAlloc(sizeof(CMSLookupRoutineAnchor),
+                                           CMS_LOOKUP_ANCHOR_SUBPOOL,
+                                           CMS_LOOKUP_ANCHOR_KEY);
+  if (anchor == NULL) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+            CMS_LOG_DEBUG_MSG_ID" Alloc failed for look-up anchor\n");
+    return NULL;
+  }
+
+  int wasProblemState = supervisorMode(TRUE);
+  int originalKey = setKey(0);
+  {
+    memset(anchor, 0, sizeof(CMSLookupRoutineAnchor));
+    memcpy(anchor, anchorMaster, anchorLength);
+    memcpy(anchor->eyecatcher, CMS_LOOKUP_ANCHOR_EYECATCHER,
+           sizeof(anchor->eyecatcher));
+    anchor->version = CMS_LOOKUP_ANCHOR_VERSION;
+    anchor->key = CMS_LOOKUP_ANCHOR_KEY;
+    anchor->subpool = CMS_LOOKUP_ANCHOR_SUBPOOL;
+    anchor->size = sizeof(CMSLookupRoutineAnchor);
+    __stck((void *) &anchor->creationTime);
+
+    ASCB *ascb = getASCB();
+
+    char *jobName = getASCBJobname(ascb);
+    if (jobName) {
+      memcpy(anchor->jobName, jobName, sizeof(anchor->jobName));
+    } else {
+      memset(anchor->jobName, ' ', sizeof(anchor->jobName));
+    }
+    anchor->asid = ascb->ascbasid;
+    anchor->routineVersion = CMS_LOOKUP_ANCHOR_ROUTINE_VERSION;
+  }
+  setKey(originalKey);
+  if (wasProblemState) {
+    supervisorMode(FALSE);
+  }
+
+  return anchor;
+}
+
+static void deleteLookupRoutineAnchor(CMSLookupRoutineAnchor *anchor) {
+  cmFree(anchor, anchor->size, CMS_LOOKUP_ANCHOR_SUBPOOL,
+         CMS_LOOKUP_ANCHOR_KEY);
+}
+
+static int discardLookupRoutineAnchor(CrossMemoryServer *server) {
+
+  ZVT *zvt = zvtGet();
+  if (zvt == NULL) {
+    return RC_CMS_ZVT_NULL;
+  }
+
+  void *discardedAnchor = zvtSetCMSLookupRoutineAnchor(zvt, NULL);
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG,
+          discardedAnchor);
+
+  return RC_CMS_OK;
+}
+
+static bool isLookupRoutineAnchorValid(const CMSLookupRoutineAnchor *anchor,
+                                       const char **reason) {
+  if (memcmp(anchor->eyecatcher, CMS_LOOKUP_ANCHOR_EYECATCHER,
+             sizeof(anchor->eyecatcher))) {
+    *reason = "bad eyecatcher";
+    return false;
+  }
+  if (anchor->version > CMS_LOOKUP_ANCHOR_VERSION) {
+    *reason = "incompatible version";
+    return false;
+  }
+  if (anchor->size < sizeof(CMSLookupRoutineAnchor)) {
+    *reason = "insufficient size";
+    return false;
+  }
+  if (anchor->key != CMS_LOOKUP_ANCHOR_KEY) {
+    *reason = "unexpected key";
+    return false;
+  }
+  if (anchor->subpool != CMS_LOOKUP_ANCHOR_SUBPOOL) {
+    *reason = "unexpected subpool";
+    return false;
+  }
+  if (anchor->routineVersion < CMS_LOOKUP_ANCHOR_ROUTINE_VERSION) {
+    *reason = "outdated look-up routine";
+    return false;
+  }
+  *reason = "";
+  return true;
+}
+
+static int lockLookupAnchor(ENQToken *enqToken) {
+  int lockRC = 0, lockRSN = 0;
+  lockRC = isgenqGetExclusiveLock(&LANC_QNAME, &LANC_RNAME, ISGENQ_SCOPE_SYSTEM,
+                                  enqToken, &lockRSN);
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+          CMS_LOG_DEBUG_MSG_ID" Look-up anchor lock RC = %d, RSN = 0x%08X:\n",
+          lockRC, lockRSN);
+  if (lockRC > 4) {
+    return RC_CMS_LANC_NOT_LOCKED;
+  }
+  return RC_CMS_OK;
+}
+
+static int unlockLookupAnchor(ENQToken *lockToken) {
+  int unlockRC = 0, unlockRSN = 0;
+  unlockRC = isgenqReleaseLock(lockToken, &unlockRSN);
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+          CMS_LOG_DEBUG_MSG_ID" Look-up anchor release RC = %d, RSN = 0x%08X:\n",
+          unlockRC, unlockRSN);
+  if (unlockRC > 4) {
+    return RC_CMS_LANC_NOT_RELEASED;
+  }
+  return RC_CMS_OK;
+}
+
+static int installCMSLookupRoutine(const CrossMemoryServer *server, ZVT *zvt) {
+
+  int status = RC_CMS_OK;
+  ENQToken lockToken;
+  int lockRC = lockLookupAnchor(&lockToken);
+  if (lockRC != RC_CMS_OK) {
+    return lockRC;
+  }
+
+  CMSLookupRoutineAnchor *existingAnchor = zvtGetCMSLookupRoutineAnchor(zvt);
+
+  const char *reasonInvalid = "";
+  if (existingAnchor != NULL) {
+    if (!isLookupRoutineAnchorValid(existingAnchor, &reasonInvalid)) {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+              CMS_LOG_LOOKUP_ANC_DISCARDED_MSG, existingAnchor, reasonInvalid);
+      zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+               existingAnchor, CMS_LOOKUP_ANCHOR_HEADER_SIZE);
+      existingAnchor = NULL;
+    }
+  }
+
+  if (existingAnchor != NULL) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+            CMS_LOG_LOOKUP_ANC_REUSED_MSG, existingAnchor);
+    status = RC_CMS_OK;
+    goto out_unlock;
+  }
+
+  CMSLookupRoutineAnchor *newAnchor = makeLookupRoutineAnchor();
+  if (newAnchor == NULL) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+            CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG);
+    status = RC_CMS_ALLOC_FAILED;
+    goto out_unlock;
+  }
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+          CMS_LOG_LOOKUP_ANC_CREATED_MSG, newAnchor);
+
+  zvtSetCMSLookupRoutineAnchor(zvt, newAnchor);
+
+out_unlock:;
+  int unlockRC = unlockLookupAnchor(&lockToken);
+  if (unlockRC != RC_CMS_OK) {
+    status = status != RC_CMS_OK ? status : unlockRC;
+  }
+  return status;
+}
+
+
 static int allocateGlobalResources(CrossMemoryServer *server) {
 
 #ifndef CROSS_MEMORY_SERVER_DEBUG
   zvtInit();
+  int installStatus = installCMSLookupRoutine(server, zvtGet());
+  if (installStatus) {
+    return installStatus;
+  }
 #endif
 
   CrossMemoryServerGlobalArea *globalArea = NULL;
@@ -2857,6 +3423,12 @@ static int establishPCRoutines(CrossMemoryServer *server) {
   server->globalArea->pcInfo.pcssSequenceNumber = elxList.entries[0].sequenceNumber;
   server->globalArea->pcInfo.pccpPCNumber = elxList.entries[0].pcNumber + 1;
   server->globalArea->pcInfo.pccpSequenceNumber = elxList.entries[0].sequenceNumber;
+
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" PCSS num 0x%x seq 0x%x, PCCP num 0x%x seq 0x%x\n",
+	  server->globalArea->pcInfo.pcssPCNumber,
+	  server->globalArea->pcInfo.pcssSequenceNumber,
+	  server->globalArea->pcInfo.pccpPCNumber,
+	  server->globalArea->pcInfo.pccpSequenceNumber);
 
   return RC_CMS_OK;
 }
@@ -3193,6 +3765,7 @@ int backgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
 #define CMS_COMMAND_VERB_DISPLAY_SHORT  "DIS"
 #define CMS_COMMAND_VERB_DISPLAY_ABBRV  "D"
 #define CMS_COMMAND_VERB_COLD           "COLD"
+#define CMS_COMMAND_VERB_RESET_LOOKUP   "RESET(LOOKUP)"
 
 static char **tokenizeModifyCommand(ShortLivedHeap *slh, const char *command, unsigned short commandLength, unsigned int *tokenCount) {
 
@@ -3349,13 +3922,6 @@ static void reportCommandStatus(char *commandVerb,
   }
 
 }
-
-typedef struct ABENDInfo_tag {
-  char eyecatcher[8];
-#define ABEND_INFO_EYECATCHER "CMSABEDI"
-  int completionCode;
-  int reasonCode;
-} ABENDInfo;
 
 static void extractABENDInfo(RecoveryContext * __ptr32 context,
                              SDWA * __ptr32 sdwa,
@@ -3687,6 +4253,11 @@ static int handleModifyCommand(STCBase *base, CIB *cib, STCConsoleCommandType co
           if (globalArea != NULL) {
             globalArea->serverFlags |= CROSS_MEMORY_SERVER_FLAG_COLD_START;
           }
+        } else if (strcmp(commandVerb, CMS_COMMAND_VERB_RESET_LOOKUP) == 0) {
+          server->flags |= CROSS_MEMORY_SERVER_FLAG_RESET_LOOKUP;
+          if (globalArea != NULL) {
+            globalArea->serverFlags |= CROSS_MEMORY_SERVER_FLAG_RESET_LOOKUP;
+          }
         } else {
           zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_BAD_CMD_MSG, commandVerb);
           wtoPrintf2(consoleID, cart, CMS_LOG_BAD_CMD_MSG, commandVerb);
@@ -3719,7 +4290,7 @@ static int handleModifyCommand(STCBase *base, CIB *cib, STCConsoleCommandType co
   return 0;
 }
 
-static void sleep(int seconds){
+static void cmsSleep(int seconds){
   int waitValue = seconds * 100;
   __asm(" STIMER WAIT,BINTVL=%0\n" : : "m"(waitValue));
 }
@@ -4092,13 +4663,13 @@ static int verifySTEPLIB(CrossMemoryServer *srv) {
   BLDLList bldlList = {
       .entryCount = 1,
       .entryLength = sizeof(BLDLListEntry),
-      .entry.name = CMS_MODULE,
       .entry.ttr = 0,
       .entry.concatenationNumber = 0,
       .entry.dirEntryLocation = 0,
       .entry.nameType = BLDL_LIST_NAME_TYPE_MEMBER,
       .entry.userData = {0},
   };
+  memcpy(bldlList.entry.name, srv->dsname.text, sizeof(bldlList.entry.name));
 
   int bldlRC = 0, bldlRSN = 0;
   __asm(
@@ -4141,6 +4712,35 @@ static bool isReusableASID(void) {
 
 __asm("CSVQRGLB CSVQUERY PLISTVER=0,MF=(L,CSVQRGLB)" : "DS"(CSVQRGLB));
 
+static int getCurrentModuleName(EightCharString * __ptr32 result) {
+
+  int queryRC = 0;
+
+  __asm("CSVQRGLB CSVQUERY PLISTVER=0,MF=L" : "DS"(parmList));
+  parmList = CSVQRGLB;
+
+  /* Use the address of this function itself since it's in the module. */
+  unsigned moduleAddress = (unsigned)&getCurrentModuleName;
+
+  __asm(
+      "         CSVQUERY INADDR=(%[addr]),OUTMJNM=(%[module])"
+      ",PLISTVER=0,MF=(E,%[parm])                                              \n"
+      : "=NR:r15"(queryRC)
+      : [module]"r"(result), [addr]"r"(&moduleAddress), [parm]"m"(parmList)
+      : "r0", "r1", "r14", "r15"
+  );
+
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
+          CMS_LOG_DEBUG_MSG_ID" CSVQUERY of 0x%08X - module = \'%8.8s\', RC = %d",
+          moduleAddress, result->text, queryRC);
+
+  if (queryRC != 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
 static bool isModulePrivate(void) {
 
   unsigned char attr = 0;
@@ -4161,7 +4761,7 @@ static bool isModulePrivate(void) {
   );
 
   zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
-          "CSVQUERY of 0x%08X - attr = 0x%02X, RC = %d",
+          CMS_LOG_DEBUG_MSG_ID" CSVQUERY of 0x%08X - attr = 0x%02X, RC = %d",
           moduleAddress, attr, queryRC);
 
   if (queryRC != 0) {
@@ -4201,7 +4801,7 @@ static bool isDubStatusOk(int *status, int *bpxRC, int *bpxRSN) {
   return true;
 }
 
-static int testEnvironment(void) {
+static int testEnvironment(const CrossMemoryServer *srv) {
 
   int authStatus = testAuth();
   if (authStatus != 0) {
@@ -4222,7 +4822,8 @@ static int testEnvironment(void) {
 
   if (!isModulePrivate()) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
-            CMS_LOG_NON_PRIVATE_MODULE_MSG);
+            CMS_LOG_NON_PRIVATE_MODULE_MSG,
+            srv->dsname.text, srv->dsname.text);
     return RC_CMS_NON_PRIVATE_MODULE;
   }
 
@@ -4242,7 +4843,7 @@ static int testEnvironment(void) {
 
 int cmsStartMainLoop(CrossMemoryServer *srv) {
 
-  int envStatus = testEnvironment();
+  int envStatus = testEnvironment(srv);
   if (envStatus != 0) {
     return envStatus;
   }
@@ -4287,7 +4888,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   if (status == RC_CMS_OK) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_STARTING_CONSOLE_TASK_MSG);
     stcLaunchConsoleTask2(srv->base, handleModifyCommand, srv);
-    sleep(START_COMMAND_HANDLING_DELAY_IN_SEC);
+    cmsSleep(START_COMMAND_HANDLING_DELAY_IN_SEC);
   }
 
   if (status == RC_CMS_OK) {
@@ -4310,6 +4911,13 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
       int cleanRC = discardGlobalResources(srv);
       if (cleanRC != RC_CMS_OK) {
         zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_GLB_CLEANUP_WARN_MSG, cleanRC);
+      }
+    }
+    if (srv->flags & CROSS_MEMORY_SERVER_FLAG_RESET_LOOKUP) {
+      int discardRC = discardLookupRoutineAnchor(srv);
+      if (discardRC != RC_CMS_OK) {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+                CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG, discardRC);
       }
     }
   }
@@ -4417,7 +5025,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
   }
 
   stcBaseShutdown(srv->base);
-  sleep(STCBASE_SHUTDOWN_DELAY_IN_SEC);
+  cmsSleep(STCBASE_SHUTDOWN_DELAY_IN_SEC);
 
   if (serverStarted) {
     int stopRC = stopServer(srv);
@@ -4652,7 +5260,7 @@ int cmsCallService3(CrossMemoryServerGlobalArea *cmsGlobalArea,
                              serviceRC);
 }
 
-int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, ...) {
+int vcmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, va_list argPointer){
 
   CrossMemoryServerLogServiceParm msgParmList;
   memcpy(&msgParmList.eyecatcher, CMS_LOG_SERVICE_PARM_EYECATCHER, sizeof(msgParmList.eyecatcher));
@@ -4660,10 +5268,7 @@ int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString,
   LogMessagePrefix *prefix = &msgParmList.prefix;
   initLogMessagePrefix(prefix);
 
-  va_list argPointer;
-  va_start(argPointer, formatString);
   int charactersToBeWritten = vsnprintf(msgParmList.text, sizeof(msgParmList.text), formatString, argPointer);
-  va_end(argPointer);
 
   if (charactersToBeWritten < 0) {
     return RC_CMS_VSNPRINTF_FAILED;
@@ -4675,6 +5280,14 @@ int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString,
   msgParmList.messageLength = sizeof(prefix->text) + charactersToBeWritten;
 
   return cmsCallService(serverName, CROSS_MEMORY_SERVER_LOG_SERVICE_ID, &msgParmList, NULL);
+}
+
+int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, ...) {
+  va_list argPointer;
+  va_start(argPointer, formatString);
+  int result = vcmsPrintf(serverName,formatString,argPointer);
+  va_end(argPointer);
+  return result;
 }
 
 int cmsHexDump(const CrossMemoryServerName *serverName,

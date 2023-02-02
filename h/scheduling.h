@@ -25,6 +25,7 @@
 #endif
 
 int zosWait(void *ecb, int clearFirst);
+int zosWaitList(void *ecbList, int numberToWait);
 int zosPost(void *ecb, int completionCode);
 
 RLETask *makeRLETask(RLEAnchor *anchor, 

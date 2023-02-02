@@ -25,8 +25,8 @@
 #error z/OS targets are supported only
 #endif
 
-#define turn_on_HOB(x) x = (TextUnit* __ptr32) ((int) x | 0x80000000)
-#define turn_off_HOB(x) x = (TextUnit* __ptr32) ((int) x & 0x7FFFFFFF)
+#define turn_on_HOB(x) x = (TextUnit* __ptr32) INT2PTR32((int) x | 0x80000000)
+#define turn_off_HOB(x) x = (TextUnit* __ptr32) INT2PTR32((int) x & 0x7FFFFFFF)
 
 #define S99VRBAL 0x01     /* Allocation                      */
 #define S99VRBUN 0x02     /* Unallocation                    */
@@ -205,16 +205,40 @@ X'40' Data set available for printing at the end of the job.
 			     details at 
                              http://publib.boulder.ibm.com/infocenter/zos/v1r12/index.jsp?topic=%2Fcom.ibm.zos.r12.ieaa800%2Fsyssym.htm */
 /* MORE DALXXXX PARMS EXIST BUT ARE NOT YET CODED !! */                   
+#define DALDSORG_NULL     0x00
+#define DALDSORG_LARGE    0x01
+#define DALDSORG_BASIC    0x02
+#define DALDSORG_EXTPREF  0x04
+#define DALDSORG_EXTREQ   0x08
+#define DALDSORG_HFS      0x10
+#define DALDSORG_PIPE     0x20
+#define DALDSORG_PDS      0x40
+#define DALDSORG_PDSE     0x80
+
+#define DALDSORG_MREC     0x20
+#define DALDSORG_KREC     0x40
+#define DALDSORG_UREC     0x80
+#define DALDSORG_VSAM     0x0008
+#define DALDSORG_GRAPHICS 0x0080
+#define DALDSORG_PO       0x0200
+#define DALDSORG_POU      0x0300
+#define DALDSORG_MQ       0x0400
+#define DALDSORG_CQ       0x0800
+#define DALDSORG_CX       0x1000
+#define DALDSORG_DA       0x2000
+#define DALDSORG_DAU      0x2100
+#define DALDSORG_PS       0x4000
+#define DALDSORG_PSU      0x4100
 
 #define DALVSER  0x0010
 #define DALVSEQ  0x0012
 #define DALDSORG 0x003C
-#define DALDSORG_PS 0x4000
 #define DALBLKSZ 0x0030
 #define DALLRECL 0x0042 
 #define DALBUFNO 0x0034
 #define DALNCP   0x0044
 #define DALAVGR  0x8010
+#define DALDSNT  0x8012
 #define DALDIAGN 0x0054
 #define DALBRTKN 0x006E
 /* dynamic unallocation */
@@ -254,6 +278,7 @@ TextUnit *createCompoundTextUnit(int key, char **values, int valueCount);
 TextUnit *createIntTextUnit(int key, int value);
 TextUnit *createInt8TextUnit(int key, int8_t value);
 TextUnit *createInt16TextUnit(int key, int16_t value);
+TextUnit *createInt24TextUnit(int key, int value);
 void freeTextUnit(TextUnit * text_unit);
 
 /* open a stream to the internal reader */
@@ -279,6 +304,10 @@ int AllocForDynamicOutput(char *outDescName,
                           char *error_buffer);
 
 int DeallocDDName(char *ddname);
+
+int setTextUnit(int type, int size, char* stringValue, 
+                int numValue, int key, 
+                int *index, TextUnit **inputTextUnit);
 
 #define DOADDRES 0x0027
 /* ADDRESS FieldCount: 4 FieldLength 0-60
@@ -681,8 +710,29 @@ int DeallocDDName(char *ddname);
 // Values for disposition field
 #define DISP_OLD 0x01
 #define DISP_MOD 0x02
+#define DISP_NEW 0x04
 #define DISP_SHARE 0x08
 #define DISP_DELETE 0x04
+
+// Values for normal disposition field
+#define DISP_UNCATLG 0x01
+#define DISP_CATLG 0x02
+#define DISP_DELETE 0x04
+#define DISP_KEEP 0x08
+
+#define DALSYSOU_DEFAULT 0x08
+
+#define SPIN_UNALLOC 0x80
+#define SPIN_ENDJOB 0x40
+
+#define INT24_SIZE 3
+#define TEXT_UNIT_STRING   1
+#define TEXT_UNIT_BOOLEAN  2
+#define TEXT_UNIT_CHAR     3
+#define TEXT_UNIT_INT16    4
+#define TEXT_UNIT_INT24    5
+#define TEXT_UNIT_LONGINT  6
+#define TEXT_UNIT_NULL     7
 
 /* Use this structure to pass parameters to DYNALLOC functions.
  * Dsname should be padded by spaces. */
@@ -701,6 +751,7 @@ typedef struct DynallocInputParms_tag {
 #pragma map(unallocDataset, "DYNADALC")
 
 int dynallocDataset(DynallocInputParms *inputParms, int *reasonCode);
+int dynallocNewDataset(TextUnit **inputTextUnit, int inputTextUnitCount, int *reasonCode);
 int dynallocDatasetMember(DynallocInputParms *inputParms, int *reasonCode,
                           char *member);
 int unallocDataset(DynallocInputParms *inputParms, int *reasonCode);

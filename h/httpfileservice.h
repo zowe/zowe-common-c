@@ -15,6 +15,16 @@
 
 #include "httpserver.h"
 
+#define RC_HTTP_FILE_SERVICE_SUCCESS                             0 
+#define RC_HTTP_FILE_SERVICE_NOT_FOUND                           10 
+#define RC_HTTP_FILE_SERVICE_ALREADY_EXISTS                      11 
+#define RC_HTTP_FILE_SERVICE_PERMISSION_DENIED                   12 
+#define RC_HTTP_FILE_SERVICE_INVALID_PATH                        13 
+#define RC_HTTP_FILE_SERVICE_UNDEFINED_ERROR                     14
+#define RC_HTTP_FILE_SERVICE_INVALID_INPUT                       15 
+#define RC_HTTP_FILE_SERVICE_NOT_ABSOLUTE_PATH                   16 
+#define RC_HTTP_FILE_SERVICE_CLEANUP_TARGET_DIR_FAILED           17
+
 void response200WithMessage(HttpResponse *response, char *msg);
 
 bool isDir(char *absolutePath);

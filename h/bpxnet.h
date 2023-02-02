@@ -18,6 +18,9 @@
 #ifdef USE_RS_SSL
 #include "rs_ssl.h"
 #endif
+#ifdef USE_ZOWE_TLS
+#include "tls.h"
+#endif
 
 #ifdef __ZOWE_OS_ZOS
 
@@ -86,6 +89,46 @@ typedef struct socketAddr_tag{
 
 
 ZOWE_PRAGMA_PACK_RESET
+
+#ifndef __LONGNAME__
+
+#define getLocalHostName GETLOCHN
+#define getSocketDebugID GETSOCDI
+#define getLocalHostAddress GETLOCAD
+#define getAddressByName GETADRBN
+#define getSocketName2 GETSOCN2
+#define tcpClient TCPCLIE1
+#define getSocketOption GTSKTOPT
+#define tcpServer TCPSERVR
+#define tcpServer2 TCPSERV2
+#define makePipeBasedSyntheticSocket MAKSPSOC
+#define bpxSleep BPXSLEEP
+#define tcpIOControl TCPIOCTR
+#define udpPeer UDPPEER
+#define udpReceiveFrom UDPRECVF
+#define udpSendTo UDPSENDT
+#define makeSocketSet MAKSOCST
+#define freeSocketSet FRESOCST
+#define socketSetAdd SOCSTADD
+#define socketSetRemove SOCSTREM
+#define tcpStatus TCPSTTUS
+#define socketRead SOCREAD
+#define socketWrite SOCWRITE
+#define setSocketTimeout SETSKTTO
+#define setSocketNoDelay SETSKTND
+#define setSocketWriteBufferSize SETSKTWB
+#define setSocketReadBufferSize SETSKTRB
+#define setSocketBlockingMode SETSOCBM
+#define socketSend SOCKSEND
+#define socketAccept SOCACCPT
+#define socketClose SOCCLOSE
+#define extendedSelect EXSELECT
+#define makeSocketAddr MACSOCAD
+#define makeSocketAddrIPv6 MACSOCA6
+#define freeSocketAddr FRESOCAD
+#define socketFree SOCFREE
+
+#endif
 
 #elif defined(__ZOWE_OS_WINDOWS)
 
@@ -160,11 +203,25 @@ typedef struct socketAddr_tag{
 
 #define SOCKET_DEBUG_NAME_LENGTH 20
 
+#define IPPROTO_SYNTHETIC_PIPE_MASK 0x770 /* real Inet protocols are max <= 255 */
+#define IPPROTO_SYNTHETIC_PIPE_DEMULTIPLEXER 0x771
+#define IPPROTO_SYNTHETIC_PIPE_HANDLER 0x772
+#define IPPROTO_SYNTHETIC_PIPE_MULTIPLEXER 0x773
+
+#define IS_SYNTHETIC_PIPE(protocol) ((protocol & IPPROTO_SYNTHETIC_PIPE_MASK) == IPPROTO_SYNTHETIC_PIPE_MASK)
+
+/* 
+   Sockets may be simulated as pairs of pipes to support tunnelling.  If this option is used the protocol will
+   be IPPROTO_SYNTHETIC_PIPE.
+*/
+
 typedef struct socket_tag{
-#ifdef __ZOWE_OS_WINDOWS
+  #ifdef __ZOWE_OS_WINDOWS
   SOCKET windowsSocket;
-#else 
+  SOCKET pipeOutputSocket;
+#else
   int sd;
+  int pipeOutputSD;
 #endif
   short isServer;        /* inherited by SocketExtension */
 
@@ -189,6 +246,10 @@ typedef struct socket_tag{
   void *userData;        /* a place where users can associate a socket to application data for cleaner
                             callback handling */
   char debugName[SOCKET_DEBUG_NAME_LENGTH];           /* a debugging name */
+#ifdef USE_ZOWE_TLS
+  TlsEnvironment *tlsEnvironment;
+  TlsSocket *tlsSocket;
+#endif
 } Socket;
 
 typedef struct SocketSet_tag{
@@ -221,10 +282,6 @@ typedef struct hostent_tag{
   int  **addrList;
 } Hostent;
 
-/* sleep(int seconds) is standard in linux */
-#if !defined(__ZOWE_OS_LINUX) && !defined(__ZOWE_OS_AIX)
-void sleep(int secs);
-#endif 
 
 /* Set socket tracing; returns prior value */
 int setSocketTrace(int toWhat); 
@@ -236,6 +293,9 @@ int socketInit(char *uniqueName);
 int getLocalHostName(char* inout_hostname,
                      unsigned int* inout_hostname_len,
                      int *returnCode, int *reasonCode);
+
+/* SD or, on windows the handle */
+int getSocketDebugID(Socket *s);
 
 InetAddr* getLocalHostAddress(int *returnCode, int *reasonCode); /* AKA gethostid */
 
@@ -254,7 +314,7 @@ int getSocketOption(Socket *socket, int optionName, int *optionDataLength, char 
 
 #define tcpClient2 tcpclie2
 
-Socket *tcpClient2(SocketAddress *socketAddress, 
+Socket *tcpClient2(SocketAddress *socketAddress,
 		   int timeoutInMillis,
 		   int *returnCode, /* errnum */
 		   int *reasonCode); /* errnum - JR's */
@@ -282,6 +342,39 @@ Socket *tcpServer2(InetAddr *addr,
                    int tlsFlags,
                    int *returnCode,
                    int *reasonCode);
+
+/***** TCP Pipe-tunneling support structures *****/
+
+ZOWE_PRAGMA_PACK  
+
+/*
+  Constructor for pipe-based "tunnel" sockets.
+ */
+Socket *makePipeBasedSyntheticSocket(int protocol, int inputFD, int outputFD);
+
+#define TCP_FRAGMENT_MAGIC 0xD0BED0BE
+#define TCP_FRAGMENT_FLAG_INBOUND 0x1
+
+#define TCP_FRAGMENT_FROM_REMOTE           1
+#define TCP_FRAGMENT_TO_REMOTE             2
+#define TCP_FRAGMENT_INTERNAL_MASK    0x0100
+
+typedef struct TCPFragment{
+  uint32_t magic;        /* D0BED0BE */
+  uint16_t headerLength;
+  uint8_t  flags;
+  uint8_t  reserved;
+  uint32_t type;
+  uint32_t remoteClientID; /* proxy for client socket at far end of tunnel */
+  /* offset 10 */
+  uint32_t payloadLength;
+  char     optionalHeaderData[];
+} TCPFragment;
+
+ZOWE_PRAGMA_PACK_RESET
+
+/***** End TCP Pipe-tunneling support *****/
+
 
 #ifdef __ZOWE_OS_ZOS
 void bpxSleep(int seconds);
@@ -360,17 +453,6 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
 
 int socketWrite(Socket *socket, const char *buffer, int desiredBytes, 
 	       int *returnCode, int *reasonCode);
-
-/* TBD: Not sure about guarding these defined with LONGNAME; shouldn't
-   a bunch of other functions also be given short aliases? */
-#ifndef __LONGNAME__
-
-#define setSocketTimeout setsktto
-#define setSocketNoDelay setsktnd
-#define setSocketWriteBufferSize setsktwb
-#define setSocketReadBufferSize setsktrb
-
-#endif
 
 int setSocketTimeout(Socket *socket, int timeout,
 		     int *returnCode, int *reasonCode);

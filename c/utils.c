@@ -23,7 +23,10 @@
 #else
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>  
+#include <string.h>
+#ifndef _MSC_VER     /* Windows always has to be the oddball */
+#include <strings.h>
+#endif
 #include <ctype.h>  
 #endif
 
@@ -34,6 +37,9 @@
 #include "debug.h"
 #include "printables_for_dump.h"
 #include "timeutls.h"
+#ifdef __ZOWE_OS_ZOS
+#include "zos.h"
+#endif
 
 char * strcopy_safe(char * dest, const char * source, int dest_size) {
   if( dest_size == 0 )
@@ -216,7 +222,7 @@ int indexOfStringInsensitive(char *str, int len, char *searchString, int startPo
   return -1;
 }
 
-int upchar(char c){
+static int upchar(char c){
   char low = (char)(c & 0xf);
   char high = (char)(c &0xf0);
                                           
@@ -596,9 +602,9 @@ void dumpBufferToStream(const char *buffer, int length, /* FILE* */void *traceOu
   for (last_index = length-1; last_index>=0 && 0 == buffer[last_index]; last_index--){}
   if (last_index < 0)
 #ifdef METTLE
-    printf("the buffer is empty at %x\n",buffer);
+    printf("the buffer is empty at %p\n",buffer);
 #else
-    fprintf((FILE*)traceOut,"the buffer is empty at %x\n",buffer);
+    fprintf((FILE*)traceOut,"the buffer is empty at %p\n",buffer);
 #endif
 
   while (index <= last_index){
@@ -667,6 +673,9 @@ void hexdump(char *buffer, int length, int nominalStartAddress, int formatWidth,
       } else{
         linePos += sprintf(lineBuffer+linePos,"  ");
       }
+      if ((pos % 4) == 3){
+	linePos += sprintf(lineBuffer+linePos," ");
+      }
     }
     linePos += sprintf(lineBuffer+linePos,"%s|",pad2);
     for (pos=0; pos<formatWidth && (index+pos)<length; pos++){
@@ -702,7 +711,7 @@ void dumpbufferA(const char *buffer, int length){
 #ifdef METTLE
     printf("the buffer is empty at %x\n",buffer);
 #else
-    fprintf((FILE*)traceOut,"the buffer is empty at %x\n",buffer);
+    fprintf((FILE*)traceOut,"the buffer is empty at %p\n",buffer);
 #endif
 
   while (index <= last_index){
@@ -983,8 +992,7 @@ static int getBitsForChar(char c){
   }
 }
 
-int decodeBase64(char *s, char *result){
-  int sLen = strlen(s);
+int decodeBase64Unterminated(char *s, char *result, int sLen){
   int numGroups = sLen / 4;
   int missingBytesInLastGroup = 0;
   int numFullGroups = numGroups;
@@ -1032,6 +1040,11 @@ int decodeBase64(char *s, char *result){
   return outCursor;  
 }
 
+int decodeBase64(char *s, char *result){
+  int sLen = strlen(s);
+  return decodeBase64Unterminated(s,result,sLen);
+}
+
 static char binToB64[] ={0x41,0x42,0x43,0x44,0x45,0x46,0x47,0x48,0x49,0x4A,0x4B,0x4C,0x4D,0x4E,0x4F,0x50,
 			 0x51,0x52,0x53,0x54,0x55,0x56,0x57,0x58,0x59,0x5A,0x61,0x62,0x63,0x64,0x65,0x66,
 			 0x67,0x68,0x69,0x6A,0x6B,0x6C,0x6D,0x6E,0x6F,0x70,0x71,0x72,0x73,0x74,0x75,0x76,
@@ -1045,8 +1058,8 @@ static char binToEB64[] ={0xc1,0xc2,0xc3,0xc4,0xc5,0xc6,0xc7,0xc8,0xc9,0xd1,0xd2
 
 char *encodeBase64(ShortLivedHeap *slh, const char buf[], int size, int *resultSize, int useEbcdic){
   int   allocSize = BASE64_ENCODE_SIZE(size)+1;  /* +1 for null term */
-  char *result = NULL;
-  if (result = (slh ? SLHAlloc(slh,allocSize) : safeMalloc31(allocSize,"BASE64"))) {
+  char *result = (slh ? SLHAlloc(slh,allocSize) : safeMalloc31(allocSize,"BASE64"));
+  if (result){
     encodeBase64NoAlloc(buf, size, result, resultSize, useEbcdic);
     return result;
   } else{
@@ -1072,8 +1085,8 @@ void encodeBase64NoAlloc(const char buf[], int size, char result[], int *resultS
       int byte1 = data[inCursor++] & 0xff;
       int byte2 = data[inCursor++] & 0xff;
       *resPtr++ = (char)(translation[byte0 >> 2]); 
-      *resPtr++ = (char)(translation[(byte0 << 4) & 0x3f | (byte1 >> 4)]); 
-      *resPtr++ = (char)(translation[(byte1 << 2) & 0x3f | (byte2 >> 6)]); 
+      *resPtr++ = (char)(translation[((byte0 << 4) & 0x3f) | (byte1 >> 4)]); 
+      *resPtr++ = (char)(translation[((byte1 << 2) & 0x3f) | (byte2 >> 6)]); 
       *resPtr++ = (char)(translation[byte2 & 0x3f]); 
     }
 
@@ -1087,7 +1100,7 @@ void encodeBase64NoAlloc(const char buf[], int size, char result[], int *resultS
       }
       else{
         int byte1 = data[inCursor++] & 0xff;
-        *resPtr++ = (char)(translation[(byte0 << 4) & 0x3f | (byte1 >> 4)]); 
+        *resPtr++ = (char)(translation[((byte0 << 4) & 0x3f) | (byte1 >> 4)]); 
         *resPtr++ = (char)(translation[(byte1 << 2) & 0x3f]); 
         *resPtr++ = equalsChar; 
       }
@@ -1291,19 +1304,19 @@ int base32Decode (int alphabet,
     if (ch2 == -2) {
       break;
     }
-    output [outputIndex++] = (char) ((ch1 << 6) | (ch2 << 1) | (ch3 >> 4) & 0xff);
+    output [outputIndex++] = (char) ((ch1 << 6) | (ch2 << 1) | ((ch3 >> 4) & 0xff));
     if (ch4 == -2) {
       break;
     }
-    output [outputIndex++] = (char) ((ch3 << 4) | (ch4 >> 1) & 0xff);
+    output [outputIndex++] = (char) ((ch3 << 4) | ((ch4 >> 1) & 0xff));
     if (ch5 == -2) {
       break;
     }
-    output [outputIndex++] = (char) ((ch4 << 7) | (ch5 << 2) | (ch6 >> 3) & 0xff);
+    output [outputIndex++] = (char) ((ch4 << 7) | (ch5 << 2) | ((ch6 >> 3) & 0xff));
     if (ch7 == -2) {
       break;
     }
-    output [outputIndex++] = (char) ((ch6 << 5) | (ch7) & 0xff);
+    output [outputIndex++] = (char) ((ch6 << 5) | ((ch7) & 0xff));
   }
   *outputLength = outputIndex;
   return 0;
@@ -1350,12 +1363,12 @@ int base32Encode (int alphabet,
     byte3 = *input++ & 0xff;
     byte4 = *input++ & 0xff;
     output [outputIndex++] = (char)(encodeTable [(byte0 >> 3) & 0x1f]); 
-    output [outputIndex++] = (char)(encodeTable [(byte0 << 2) & 0x1f | (byte1 >> 6)]); 
+    output [outputIndex++] = (char)(encodeTable [((byte0 << 2) & 0x1f) | (byte1 >> 6)]); 
     output [outputIndex++] = (char)(encodeTable [(byte1 >> 1) & 0x1f]); 
-    output [outputIndex++] = (char)(encodeTable [(byte1 << 4) & 0x1f | (byte2 >> 4)]); 
-    output [outputIndex++] = (char)(encodeTable [(byte2 << 1) & 0x1f | (byte3 >> 7)]); 
+    output [outputIndex++] = (char)(encodeTable [((byte1 << 4) & 0x1f) | (byte2 >> 4)]); 
+    output [outputIndex++] = (char)(encodeTable [((byte2 << 1) & 0x1f) | (byte3 >> 7)]); 
     output [outputIndex++] = (char)(encodeTable [(byte3 >> 2) & 0x1f]); 
-    output [outputIndex++] = (char)(encodeTable [(byte3 << 3) & 0x1f | (byte4 >> 5)]); 
+    output [outputIndex++] = (char)(encodeTable [((byte3 << 3) & 0x1f) | (byte4 >> 5)]); 
     output [outputIndex++] = (char)(encodeTable [(byte4 & 0x1f)]); 
   }
   if (numCharsLeft) {
@@ -1373,7 +1386,7 @@ int base32Encode (int alphabet,
     }
     else if (numCharsLeft == 2) {
       int byte1 = *input++;
-      output [outputIndex++] = (char)(encodeTable [(byte0 << 2) & 0x1f | (byte1 >> 6)]);
+      output [outputIndex++] = (char)(encodeTable [((byte0 << 2) & 0x1f) | (byte1 >> 6)]);
       output [outputIndex++] = (char)(encodeTable [(byte1 >> 1) & 0x1f]);
       output [outputIndex++] = (char)(encodeTable [(byte1 << 4) & 0x1f]);
       output [outputIndex++] = equals;
@@ -1384,9 +1397,9 @@ int base32Encode (int alphabet,
     else if (numCharsLeft == 3) {
       int byte1 = *input++;
       int byte2 = *input++;
-      output [outputIndex++] = (char)(encodeTable [(byte0 << 2) & 0x1f | (byte1 >> 6)]);
+      output [outputIndex++] = (char)(encodeTable [((byte0 << 2) & 0x1f) | (byte1 >> 6)]);
       output [outputIndex++] = (char)(encodeTable [(byte1 >> 1) & 0x1f]);
-      output [outputIndex++] = (char)(encodeTable [(byte1 << 4) & 0x1f | (byte2 >> 4)]);
+      output [outputIndex++] = (char)(encodeTable [((byte1 << 4) & 0x1f) | (byte2 >> 4)]);
       output [outputIndex++] = (char)(encodeTable [(byte2 << 1) & 0x1f]);
       output [outputIndex++] = equals;
       output [outputIndex++] = equals;
@@ -1396,10 +1409,10 @@ int base32Encode (int alphabet,
       int byte1 = *input++;
       int byte2 = *input++;
       int byte3 = *input++;
-      output [outputIndex++] = (char)(encodeTable [(byte0 << 2) & 0x1f | (byte1 >> 6)]); 
+      output [outputIndex++] = (char)(encodeTable [((byte0 << 2) & 0x1f) | (byte1 >> 6)]); 
       output [outputIndex++] = (char)(encodeTable [(byte1 >> 1) & 0x1f]); 
-      output [outputIndex++] = (char)(encodeTable [(byte1 << 4) & 0x1f | (byte2 >> 4)]); 
-      output [outputIndex++] = (char)(encodeTable [(byte2 << 1) & 0x1f | (byte3 >> 7)]); 
+      output [outputIndex++] = (char)(encodeTable [((byte1 << 4) & 0x1f) | (byte2 >> 4)]); 
+      output [outputIndex++] = (char)(encodeTable [((byte2 << 1) & 0x1f) | (byte3 >> 7)]); 
       output [outputIndex++] = (char)(encodeTable [(byte3 >> 2) & 0x1f]); 
       output [outputIndex++] = (char)(encodeTable [(byte3 << 3) & 0x1f]); 
       output [outputIndex++] = equals;
@@ -1411,14 +1424,14 @@ int base32Encode (int alphabet,
 }
 
 
-ListElt *cons(void *data, ListElt *list){
+static ListElt *cons(void *data, ListElt *list){
   ListElt *newList = (ListElt*)safeMalloc(sizeof(ListElt),"ListElt");
   newList->data = data;
   newList->next = list;
   return newList;
 }
 
-ListElt *cons64(void *data, ListElt *list){
+static ListElt *cons64(void *data, ListElt *list){
   ListElt *newList = (ListElt*)safeMalloc(sizeof(ListElt),"ListElt");
   newList->data = data;
   newList->next = list;
@@ -1446,7 +1459,7 @@ static void reportSLHFailure(ShortLivedHeap *slh, int size){
   while (chain){
     char *data = chain->data-4;
     int size = *((int*)data);
-    printf("  segment %d at 0x%x, size = 0x%x\n",i,data,size+4);
+    printf("  segment %d at 0x%p, size = 0x%x\n",i,data,size+4);
     chain = chain->next;
     i++;
   }
@@ -1466,16 +1479,22 @@ ShortLivedHeap *makeShortLivedHeap64(int blockSize, int maxBlocks){
 
 char *SLHAlloc(ShortLivedHeap *slh, int size){
   /* expand for fullword alignment */
-  int rem = size & 0x3;
+  int rem = size & 0x7;
   if (rem != 0){
-    size += (4-rem);
+    size += (8-rem);
   }
   char *data;
-  /* printf("slh=%d\n",slh);fflush(stdout);
-     printf("SLHAlloc me=0x%x size=%d bc=%d\n",slh,size,slh->blockCount);fflush(stdout); */
+  /* 
+     printf("slh=0x%p\n",slh);fflush(stdout);
+     printf("SLHAlloc me=0x%p size=%d bc=%d\n",slh,size,slh->blockCount);fflush(stdout);
+  */
   int remainingHeapBytes = (slh->blockSize * (slh->maxBlocks - slh->blockCount));
   if (size > remainingHeapBytes){
-    printf("cannot allocate above block size %d > %d mb %d bc %d\n",size,remainingHeapBytes,slh->maxBlocks,slh->blockCount);
+    printf("SLH at 0x%p cannot allocate above block size %d > %d mxbl %d bkct %d bksz %d\n",
+	   slh,size,remainingHeapBytes,slh->maxBlocks,slh->blockCount,slh->blockSize);
+    fflush(stdout);
+    char *mem = (char*)0;
+    mem[0] = 13;
     return NULL;
   } else if (size > slh->blockSize){
     char *bigBlock = (slh->is64 ? 
@@ -1726,7 +1745,7 @@ CharStream *makeBufferCharStream(char *buffer, int len, int trace){
   s->positionMethod = getBufferPosition;
   s->closeMethod = NULL;
   if (trace){
-    printf("mbcs out 0x%x, '%.*s'\n",s,len,s);
+    printf("mbcs out 0x%p, '%.*s'\n",s,len,buffer);
   }
   return s;
 }
@@ -1970,6 +1989,10 @@ int decimalToOctal(int decimal) {
 #define debugPrintf(formatString, ...)
 #endif
 
+static int incrementPlaceValues(int *placeValues,
+                                int lim, int digits);
+
+
 int matchWithWildcards(char *pattern, int patternLen,
                        char *s, int len, int flags){
 
@@ -2189,6 +2212,23 @@ const char* strrstr(const char * base, const char * find) {
   }
   return returnPtr;
 }
+
+/* trimRight removes whitespace from the end of a string. */
+void trimRight(char *str, int length) {
+  int i;
+  for (i = length - 1; i >= 0; i--) {
+    if (str[i] != ' ') {
+      break;
+    }
+    str[i] = '\0';
+  }
+}
+
+bool isPassPhrase(const char *password) {
+  return strlen(password) > 8;
+}
+
+
 
 /*
   This program and the accompanying materials are

@@ -106,12 +106,14 @@ typedef struct EntryData_tag{
 
 typedef struct EntryDataSet_tag{
   int length;
+  int size;
   EntryData **entries;
 } EntryDataSet;
 
-char *csi(csi_parmblock* csi_parms, int *workAreaSize);
-EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typeCount, int workAreaSize, char **fields, int fieldCount, char *resumeName, char *resumeCatalogName, csi_parmblock *returnParms);
-EntryDataSet *getHLQs(char *typesAllowed, int typeCount, int workAreaSize, char **fields, int fieldCount, csi_parmblock **returnParmsArray);
+int loadCsi();
+char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSize);
+EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typeCount, int workAreaSize, char **fields, int fieldCount, char *resumeName, char *resumeCatalogName, csi_parmblock * __ptr32 returnParms);
+EntryDataSet *getHLQs(char *typesAllowed, int typeCount, int workAreaSize, char **fields, int fieldCount, csi_parmblock *__ptr32 * __ptr32 returnParmsArray);
 
 #endif
 

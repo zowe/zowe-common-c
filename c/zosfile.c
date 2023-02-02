@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <libgen.h>
 
 #endif
 
@@ -119,6 +120,28 @@
 #define BPXGGN BPX1GGN
 #define BPXGPN BPX1GPN
 #endif
+
+/* Better compilers need these symbols to be declared as functions */
+int BPXRED();
+int BPXOPN();
+int BPXWRT();
+int BPXREN();
+int BPXCHR();
+int BPXCHM();
+int BPXCLO();
+int BPXLCO();
+int BPXSTA();
+int BPXUNL();
+int BPXOPD();
+int BPXMKD();
+int BPXRDD();
+int BPXRMD();
+int BPXCLD();
+int BPXUMK();
+int BPXFCT();
+int BPXLST();
+int BPXGGN();
+int BPXGPN();
 
 #define MAX_ENTRY_BUFFER_SIZE 2550
 #define MAX_NUM_ENTRIES       1000
@@ -348,35 +371,25 @@ int fileWrite(UnixFile *file, const char *buffer, int desiredBytes,
 }
 
 int fileGetChar(UnixFile *file, int *returnCode, int *reasonCode) {
-#ifdef DEBUG
-  zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "bufferSize = %d\n",file->bufferSize);
-#endif
+  zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG3, "bufferSize = %d\n",file->bufferSize);
   if (file->bufferSize == 0){
-#ifdef DEBUG
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 1\n");
-#endif
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG3, "fgetc 1\n");
     *returnCode = 8;
     *reasonCode = 0xBFF;
     return -1;
   } else if (file->bufferPos < file->bufferFill){
-#ifdef DEBUG
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 2\n");
-#endif
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG3, "fgetc 2\n");
     return (int)(file->buffer[file->bufferPos++]);
   } else if (file->eofKnown){
-#ifdef DEBUG
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 3\n");
-#endif
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG3, "fgetc 3\n");
     return -1;
   } else{
     /* go after next buffer and pray */
-#ifdef DEBUG
-    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "fgetc 4\n");
-#endif
+    zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG3, "fgetc 4\n");
     int bytesRead = fileRead(file,file->buffer,file->bufferSize,returnCode,reasonCode);
     if (bytesRead >= 0) {
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG3, "got more data, bytesRead=%d wanted=%d\n",bytesRead,file->bufferSize);
 #ifdef DEBUG
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "got more data, bytesRead=%d wanted=%d\n",bytesRead,file->bufferSize);
       dumpbuffer(file->buffer,file->bufferSize);
 #endif
       if (bytesRead < file->bufferSize) { /* out of data after this read */
@@ -464,8 +477,8 @@ int fileChangeTagPure(const char *fileName, int *returnCode, int *reasonCode,
 
 int fileChangeTag(const char *fileName, int *returnCode, int *reasonCode, int ccsid) {
   bool pure = true;
-  fileChangeTagPure(fileName, returnCode, reasonCode, ccsid, pure);
-  }
+  return fileChangeTagPure(fileName, returnCode, reasonCode, ccsid, pure);
+}
 
 int fileChangeTagPure(const char *fileName, int *returnCode, int *reasonCode,
                       int ccsid, bool pure) {
@@ -569,8 +582,14 @@ int fileChangeMode(const char *fileName, int *returnCode, int *reasonCode, int m
   return returnValue;
 }
 
-int fileCopy(const char *existingFileName, const char *newFileName, int *retCode, int *resCode) {
+#define FILE_BUFFER_SIZE 4096
+#define MAX_CONVERT_FACTOR 4
+
+int fileCopyConverted(const char *existingFileName, const char *newFileName,
+                      int existingCCSID, int newCCSID,
+                      int *retCode, int *resCode) {
   int returnCode = 0, reasonCode = 0, status = 0;
+  bool shouldConvert = (existingCCSID != newCCSID);
   FileInfo info = {0};
 
   status = fileInfo(existingFileName, &info, &returnCode, &reasonCode);
@@ -581,6 +600,7 @@ int fileCopy(const char *existingFileName, const char *newFileName, int *retCode
   }
 
   short ccsid = info.ccsid;
+  bool isPureText = (info.fileTaggingTags & FILE_PURE_TEXT) == FILE_PURE_TEXT;
   
   UnixFile *existingFile = fileOpen(existingFileName, FILE_OPTION_READ_ONLY, 0, 0, &returnCode, &reasonCode);
   if (existingFile == NULL) {
@@ -601,8 +621,15 @@ int fileCopy(const char *existingFileName, const char *newFileName, int *retCode
     return -1;
   }
 
+
   if (ccsid != CCSID_UNTAGGED) {
-    status = fileChangeTag(newFileName, &returnCode, &reasonCode, ccsid);
+    if (shouldConvert && (ccsid != existingCCSID)){
+      *retCode = ERRNO_CCSID_MISMATCH;
+      *resCode = 0;
+      return -1;
+    }
+
+    status = fileChangeTagPure(newFileName, &returnCode, &reasonCode, (shouldConvert ? newCCSID : ccsid), isPureText);
     if (status == -1) {
       *retCode = returnCode;
       *resCode = reasonCode;
@@ -625,22 +652,41 @@ int fileCopy(const char *existingFileName, const char *newFileName, int *retCode
   }
 
   int bytesRead = 0;
+  char *fileBuffer = safeMalloc(FILE_BUFFER_SIZE,"fileCopyBuffer");
+  int conversionBufferLength = FILE_BUFFER_SIZE * MAX_CONVERT_FACTOR;
+  char *conversionBuffer = (shouldConvert ? safeMalloc(conversionBufferLength,"fileCopyConvertBuffer"): NULL);
+  char *writeBuffer = (shouldConvert ? conversionBuffer : writeBuffer);
+  int writeLength;
+  int returnValue = 0;
+  
   do {
-#define FILE_BUFFER_SIZE 4000
-    char fileBuffer[FILE_BUFFER_SIZE] = {0};
-    
-    bytesRead = fileRead(existingFile, fileBuffer, sizeof(fileBuffer), &returnCode, &reasonCode);
+    bytesRead = fileRead(existingFile, fileBuffer, FILE_BUFFER_SIZE, &returnCode, &reasonCode);
     if (bytesRead == -1) {
       *retCode = returnCode;
       *resCode = reasonCode;
-      return -1;
+      returnValue = -1;
+      goto cleanup;
+    }
+
+    if (bytesRead > 0 && shouldConvert){
+      int convertStatus = convertCharset(fileBuffer,bytesRead,existingCCSID,
+                                         CHARSET_OUTPUT_USE_BUFFER,&conversionBuffer,conversionBufferLength,newCCSID,
+                                         NULL,&writeLength,resCode);
+      if (convertStatus){
+        *retCode = convertStatus;
+        returnValue = -1;
+        goto cleanup;
+      }
+    } else {
+      writeLength = bytesRead;
     }
     
-    status = fileWrite(newFile, fileBuffer, bytesRead, &returnCode, &reasonCode);
+    status = fileWrite(newFile, writeBuffer, writeLength, &returnCode, &reasonCode);
     if (status == -1) {
       *retCode = returnCode;
       *resCode = reasonCode;
-      return -1;
+      returnValue = -1;
+      goto cleanup;
     } 
   } while (bytesRead != 0);
 
@@ -648,16 +694,35 @@ int fileCopy(const char *existingFileName, const char *newFileName, int *retCode
   if (status == -1) {
     *retCode = returnCode;
     *resCode = reasonCode;
-    return -1;
+    returnValue = -1;
+    goto cleanup;
   }
 
   status = fileClose(newFile, &returnCode, &reasonCode);
   if (status == -1) {
     *retCode = returnCode;
     *resCode = reasonCode;
-    return -1;
+    returnValue = -1;
+  }
+ cleanup:
+  if (fileBuffer){
+    safeFree(fileBuffer,FILE_BUFFER_SIZE);
+  }
+  if (conversionBuffer){
+    safeFree(conversionBuffer,conversionBufferLength);
   }
 
+  return returnValue;
+}
+
+int fileCopy(const char *existingFileName, const char *newFileName,
+             int *retCode, int *resCode) {
+  return fileCopyConverted(existingFileName,newFileName,0,0,retCode,resCode);
+}
+
+int fileDirname(const char *path, char *output){
+  char *d = dirname((char*)path);
+  strcpy(output,d);
   return 0;
 }
 
@@ -906,10 +971,15 @@ int fileInfoUnixCreationTime(const FileInfo *info) {
   return info->creationTime;   /* unix time */
 }
 
+int fileInfoUnixModificationTime(const FileInfo *info){
+  return info->lastModificationTime;
+}
+
 int fileEOF(const UnixFile *file) {
   return ((file->bufferPos >= file->bufferFill) && file->eofKnown);
 }
 
+/* why is this not 9 bits, and first flag not 0x01 */
 int fileUnixMode(const FileInfo *info) {
   return ((info->flags2 & 0x0f) << 8) | (info->flags3 & 0xff);
 }
@@ -920,6 +990,14 @@ int fileGetINode(const FileInfo *info) {
 
 int fileGetDeviceID(const FileInfo *info) {
   return info->deviceID;
+}
+
+int fileInfoOwnerGID(const FileInfo *info){
+  return info->ownerGID;
+}
+
+int fileInfoOwnerUID(const FileInfo *info){
+  return info->ownerUID;
 }
 
 UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonCode) {
@@ -1462,6 +1540,7 @@ int directoryCopy(const char *existingPathName, const char *newPathName, int *re
   return 0;
 }
 
+#ifndef METTLE
 /*
  * Recursively, change the file tags of the requested file/tree 
 */
@@ -1637,11 +1716,6 @@ int directoryChangeTagRecursive(const char *pathName, char *type,
     goto ExitCodeError;
   }
 
-  /* If directory and not recursive, just return */
-  if ((fileInfoIsDirectory(&info) && !recursive)) {
-    goto ExitCode;
-    }
-
   /* Request is for a file. Handle it and exit */
   if (fileInfoIsRegularFile(&info)) {
     if( -1 == patternChangeTagCheck (pathName, &returnCode, 
@@ -1680,21 +1754,17 @@ int directoryChangeTagRecursive(const char *pathName, char *type,
       goto ExitCodeError;
     }
 
-    if (fileInfoIsDirectory(&info)) {
+    if (fileInfoIsDirectory(&info) && recursive) {
       /* Change tag of all sub-directories and files there-in */
       if (-1 ==  directoryChangeTagRecursive(
                          pathBuffer, type, codepage, recursive, pattern,
                          &returnCode, &reasonCode) ){
         goto ExitCodeError;
       }
-    }
-    else {
-      /* change mode of this file, not a directory */
-      if (fileInfoIsRegularFile(&info)) {
-        if( -1 == patternChangeTagCheck (pathBuffer, &returnCode, &reasonCode, 
-                                  codepage, type, pattern)) {
-          goto ExitCodeError;
-        }
+    } else if (fileInfoIsRegularFile(&info)) {
+      if( -1 == patternChangeTagCheck (pathBuffer, &returnCode, &reasonCode, 
+                                codepage, type, pattern)) {
+        goto ExitCodeError;
       }
     }
   } /* End of for loop */
@@ -1715,7 +1785,6 @@ ExitCode:
   }
   return returnValue;
 }
-
 
 
 int directoryRename(const char *oldDirname, const char *newDirName, int *returnCode, int *reasonCode){
@@ -1744,6 +1813,8 @@ int getUmask() {
 
   return previous;
 }
+
+#endif 
 
 int fileDisableConversion(UnixFile *file, int *returnCode, int *reasonCode) {
   int *reasonCodePtr;
@@ -1886,6 +1957,8 @@ int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode) {
 
   return returnValue;
 }
+
+#ifndef METTLE
 
 static int patternChangeModeFile (const char *fileName,
                                  int mode, const char *compare,
@@ -2156,6 +2229,7 @@ ExitCode:
   }
   return returnValue;
 }
+#endif
 
 
 /*

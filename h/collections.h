@@ -20,6 +20,7 @@
  */
 
 #include "zowetypes.h"
+#include "utils.h"
 
 #ifndef __ZOWE_OS_ZOS
 #include "openprims.h"
@@ -31,24 +32,50 @@
 #define fbMgrFree  FBMGRFRE
 #define fbMgrDestroy FBMGRDST
 
-#define htDestroy HTDSTROY
+#define htCreate HTCREATE
+#define htAlter HTALTER
+#define htGet HTGET
+#define htIntGet HTINTGET
+#define htPut HTPUT
+#define htIntPut HTINTPUT
 #define htUIntPut HTUINTPT
 #define htUIntGet HTUINTGT
-#define htIntGet HTINTGET
-#define htIntPut HTINTPUT
+#define htRemove HTREMOVE
+#define htMap HTMAP
+#define htMap2 HTMAP2
+#define htPrune HTPRUNE
 #define htDestroy HTDSTROY
+#define htCount HTCOUNT
 
 #define stringHash STRNGHSH
 #define stringCompare STRNGCMP
 
 #define makeLRUCache MKLRUCHE
 #define destroyLRUCache DSLRUCHE
+#define lruGet LRUGET
+#define lruStore LRUSTORE
 
 #define lhtCreate LNHTCRTE
+#define lhtAlter LNHTALTR
 #define lhtDestroy LNHDSTRY
+#define lhtGet LNHTGET
+#define lhtPut LNHTPUT
 #define lhtRemove LNHTREMV
+#define lhtMap LNHTMAP
 #define makeQueue MAKELCFQ
 #define destroyQueue DSTRLCFQ
+#define qEnqueue QENQUEUE
+#define qDequeue QDEQUEUE
+#define qInsert QINSERT
+#define qRemove QREMOVE
+
+#define makeArrayList ALSTMAKE
+#define arrayListFree ALSTFREE
+#define arrayListAdd  ALSTADD
+#define arrayListElement ALSTELMT
+#define initEmbeddedArrayList ALINEMAR
+#define arrayListSort ALSTSORT
+#define arrayListShallowCopy ALSHLCPY 
 
 #endif
 
@@ -307,8 +334,23 @@ void qInsert(Queue *q, void *newData) QueueAmode64;
  */
 void *qRemove(Queue *q) QueueAmode64;
 
-#endif
+typedef struct ArrayList_tag{
+  int capacity;
+  int size;
+  void **array;
+  ShortLivedHeap *slh;
+} ArrayList;
 
+ArrayList *makeArrayList();
+void arrayListFree(ArrayList *list);
+void arrayListAdd(ArrayList *list, void *thing);
+void *arrayListElement(ArrayList *list, int i);
+void initEmbeddedArrayList(ArrayList *list,
+			   ShortLivedHeap *slh);
+void *arrayListShallowCopy(ArrayList *source, ArrayList *target);
+void arrayListSort(ArrayList *list, int (*comparator)(const void *a, const void *b));
+
+#endif
 
 /*
   This program and the accompanying materials are

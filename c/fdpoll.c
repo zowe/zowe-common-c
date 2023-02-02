@@ -13,6 +13,10 @@
 
 #endif
 
+/* xlclang and clang demand a prototype */
+
+int BPXPOL();
+
 int fdPoll(PollItem* fds, short nmqs, short nfds, int timeout, int *returnCode, int *reasonCode) {
   int returnValue;
   int *reasonCodePtr;
@@ -43,6 +47,15 @@ int fdPoll(PollItem* fds, short nmqs, short nfds, int timeout, int *returnCode, 
   return status;
 }
 
-#else
+#elif defined(__ZOWE_OS_WINDOWS)
+
+int fdPoll(PollItem* fds, short nmqs, short nfds, int timeout, int *returnCode, int *reasonCode) {
+  int status = WSAPoll(fds, nfds, timeout);
+  *returnCode = *reasonCode = (status >= 0 ? 0 : WSAGetLastError());
+  return status;
+}
+
+
+#else 
 #error No implemention for fdpoll.h
 #endif

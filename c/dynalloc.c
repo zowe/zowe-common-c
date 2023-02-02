@@ -30,6 +30,7 @@
 #include "alloc.h"
 #include "dynalloc.h"
 
+
 #define TEXT_UNIT_ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
 
 TextUnit *createSimpleTextUnit2(int key, char *value, int firstParameterLength) {
@@ -65,6 +66,14 @@ TextUnit *createInt8TextUnit(int key, int8_t value) {
 }
 
 TextUnit *createInt16TextUnit(int key, int16_t value) {
+  return createSimpleTextUnit2(key, (char*)&value, sizeof(value));
+}
+
+TextUnit *createInt24TextUnit(int key, int value) {
+  return createSimpleTextUnit2(key, (char*)&value + 1, INT24_SIZE);
+}
+
+TextUnit *createLongIntTextUnit(int key, long long value) {
   return createSimpleTextUnit2(key, (char*)&value, sizeof(value));
 }
 
@@ -730,7 +739,7 @@ int DeallocDDName(char *ddname) {
   );
 
   below2G->plistAddress =
-      (SVC99RequestBlock * __ptr32)((int)&below2G->plist | 0x80000000);
+      (SVC99RequestBlock * __ptr32)INT2PTR32((int)&below2G->plist | 0x80000000);
   SVC99RequestBlock *plist = &below2G->plist;
   unsigned int textUnitCount = TEXT_UNIT_ARRAY_SIZE(below2G->textUnits);
 
@@ -834,6 +843,84 @@ int dynallocDataset(DynallocInputParms *inputParms, int *reasonCode) {
 
 }
 
+int setTextUnit(int type, int size, char* stringValue, int numValue, int key, 
+                int *index, TextUnit **inputTextUnit) {
+  int rc = -1;
+  switch (type) {
+    case TEXT_UNIT_STRING:
+      inputTextUnit[*index] = createSimpleTextUnit2(key, stringValue, size);
+      break;
+    case TEXT_UNIT_CHAR:
+      inputTextUnit[*index] = createCharTextUnit(key, numValue);
+      break;
+    case TEXT_UNIT_INT16:
+      inputTextUnit[*index] = createInt16TextUnit(key, numValue);
+      break;
+    case TEXT_UNIT_INT24:
+      inputTextUnit[*index] = createInt24TextUnit(key, numValue);
+      break;
+    case TEXT_UNIT_LONGINT:
+      inputTextUnit[*index] = createLongIntTextUnit(key, (long long)numValue);
+      break;
+    case TEXT_UNIT_BOOLEAN:
+      inputTextUnit[*index] = createSimpleTextUnit2(key, NULL, 0);
+      break;
+  }
+  if (inputTextUnit[*index] == NULL) {
+    return rc;
+  } else {
+    (*index)++;
+    return 0;
+  }
+}
+
+int dynallocNewDataset(TextUnit **inputTextUnit, int inputTextUnitCount, int *reasonCode) {
+  ALLOC_STRUCT31(
+    STRUCT31_NAME(below2G),
+    STRUCT31_FIELDS(
+      DynallocParms parms;
+      TextUnit ** __ptr32 textUnits;
+    )
+  );
+
+  below2G->textUnits = (TextUnit **)safeMalloc31(sizeof(TextUnit*) * inputTextUnitCount, "Text units array");
+  if(below2G->textUnits == NULL) {
+    return -1;
+  }
+  DynallocParms *parms = &below2G->parms;
+  dynallocParmsInit(parms);
+
+  dynallocParmsSetTextUnits(parms, (TextUnit * __ptr32 *)below2G->textUnits, inputTextUnitCount);
+
+  int rc;
+
+  do {
+    rc = 0;
+    for (int i = 0; i < inputTextUnitCount; i++) { 
+      below2G->textUnits[i] = inputTextUnit[i];
+      if (below2G->textUnits[i] == NULL) {
+        rc = -1;
+        break;
+      }       
+    }
+    if (rc == -1) {
+      break;
+    }
+    turn_on_HOB(below2G->textUnits[inputTextUnitCount - 1]);
+    rc = invokeDynalloc(parms);
+    *reasonCode = dynallocParmsGetInfoCode(parms) +
+        (dynallocParmsGetErrorCode(parms) << 16);
+  } while (0);
+  freeTextUnitArray((TextUnit * __ptr32 *)below2G->textUnits, inputTextUnitCount);
+  safeFree31((char*)below2G->textUnits, sizeof(TextUnit*) * inputTextUnitCount);
+  dynallocParmsTerm(parms);
+  parms = NULL;
+  FREE_STRUCT31(
+    STRUCT31_NAME(below2G)
+  );
+  return rc;
+}
+
 int dynallocDatasetMember(DynallocInputParms *inputParms, int *reasonCode,
                           char *member) {
 
@@ -921,7 +1008,7 @@ int unallocDataset(DynallocInputParms *inputParms, int *reasonCode) {
   );
 
   below2G->requestBlockAddress =
-      (SVC99RequestBlock * __ptr32)((int)&below2G->requestBlock | 0x80000000);
+      (SVC99RequestBlock * __ptr32)INT2PTR32((int)&below2G->requestBlock | 0x80000000);
   SVC99RequestBlock *requestBlock = &below2G->requestBlock;
 
   unsigned int textUnitCount = TEXT_UNIT_ARRAY_SIZE(below2G->textUnits);
@@ -991,7 +1078,7 @@ int dynallocAllocDataset(const DynallocDatasetName *dsn,
   );
 
   below2G->requestBlockAddress =
-      (SVC99RequestBlock * __ptr32)((int)&below2G->requestBlock | 0x80000000);
+      (SVC99RequestBlock * __ptr32)INT2PTR32((int)&below2G->requestBlock | 0x80000000);
   SVC99RequestBlock *requestBlock = &below2G->requestBlock;
 
   unsigned textUnitCount = TEXT_UNIT_ARRAY_SIZE(below2G->textUnits);
@@ -1091,7 +1178,7 @@ static int dynallocUnallocDatasetByDDNameInternal(const DynallocDDName *ddName,
   );
 
   below2G->requestBlockAddress =
-      (SVC99RequestBlock * __ptr32)((int)&below2G->requestBlock | 0x80000000);
+      (SVC99RequestBlock * __ptr32)INT2PTR32((int)&below2G->requestBlock | 0x80000000);
   SVC99RequestBlock *requestBlock = &below2G->requestBlock;
 
   unsigned textUnitCount = TEXT_UNIT_ARRAY_SIZE(below2G->textUnits);

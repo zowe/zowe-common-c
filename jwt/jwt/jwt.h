@@ -30,6 +30,8 @@
 #define RC_JWT_CONTEXT_ALLOCATION_FAILED 11
 #define RC_JWT_CRYPTO_TOKEN_NOT_FOUND   12
 #define RC_JWT_KEY_NOT_FOUND     13
+#define RC_JWT_UNKNOWN_CONTEXT_TYPE 14
+#define RC_JWT_NOT_CONFIGURED    15
 /*
  * RC_JWT_INSECURE is returned when a JWT is valid but has "alg": "none".
  * This is a source of security issues, so a distinct RC is needed.
@@ -100,12 +102,20 @@ typedef struct JwtClaim_tag {
 
 typedef struct JwtContext_tag JwtContext;
 
+typedef int JwtCheckSignature(JwsAlgorithm algorithm,
+                              int sigLen, const uint8_t *signature,
+                              int msgLen, const uint8_t *message,
+                              void *userData);
+
 #define JWT_FOR_CLAIMS($jwt, $var) for ($var = ($jwt)->firstCustomClaim; \
     $var != NULL ;$var = ($var)->next)
 
+/* Set jwt tracing; returns prior value */
+int setJwtTrace(int toWhat); 
+
 int jwtParse(const char *base64Text,
              bool ebcdic,
-             const ICSFP11_HANDLE_T *keyHandle,
+             const JwtContext *self,
              ShortLivedHeap *slh,
              Jwt **out);
 
@@ -125,6 +135,8 @@ JwtContext *makeJwtContextForKeyInToken(const char *in_tokenName,
                                         int class,
                                         int *out_rc,
                                         int *out_p11rc, int *out_p11rsn);
+
+JwtContext *makeJwtContextCustom(JwtCheckSignature *checkSignatureFn, void *userData, int *out_rc);
 
 Jwt *jwtVerifyAndParseToken(const JwtContext *self,
                             const char *tokenText,
