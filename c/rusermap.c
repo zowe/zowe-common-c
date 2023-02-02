@@ -52,12 +52,13 @@
 
 #define MAX_CERT_SIZE 4096
 #define MAX_DN_SIZE 246 /* according to doc! */
+#define MAX_REGISTRY_SIZE 255
 
 #define IRRSIM00_WORKAREA_LENGTH 1024
 
 /* last arg must be at least 9 chars in length */
 static int getUseridByExternalInfo(int functionCode,
-                                   char *data, int dataLength, char *useridBuffer,
+                                   char *data, int dataLength, char *registry, int registryLength, char *useridBuffer,
                                    int *racfRC, int *racfReason){
 
 #pragma pack(packed)
@@ -80,6 +81,8 @@ static int getUseridByExternalInfo(int functionCode,
      char     certificate[MAX_CERT_SIZE];
      uint16_t distinguishedNameLength;
      char     distinguishedName[MAX_DN_SIZE];
+     uint16_t registryNameLength;
+     char     registryName[MAX_REGISTRY_SIZE];
      )
     );
 #pragma pack(reset)
@@ -99,12 +102,16 @@ static int getUseridByExternalInfo(int functionCode,
     } 
     break;
   case MAP_DN_TO_USERID:
-    if (dataLength > MAX_DN_SIZE){
+    if (dataLength > MAX_DN_SIZE || registryLength > MAX_REGISTRY_SIZE){
       FREE_STRUCT31(STRUCT31_NAME(parms31));
       return RUSERMAP_PARM_TOO_BIG;
     } else{
       memcpy(parms31->distinguishedName, data, dataLength);
       parms31->distinguishedNameLength = dataLength;
+      memcpy(parms31->registryName, registry, registryLength);
+      parms31->registryNameLength = registryLength;
+      e2a(parms31->distinguishedName, dataLength);
+      e2a(parms31->registryName, registryLength);
     } 
     break;
   default:
@@ -149,7 +156,7 @@ static int getUseridByExternalInfo(int functionCode,
         ",%[cert]"
         ",%[z]"   /* appl userid */
         ",%[dn]"  /* Distinguished name */
-        ",%[z])" /* registry name, which is NULL with high bit set */
+        ",%[registry])" /* registry name */
         ",VL,MF=(E,%[parmlist]) \n"
 
 #ifdef _LP64
@@ -167,6 +174,7 @@ static int getUseridByExternalInfo(int functionCode,
           [racfRSN]"m"(parms31->racfReason),
           [userid]"m"(parms31->useridLength),   /* must point at pre-pended length */
           [dn]"m"(parms31->distinguishedNameLength),
+          [registry]"m"(parms31->registryNameLength),
           [cert]"m"(parms31->certificateLength),
           [parmlist]"m"(parms31->parmlistStorage)
         :"r14","r15");
@@ -189,12 +197,12 @@ static int getUseridByExternalInfo(int functionCode,
   
 int getUseridByCertificate(char *certificate, int certificateLength, char *useridBuffer,
                            int *racfRC, int *racfReason){
-  return getUseridByExternalInfo(MAP_CERTIFICATE_TO_USERID,certificate,certificateLength,useridBuffer,racfRC,racfReason);
+  return getUseridByExternalInfo(MAP_CERTIFICATE_TO_USERID,certificate,certificateLength,'\0',0,useridBuffer,racfRC,racfReason);
 }
 
-int getUseridByDN(char *distinguishedName, int distinguishedNameLength, char *useridBuffer,
+int getUseridByDN(char *distinguishedName, int distinguishedNameLength, char *registry, int registryLength, char *useridBuffer,
                   int *racfRC, int *racfReason){
-  return getUseridByExternalInfo(MAP_DN_TO_USERID,distinguishedName,distinguishedNameLength,useridBuffer,racfRC,racfReason);
+  return getUseridByExternalInfo(MAP_DN_TO_USERID,distinguishedName,distinguishedNameLength,registry,registryLength,useridBuffer,racfRC,racfReason);
 }
 
 
