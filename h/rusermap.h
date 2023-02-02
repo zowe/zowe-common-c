@@ -46,9 +46,8 @@ int getUseridByCertificate(char *certificate, int certificateLength, char *useri
    in UTF-8 format.  
    */
 
-int getUseridByDN(char *distinguishedName, int distinguishedNameLength, char *useridBuffer,
+int getUseridByDN(char *distinguishedName, int distinguishedNameLength, char *registry, int registryLength, char *useridBuffer,
                   int *racfRC, int *racfReason);
-
 
 
 #endif
