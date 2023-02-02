@@ -197,7 +197,7 @@ static int getUseridByExternalInfo(int functionCode,
   
 int getUseridByCertificate(char *certificate, int certificateLength, char *useridBuffer,
                            int *racfRC, int *racfReason){
-  return getUseridByExternalInfo(MAP_CERTIFICATE_TO_USERID,certificate,certificateLength,'\0',0,useridBuffer,racfRC,racfReason);
+  return getUseridByExternalInfo(MAP_CERTIFICATE_TO_USERID,certificate,certificateLength,NULL,0,useridBuffer,racfRC,racfReason);
 }
 
 int getUseridByDN(char *distinguishedName, int distinguishedNameLength, char *registry, int registryLength, char *useridBuffer,
