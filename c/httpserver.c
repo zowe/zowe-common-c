@@ -4979,7 +4979,6 @@ void parseURLMask(HttpService *service, char *urlMask){
 
   if (strcmp(urlMask,"/")){
     while ((slashPos = indexOf(urlMask,len,'/',prevSlashPos+1)) != -1){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "wow\n");
       int partLen = slashPos - prevSlashPos;
      char *part = (char*) safeMalloc(NORMALIZED_PART_LENGTH, "urlMask part");
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "parse URL mask loop top len=%d slashPos=%d prevSlashPos=%d partLen=%d\n",
