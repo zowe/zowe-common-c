@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `2.8.0`
+
+- Bugfix: `fileCopy` would not work when convert encoding was not requested. The destination file would be created, but without the requested content.
+
 ## `2.5.0`
 
 - Added embeddedjs command "xplatform.appendFileUTF8" for appending to files rather than writing whole files.

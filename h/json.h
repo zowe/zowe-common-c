@@ -89,6 +89,9 @@ jsonPrinter *makeCustomJsonPrinter(void (*writeMethod)(jsonPrinter *,char *,int)
 jsonPrinter *makeCustomUtf8JsonPrinter(
     void (*writeMethod)(jsonPrinter *, char *, int),  void *object,
     int inputCCSID);
+jsonPrinter *makeCustomNativeJsonPrinter(
+    void (*writeMethod)(jsonPrinter *, char *, int),  void *object,
+    int inputCCSID);
 
 /**
  *  \brief Reset a printer to its starting state.
@@ -96,6 +99,8 @@ jsonPrinter *makeCustomUtf8JsonPrinter(
 void jsonPrinterReset(jsonPrinter *printer);
 
 jsonPrinter *makeBufferJsonPrinter(int inputCCSID, JsonBuffer *buf);
+
+jsonPrinter *makeBufferNativeJsonPrinter(int inputCCSID, JsonBuffer *buf);
 
 /** 
  *   \brief   This will change the JSON printing to generate newlines and indentation to make the output human-friendly.

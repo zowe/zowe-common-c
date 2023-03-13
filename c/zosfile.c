@@ -655,7 +655,7 @@ int fileCopyConverted(const char *existingFileName, const char *newFileName,
   char *fileBuffer = safeMalloc(FILE_BUFFER_SIZE,"fileCopyBuffer");
   int conversionBufferLength = FILE_BUFFER_SIZE * MAX_CONVERT_FACTOR;
   char *conversionBuffer = (shouldConvert ? safeMalloc(conversionBufferLength,"fileCopyConvertBuffer"): NULL);
-  char *writeBuffer = (shouldConvert ? conversionBuffer : writeBuffer);
+  char *writeBuffer = (shouldConvert ? conversionBuffer : fileBuffer);
   int writeLength;
   int returnValue = 0;
   
@@ -680,14 +680,15 @@ int fileCopyConverted(const char *existingFileName, const char *newFileName,
     } else {
       writeLength = bytesRead;
     }
-    
-    status = fileWrite(newFile, writeBuffer, writeLength, &returnCode, &reasonCode);
-    if (status == -1) {
-      *retCode = returnCode;
-      *resCode = reasonCode;
-      returnValue = -1;
-      goto cleanup;
-    } 
+    if (bytesRead > 0) {
+      status = fileWrite(newFile, writeBuffer, writeLength, &returnCode, &reasonCode);
+      if (status == -1) {
+        *retCode = returnCode;
+        *resCode = reasonCode;
+        returnValue = -1;
+        goto cleanup;
+      } 
+    }
   } while (bytesRead != 0);
 
   status = fileClose(existingFile, &returnCode, &reasonCode);
