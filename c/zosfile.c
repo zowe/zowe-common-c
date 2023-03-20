@@ -599,6 +599,8 @@ int fileCopyConverted(const char *existingFileName, const char *newFileName,
     return -1;
   }
 
+  int fileMode = (info.flags1 << 16) | (info.flags2 << 8) | info.flags3;
+
   short ccsid = info.ccsid;
   bool isPureText = (info.fileTaggingTags & FILE_PURE_TEXT) == FILE_PURE_TEXT;
   
@@ -611,7 +613,7 @@ int fileCopyConverted(const char *existingFileName, const char *newFileName,
 
   UnixFile *newFile = fileOpen(newFileName,
                                FILE_OPTION_WRITE_ONLY | FILE_OPTION_TRUNCATE | FILE_OPTION_CREATE,
-                               0700,
+                               fileMode,
                                0,
                                &returnCode,
                                &reasonCode);
