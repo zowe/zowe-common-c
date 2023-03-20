@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `2.9.0`
+
+- Feature: `fileCopy` now copies with the target having the permissions of the source, as opposed to the previous 700 permissions.
+
 ## `2.8.0`
 
 - Bugfix: `fileCopy` would not work when convert encoding was not requested. The destination file would be created, but without the requested content.
