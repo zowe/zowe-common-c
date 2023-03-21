@@ -508,9 +508,12 @@ void copyUnixDirectoryAndRespond(HttpResponse *response, char *oldAbsolutePath, 
     case RC_HTTP_FILE_SERVICE_NOT_FOUND:
       respondWithJsonError(response, "Directory not found", 404, "Not Found");
       break;
-    default:
-      respondWithJsonError(response, "Failed to copy a directory", 500, "Internal Server Error");
+    default: {
+      char error[64];
+      snprintf(error, 64, "Error copying directory, rc=%d", returnCode);
+      respondWithJsonError(response, error, 500, "Internal Server Error");
       break;
+      }
     }
   }
 }
@@ -593,9 +596,12 @@ void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char 
     case RC_HTTP_FILE_SERVICE_NOT_FOUND:
       respondWithJsonError(response, "File not found", 404, "Not Found");
       break;    
-    default:
-      respondWithJsonError(response, "Failed to copy a file", 500, "Internal Server Error");
+    default: {
+      char error[64];
+      snprintf(error, 64, "Error copying file, rc=%d", returnCode);
+      respondWithJsonError(response, error, 500, "Internal Server Error");
       break;
+      }
     }
   }
 }

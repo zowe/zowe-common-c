@@ -148,8 +148,21 @@ jsonPrinter *makeCustomUtf8JsonPrinter(void (*writeMethod)(jsonPrinter *, char *
   return p;
 }
 
+jsonPrinter *makeCustomNativeJsonPrinter(void (*writeMethod)(jsonPrinter *, char *, int),
+    void *object, int inputCCSID) {
+  jsonPrinter *p = makeCustomJsonPrinter(writeMethod, object);
+
+  p->mode = JSON_MODE_NATIVE_CHARSET;
+  p->inputCCSID = inputCCSID;
+  return p;
+}
+
 jsonPrinter *makeBufferJsonPrinter(int inputCCSID, JsonBuffer *buf) {
   return makeCustomUtf8JsonPrinter(&writeToBuffer, buf, inputCCSID);
+}
+
+jsonPrinter *makeBufferNativeJsonPrinter(int inputCCSID, JsonBuffer *buf) {
+  return makeCustomNativeJsonPrinter(&writeToBuffer, buf, inputCCSID);
 }
 
 void jsonEnablePrettyPrint(jsonPrinter *p) {
