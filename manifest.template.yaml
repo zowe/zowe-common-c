@@ -1,0 +1,11 @@
+---
+name: zowe-common-c
+
+version: 0.4.3
+
+homepage: https://zowe.org
+keywords:
+  - zowe
+  - zowe-common-c
+  - appfw
+license: EPL-2.0
