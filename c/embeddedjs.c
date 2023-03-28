@@ -72,6 +72,60 @@ typedef int64_t ssize_t;
 
 #include "nativeconversion.h"
 
+#if defined(__IBMC__) || defined(__IBMCPP__)
+#pragma convert(819)
+#endif
+
+static char asciiStack[6] = "stack";
+
+static char msgsndASCII[7] = "msgsnd";
+static char msgrcvASCII[7] = "msgrcv";
+static char msgctlASCII[7] = "msgctl";
+static char msggetASCII[7] = "msgget";
+static char chmodASCII[6] = "chmom";
+
+static char IPC_PRIVATE_ASCII[12] = "IPC_PRIVATE";
+static char IPC_CREAT_ASCII[10] = "IPC_CREAT";
+static char IPC_EXCL_ASCII[9] = "IPC_EXCL";
+static char IPC_NOWAIT_ASCII[11] = "IPC_NOWAIT";
+static char MSG_EXCEPT_ASCII[11] = "MSG_EXCEPT";
+static char MSG_NOERROR_ASCII[12] = "MSG_NOERROR";
+
+static char fileCopyASCII[9] = "fileCopy";
+static char fileCopyConvertedASCII[18] = "fileCopyConverted";
+static char dirnameASCII[8] = "dirname";
+static char stringFromBytesASCII[16] = "stringFromBytes";
+
+static char getpidASCII[7] = "getpid";
+static char getppidASCII[8] = "getppid";
+
+static char AUTO_DETECT_ASCII[12] = "AUTO_DETECT";
+static char NO_CONVERT_ASCII[11] = "NO_CONVERT";
+static char loadFileUTF8ASCII[13] = "loadFileUTF8";
+static char storeFileUTF8ASCII[14] = "storeFileUTF8";
+static char appendFileUTF8ASCII[15] = "appendFileUTF8";
+static char tcpPingASCII[8] = "tcpPing";
+
+static char asciiPrototype[10] = "prototype";
+
+static char asciiSTD[7] = "cm_std";
+static char asciiOS[6] = "cm_os";
+static char asciiExperiment[11] = "experiment";
+static char asciiZOS[4] = "zos";
+static char asciiNet[4] = "net";
+static char asciiPosix[6] = "posix";
+static char asciiXPlatform[10] = "xplatform";
+
+static char lengthASCII[7] = "length";
+
+static char asciiConsole[8] = "console";
+static char asciiLog[4] = "log";
+static char asciiDotJS[4] = ".js";
+
+#if defined(__IBMC__) || defined(__IBMCPP__)
+#pragma convert(pop)
+#endif
+
 struct trace_malloc_data {
     uint8_t *base;
 };
@@ -126,8 +180,6 @@ static void ejsDumpObject(JSContext *ctx, FILE *f, JSValueConst val)
       fprintf(f, "[exception]\n");
     }
 }
-
-static char asciiStack[6] ={ 0x73, 0x74, 0x61, 0x63, 0x6b, 0x00};
 
 static void ejsDumpError(JSContext *ctx, JSValueConst exception_val)
 {
@@ -439,19 +491,6 @@ static JSValue posixIconvOpen(JSContext *ctx, JSValueConst this_val,
   return JS_EXCEPTION;
 #endif
 }
-
-static char msgsndASCII[7] ={ 0x6d, 0x73, 0x67, 0x73, 0x6e, 0x64,  0x00};
-static char msgrcvASCII[7] ={ 0x6d, 0x73, 0x67, 0x72, 0x63, 0x76,  0x00};
-static char msgctlASCII[7] ={ 0x6d, 0x73, 0x67, 0x63, 0x74, 0x6c,  0x00};
-static char msggetASCII[7] ={ 0x6d, 0x73, 0x67, 0x67, 0x65, 0x74,  0x00};
-static char chmodASCII[6] ={ 0x63, 0x68, 0x6d, 0x6f, 0x6d, 0x00};
-
-static char IPC_PRIVATE_ASCII[12] ={ 0x49, 0x50, 0x43, 0x5f, 0x50, 0x52, 0x49, 0x56, 0x41, 0x54, 0x45,  0x00};
-static char IPC_CREAT_ASCII[10] ={ 0x49, 0x50, 0x43, 0x5f, 0x43, 0x52, 0x45, 0x41, 0x54,  0x00};
-static char IPC_EXCL_ASCII[9] = { 0x49, 0x50, 0x43, 0x5f, 0x45, 0x58, 0x43, 0x4c,  0x00};
-static char IPC_NOWAIT_ASCII[11] ={0x49, 0x50, 0x43, 0x5f, 0x4e, 0x4f, 0x57, 0x41, 0x49, 0x54,  0x00};
-static char MSG_EXCEPT_ASCII[11] ={0x4d, 0x53, 0x47, 0x5f, 0x45, 0x58, 0x43, 0x45, 0x50, 0x54,  0x00};
-static char MSG_NOERROR_ASCII[12] ={0x4d, 0x53, 0x47, 0x5f, 0x4e, 0x4f, 0x45, 0x52, 0x52, 0x4f, 0x52,  0x00};
 
 /* ZOS Might not define all constants ??  (or not might not implement) */
 #ifndef MSG_EXCEPT
@@ -765,23 +804,6 @@ static JSValue xplatformGetpid(JSContext *ctx, JSValueConst this_val,
   return JS_NewInt64(ctx,(int64_t)pid);
 }
 
-
-static char fileCopyASCII[9] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79,  0x00 };
-static char fileCopyConvertedASCII[18] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79, 
-					  0x43, 0x6f, 0x6e, 0x76, 0x65, 0x72, 0x74, 0x65, 0x64, 0x00 };
-static char dirnameASCII[8] = {0x64, 0x69, 0x72, 0x6e, 0x61, 0x6d, 0x65,  0x00 };
-static char stringFromBytesASCII[16] = {0x73, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x46, 0x72, 0x6f, 0x6d, 0x42, 0x79, 0x74, 0x65, 0x73,  0x00 };
-
-static char getpidASCII[7] = {0x67, 0x65, 0x74, 0x70, 0x69, 0x64,  0x00 };
-static char getppidASCII[8] = {0x67, 0x65, 0x74, 0x70, 0x70, 0x69, 0x64,  0x00 };
-
-static char AUTO_DETECT_ASCII[12] = {0x41, 0x55, 0x54, 0x4f, 0x5f, 0x44, 0x45, 0x54, 0x45, 0x43, 0x54,  0x00 };
-static char NO_CONVERT_ASCII[11] = {0x4e, 0x4f, 0x5f, 0x43, 0x4f, 0x4e, 0x56, 0x45, 0x52, 0x54,  0x00 };
-static char loadFileUTF8ASCII[13] = {0x6c, 0x6f, 0x61, 0x64, 0x46, 0x69, 0x6c, 0x65, 0x55, 0x54, 0x46, 0x38,  0x00 };
-static char storeFileUTF8ASCII[14] = {0x73, 0x74, 0x6f, 0x72, 0x65, 0x46, 0x69, 0x6c, 0x65, 0x55, 0x54, 0x46, 0x38,  0x00 };
-static char appendFileUTF8ASCII[15] = {0x61, 0x70, 0x70, 0x65, 0x6e, 0x64, 0x46, 0x69, 0x6c, 0x65, 0x55, 0x54, 0x46, 0x38,  0x00 };
-static char tcpPingASCII[8] ={0x74, 0x63, 0x70, 0x50, 0x69, 0x6e, 0x67,  0x00};
-
 static const JSCFunctionListEntry xplatformFunctions[] = {
   JS_CFUNC_DEF(fileCopyASCII, 2, xplatformFileCopy),
   JS_CFUNC_DEF(fileCopyConvertedASCII, 4, xplatformFileCopyConverted),
@@ -1061,9 +1083,6 @@ static const JSCFunctionListEntry js_experiment_funcs[] = {
     JS_CFUNC_DEF("boop", 0, js_experiment_boop ),
 };
 
-static char asciiPrototype[10] = { 0x70, 0x72, 0x6f, 0x74, 0x6f,
-				   0x74, 0x79, 0x70, 0x65, 0};
-
 static JSValue thingy_ctor(JSContext *ctx, JSValueConst new_target,
                            int argc, JSValueConst *argv){
   JSValue obj = JS_UNDEFINED, proto;
@@ -1133,16 +1152,6 @@ static int js_experiment_init(JSContext *ctx, JSModuleDef *m)
   
   return 0;
 }
-
-static char asciiSTD[4] ={ 0x73, 0x74, 0x64, 0};
-static char asciiOS[3] ={ 0x6F, 0x73, 0};
-static char asciiExperiment[11] ={ 0x65, 0x78, 0x70, 0x65, 
-				   0x72, 0x69, 0x6d, 0x65, 
-				   0x6e, 0x74, 0};
-static char asciiZOS[4] = { 0x7a, 0x6F, 0x73, 0};
-static char asciiNet[4] = { 0x6e, 0x65, 0x74, 0};
-static char asciiPosix[6] = { 0x70, 0x6F, 0x73, 0x69, 0x78, 0};
-static char asciiXPlatform[10] = { 0x78, 0x70, 0x6C, 0x61, 0x74, 0x66, 0x6F, 0x72, 0x6D, 0};
 
 JSModuleDef *js_init_module_experiment(JSContext *ctx, const char *module_name)
 {
@@ -1526,8 +1535,6 @@ static char *copyToNative(const char *source, ShortLivedHeap *slh){
   convertToNative(dest, sourceLen);
   return dest;
 }
-
-static char lengthASCII[7] ={0x6c, 0x65, 0x6e, 0x67, 0x74, 0x68,  0x00};
 
 static Json *jsToJson1(EmbeddedJS *ejs,
                        JsonBuilder *b, Json *parent, char *parentKey,
@@ -1948,9 +1955,6 @@ static JSValue js_native_print(JSContext *ctx, JSValueConst this_val,
   return JS_UNDEFINED;
 }
 
-static char asciiConsole[8] = { 0x63, 0x6f, 0x6e, 0x73, 0x6f, 0x6c, 0x65, 0x00 };
-static char asciiLog[4] = { 0x6c, 0x6f, 0x67, 0x00};
-
 static bool endsWith(char *s, char *suffix){
   int len = strlen(s);
   int suffixLen = strlen(suffix);
@@ -1959,8 +1963,6 @@ static bool endsWith(char *s, char *suffix){
   } 
   return !memcmp(s+len-suffixLen,suffix,suffixLen);
 }
-
-static char asciiDotJS[4] = { 0x2e, 0x6a, 0x73, 0x00 };
 
 JSModuleDef *ejsModuleLoader(JSContext *ctx,
 			     const char *moduleName, void *opaque) {
