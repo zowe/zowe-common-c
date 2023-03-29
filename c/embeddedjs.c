@@ -108,8 +108,12 @@ static char tcpPingASCII[8] = "tcpPing";
 
 static char asciiPrototype[10] = "prototype";
 
-static char asciiSTD[7] = "cm_std";
-static char asciiOS[6] = "cm_os";
+// TODO: remove next major release, deprecated module std, it is replaced by cm_std
+static char asciiSTD[4] = "std";
+// TODO: remove next major release, deprecated module os, it is replaced by cm_os
+static char asciiOS[3] = "os";
+static char asciiCM_STD[7] = "cm_std";
+static char asciiCM_OS[6] = "cm_os";
 static char asciiExperiment[11] = "experiment";
 static char asciiZOS[4] = "zos";
 static char asciiNet[4] = "net";
@@ -1448,8 +1452,14 @@ static JSContext *makeEmbeddedJSContext(JSRuntime *rt){
 static void initContextModules(JSContext *ctx, EJSNativeModule **nativeModules, int nativeModuleCount){    
   /* system modules */
   /* printf("before init std\n");*/
+
+  // TODO: remove next major release, deprecated module std, it is replaced by cm_std
   js_init_module_std(ctx, asciiSTD);
+  // TODO: remove next major release, deprecated module os, it is replaced by cm_os
   js_init_module_os(ctx, asciiOS);
+
+  js_init_module_std(ctx, asciiCM_STD);
+  js_init_module_os(ctx, asciiCM_OS);
   js_init_module_experiment(ctx, asciiExperiment);
   ejsInitModuleZOS(ctx, asciiZOS);
   ejsInitModuleNet(ctx, asciiNet);
