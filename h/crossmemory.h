@@ -657,16 +657,18 @@ typedef struct CMSDynlinkEnv_tag {
 #endif
 
 /*
- * Reason:
- * Action:
+ * Reason: this is a debug hex dump.
+ * Action: no action required.
  */
 #ifndef CMS_LOG_DUMP_MSG_ID
 #define CMS_LOG_DUMP_MSG_ID                     CMS_MSG_PRFX"0101I"
 #endif
 
 /*
- * Reason:
- * Action:
+ * Reason: a cross-memory server's initialization step has failed; the
+ * initialization process stops.
+ * Action: review the error code; if the issue cannot be resolved, contact
+ * support.
  */
 #ifndef CMS_LOG_INIT_STEP_FAILURE_MSG_ID
 #define CMS_LOG_INIT_STEP_FAILURE_MSG_ID        CMS_MSG_PRFX"0102E"
@@ -675,8 +677,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_INIT_STEP_FAILURE_MSG           CMS_LOG_INIT_STEP_FAILURE_MSG_ID" "CMS_LOG_INIT_STEP_FAILURE_MSG_TEXT
 
 /*
- * Reason:
- * Action:
+ * Reason: a cross-memory server's initialization step has completed
+ * successfully.
+ * Action: no action required.
  */
 #ifndef CMS_LOG_INIT_STEP_SUCCESS_MSG_ID
 #define CMS_LOG_INIT_STEP_SUCCESS_MSG_ID        CMS_MSG_PRFX"0103I"
@@ -685,8 +688,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_INIT_STEP_SUCCESS_MSG           CMS_LOG_INIT_STEP_SUCCESS_MSG_ID" "CMS_LOG_INIT_STEP_SUCCESS_MSG_TEXT
 
 /*
- * Reason:
- * Action:
+ * Reason: the cross-memory server is starting the console listener task which
+ * handles operator commands.
+ * Action: no action required.
  */
 #ifndef CMS_LOG_STARTING_CONSOLE_TASK_MSG_ID
 #define CMS_LOG_STARTING_CONSOLE_TASK_MSG_ID    CMS_MSG_PRFX"0104I"
@@ -695,8 +699,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_STARTING_CONSOLE_TASK_MSG       CMS_LOG_STARTING_CONSOLE_TASK_MSG_ID" "CMS_LOG_STARTING_CONSOLE_TASK_MSG_TEXT
 
 /*
- * Reason:
- * Action:
+ * Reason: the cross-memory server is starting initialization.
+ * Action: no action required.
  */
 #ifndef CMS_LOG_INIT_STARTED_MSG_ID
 #define CMS_LOG_INIT_STARTED_MSG_ID             CMS_MSG_PRFX"0105I"
@@ -705,8 +709,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_INIT_STARTED_MSG                CMS_LOG_INIT_STARTED_MSG_ID" "CMS_LOG_INIT_STARTED_MSG_TEXT
 
 /*
- * Reason:
- * Action:
+ * Reason: the initialization process has failed; the server will terminate.
+ * Action: review the error code; if the issue cannot be resolved, contact
+ * support.
  */
 #ifndef CMS_LOG_INIT_FAILED_MSG_ID
 #define CMS_LOG_INIT_FAILED_MSG_ID              CMS_MSG_PRFX"0106E"
@@ -725,8 +730,10 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_COLD_START_MSG                      CMS_LOG_COLD_START_MSG_ID" "CMS_LOG_COLD_START_MSG_TEXT
 
 /*
- * Reason:
- * Action:
+ * Reason: the global resource clean-up process has failed; the server continues
+ * execution.
+ * Action: review the error code; if the issue cannot be resolved, contact
+ * support.
  */
 #ifndef CMS_LOG_GLB_CLEANUP_WARN_MSG_ID
 #define CMS_LOG_GLB_CLEANUP_WARN_MSG_ID         CMS_MSG_PRFX"0108W"
