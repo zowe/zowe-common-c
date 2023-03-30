@@ -648,458 +648,766 @@ typedef struct CMSDynlinkEnv_tag {
 /* 400 - 699 are messages from core services  */
 /* 700 - 999 are messages from user services  */
 
+/*
+ * Reason: this is a debug message.
+ * Action: no action required.
+ */
 #ifndef CMS_LOG_DEBUG_MSG_ID
 #define CMS_LOG_DEBUG_MSG_ID                    CMS_MSG_PRFX"0100I"
 #endif
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_DUMP_MSG_ID
 #define CMS_LOG_DUMP_MSG_ID                     CMS_MSG_PRFX"0101I"
 #endif
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_INIT_STEP_FAILURE_MSG_ID
 #define CMS_LOG_INIT_STEP_FAILURE_MSG_ID        CMS_MSG_PRFX"0102E"
 #endif
 #define CMS_LOG_INIT_STEP_FAILURE_MSG_TEXT      "Initialization step \'%s\' failed, RC = %d"
 #define CMS_LOG_INIT_STEP_FAILURE_MSG           CMS_LOG_INIT_STEP_FAILURE_MSG_ID" "CMS_LOG_INIT_STEP_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_INIT_STEP_SUCCESS_MSG_ID
 #define CMS_LOG_INIT_STEP_SUCCESS_MSG_ID        CMS_MSG_PRFX"0103I"
 #endif
 #define CMS_LOG_INIT_STEP_SUCCESS_MSG_TEXT      "Initialization step \'%s\' successfully completed"
 #define CMS_LOG_INIT_STEP_SUCCESS_MSG           CMS_LOG_INIT_STEP_SUCCESS_MSG_ID" "CMS_LOG_INIT_STEP_SUCCESS_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_STARTING_CONSOLE_TASK_MSG_ID
 #define CMS_LOG_STARTING_CONSOLE_TASK_MSG_ID    CMS_MSG_PRFX"0104I"
 #endif
 #define CMS_LOG_STARTING_CONSOLE_TASK_MSG_TEXT  "About to start console task"
 #define CMS_LOG_STARTING_CONSOLE_TASK_MSG       CMS_LOG_STARTING_CONSOLE_TASK_MSG_ID" "CMS_LOG_STARTING_CONSOLE_TASK_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_INIT_STARTED_MSG_ID
 #define CMS_LOG_INIT_STARTED_MSG_ID             CMS_MSG_PRFX"0105I"
 #endif
 #define CMS_LOG_INIT_STARTED_MSG_TEXT           "Core server initialization started"
 #define CMS_LOG_INIT_STARTED_MSG                CMS_LOG_INIT_STARTED_MSG_ID" "CMS_LOG_INIT_STARTED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_INIT_FAILED_MSG_ID
 #define CMS_LOG_INIT_FAILED_MSG_ID              CMS_MSG_PRFX"0106E"
 #endif
 #define CMS_LOG_INIT_FAILED_MSG_TEXT            "Core server initialization failed, RC = %d"
 #define CMS_LOG_INIT_FAILED_MSG                 CMS_LOG_INIT_FAILED_MSG_ID" "CMS_LOG_INIT_FAILED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_COLD_START_MSG_ID
 #define CMS_LOG_COLD_START_MSG_ID               CMS_MSG_PRFX"0107I"
 #endif
 #define CMS_LOG_COLD_START_MSG_TEXT             "Cold start initiated"
 #define CMS_COLD_START_MSG                      CMS_LOG_COLD_START_MSG_ID" "CMS_LOG_COLD_START_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_GLB_CLEANUP_WARN_MSG_ID
 #define CMS_LOG_GLB_CLEANUP_WARN_MSG_ID         CMS_MSG_PRFX"0108W"
 #endif
 #define CMS_LOG_GLB_CLEANUP_WARN_MSG_TEXT       "Global resources clean up RC = %d"
 #define CMS_LOG_GLB_CLEANUP_WARN_MSG            CMS_LOG_GLB_CLEANUP_WARN_MSG_ID" "CMS_LOG_GLB_CLEANUP_WARN_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_SERVER_READY_MSG_ID
 #define CMS_LOG_SERVER_READY_MSG_ID             CMS_MSG_PRFX"0109I"
 #endif
 #define CMS_LOG_SERVER_READY_MSG_TEXT           "Core server ready"
 #define CMS_LOG_SERVER_READY_MSG                CMS_LOG_SERVER_READY_MSG_ID" "CMS_LOG_SERVER_READY_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_MAIN_LOOP_FAILURE_MSG_ID
 #define CMS_LOG_MAIN_LOOP_FAILURE_MSG_ID        CMS_MSG_PRFX"0110E"
 #endif
 #define CMS_LOG_MAIN_LOOP_FAILURE_MSG_TEXT      "Main loop unexpectedly terminated"
 #define CMS_LOG_MAIN_LOOP_FAILURE_MSG           CMS_LOG_MAIN_LOOP_FAILURE_MSG_ID" "CMS_LOG_MAIN_LOOP_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_MAIN_LOOP_TERM_MSG_ID
 #define CMS_LOG_MAIN_LOOP_TERM_MSG_ID           CMS_MSG_PRFX"0111I"
 #endif
 #define CMS_LOG_MAIN_LOOP_TERM_MSG_TEXT         "Main loop terminated"
 #define CMS_LOG_MAIN_LOOP_TERM_MSG              CMS_LOG_MAIN_LOOP_TERM_MSG_ID" "CMS_LOG_MAIN_LOOP_TERM_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_TERM_STEP_FAILURE_MSG_ID
 #define CMS_LOG_TERM_STEP_FAILURE_MSG_ID        CMS_MSG_PRFX"0112E"
 #endif
 #define CMS_LOG_TERM_STEP_FAILURE_MSG_TEXT      "Termination step \'%s\' failed, RC = %d"
 #define CMS_LOG_TERM_STEP_FAILURE_MSG           CMS_LOG_TERM_STEP_FAILURE_MSG_ID" "CMS_LOG_TERM_STEP_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_TERM_STEP_SUCCESS_MSG_ID
 #define CMS_LOG_TERM_STEP_SUCCESS_MSG_ID        CMS_MSG_PRFX"0113I"
 #endif
 #define CMS_LOG_TERM_STEP_SUCCESS_MSG_TEXT      "Termination step \'%s\' successfully completed"
 #define CMS_LOG_TERM_STEP_SUCCESS_MSG           CMS_LOG_TERM_STEP_SUCCESS_MSG_ID" "CMS_LOG_TERM_STEP_SUCCESS_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_SERVER_STOPPED_MSG_ID
 #define CMS_LOG_SERVER_STOPPED_MSG_ID           CMS_MSG_PRFX"0114I"
 #endif
 #define CMS_LOG_SERVER_STOPPED_MSG_TEXT         "Core server stopped"
 #define CMS_LOG_SERVER_STOPPED_MSG              CMS_LOG_SERVER_STOPPED_MSG_ID" "CMS_LOG_SERVER_STOPPED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_SERVER_STOP_FAILURE_MSG_ID
 #define CMS_LOG_SERVER_STOP_FAILURE_MSG_ID      CMS_MSG_PRFX"0115E"
 #endif
 #define CMS_LOG_SERVER_STOP_FAILURE_MSG_TEXT    "Core server stopped with an error, status = %d"
 #define CMS_LOG_SERVER_STOP_FAILURE_MSG         CMS_LOG_SERVER_STOP_FAILURE_MSG_ID" "CMS_LOG_SERVER_STOP_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_SERVER_ABEND_MSG_ID
 #define CMS_LOG_SERVER_ABEND_MSG_ID             CMS_MSG_PRFX"0116E"
 #endif
 #define CMS_LOG_SERVER_ABEND_MSG_TEXT           "Core server is abnormally terminating"
 #define CMS_LOG_SERVER_ABEND_MSG                CMS_LOG_SERVER_ABEND_MSG_ID" "CMS_LOG_SERVER_ABEND_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_NOT_APF_AUTHORIZED_MSG_ID
 #define CMS_LOG_NOT_APF_AUTHORIZED_MSG_ID       CMS_MSG_PRFX"0117E"
 #endif
 #define CMS_LOG_NOT_APF_AUTHORIZED_MSG_TEXT     "Not APF-authorized (%d)"
 #define CMS_LOG_NOT_APF_AUTHORIZED_MSG          CMS_LOG_NOT_APF_AUTHORIZED_MSG_ID" "CMS_LOG_NOT_APF_AUTHORIZED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_BAD_SERVER_KEY_MSG_ID
 #define CMS_LOG_BAD_SERVER_KEY_MSG_ID           CMS_MSG_PRFX"0118E"
 #endif
 #define CMS_LOG_BAD_SERVER_KEY_MSG_TEXT         "Core server started in wrong key %d"
 #define CMS_LOG_BAD_SERVER_KEY_MSG              CMS_LOG_BAD_SERVER_KEY_MSG_ID" "CMS_LOG_BAD_SERVER_KEY_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_MODIFY_CMD_INFO_MSG_ID
 #define CMS_LOG_MODIFY_CMD_INFO_MSG_ID          CMS_MSG_PRFX"0200I"
 #endif
 #define CMS_LOG_MODIFY_CMD_INFO_MSG_TEXT        ""
 #define CMS_LOG_MODIFY_CMD_INFO_MSG             CMS_LOG_MODIFY_CMD_INFO_MSG_ID" "CMS_LOG_MODIFY_CMD_INFO_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_BAD_SERVICE_ID_MSG_ID
 #define CMS_LOG_BAD_SERVICE_ID_MSG_ID           CMS_MSG_PRFX"0201E"
 #endif
 #define CMS_LOG_BAD_SERVICE_ID_MSG_TEXT         "Service ID %d is out of range"
 #define CMS_LOG_BAD_SERVICE_ID_MSG              CMS_LOG_BAD_SERVICE_ID_MSG_ID" "CMS_LOG_BAD_SERVICE_ID_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_DUP_SERVER_MSG_ID
 #define CMS_LOG_DUP_SERVER_MSG_ID               CMS_MSG_PRFX"0202E"
 #endif
 #define CMS_LOG_DUP_SERVER_MSG_TEXT             "A duplicate server is running"
 #define CMS_LOG_DUP_SERVER_MSG                  CMS_LOG_DUP_SERVER_MSG_ID" "CMS_LOG_DUP_SERVER_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_SERVER_NOT_LOCKED_MSG_ID
 #define CMS_LOG_SERVER_NOT_LOCKED_MSG_ID        CMS_MSG_PRFX"0203E"
 #endif
 #define CMS_LOG_SERVER_NOT_LOCKED_MSG_TEXT      "Server not locked, ISGENQ RC = %d, RSN = 0x%08X"
 #define CMS_LOG_SERVER_NOT_LOCKED_MSG           CMS_LOG_SERVER_NOT_LOCKED_MSG_ID" "CMS_LOG_SERVER_NOT_LOCKED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_GLB_AREA_NULL_MSG_ID
 #define CMS_LOG_GLB_AREA_NULL_MSG_ID            CMS_MSG_PRFX"0204E"
 #endif
 #define CMS_LOG_GLB_AREA_NULL_MSG_TEXT          "Global area address in NULL"
 #define CMS_LOG_GLB_AREA_NULL_MSG               CMS_LOG_GLB_AREA_NULL_MSG_ID" "CMS_LOG_GLB_AREA_NULL_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_RELOC_FAILURE_MSG_ID
 #define CMS_LOG_RELOC_FAILURE_MSG_ID            CMS_MSG_PRFX"0205E"
 #endif
 #define CMS_LOG_RELOC_FAILURE_MSG_TEXT          "Relocation failed for %d (0x%p not in [0x%p, 0x%p])"
 #define CMS_LOG_RELOC_FAILURE_MSG               CMS_LOG_RELOC_FAILURE_MSG_ID" "CMS_LOG_RELOC_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_INVALID_EYECATCHER_MSG_ID
 #define CMS_LOG_INVALID_EYECATCHER_MSG_ID       CMS_MSG_PRFX"0206E"
 #endif
 #define CMS_LOG_INVALID_EYECATCHER_MSG_TEXT     "%s (0x%p) has invalid eyecatcher"
 #define CMS_LOG_INVALID_EYECATCHER_MSG          CMS_LOG_INVALID_EYECATCHER_MSG_ID" "CMS_LOG_INVALID_EYECATCHER_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_ALLOC_FAILURE_MSG_ID
 #define CMS_LOG_ALLOC_FAILURE_MSG_ID            CMS_MSG_PRFX"0207E"
 #endif
 #define CMS_LOG_ALLOC_FAILURE_MSG_TEXT          "%s (%zu) not allocated"
 #define CMS_LOG_ALLOC_FAILURE_MSG               CMS_LOG_ALLOC_FAILURE_MSG_ID" "CMS_LOG_ALLOC_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_LPA_LOAD_FAILURE_MSG_ID
 #define CMS_LOG_LPA_LOAD_FAILURE_MSG_ID         CMS_MSG_PRFX"0208E"
 #endif
 #define CMS_LOG_LPA_LOAD_FAILURE_MSG_TEXT       "Module not loaded into LPA, RC = %d, RSN = %d"
 #define CMS_LOG_LPA_LOAD_FAILURE_MSG            CMS_LOG_LPA_LOAD_FAILURE_MSG_ID" "CMS_LOG_LPA_LOAD_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_LPA_DELETE_FAILURE_MSG_ID
 #define CMS_LOG_LPA_DELETE_FAILURE_MSG_ID       CMS_MSG_PRFX"0209E"
 #endif
 #define CMS_LOG_LPA_DELETE_FAILURE_MSG_TEXT     "Module not deleted from LPA, RC = %d, RSN = %d"
 #define CMS_LOG_LPA_DELETE_FAILURE_MSG          CMS_LOG_LPA_DELETE_FAILURE_MSG_ID" "CMS_LOG_LPA_DELETE_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_LPMEA_INVALID_MSG_ID
 #define CMS_LOG_LPMEA_INVALID_MSG_ID            CMS_MSG_PRFX"0210W"
 #endif
 #define CMS_LOG_LPMEA_INVALID_MSG_TEXT          "No valid LPMEA in global area"
 #define CMS_LOG_LPMEA_INVALID_MSG               CMS_LOG_LPMEA_INVALID_MSG_ID" "CMS_LOG_LPMEA_INVALID_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_NTP_DELETE_FAILURE_MSG_ID
 #define CMS_LOG_NTP_DELETE_FAILURE_MSG_ID       CMS_MSG_PRFX"0211E"
 #endif
 #define CMS_LOG_NTP_DELETE_FAILURE_MSG_TEXT     "Name/Token delete failed, RC = %d"
 #define CMS_LOG_NTP_DELETE_FAILURE_MSG          CMS_LOG_NTP_DELETE_FAILURE_MSG_ID" "CMS_LOG_NTP_DELETE_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_RACROUTE_LIST_FAILURE_MSG_ID
 #define CMS_LOG_RACROUTE_LIST_FAILURE_MSG_ID    CMS_MSG_PRFX"0212E"
 #endif
 #define CMS_LOG_RACROUTE_LIST_FAILURE_MSG_TEXT  "RACROUTE LIST failed (%d, %d, %d)"
 #define CMS_LOG_RACROUTE_LIST_FAILURE_MSG       CMS_LOG_RACROUTE_LIST_FAILURE_MSG_ID" "CMS_LOG_RACROUTE_LIST_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_ZVT_NOT_POPULATED_MSG_ID
 #define CMS_LOG_ZVT_NOT_POPULATED_MSG_ID        CMS_MSG_PRFX"0213E"
 #endif
 #define CMS_LOG_ZVT_NOT_POPULATED_MSG_TEXT      "ZVT not populated, RC = %d"
 #define CMS_LOG_ZVT_NOT_POPULATED_MSG           CMS_LOG_ZVT_NOT_POPULATED_MSG_ID" "CMS_LOG_ZVT_NOT_POPULATED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_GLB_AREA_NOT_SET_MSG_ID
 #define CMS_LOG_GLB_AREA_NOT_SET_MSG_ID         CMS_MSG_PRFX"0214E"
 #endif
 #define CMS_LOG_GLB_AREA_NOT_SET_MSG_TEXT       "Global area not set, RC = %d"
 #define CMS_LOG_GLB_AREA_NOT_SET_MSG            CMS_LOG_GLB_AREA_NOT_SET_MSG_ID" "CMS_LOG_GLB_AREA_NOT_SET_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_GLB_AREA_NOT_RET_MSG_ID
 #define CMS_LOG_GLB_AREA_NOT_RET_MSG_ID         CMS_MSG_PRFX"0215E"
 #endif
 #define CMS_LOG_GLB_AREA_NOT_RET_MSG_TEXT       "Global area not retrieved, RC = %d"
 #define CMS_LOG_GLB_AREA_NOT_RET_MSG            CMS_LOG_GLB_AREA_NOT_RET_MSG_ID" "CMS_LOG_GLB_AREA_NOT_RET_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_PC_SET_FAILURE_MSG_ID
 #define CMS_LOG_PC_SET_FAILURE_MSG_ID           CMS_MSG_PRFX"0216E"
 #endif
 #define CMS_LOG_PC_SET_FAILURE_MSG_TEXT         "PC-%s not set, step = %s (%d %d)"
 #define CMS_LOG_PC_SET_FAILURE_MSG              CMS_LOG_PC_SET_FAILURE_MSG_ID" "CMS_LOG_PC_SET_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_TOO_MANY_CMD_TOKENS_MSG_ID
 #define CMS_LOG_TOO_MANY_CMD_TOKENS_MSG_ID      CMS_MSG_PRFX"0217E"
 #endif
 #define CMS_LOG_TOO_MANY_CMD_TOKENS_MSG_TEXT    "Too many tokens in command"
 #define CMS_LOG_TOO_MANY_CMD_TOKENS_MSG         CMS_LOG_TOO_MANY_CMD_TOKENS_MSG_ID" "CMS_LOG_TOO_MANY_CMD_TOKENS_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_CMD_TOO_LONG_MSG_ID
 #define CMS_LOG_CMD_TOO_LONG_MSG_ID             CMS_MSG_PRFX"0218E"
 #endif
 #define CMS_LOG_CMD_TOO_LONG_MSG_TEXT           "Command too long (%u)"
 #define CMS_LOG_CMD_TOO_LONG_MSG                CMS_LOG_CMD_TOO_LONG_MSG_ID" "CMS_LOG_CMD_TOO_LONG_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_CMD_TKNZ_FAILURE_MSG_ID
 #define CMS_LOG_CMD_TKNZ_FAILURE_MSG_ID         CMS_MSG_PRFX"0219E"
 #endif
 #define CMS_LOG_CMD_TKNZ_FAILURE_MSG_TEXT       "Command not tokenized"
 #define CMS_LOG_CMD_TKNZ_FAILURE_MSG            CMS_LOG_CMD_TKNZ_FAILURE_MSG_ID" "CMS_LOG_CMD_TKNZ_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_CMD_RECEIVED_MSG_ID
 #define CMS_LOG_CMD_RECEIVED_MSG_ID             CMS_MSG_PRFX"0220I"
 #endif
 #define CMS_LOG_CMD_RECEIVED_MSG_TEXT           "Modify %s command received"
 #define CMS_LOG_CMD_RECEIVED_MSG                CMS_LOG_CMD_RECEIVED_MSG_ID" "CMS_LOG_CMD_RECEIVED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_CMD_ACCEPTED_MSG_ID
 #define CMS_LOG_CMD_ACCEPTED_MSG_ID             CMS_MSG_PRFX"0221I"
 #endif
 #define CMS_LOG_CMD_ACCEPTED_MSG_TEXT           "Modify %s command accepted"
 #define CMS_LOG_CMD_ACCEPTED_MSG                CMS_LOG_CMD_ACCEPTED_MSG_ID" "CMS_LOG_CMD_ACCEPTED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_DISP_CMD_RESULT_MSG_ID
 #define CMS_LOG_DISP_CMD_RESULT_MSG_ID          CMS_MSG_PRFX"0222I"
 #endif
 #define CMS_LOG_DISP_CMD_RESULT_MSG_TEXT        ""
 #define CMS_LOG_DISP_CMD_RESULT_MSG             CMS_LOG_DISP_CMD_RESULT_MSG_ID" "CMS_LOG_DISP_CMD_RESULT_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_TERM_CMD_MSG_ID
 #define CMS_LOG_TERM_CMD_MSG_ID                 CMS_MSG_PRFX"0223I"
 #endif
 #define CMS_LOG_TERM_CMD_MSG_TEXT               "Termination command received"
 #define CMS_LOG_TERM_CMD_MSG                    CMS_LOG_TERM_CMD_MSG_ID" "CMS_LOG_TERM_CMD_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_INVALID_CMD_ARGS_MSG_ID
 #define CMS_LOG_INVALID_CMD_ARGS_MSG_ID         CMS_MSG_PRFX"0224W"
 #endif
 #define CMS_LOG_INVALID_CMD_ARGS_MSG_TEXT       "%s expects %u args, %u provided, command ignored"
 #define CMS_LOG_INVALID_CMD_ARGS_MSG            CMS_LOG_INVALID_CMD_ARGS_MSG_ID" "CMS_LOG_INVALID_CMD_ARGS_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_BAD_LOG_COMP_MSG_ID
 #define CMS_LOG_BAD_LOG_COMP_MSG_ID             CMS_MSG_PRFX"0225W"
 #endif
 #define CMS_LOG_BAD_LOG_COMP_MSG_TEXT           "Log component \'%s\' not recognized, command ignored"
 #define CMS_LOG_BAD_LOG_COMP_MSG                CMS_LOG_BAD_LOG_COMP_MSG_ID" "CMS_LOG_BAD_LOG_COMP_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_BAD_LOG_LEVEL_MSG_ID
 #define CMS_LOG_BAD_LOG_LEVEL_MSG_ID            CMS_MSG_PRFX"0226W"
 #endif
 #define CMS_LOG_BAD_LOG_LEVEL_MSG_TEXT          "Log level \'%s\' not recognized, command ignored"
 #define CMS_LOG_BAD_LOG_LEVEL_MSG               CMS_LOG_BAD_LOG_LEVEL_MSG_ID" "CMS_LOG_BAD_LOG_LEVEL_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_BAD_CMD_MSG_ID
 #define CMS_LOG_BAD_CMD_MSG_ID                  CMS_MSG_PRFX"0227W"
 #endif
 #define CMS_LOG_BAD_CMD_MSG_TEXT                "Modify %s command not recognized"
 #define CMS_LOG_BAD_CMD_MSG                     CMS_LOG_BAD_CMD_MSG_ID" "CMS_LOG_BAD_CMD_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_EMPTY_CMD_MSG_ID
 #define CMS_LOG_EMPTY_CMD_MSG_ID                CMS_MSG_PRFX"0228W"
 #endif
 #define CMS_LOG_EMPTY_CMD_MSG_TEXT              "Empty modify command received, command ignored"
 #define CMS_LOG_EMPTY_CMD_MSG                   CMS_LOG_EMPTY_CMD_MSG_ID" "CMS_LOG_EMPTY_CMD_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_NOT_READY_FOR_CMD_MSG_ID
 #define CMS_LOG_NOT_READY_FOR_CMD_MSG_ID        CMS_MSG_PRFX"0229W"
 #endif
 #define CMS_LOG_NOT_READY_FOR_CMD_MSG_TEXT      "Server not ready for command %s"
 #define CMS_LOG_NOT_READY_FOR_CMD_MSG           CMS_LOG_NOT_READY_FOR_CMD_MSG_ID" "CMS_LOG_NOT_READY_FOR_CMD_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_BAD_DISPLAY_OPTION_MSG_ID
 #define CMS_LOG_BAD_DISPLAY_OPTION_MSG_ID       CMS_MSG_PRFX"0230W"
 #endif
 #define CMS_LOG_BAD_DISPLAY_OPTION_MSG_TEXT     "Display option \'%s\' not recognized, command ignored"
 #define CMS_LOG_BAD_DISPLAY_OPTION_MSG          CMS_LOG_BAD_DISPLAY_OPTION_MSG_ID" "CMS_LOG_BAD_DISPLAY_OPTION_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_RESMGR_NOT_LOCKED_MSG_ID
 #define CMS_LOG_RESMGR_NOT_LOCKED_MSG_ID        CMS_MSG_PRFX"0231E"
 #endif
 #define CMS_LOG_RESMGR_NOT_LOCKED_MSG_TEXT      "RESMGR version %d not locked, ISGENQ RC = %d, RSN = 0x%08X"
 #define CMS_LOG_RESMGR_NOT_LOCKED_MSG           CMS_LOG_RESMGR_NOT_LOCKED_MSG_ID" "CMS_LOG_RESMGR_NOT_LOCKED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_RESMGR_NOT_RELEASED_MSG_ID
 #define CMS_LOG_RESMGR_NOT_RELEASED_MSG_ID      CMS_MSG_PRFX"0232E"
 #endif
 #define CMS_LOG_RESMGR_NOT_RELEASED_MSG_TEXT    "RESMGR version %d not released, ISGENQ RC = %d, RSN = 0x%08X"
 #define CMS_LOG_RESMGR_NOT_RELEASED_MSG         CMS_LOG_RESMGR_NOT_RELEASED_MSG_ID" "CMS_LOG_RESMGR_NOT_RELEASED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_RESMGR_ECSA_FAILURE_MSG_ID
 #define CMS_LOG_RESMGR_ECSA_FAILURE_MSG_ID      CMS_MSG_PRFX"0233E"
 #endif
 #define CMS_LOG_RESMGR_ECSA_FAILURE_MSG_TEXT    "RESMGR ECSA storage not allocated, size = %u"
 #define CMS_LOG_RESMGR_ECSA_FAILURE_MSG         CMS_LOG_RESMGR_ECSA_FAILURE_MSG_ID" "CMS_LOG_RESMGR_ECSA_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_RESMGR_NT_NOT_CREATED_MSG_ID
 #define CMS_LOG_RESMGR_NT_NOT_CREATED_MSG_ID    CMS_MSG_PRFX"0234E"
 #endif
 #define CMS_LOG_RESMGR_NT_NOT_CREATED_MSG_TEXT  "RESMGR NAME/TOKEN not created,  RC = %d"
 #define CMS_LOG_RESMGR_NT_NOT_CREATED_MSG       CMS_LOG_RESMGR_NT_NOT_CREATED_MSG_ID" "CMS_LOG_RESMGR_NT_NOT_CREATED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_RESMGR_NT_NOT_RETR_MSG_ID
 #define CMS_LOG_RESMGR_NT_NOT_RETR_MSG_ID       CMS_MSG_PRFX"0235E"
 #endif
 #define CMS_LOG_RESMGR_NT_NOT_RETR_MSG_TEXT     "RESMGR NAME/TOKEN not retrieved, RC = %d"
 #define CMS_LOG_RESMGR_NT_NOT_RETR_MSG          CMS_LOG_RESMGR_NT_NOT_RETR_MSG_ID" "CMS_LOG_RESMGR_NT_NOT_RETR_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_RESMGR_NOT_ADDED_MSG_ID
 #define CMS_LOG_RESMGR_NOT_ADDED_MSG_ID         CMS_MSG_PRFX"0236E"
 #endif
 #define CMS_LOG_RESMGR_NOT_ADDED_MSG_TEXT       "RESMGR not added for ASID = %04X, RC = %d, manager RC = %d"
 #define CMS_LOG_RESMGR_NOT_ADDED_MSG            CMS_LOG_RESMGR_NOT_ADDED_MSG_ID" "CMS_LOG_RESMGR_NOT_ADDED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_RESMGR_NOT_REMOVED_MSG_ID
 #define CMS_LOG_RESMGR_NOT_REMOVED_MSG_ID       CMS_MSG_PRFX"0237E"
 #endif
 #define CMS_LOG_RESMGR_NOT_REMOVED_MSG_TEXT     "RESMGR not removed for ASID = %04X, RC = %d, manager RC = %d"
 #define CMS_LOG_RESMGR_NOT_REMOVED_MSG          CMS_LOG_RESMGR_NOT_REMOVED_MSG_ID" "CMS_LOG_RESMGR_NOT_REMOVED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_RNAME_FAILURE_MSG_ID
 #define CMS_LOG_RNAME_FAILURE_MSG_ID            CMS_MSG_PRFX"0238E"
 #endif
 #define CMS_LOG_RNAME_FAILURE_MSG_TEXT          "%s RNAME not created, %s"
 #define CMS_LOG_RNAME_FAILURE_MSG               CMS_LOG_RNAME_FAILURE_MSG_ID" "CMS_LOG_RNAME_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_NT_NAME_FAILURE_MSG_ID
 #define CMS_LOG_NT_NAME_FAILURE_MSG_ID          CMS_MSG_PRFX"0239E"
 #endif
 #define CMS_LOG_NT_NAME_FAILURE_MSG_TEXT        "%s NAME (NT) not created, %s"
 #define CMS_LOG_NT_NAME_FAILURE_MSG             CMS_LOG_NT_NAME_FAILURE_MSG_ID" "CMS_LOG_NT_NAME_FAILURE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_BUILD_TIME_MISMATCH_MSG_ID
 #define CMS_LOG_BUILD_TIME_MISMATCH_MSG_ID      CMS_MSG_PRFX"0240W"
 #endif
 #define CMS_LOG_BUILD_TIME_MISMATCH_MSG_TEXT    "Discarding outdated LPA module at %p (%26.26s - %26.26s)"
 #define CMS_LOG_BUILD_TIME_MISMATCH_MSG          CMS_LOG_BUILD_TIME_MISMATCH_MSG_ID" "CMS_LOG_BUILD_TIME_MISMATCH_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_ID
 #define CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_ID      CMS_MSG_PRFX"0241E"
 #endif
 #define CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_TEXT    "Service with ID %d not relocated, 0x%p not in range [0x%p, 0x%p]"
 #define CMS_LOG_BAD_SERVICE_ADDR_ID_MSG         CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_ID" "CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_CMD_REJECTED_MSG_ID
 #define CMS_LOG_CMD_REJECTED_MSG_ID             CMS_MSG_PRFX"0242W"
 #endif
 #define CMS_LOG_CMD_REJECTED_MSG_TEXT           "Modify %s command rejected"
 #define CMS_LOG_CMD_REJECTED_MSG                CMS_LOG_CMD_REJECTED_MSG_ID" "CMS_LOG_CMD_REJECTED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_CMD_REJECTED_BUSY_MSG_ID
 #define CMS_LOG_CMD_REJECTED_BUSY_MSG_ID        CMS_MSG_PRFX"0243W"
 #endif
 #define CMS_LOG_CMD_REJECTED_BUSY_MSG_TEXT      "server busy, modify commands are rejected"
 #define CMS_LOG_CMD_REJECTED_BUSY_MSG           CMS_LOG_CMD_REJECTED_BUSY_MSG_ID" "CMS_LOG_CMD_REJECTED_BUSY_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_RES_NOT_CREATED_MSG_ID
 #define CMS_LOG_RES_NOT_CREATED_MSG_ID          CMS_MSG_PRFX"0244E"
 #endif
 #define CMS_LOG_RES_NOT_CREATED_MSG_TEXT        "Resource '%s' not created, RC = %d"
 #define CMS_LOG_RES_NOT_CREATED_MSG             CMS_LOG_RES_NOT_CREATED_MSG_ID" "CMS_LOG_RES_NOT_CREATED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_STEP_ABEND_MSG_ID
 #define CMS_LOG_STEP_ABEND_MSG_ID               CMS_MSG_PRFX"0245E"
 #endif
 #define CMS_LOG_STEP_ABEND_MSG_TEXT             "ABEND S%03X-%02X averted in step '%s' (recovery RC = %d)"
 #define CMS_LOG_STEP_ABEND_MSG                  CMS_LOG_STEP_ABEND_MSG_ID" "CMS_LOG_STEP_ABEND_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_ID
 #define CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_ID      CMS_MSG_PRFX"0246E"
 #endif
 #define CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_TEXT    "Service entry %d is occupied"
 #define CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG         CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_ID" "CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_DEV_MODE_ON_MSG_ID
 #define CMS_LOG_DEV_MODE_ON_MSG_ID              CMS_MSG_PRFX"0247W"
 #endif
 #define CMS_LOG_DEV_MODE_ON_MSG_TEXT            "Development mode is enabled"
 #define CMS_LOG_DEV_MODE_ON_MSG                 CMS_LOG_DEV_MODE_ON_MSG_ID" "CMS_LOG_DEV_MODE_ON_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_REUSASID_NO_MSG_ID
 #define CMS_LOG_REUSASID_NO_MSG_ID              CMS_MSG_PRFX"0248W"
 #endif
 #define CMS_LOG_REUSASID_NO_MSG_TEXT            "Address space is not reusable, start with REUSASID=YES to prevent an ASID shortage"
 #define CMS_LOG_REUSASID_NO_MSG                 CMS_LOG_REUSASID_NO_MSG_ID" "CMS_LOG_REUSASID_NO_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_NON_PRIVATE_MODULE_MSG_ID
 #define CMS_LOG_NON_PRIVATE_MODULE_MSG_ID       CMS_MSG_PRFX"0249E"
 #endif
 #define CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT     "Module %8.8s is loaded from common storage, ensure %8.8s is valid in the STEPLIB"
 #define CMS_LOG_NON_PRIVATE_MODULE_MSG          CMS_LOG_NON_PRIVATE_MODULE_MSG_ID" "CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_DUB_ERROR_MSG_ID
 #define CMS_LOG_DUB_ERROR_MSG_ID                CMS_MSG_PRFX"0250E"
 #endif
 #define CMS_LOG_DUB_ERROR_MSG_TEXT              "Bad dub status %d (%d,0x%04X), verify that the started task user has an OMVS segment"
 #define CMS_LOG_DUB_ERROR_MSG                   CMS_LOG_DUB_ERROR_MSG_ID" "CMS_LOG_DUB_ERROR_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_LOOKUP_ANC_CREATED_MSG_ID
 #define CMS_LOG_LOOKUP_ANC_CREATED_MSG_ID       CMS_MSG_PRFX"0251I"
 #endif
 #define CMS_LOG_LOOKUP_ANC_CREATED_MSG_TEXT     "Look-up routine anchor has been created at %p"
 #define CMS_LOG_LOOKUP_ANC_CREATED_MSG          CMS_LOG_LOOKUP_ANC_CREATED_MSG_ID" "CMS_LOG_LOOKUP_ANC_CREATED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_LOOKUP_ANC_REUSED_MSG_ID
 #define CMS_LOG_LOOKUP_ANC_REUSED_MSG_ID        CMS_MSG_PRFX"0252I"
 #endif
 #define CMS_LOG_LOOKUP_ANC_REUSED_MSG_TEXT      "Look-up routine anchor at % p has been reused"
 #define CMS_LOG_LOOKUP_ANC_REUSED_MSG           CMS_LOG_LOOKUP_ANC_REUSED_MSG_ID" "CMS_LOG_LOOKUP_ANC_REUSED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_LOOKUP_ANC_DELETED_MSG_ID
 #define CMS_LOG_LOOKUP_ANC_DELETED_MSG_ID       CMS_MSG_PRFX"0253I"
 #endif
 #define CMS_LOG_LOOKUP_ANC_DELETED_MSG_TEXT     "Look-up routine anchor at % p has been deleted"
 #define CMS_LOG_LOOKUP_ANC_DELETED_MSG          CMS_LOG_LOOKUP_ANC_DELETED_MSG_ID" "CMS_LOG_LOOKUP_ANC_DELETED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_LOOKUP_ANC_DISCARDED_MSG_ID
 #define CMS_LOG_LOOKUP_ANC_DISCARDED_MSG_ID     CMS_MSG_PRFX"0254W"
 #endif
 #define CMS_LOG_LOOKUP_ANC_DISCARDED_MSG_TEXT   "Look-up routine anchor at %p has been discarded due to %s:"
 #define CMS_LOG_LOOKUP_ANC_DISCARDED_MSG        CMS_LOG_LOOKUP_ANC_DISCARDED_MSG_ID" "CMS_LOG_LOOKUP_ANC_DISCARDED_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_ID
 #define CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_ID   CMS_MSG_PRFX"0255E"
 #endif
 #define CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_TEXT "Look-up routine anchor has not been created"
 #define CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG      CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_ID" "CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG_ID
 #define CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG_ID     CMS_MSG_PRFX"0256I"
 #endif
 #define CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG_TEXT   "Look-up routine anchor at %p has been explicitly discarded"
 #define CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG        CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG_ID" "CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG_TEXT
 
+/*
+ * Reason:
+ * Action:
+ */
 #ifndef CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG_ID
 #define CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG_ID    CMS_MSG_PRFX"0257W"
 #endif
