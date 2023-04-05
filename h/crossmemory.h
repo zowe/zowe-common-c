@@ -1288,7 +1288,7 @@ typedef struct CMSDynlinkEnv_tag {
 
 /*
  * Reason: the cross-memory server has detected that the current LPA module is
- * outdated.
+ * outdated; this usually happens when the cross-memory server gets updated.
  * Action: the cross-memory server discards the old module and loads the latest
  * version to LPA.
  */
