@@ -3161,6 +3161,21 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
              
       if (service->authExtractionFunction(service, request) == 0){
         authDataFound = TRUE;
+      } else {
+        if (request->contentLength > 1) {
+          // certificate authentication
+          char userid[9] = {0};
+          int mapReturnCode = 0, mapReasonCode = 0;
+          int rc = getUseridByCertificate(request->contentBody, request->contentLength, userid, &mapReturnCode, &mapReasonCode);
+          if (rc == 0) {
+            request->username = userid;
+            printf("Found user = %s\n", request->username);
+            request->password = NULL;
+            authDataFound = TRUE;
+          } else {
+            printf("No user found. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x\n");
+          }
+        }
       }
     }
   }
