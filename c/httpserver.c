@@ -2653,19 +2653,23 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
   } else if (authDataFound){
     ACEE *acee = NULL;
     strupcase(request->username); /* upfold username */
+    if (request->password == NULL) {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Password is null. Calling safAuthenticate without a password.\n");
+    } else {
 #ifdef ENABLE_DANGEROUS_AUTH_TRACING
  #ifdef METTLE
-    printf("SAF auth for user: '%s'\n", request->username);
+      printf("SAF auth for user: '%s'\n", request->username);
  #else
-    printf("u: '%s' p: '%s'\n",request->username,request->password);
+      printf("u: '%s' p: '%s'\n",request->username,request->password);
  #endif
 #endif
-    if (isLowerCasePasswordAllowed() || isPassPhrase(request->password)) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "mixed-case system or a pass phrase, not upfolding password\n");
-      /* don't upfold password */
-    } else {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "non-mixed-case system, not a pass phrase, upfolding password\n");
-      strupcase(request->password); /* upfold password */
+      if (isLowerCasePasswordAllowed() || isPassPhrase(request->password)) {
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "mixed-case system or a pass phrase, not upfolding password\n");
+        /* don't upfold password */
+      } else {
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "non-mixed-case system, not a pass phrase, upfolding password\n");
+        strupcase(request->password); /* upfold password */
+      }
     }
 
 #if APF_AUTHORIZED
@@ -2675,10 +2679,17 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
 
     CrossMemoryServerName *privilegedServerName = getConfiguredProperty(service->server, HTTP_SERVER_PRIVILEGED_SERVER_PROPERTY);
     int pwdCheckRC = 0, pwdCheckRSN = 0;
-    pwdCheckRC = zisCheckUsernameAndPassword(privilegedServerName,
-        request->username, request->password, &status);
-    authResponse->type = AUTH_TYPE_RACF;
-    authResponse->responseDetails.safStatus = status.safStatus;
+    if (request->password != NULL) {
+      pwdCheckRC = zisCheckUsernameAndPassword(privilegedServerName,
+          request->username, request->password, &status);
+      authResponse->type = AUTH_TYPE_RACF;
+      authResponse->responseDetails.safStatus = status.safStatus;
+    } else {
+      pwdCheckRC = zisCheckUsername(privilegedServerName,
+          request->username, &status);
+      authResponse->type = AUTH_TYPE_RACF;
+      authResponse->responseDetails.safStatus = status.safStatus;
+    }
 
     if (pwdCheckRC != 0) {
 #ifdef DEBUG_AUTH
@@ -3142,7 +3153,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   int authDataFound = FALSE; 
   HttpHeader *authenticationHeader = getHeader(request,"Authorization");
   char *tokenCookieText = getCookieValue(request,getSessionTokenCookieName(service));
-  
+
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
           "serviceAuthNativeWithSessionToken: authenticationHeader 0x%p\n",
           "extractFunction 0x%p\n",
@@ -3161,22 +3172,30 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
              
       if (service->authExtractionFunction(service, request) == 0){
         authDataFound = TRUE;
+      } 
+    } 
+  }
+
+  char userid[9] = {0};
+  int mapReturnCode = 0, mapReasonCode = 0;
+  int rc = 0;
+
+  if (authDataFound == FALSE) {
+    if (request->contentLength > 1) {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "There was no token found or credentials in the request. Attempting certificate authentication.\n");
+      int rc = getUseridByCertificate(request->contentBody, request->contentLength, userid, &mapReturnCode, &mapReasonCode);
+      if (rc == 0) {
+        request->username = userid;
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Found user = %s\n", request->username);
+        request->password = NULL;
+        // null password with a valid user tells the server we authenticated with a certificate
+        authDataFound = TRUE;
       } else {
-        if (request->contentLength > 1) {
-          // certificate authentication
-          char userid[9] = {0};
-          int mapReturnCode = 0, mapReasonCode = 0;
-          int rc = getUseridByCertificate(request->contentBody, request->contentLength, userid, &mapReturnCode, &mapReasonCode);
-          if (rc == 0) {
-            request->username = userid;
-            printf("Found user = %s\n", request->username);
-            request->password = NULL;
-            authDataFound = TRUE;
-          } else {
-            printf("No user found. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x\n");
-          }
-        }
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
+            "No user found. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x\n", rc, mapReturnCode, mapReasonCode);
       }
+    } else {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "There is no certificate in the request body. Not attempting certificate authentication.\n");
     }
   }
   
