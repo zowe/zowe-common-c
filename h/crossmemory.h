@@ -756,7 +756,7 @@ typedef struct CMSDynlinkEnv_tag {
 /*
  * Reason: an incorrect state has been detected in the main loop of this
  * cross-memory server.
- * Action: contact support.
+ * Action: the cross-memory server terminates; contact support.
  */
 #ifndef CMS_LOG_MAIN_LOOP_FAILURE_MSG_ID
 #define CMS_LOG_MAIN_LOOP_FAILURE_MSG_ID        CMS_MSG_PRFX"0110E"
@@ -1244,9 +1244,9 @@ typedef struct CMSDynlinkEnv_tag {
 
 /*
  * Reason: the cross-memory server could not add the resource manager.
- * Action: the cross-memory terminates; review the RESMGR ADD service return
- * code value which follows "manager RC =" and if the issue cannot be resolved
- * contact support.
+ * Action: the cross-memory server terminates; review the RESMGR ADD service
+ * return code value which follows "manager RC =" and if the issue cannot be
+ * resolved contact support.
  */
 #ifndef CMS_LOG_RESMGR_NOT_ADDED_MSG_ID
 #define CMS_LOG_RESMGR_NOT_ADDED_MSG_ID         CMS_MSG_PRFX"0236E"
@@ -1256,9 +1256,9 @@ typedef struct CMSDynlinkEnv_tag {
 
 /*
  * Reason: the cross-memory server could not delete the resource manager.
- * Action: the cross-memory terminates with a non-zero status; review the RESMGR
- * DELETE service return code value which follows "manager RC =" and if the
- * issue cannot be resolved contact support.
+ * Action: the cross-memory server terminates with a non-zero status; review
+ * the RESMGR DELETE service return code value which follows "manager RC =" and
+ * if the issue cannot be resolved contact support.
  */
 #ifndef CMS_LOG_RESMGR_NOT_REMOVED_MSG_ID
 #define CMS_LOG_RESMGR_NOT_REMOVED_MSG_ID       CMS_MSG_PRFX"0237E"
@@ -1309,8 +1309,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_BAD_SERVICE_ADDR_ID_MSG         CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_ID" "CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_TEXT
 
 /*
- * Reason: the cross-memory has rejected the provided modify command because it
- * was either incorrect or the server was not ready to process it.
+ * Reason: the cross-memory server has rejected the provided modify command
+ * because it was either incorrect or the server was not ready to process it.
  * Action: the command is ignored.
  */
 #ifndef CMS_LOG_CMD_REJECTED_MSG_ID
