@@ -3172,33 +3172,52 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
              
       if (service->authExtractionFunction(service, request) == 0){
         authDataFound = TRUE;
-      } 
+      }
     } 
   }
 
-  char userid[9] = {0};
-  int mapReturnCode = 0, mapReasonCode = 0;
-  int rc = 0;
+  /* Doubtful that it would be greater than 8k... */
 
-  if (authDataFound == FALSE) {
-    if (request->contentLength > 1) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "There was no token found or credentials in the request. Attempting certificate authentication.\n");
-      int rc = getUseridByCertificate(request->contentBody, request->contentLength, userid, &mapReturnCode, &mapReasonCode);
-      if (rc == 0) {
+#define TLS_CLIENT_CERTIFICATE_MAX_LENGTH 8000
+
+  char clientCertificate[TLS_CLIENT_CERTIFICATE_MAX_LENGTH] = {0};
+  unsigned int clientCertificateLength = 0;
+
+  int rc = getClientCertificate(response->socket->tlsSocket->socketHandle, clientCertificate, sizeof(clientCertificate), &clientCertificateLength);
+  if (rc != 0) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "getClientCertificate - %d.\n", rc);    
+  }
+
+#ifdef ENABLE_DANGEROUS_AUTH_TRACING
+  /* We probably don't want to dump their certificate, right? */
+  dumpbuffer(clientCertificate, clientCertificateLength);
+#endif
+
+  if (rc == 0 && clientCertificateLength > 0) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "There is a client certificate attached to the request.\n");
+    /*
+     * We don't want to do this if we already found authentication data.
+     */
+    if (authDataFound == FALSE) {
+#define TLS_USERID_LENGTH 9
+      char userid[TLS_USERID_LENGTH] = {0};
+      int racfReturnCode = 0, racfReasonCode = 0;
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "There was no token or credentials found in the request. Server is attempting to map the client certificate.\n");
+      int safReturnCode = getUseridByCertificate(clientCertificate, clientCertificateLength, userid, &racfReturnCode, &racfReasonCode);
+      if (safReturnCode == 0) {
         request->username = userid;
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Found user = %s\n", request->username);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Found user '%s' from client certificate.\n", request->username);
         request->password = NULL;
         // null password with a valid user tells the server we authenticated with a certificate
         authDataFound = TRUE;
       } else {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO,
-            "No user found. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x\n", rc, mapReturnCode, mapReasonCode);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "No user was found for client certificate. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x\n", safReturnCode, racfReturnCode, racfReasonCode);
       }
     } else {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "There is no certificate in the request body. Not attempting certificate authentication.\n");
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Client certificate was attached to request, but credentials are also attached. Server won't attempt to map the client certificate.\n");
     }
   }
-  
+
   response->sessionCookie = NULL;
 
   AUTH_TRACE("AUTH: tokenCookieText: %s\n",(tokenCookieText ? tokenCookieText : "<noAuthToken>"));
