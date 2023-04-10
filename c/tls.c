@@ -159,18 +159,18 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
   }
   char *label = env->settings->label;
   char *ciphers = env->settings->ciphers;
-  rc = gsk_secure_socket_open(env->envHandle, &socket->socketHandle);
+  rc = rc || gsk_secure_socket_open(env->envHandle, &socket->socketHandle);
   rc = rc || gsk_attribute_set_numeric_value(socket->socketHandle, GSK_FD, fd);
   if (label) {
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_KEYRING_LABEL, label, 0);
   }
-  rc = gsk_attribute_set_enum(socket->socketHandle, GSK_SESSION_TYPE, isServer ? GSK_SERVER_SESSION_WITH_CL_AUTH : GSK_CLIENT_SESSION);
+  rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_SESSION_TYPE, isServer ? GSK_SERVER_SESSION_WITH_CL_AUTH : GSK_CLIENT_SESSION);
   if (ciphers) {
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_V3_CIPHER_SPECS_EXPANDED, ciphers, 0);
     rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);
   }
   rc = rc || gsk_attribute_set_callback(socket->socketHandle, GSK_IO_CALLBACK, &ioCallbacks);
-  rc = gsk_secure_socket_init(socket->socketHandle);
+  rc = rc || gsk_secure_socket_init(socket->socketHandle);
   if (rc == 0) {
     *outSocket = socket;
   } else {
