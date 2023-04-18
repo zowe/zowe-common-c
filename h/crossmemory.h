@@ -646,28 +646,28 @@ typedef struct CMSDynlinkEnv_tag {
 /* 100 - 199 are core server messages from the highest level (cmsStartMainLoop)  */
 /* 200 - 399 are core server messages from lower level functions  */
 /* 400 - 699 are messages from core services  */
-/* 700 - 999 are messages from user services  */
+/* 700 - 999 are messages from user services or standard plugins  */
 
 /*
- * Reason: this is a debug message.
- * Action: no action required.
+ * Reason: This is a debug message.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_DEBUG_MSG_ID
 #define CMS_LOG_DEBUG_MSG_ID                    CMS_MSG_PRFX"0100I"
 #endif
 
 /*
- * Reason: this is a debug hex dump.
- * Action: no action required.
+ * Reason: This is a debug hex dump.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_DUMP_MSG_ID
 #define CMS_LOG_DUMP_MSG_ID                     CMS_MSG_PRFX"0101I"
 #endif
 
 /*
- * Reason: a cross-memory server's initialization step has failed; the
+ * Reason: A cross-memory server's initialization step has failed; the
  * initialization process stops.
- * Action: review the error code; if the issue cannot be resolved, contact
+ * Action: Review the error code; if the issue cannot be resolved, contact
  * support.
  */
 #ifndef CMS_LOG_INIT_STEP_FAILURE_MSG_ID
@@ -677,9 +677,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_INIT_STEP_FAILURE_MSG           CMS_LOG_INIT_STEP_FAILURE_MSG_ID" "CMS_LOG_INIT_STEP_FAILURE_MSG_TEXT
 
 /*
- * Reason: a cross-memory server's initialization step has completed
+ * Reason: A cross-memory server's initialization step has completed
  * successfully.
- * Action: no action required.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_INIT_STEP_SUCCESS_MSG_ID
 #define CMS_LOG_INIT_STEP_SUCCESS_MSG_ID        CMS_MSG_PRFX"0103I"
@@ -688,9 +688,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_INIT_STEP_SUCCESS_MSG           CMS_LOG_INIT_STEP_SUCCESS_MSG_ID" "CMS_LOG_INIT_STEP_SUCCESS_MSG_TEXT
 
 /*
- * Reason: the cross-memory server is starting the console listener task which
+ * Reason: The cross-memory server is starting the console listener task which
  * handles operator commands.
- * Action: no action required.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_STARTING_CONSOLE_TASK_MSG_ID
 #define CMS_LOG_STARTING_CONSOLE_TASK_MSG_ID    CMS_MSG_PRFX"0104I"
@@ -699,8 +699,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_STARTING_CONSOLE_TASK_MSG       CMS_LOG_STARTING_CONSOLE_TASK_MSG_ID" "CMS_LOG_STARTING_CONSOLE_TASK_MSG_TEXT
 
 /*
- * Reason: the cross-memory server is starting initialization.
- * Action: no action required.
+ * Reason: The cross-memory server is starting initialization.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_INIT_STARTED_MSG_ID
 #define CMS_LOG_INIT_STARTED_MSG_ID             CMS_MSG_PRFX"0105I"
@@ -709,8 +709,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_INIT_STARTED_MSG                CMS_LOG_INIT_STARTED_MSG_ID" "CMS_LOG_INIT_STARTED_MSG_TEXT
 
 /*
- * Reason: the initialization process has failed; the server will terminate.
- * Action: review the error code; if the issue cannot be resolved, contact
+ * Reason: The initialization process has failed; the server will terminate.
+ * Action: Review the error code; if the issue cannot be resolved, contact
  * support.
  */
 #ifndef CMS_LOG_INIT_FAILED_MSG_ID
@@ -720,8 +720,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_INIT_FAILED_MSG                 CMS_LOG_INIT_FAILED_MSG_ID" "CMS_LOG_INIT_FAILED_MSG_TEXT
 
 /*
- * Reason: the user has started the server with the cold start option.
- * Action: the global resources of this cross-memory server will be discarded
+ * Reason: The user has started the server with the cold start option.
+ * Action: The global resources of this cross-memory server will be discarded
  * and the server will perform a clean start.
  */
 #ifndef CMS_LOG_COLD_START_MSG_ID
@@ -731,9 +731,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_COLD_START_MSG                      CMS_LOG_COLD_START_MSG_ID" "CMS_LOG_COLD_START_MSG_TEXT
 
 /*
- * Reason: the global resource clean-up process has failed; the server continues
+ * Reason: The global resource clean-up process has failed; the server continues
  * execution.
- * Action: review the error code; if the issue cannot be resolved, contact
+ * Action: Review the error code; if the issue cannot be resolved, contact
  * support.
  */
 #ifndef CMS_LOG_GLB_CLEANUP_WARN_MSG_ID
@@ -743,9 +743,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_GLB_CLEANUP_WARN_MSG            CMS_LOG_GLB_CLEANUP_WARN_MSG_ID" "CMS_LOG_GLB_CLEANUP_WARN_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has been initialized and is ready to accept
+ * Reason: The cross-memory server has been initialized and is ready to accept
  * program calls.
- * Action: no action required.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_SERVER_READY_MSG_ID
 #define CMS_LOG_SERVER_READY_MSG_ID             CMS_MSG_PRFX"0109I"
@@ -754,9 +754,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_SERVER_READY_MSG                CMS_LOG_SERVER_READY_MSG_ID" "CMS_LOG_SERVER_READY_MSG_TEXT
 
 /*
- * Reason: an incorrect state has been detected in the main loop of this
+ * Reason: An incorrect state has been detected in the main loop of this
  * cross-memory server.
- * Action: the cross-memory server terminates; contact support.
+ * Action: The cross-memory server terminates; contact support.
  */
 #ifndef CMS_LOG_MAIN_LOOP_FAILURE_MSG_ID
 #define CMS_LOG_MAIN_LOOP_FAILURE_MSG_ID        CMS_MSG_PRFX"0110E"
@@ -765,9 +765,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_MAIN_LOOP_FAILURE_MSG           CMS_LOG_MAIN_LOOP_FAILURE_MSG_ID" "CMS_LOG_MAIN_LOOP_FAILURE_MSG_TEXT
 
 /*
- * Reason: the main loop of this cross-memory server has successfully terminated
+ * Reason: The main loop of this cross-memory server has successfully terminated
  * upon shutdown.
- * Action: no action required.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_MAIN_LOOP_TERM_MSG_ID
 #define CMS_LOG_MAIN_LOOP_TERM_MSG_ID           CMS_MSG_PRFX"0111I"
@@ -776,9 +776,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_MAIN_LOOP_TERM_MSG              CMS_LOG_MAIN_LOOP_TERM_MSG_ID" "CMS_LOG_MAIN_LOOP_TERM_MSG_TEXT
 
 /*
- * Reason: a cross-memory server's termination step has failed; the termination
+ * Reason: A cross-memory server's termination step has failed; the termination
  * process continues.
- * Action: review the error code; if the issue cannot be resolved, contact
+ * Action: Review the error code; if the issue cannot be resolved, contact
  * support.
  */
 #ifndef CMS_LOG_TERM_STEP_FAILURE_MSG_ID
@@ -788,8 +788,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_TERM_STEP_FAILURE_MSG           CMS_LOG_TERM_STEP_FAILURE_MSG_ID" "CMS_LOG_TERM_STEP_FAILURE_MSG_TEXT
 
 /*
- * Reason: a cross-memory server's termination step has completed successfully.
- * Action: no action required.
+ * Reason: A cross-memory server's termination step has completed successfully.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_TERM_STEP_SUCCESS_MSG_ID
 #define CMS_LOG_TERM_STEP_SUCCESS_MSG_ID        CMS_MSG_PRFX"0113I"
@@ -798,8 +798,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_TERM_STEP_SUCCESS_MSG           CMS_LOG_TERM_STEP_SUCCESS_MSG_ID" "CMS_LOG_TERM_STEP_SUCCESS_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has successfully stopped.
- * Action: no action required.
+ * Reason: The cross-memory server has successfully stopped.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_SERVER_STOPPED_MSG_ID
 #define CMS_LOG_SERVER_STOPPED_MSG_ID           CMS_MSG_PRFX"0114I"
@@ -808,8 +808,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_SERVER_STOPPED_MSG              CMS_LOG_SERVER_STOPPED_MSG_ID" "CMS_LOG_SERVER_STOPPED_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has stopped with a non-zero status.
- * Action: review the status and the messages preceding this message; if the
+ * Reason: The cross-memory server has stopped with a non-zero status.
+ * Action: Review the status and the messages preceding this message; if the
  * issue cannot be resolved, contact support.
  */
 #ifndef CMS_LOG_SERVER_STOP_FAILURE_MSG_ID
@@ -819,8 +819,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_SERVER_STOP_FAILURE_MSG         CMS_LOG_SERVER_STOP_FAILURE_MSG_ID" "CMS_LOG_SERVER_STOP_FAILURE_MSG_TEXT
 
 /*
- * Reason: an ABEND occurred in this cross-memory server.
- * Action: review any potential messages and errors preceding this message and
+ * Reason: An ABEND occurred in this cross-memory server.
+ * Action: Review any potential messages and errors preceding this message and
  * contact support if the issue cannot be resolved.
  */
 #ifndef CMS_LOG_SERVER_ABEND_MSG_ID
@@ -830,9 +830,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_SERVER_ABEND_MSG                CMS_LOG_SERVER_ABEND_MSG_ID" "CMS_LOG_SERVER_ABEND_MSG_TEXT
 
 /*
- * Reason: one or more data sets in the STEPLIB concatenation is
+ * Reason: One or more data sets in the STEPLIB concatenation is
  * not APF-authorized.
- * Action: the cross-memory server terminates; make sure that all the STEPLIB
+ * Action: The cross-memory server terminates; make sure that all the STEPLIB
  * data sets are APF-authorized.
  */
 #ifndef CMS_LOG_NOT_APF_AUTHORIZED_MSG_ID
@@ -842,9 +842,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_NOT_APF_AUTHORIZED_MSG          CMS_LOG_NOT_APF_AUTHORIZED_MSG_ID" "CMS_LOG_NOT_APF_AUTHORIZED_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has detected that it has been started in
+ * Reason: The cross-memory server has detected that it has been started in
  * the wrong key.
- * Action: the cross-memory server terminates; make sure that the correct
+ * Action: The cross-memory server terminates; make sure that the correct
  * PPT-entry has been added for the main ZIS module.
  */
 #ifndef CMS_LOG_BAD_SERVER_KEY_MSG_ID
@@ -854,9 +854,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_BAD_SERVER_KEY_MSG              CMS_LOG_BAD_SERVER_KEY_MSG_ID" "CMS_LOG_BAD_SERVER_KEY_MSG_TEXT
 
 /*
- * Reason: this message lists the modify commands supported by this
+ * Reason: This message lists the modify commands supported by this
  * cross-memory server (not including the plugins).
- * Action: no action required.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_MODIFY_CMD_INFO_MSG_ID
 #define CMS_LOG_MODIFY_CMD_INFO_MSG_ID          CMS_MSG_PRFX"0200I"
@@ -865,8 +865,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_MODIFY_CMD_INFO_MSG             CMS_LOG_MODIFY_CMD_INFO_MSG_ID" "CMS_LOG_MODIFY_CMD_INFO_MSG_TEXT
 
 /*
- * Reason: a cross-memory service with a bad service ID has been detected.
- * Action: the cross-memory server terminates; contact support.
+ * Reason: A cross-memory service with a bad service ID has been detected.
+ * Action: The cross-memory server terminates; contact support.
  */
 #ifndef CMS_LOG_BAD_SERVICE_ID_MSG_ID
 #define CMS_LOG_BAD_SERVICE_ID_MSG_ID           CMS_MSG_PRFX"0201E"
@@ -875,8 +875,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_BAD_SERVICE_ID_MSG              CMS_LOG_BAD_SERVICE_ID_MSG_ID" "CMS_LOG_BAD_SERVICE_ID_MSG_TEXT
 
 /*
- * Reason: a cross-memory server with the same server name is already running.
- * Action: the cross-memory server terminates; specify a different server name
+ * Reason: A cross-memory server with the same server name is already running.
+ * Action: The cross-memory server terminates; specify a different server name
  * in the cross-memory server started task JCL or the PARMLIB member.
  */
 #ifndef CMS_LOG_DUP_SERVER_MSG_ID
@@ -886,8 +886,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_DUP_SERVER_MSG                  CMS_LOG_DUP_SERVER_MSG_ID" "CMS_LOG_DUP_SERVER_MSG_TEXT
 
 /*
- * Reason: an internal synchronization error has occurred.
- * Action: the cross-memory server terminates; contact support.
+ * Reason: An internal synchronization error has occurred.
+ * Action: The cross-memory server terminates; contact support.
  */
 #ifndef CMS_LOG_SERVER_NOT_LOCKED_MSG_ID
 #define CMS_LOG_SERVER_NOT_LOCKED_MSG_ID        CMS_MSG_PRFX"0203E"
@@ -896,8 +896,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_SERVER_NOT_LOCKED_MSG           CMS_LOG_SERVER_NOT_LOCKED_MSG_ID" "CMS_LOG_SERVER_NOT_LOCKED_MSG_TEXT
 
 /*
- * Reason: the global anchor of this cross-memory server is zero.
- * Action: the cross-memory server terminates; contact support.
+ * Reason: The global anchor of this cross-memory server is zero.
+ * Action: The cross-memory server terminates; contact support.
  */
 #ifndef CMS_LOG_GLB_AREA_NULL_MSG_ID
 #define CMS_LOG_GLB_AREA_NULL_MSG_ID            CMS_MSG_PRFX"0204E"
@@ -906,8 +906,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_GLB_AREA_NULL_MSG               CMS_LOG_GLB_AREA_NULL_MSG_ID" "CMS_LOG_GLB_AREA_NULL_MSG_TEXT
 
 /*
- * Reason: an error occurred during the relocation of the server module.
- * Action: the cross-memory server terminates; contact support.
+ * Reason: An error occurred during the relocation of the server module.
+ * Action: The cross-memory server terminates; contact support.
  */
 #ifndef CMS_LOG_RELOC_FAILURE_MSG_ID
 #define CMS_LOG_RELOC_FAILURE_MSG_ID            CMS_MSG_PRFX"0205E"
@@ -916,9 +916,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_RELOC_FAILURE_MSG               CMS_LOG_RELOC_FAILURE_MSG_ID" "CMS_LOG_RELOC_FAILURE_MSG_TEXT
 
 /*
- * Reason: a request with a bad eyecatcher has been passed to the print or
+ * Reason: A request with a bad eyecatcher has been passed to the print or
  * dump service.
- * Action: the request is ignored; correct the parameter list if your
+ * Action: The request is ignored; correct the parameter list if your
  * application has initiated the request, otherwise contact support.
  */
 #ifndef CMS_LOG_INVALID_EYECATCHER_MSG_ID
@@ -928,8 +928,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_INVALID_EYECATCHER_MSG          CMS_LOG_INVALID_EYECATCHER_MSG_ID" "CMS_LOG_INVALID_EYECATCHER_MSG_TEXT
 
 /*
- * Reason: an allocation error has occurred.
- * Action: depending on the location of the failure some functionality might be
+ * Reason: An allocation error has occurred.
+ * Action: Depending on the location of the failure some functionality might be
  * affected; contact support.
  */
 #ifndef CMS_LOG_ALLOC_FAILURE_MSG_ID
@@ -939,8 +939,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_ALLOC_FAILURE_MSG               CMS_LOG_ALLOC_FAILURE_MSG_ID" "CMS_LOG_ALLOC_FAILURE_MSG_TEXT
 
 /*
- * Reason: the cross-memory server's main module has not been added to LPA.
- * Action: the cross-memory server terminates; review the provided CSVDYLPA
+ * Reason: The cross-memory server's main module has not been added to LPA.
+ * Action: The cross-memory server terminates; review the provided CSVDYLPA
  * return and reason codes and contact support if the issue cannot be resolved.
  */
 #ifndef CMS_LOG_LPA_LOAD_FAILURE_MSG_ID
@@ -950,8 +950,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_LPA_LOAD_FAILURE_MSG            CMS_LOG_LPA_LOAD_FAILURE_MSG_ID" "CMS_LOG_LPA_LOAD_FAILURE_MSG_TEXT
 
 /*
- * Reason: the cross-memory server's main module has not been deleted from LPA.
- * Action: the cross-memory server terminates with a non-zero status; review
+ * Reason: The cross-memory server's main module has not been deleted from LPA.
+ * Action: The cross-memory server terminates with a non-zero status; review
  * the provided CSVDYLPA return and reason codes and contact support if the
  * issue cannot be resolved.
  */
@@ -962,9 +962,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_LPA_DELETE_FAILURE_MSG          CMS_LOG_LPA_DELETE_FAILURE_MSG_ID" "CMS_LOG_LPA_DELETE_FAILURE_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has detected an invalid LPMEA area for its
+ * Reason: The cross-memory server has detected an invalid LPMEA area for its
  * main module.
- * Action: the cross-memory server continues execution; if the error occurred
+ * Action: The cross-memory server continues execution; if the error occurred
  * in the development mode ignore it, otherwise contact support.
  */
 #ifndef CMS_LOG_LPMEA_INVALID_MSG_ID
@@ -974,9 +974,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_LPMEA_INVALID_MSG               CMS_LOG_LPMEA_INVALID_MSG_ID" "CMS_LOG_LPMEA_INVALID_MSG_TEXT
 
 /*
- * Reason: the cross-memory server's global area's name/token has not been
+ * Reason: The cross-memory server's global area's name/token has not been
  * deleted.
- * Action: the cross-memory server terminates with a non-zero status; review
+ * Action: The cross-memory server terminates with a non-zero status; review
  * the provided IEANTDL return and reason codes and contact support if the
  * issue cannot be resolved.
  */
@@ -987,9 +987,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_NTP_DELETE_FAILURE_MSG          CMS_LOG_NTP_DELETE_FAILURE_MSG_ID" "CMS_LOG_NTP_DELETE_FAILURE_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has failed to perform RACROUTE LIST on the
+ * Reason: The cross-memory server has failed to perform RACROUTE LIST on the
  * FACILITY class.
- * Action: the cross-memory server terminates; the message contains the SAF
+ * Action: The cross-memory server terminates; the message contains the SAF
  * return code, RACF return and reason codes; review the codes and if the issue
  * cannot be resolved contact support.
  */
@@ -1000,8 +1000,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_RACROUTE_LIST_FAILURE_MSG       CMS_LOG_RACROUTE_LIST_FAILURE_MSG_ID" "CMS_LOG_RACROUTE_LIST_FAILURE_MSG_TEXT
 
 /*
- * Reason: the Zowe vector table has not been populated.
- * Action: the cross-memory server terminates; contact support.
+ * Reason: The Zowe vector table has not been populated.
+ * Action: The cross-memory server terminates; contact support.
  */
 #ifndef CMS_LOG_ZVT_NOT_POPULATED_MSG_ID
 #define CMS_LOG_ZVT_NOT_POPULATED_MSG_ID        CMS_MSG_PRFX"0213E"
@@ -1010,8 +1010,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_ZVT_NOT_POPULATED_MSG           CMS_LOG_ZVT_NOT_POPULATED_MSG_ID" "CMS_LOG_ZVT_NOT_POPULATED_MSG_TEXT
 
 /*
- * Reason: the cross-memory server's global area could not be set.
- * Action: the cross-memory server terminates; review the return code and
+ * Reason: The cross-memory server's global area could not be set.
+ * Action: The cross-memory server terminates; review the return code and
  * contact support if the issue cannot be resolved.
  */
 #ifndef CMS_LOG_GLB_AREA_NOT_SET_MSG_ID
@@ -1021,8 +1021,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_GLB_AREA_NOT_SET_MSG            CMS_LOG_GLB_AREA_NOT_SET_MSG_ID" "CMS_LOG_GLB_AREA_NOT_SET_MSG_TEXT
 
 /*
- * Reason: the cross-memory server's global area could not be retrieved.
- * Action: the cross-memory server terminates; review the return code and
+ * Reason: The cross-memory server's global area could not be retrieved.
+ * Action: The cross-memory server terminates; review the return code and
  * contact support if the issue cannot be resolved.
  */
 #ifndef CMS_LOG_GLB_AREA_NOT_RET_MSG_ID
@@ -1032,8 +1032,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_GLB_AREA_NOT_RET_MSG            CMS_LOG_GLB_AREA_NOT_RET_MSG_ID" "CMS_LOG_GLB_AREA_NOT_RET_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has failed to set up a PC-routine.
- * Action: contact support.
+ * Reason: The cross-memory server has failed to set up a PC-routine.
+ * Action: Contact support.
  */
 #ifndef CMS_LOG_PC_SET_FAILURE_MSG_ID
 #define CMS_LOG_PC_SET_FAILURE_MSG_ID           CMS_MSG_PRFX"0216E"
@@ -1042,8 +1042,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_PC_SET_FAILURE_MSG              CMS_LOG_PC_SET_FAILURE_MSG_ID" "CMS_LOG_PC_SET_FAILURE_MSG_TEXT
 
 /*
- * Reason: the provided modify command has too many tokens.
- * Action: the command is ignored.
+ * Reason: The provided modify command has too many tokens.
+ * Action: The command is ignored.
  */
 #ifndef CMS_LOG_TOO_MANY_CMD_TOKENS_MSG_ID
 #define CMS_LOG_TOO_MANY_CMD_TOKENS_MSG_ID      CMS_MSG_PRFX"0217E"
@@ -1052,8 +1052,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_TOO_MANY_CMD_TOKENS_MSG         CMS_LOG_TOO_MANY_CMD_TOKENS_MSG_ID" "CMS_LOG_TOO_MANY_CMD_TOKENS_MSG_TEXT
 
 /*
- * Reason: the provided modify command is too long.
- * Action: the command is ignored.
+ * Reason: The provided modify command is too long.
+ * Action: The command is ignored.
  */
 #ifndef CMS_LOG_CMD_TOO_LONG_MSG_ID
 #define CMS_LOG_CMD_TOO_LONG_MSG_ID             CMS_MSG_PRFX"0218E"
@@ -1062,9 +1062,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_CMD_TOO_LONG_MSG                CMS_LOG_CMD_TOO_LONG_MSG_ID" "CMS_LOG_CMD_TOO_LONG_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has failed to tokenize the provided modify
+ * Reason: The cross-memory server has failed to tokenize the provided modify
  * command.
- * Action: the command is ignored; review the previously printed messages.
+ * Action: The command is ignored; review the previously printed messages.
  */
 #ifndef CMS_LOG_CMD_TKNZ_FAILURE_MSG_ID
 #define CMS_LOG_CMD_TKNZ_FAILURE_MSG_ID         CMS_MSG_PRFX"0219E"
@@ -1073,8 +1073,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_CMD_TKNZ_FAILURE_MSG            CMS_LOG_CMD_TKNZ_FAILURE_MSG_ID" "CMS_LOG_CMD_TKNZ_FAILURE_MSG_TEXT
 
 /*
- * Reason: a modify command has been received.
- * Action: the cross-memory server proceeds to handle the command.
+ * Reason: A modify command has been received.
+ * Action: The cross-memory server proceeds to handle the command.
  */
 #ifndef CMS_LOG_CMD_RECEIVED_MSG_ID
 #define CMS_LOG_CMD_RECEIVED_MSG_ID             CMS_MSG_PRFX"0220I"
@@ -1083,8 +1083,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_CMD_RECEIVED_MSG                CMS_LOG_CMD_RECEIVED_MSG_ID" "CMS_LOG_CMD_RECEIVED_MSG_TEXT
 
 /*
- * Reason: a modify command has been accepted.
- * Action: no action required.
+ * Reason: A modify command has been accepted.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_CMD_ACCEPTED_MSG_ID
 #define CMS_LOG_CMD_ACCEPTED_MSG_ID             CMS_MSG_PRFX"0221I"
@@ -1093,8 +1093,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_CMD_ACCEPTED_MSG                CMS_LOG_CMD_ACCEPTED_MSG_ID" "CMS_LOG_CMD_ACCEPTED_MSG_TEXT
 
 /*
- * Reason: this message contains the response of a successful modify command.
- * Action: no action required.
+ * Reason: This message contains the response of a successful modify command.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_DISP_CMD_RESULT_MSG_ID
 #define CMS_LOG_DISP_CMD_RESULT_MSG_ID          CMS_MSG_PRFX"0222I"
@@ -1103,9 +1103,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_DISP_CMD_RESULT_MSG             CMS_LOG_DISP_CMD_RESULT_MSG_ID" "CMS_LOG_DISP_CMD_RESULT_MSG_TEXT
 
 /*
- * Reason: an operator issued the termination command and it has been received
+ * Reason: An operator issued the termination command and it has been received
  * by the cross-memory server.
- * Action: the cross-memory server starts the termination sequence.
+ * Action: The cross-memory server starts the termination sequence.
  */
 #ifndef CMS_LOG_TERM_CMD_MSG_ID
 #define CMS_LOG_TERM_CMD_MSG_ID                 CMS_MSG_PRFX"0223I"
@@ -1114,8 +1114,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_TERM_CMD_MSG                    CMS_LOG_TERM_CMD_MSG_ID" "CMS_LOG_TERM_CMD_MSG_TEXT
 
 /*
- * Reason: a modify command has an incorrect number of arguments.
- * Action: the command is ignored.
+ * Reason: A modify command has an incorrect number of arguments.
+ * Action: The command is ignored.
  */
 #ifndef CMS_LOG_INVALID_CMD_ARGS_MSG_ID
 #define CMS_LOG_INVALID_CMD_ARGS_MSG_ID         CMS_MSG_PRFX"0224W"
@@ -1124,8 +1124,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_INVALID_CMD_ARGS_MSG            CMS_LOG_INVALID_CMD_ARGS_MSG_ID" "CMS_LOG_INVALID_CMD_ARGS_MSG_TEXT
 
 /*
- * Reason: a bad log component has been passed in the LOG modify command.
- * Action: the command is ignored.
+ * Reason: A bad log component has been passed in the LOG modify command.
+ * Action: The command is ignored.
  */
 #ifndef CMS_LOG_BAD_LOG_COMP_MSG_ID
 #define CMS_LOG_BAD_LOG_COMP_MSG_ID             CMS_MSG_PRFX"0225W"
@@ -1134,8 +1134,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_BAD_LOG_COMP_MSG                CMS_LOG_BAD_LOG_COMP_MSG_ID" "CMS_LOG_BAD_LOG_COMP_MSG_TEXT
 
 /*
- * Reason: a bad log level has been passed in the LOG modify command.
- * Action: the command is ignored.
+ * Reason: A bad log level has been passed in the LOG modify command.
+ * Action: The command is ignored.
  */
 #ifndef CMS_LOG_BAD_LOG_LEVEL_MSG_ID
 #define CMS_LOG_BAD_LOG_LEVEL_MSG_ID            CMS_MSG_PRFX"0226W"
@@ -1144,8 +1144,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_BAD_LOG_LEVEL_MSG               CMS_LOG_BAD_LOG_LEVEL_MSG_ID" "CMS_LOG_BAD_LOG_LEVEL_MSG_TEXT
 
 /*
- * Reason: a modify command has not been recognized.
- * Action: the command is ignored.
+ * Reason: A modify command has not been recognized.
+ * Action: The command is ignored.
  */
 #ifndef CMS_LOG_BAD_CMD_MSG_ID
 #define CMS_LOG_BAD_CMD_MSG_ID                  CMS_MSG_PRFX"0227W"
@@ -1154,8 +1154,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_BAD_CMD_MSG                     CMS_LOG_BAD_CMD_MSG_ID" "CMS_LOG_BAD_CMD_MSG_TEXT
 
 /*
- * Reason: an empty modify command has been received.
- * Action: the command is ignored.
+ * Reason: An empty modify command has been received.
+ * Action: The command is ignored.
  */
 #ifndef CMS_LOG_EMPTY_CMD_MSG_ID
 #define CMS_LOG_EMPTY_CMD_MSG_ID                CMS_MSG_PRFX"0228W"
@@ -1164,9 +1164,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_EMPTY_CMD_MSG                   CMS_LOG_EMPTY_CMD_MSG_ID" "CMS_LOG_EMPTY_CMD_MSG_TEXT
 
 /*
- * Reason: the cross-memory server is being either initialized or terminated
+ * Reason: The cross-memory server is being either initialized or terminated
  * and isn't ready to accept the provided modify command.
- * Action: the command is ignored; re-issue the command later.
+ * Action: The command is ignored; re-issue the command later.
  */
 #ifndef CMS_LOG_NOT_READY_FOR_CMD_MSG_ID
 #define CMS_LOG_NOT_READY_FOR_CMD_MSG_ID        CMS_MSG_PRFX"0229W"
@@ -1175,8 +1175,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_NOT_READY_FOR_CMD_MSG           CMS_LOG_NOT_READY_FOR_CMD_MSG_ID" "CMS_LOG_NOT_READY_FOR_CMD_MSG_TEXT
 
 /*
- * Reason: a DISPLAY modify command has not been recognized.
- * Action: the command is ignored.
+ * Reason: A DISPLAY modify command has not been recognized.
+ * Action: The command is ignored.
  */
 #ifndef CMS_LOG_BAD_DISPLAY_OPTION_MSG_ID
 #define CMS_LOG_BAD_DISPLAY_OPTION_MSG_ID       CMS_MSG_PRFX"0230W"
@@ -1185,9 +1185,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_BAD_DISPLAY_OPTION_MSG          CMS_LOG_BAD_DISPLAY_OPTION_MSG_ID" "CMS_LOG_BAD_DISPLAY_OPTION_MSG_TEXT
 
 /*
- * Reason: the cross-memory's address space resource manager serialization has
+ * Reason: The cross-memory's address space resource manager serialization has
  * failed (lock not acquired)
- * Action: the cross-memory server terminates; contact support.
+ * Action: The cross-memory server terminates; contact support.
  */
 #ifndef CMS_LOG_RESMGR_NOT_LOCKED_MSG_ID
 #define CMS_LOG_RESMGR_NOT_LOCKED_MSG_ID        CMS_MSG_PRFX"0231E"
@@ -1196,9 +1196,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_RESMGR_NOT_LOCKED_MSG           CMS_LOG_RESMGR_NOT_LOCKED_MSG_ID" "CMS_LOG_RESMGR_NOT_LOCKED_MSG_TEXT
 
 /*
- * Reason: the cross-memory's address space resource manager serialization has
+ * Reason: The cross-memory's address space resource manager serialization has
  * failed (lock not released).
- * Action: the cross-memory server continues execution; contact support.
+ * Action: The cross-memory server continues execution; contact support.
  */
 #ifndef CMS_LOG_RESMGR_NOT_RELEASED_MSG_ID
 #define CMS_LOG_RESMGR_NOT_RELEASED_MSG_ID      CMS_MSG_PRFX"0232E"
@@ -1207,9 +1207,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_RESMGR_NOT_RELEASED_MSG         CMS_LOG_RESMGR_NOT_RELEASED_MSG_ID" "CMS_LOG_RESMGR_NOT_RELEASED_MSG_TEXT
 
 /*
- * Reason: common storage has not been allocated for the cross-memory server's
+ * Reason: Common storage has not been allocated for the cross-memory server's
  * address space resource manager.
- * Action: the cross-memory server terminates; ensure that there is no shortage
+ * Action: The cross-memory server terminates; ensure that there is no shortage
  * of ECSA on your system and if the issue cannot be resolved contact support.
  */
 #ifndef CMS_LOG_RESMGR_ECSA_FAILURE_MSG_ID
@@ -1219,9 +1219,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_RESMGR_ECSA_FAILURE_MSG         CMS_LOG_RESMGR_ECSA_FAILURE_MSG_ID" "CMS_LOG_RESMGR_ECSA_FAILURE_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has failed to create the resource manager
+ * Reason: The cross-memory server has failed to create the resource manager
  * name/token pair.
- * Action: the cross-memory server terminates; review the provided IEANTCR
+ * Action: The cross-memory server terminates; review the provided IEANTCR
  * return and reason codes and contact support if the issue cannot be resolved.
  */
 #ifndef CMS_LOG_RESMGR_NT_NOT_CREATED_MSG_ID
@@ -1231,9 +1231,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_RESMGR_NT_NOT_CREATED_MSG       CMS_LOG_RESMGR_NT_NOT_CREATED_MSG_ID" "CMS_LOG_RESMGR_NT_NOT_CREATED_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has failed to retrieve the resource manager
+ * Reason: The cross-memory server has failed to retrieve the resource manager
  * name/token pair.
- * Action: the cross-memory server terminates; review the provided IEANTRT
+ * Action: The cross-memory server terminates; review the provided IEANTRT
  * return and reason codes and contact support if the issue cannot be resolved.
  */
 #ifndef CMS_LOG_RESMGR_NT_NOT_RETR_MSG_ID
@@ -1243,8 +1243,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_RESMGR_NT_NOT_RETR_MSG          CMS_LOG_RESMGR_NT_NOT_RETR_MSG_ID" "CMS_LOG_RESMGR_NT_NOT_RETR_MSG_TEXT
 
 /*
- * Reason: the cross-memory server could not add the resource manager.
- * Action: the cross-memory server terminates; review the RESMGR ADD service
+ * Reason: The cross-memory server could not add the resource manager.
+ * Action: The cross-memory server terminates; review the RESMGR ADD service
  * return code value which follows "manager RC =" and if the issue cannot be
  * resolved contact support.
  */
@@ -1255,8 +1255,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_RESMGR_NOT_ADDED_MSG            CMS_LOG_RESMGR_NOT_ADDED_MSG_ID" "CMS_LOG_RESMGR_NOT_ADDED_MSG_TEXT
 
 /*
- * Reason: the cross-memory server could not delete the resource manager.
- * Action: the cross-memory server terminates with a non-zero status; review
+ * Reason: The cross-memory server could not delete the resource manager.
+ * Action: The cross-memory server terminates with a non-zero status; review
  * the RESMGR DELETE service return code value which follows "manager RC =" and
  * if the issue cannot be resolved contact support.
  */
@@ -1267,8 +1267,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_RESMGR_NOT_REMOVED_MSG          CMS_LOG_RESMGR_NOT_REMOVED_MSG_ID" "CMS_LOG_RESMGR_NOT_REMOVED_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has failed to create an RNAME.
- * Action: the cross-memory server terminates; contact support.
+ * Reason: The cross-memory server has failed to create an RNAME.
+ * Action: The cross-memory server terminates; contact support.
  */
 #ifndef CMS_LOG_RNAME_FAILURE_MSG_ID
 #define CMS_LOG_RNAME_FAILURE_MSG_ID            CMS_MSG_PRFX"0238E"
@@ -1277,8 +1277,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_RNAME_FAILURE_MSG               CMS_LOG_RNAME_FAILURE_MSG_ID" "CMS_LOG_RNAME_FAILURE_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has failed to create an name-token name.
- * Action: the cross-memory server terminates; contact support.
+ * Reason: The cross-memory server has failed to create an name-token name.
+ * Action: The cross-memory server terminates; contact support.
  */
 #ifndef CMS_LOG_NT_NAME_FAILURE_MSG_ID
 #define CMS_LOG_NT_NAME_FAILURE_MSG_ID          CMS_MSG_PRFX"0239E"
@@ -1287,9 +1287,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_NT_NAME_FAILURE_MSG             CMS_LOG_NT_NAME_FAILURE_MSG_ID" "CMS_LOG_NT_NAME_FAILURE_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has detected that the current LPA module is
+ * Reason: The cross-memory server has detected that the current LPA module is
  * outdated; this usually happens when the cross-memory server gets updated.
- * Action: the cross-memory server discards the old module and loads the latest
+ * Action: The cross-memory server discards the old module and loads the latest
  * version to LPA.
  */
 #ifndef CMS_LOG_BUILD_TIME_MISMATCH_MSG_ID
@@ -1299,8 +1299,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_BUILD_TIME_MISMATCH_MSG         CMS_LOG_BUILD_TIME_MISMATCH_MSG_ID" "CMS_LOG_BUILD_TIME_MISMATCH_MSG_TEXT
 
 /*
- * Reason: an error occurred during the relocation of a cross-memory service.
- * Action: the cross-memory server terminates; contact support.
+ * Reason: An error occurred during the relocation of a cross-memory service.
+ * Action: The cross-memory server terminates; contact support.
  */
 #ifndef CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_ID
 #define CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_ID      CMS_MSG_PRFX"0241E"
@@ -1309,9 +1309,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_BAD_SERVICE_ADDR_ID_MSG         CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_ID" "CMS_LOG_BAD_SERVICE_ADDR_ID_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has rejected the provided modify command
+ * Reason: The cross-memory server has rejected the provided modify command
  * because it was either incorrect or the server was not ready to process it.
- * Action: the command is ignored.
+ * Action: The command is ignored.
  */
 #ifndef CMS_LOG_CMD_REJECTED_MSG_ID
 #define CMS_LOG_CMD_REJECTED_MSG_ID             CMS_MSG_PRFX"0242W"
@@ -1320,9 +1320,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_CMD_REJECTED_MSG                CMS_LOG_CMD_REJECTED_MSG_ID" "CMS_LOG_CMD_REJECTED_MSG_TEXT
 
 /*
- * Reason: too many command has been issued in a short time and the cross-memory
+ * Reason: Too many command has been issued in a short time and the cross-memory
  * server is not able to process the provided modify command.
- * Action: the command is ignored.
+ * Action: The command is ignored.
  */
 #ifndef CMS_LOG_CMD_REJECTED_BUSY_MSG_ID
 #define CMS_LOG_CMD_REJECTED_BUSY_MSG_ID        CMS_MSG_PRFX"0243W"
@@ -1331,8 +1331,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_CMD_REJECTED_BUSY_MSG           CMS_LOG_CMD_REJECTED_BUSY_MSG_ID" "CMS_LOG_CMD_REJECTED_BUSY_MSG_TEXT
 
 /*
- * Reason: an internal resource could not be created.
- * Action: depending on the location either the cross-memory server terminates
+ * Reason: An internal resource could not be created.
+ * Action: Depending on the location either the cross-memory server terminates
  * or some functionality is impacted; contact support.
  */
 #ifndef CMS_LOG_RES_NOT_CREATED_MSG_ID
@@ -1342,8 +1342,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_RES_NOT_CREATED_MSG             CMS_LOG_RES_NOT_CREATED_MSG_ID" "CMS_LOG_RES_NOT_CREATED_MSG_TEXT
 
 /*
- * Reason: an ABEND occurred in a component of the cross-memory server.
- * Action: depending on the location either the cross-memory server terminates
+ * Reason: An ABEND occurred in a component of the cross-memory server.
+ * Action: Depending on the location either the cross-memory server terminates
  * or some functionality is impacted; contact support.
  */
 #ifndef CMS_LOG_STEP_ABEND_MSG_ID
@@ -1353,9 +1353,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_STEP_ABEND_MSG                  CMS_LOG_STEP_ABEND_MSG_ID" "CMS_LOG_STEP_ABEND_MSG_TEXT
 
 /*
- * Reason: an attempt has been made to install a cross-memory service in an
+ * Reason: An attempt has been made to install a cross-memory service in an
  * already occupied slot.
- * Action: the cross-memory server terminates; contact support.
+ * Action: The cross-memory server terminates; contact support.
  */
 #ifndef CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_ID
 #define CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_ID      CMS_MSG_PRFX"0246E"
@@ -1364,8 +1364,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG         CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_ID" "CMS_LOG_SRVC_ENTRY_OCCUPIED_MSG_TEXT
 
 /*
- * Reason: one or more of the development modes has been enabled.
- * Action: make sure it was done intentionally, otherwise disable any
+ * Reason: One or more of the development modes has been enabled.
+ * Action: Make sure it was done intentionally, otherwise disable any
  * development mode.
  */
 #ifndef CMS_LOG_DEV_MODE_ON_MSG_ID
@@ -1375,9 +1375,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_DEV_MODE_ON_MSG                 CMS_LOG_DEV_MODE_ON_MSG_ID" "CMS_LOG_DEV_MODE_ON_MSG_TEXT
 
 /*
- * Reason: the cross-memory server's address space has been started a
+ * Reason: The cross-memory server's address space has been started a
  * non-reusable address space.
- * Action: use RESUASID=YES when starting the cross-memory server, otherwise
+ * Action: Use RESUASID=YES when starting the cross-memory server, otherwise
  * starting it without that parameter may cause an ASID shortage.
  */
 #ifndef CMS_LOG_REUSASID_NO_MSG_ID
@@ -1387,9 +1387,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_REUSASID_NO_MSG                 CMS_LOG_REUSASID_NO_MSG_ID" "CMS_LOG_REUSASID_NO_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has detected that its module has been loaded
+ * Reason: The cross-memory server has detected that its module has been loaded
  * from common storage.
- * Action: the cross-memory server terminates; make sure that the module is in
+ * Action: The cross-memory server terminates; make sure that the module is in
  * a STEPLIB data set.
  */
 #ifndef CMS_LOG_NON_PRIVATE_MODULE_MSG_ID
@@ -1399,8 +1399,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_NON_PRIVATE_MODULE_MSG          CMS_LOG_NON_PRIVATE_MODULE_MSG_ID" "CMS_LOG_NON_PRIVATE_MODULE_MSG_TEXT
 
 /*
- * Reason: the cross-memory server has detected a bad dub status.
- * Action: the cross-memory server terminates; make sure that the user under
+ * Reason: The cross-memory server has detected a bad dub status.
+ * Action: The cross-memory server terminates; make sure that the user under
  * which the cross-memory server's started task runs has on OMVS segment.
  */
 #ifndef CMS_LOG_DUB_ERROR_MSG_ID
@@ -1410,8 +1410,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_DUB_ERROR_MSG                   CMS_LOG_DUB_ERROR_MSG_ID" "CMS_LOG_DUB_ERROR_MSG_TEXT
 
 /*
- * Reason: a cross-memory server look-up routine anchor has been created.
- * Action: no action required.
+ * Reason: A cross-memory server look-up routine anchor has been created.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_LOOKUP_ANC_CREATED_MSG_ID
 #define CMS_LOG_LOOKUP_ANC_CREATED_MSG_ID       CMS_MSG_PRFX"0251I"
@@ -1420,8 +1420,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_LOOKUP_ANC_CREATED_MSG          CMS_LOG_LOOKUP_ANC_CREATED_MSG_ID" "CMS_LOG_LOOKUP_ANC_CREATED_MSG_TEXT
 
 /*
- * Reason: an existing look-up routine anchor has been found and re-used.
- * Action: no action required.
+ * Reason: An existing look-up routine anchor has been found and re-used.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_LOOKUP_ANC_REUSED_MSG_ID
 #define CMS_LOG_LOOKUP_ANC_REUSED_MSG_ID        CMS_MSG_PRFX"0252I"
@@ -1430,8 +1430,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_LOOKUP_ANC_REUSED_MSG           CMS_LOG_LOOKUP_ANC_REUSED_MSG_ID" "CMS_LOG_LOOKUP_ANC_REUSED_MSG_TEXT
 
 /*
- * Reason: a look-up routine anchor has been deleted.
- * Action: no action required.
+ * Reason: A look-up routine anchor has been deleted.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_LOOKUP_ANC_DELETED_MSG_ID
 #define CMS_LOG_LOOKUP_ANC_DELETED_MSG_ID       CMS_MSG_PRFX"0253I"
@@ -1440,8 +1440,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_LOOKUP_ANC_DELETED_MSG          CMS_LOG_LOOKUP_ANC_DELETED_MSG_ID" "CMS_LOG_LOOKUP_ANC_DELETED_MSG_TEXT
 
 /*
- * Reason: a look-up routine anchor has been discarded.
- * Action: a new anchor will be created; review the reason and contact support
+ * Reason: A look-up routine anchor has been discarded.
+ * Action: A new anchor will be created; review the reason and contact support
  * if the reason is not one of the following: incompatible version,
  * insufficient size, outdated look-up routine.
  */
@@ -1452,8 +1452,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_LOOKUP_ANC_DISCARDED_MSG        CMS_LOG_LOOKUP_ANC_DISCARDED_MSG_ID" "CMS_LOG_LOOKUP_ANC_DISCARDED_MSG_TEXT
 
 /*
- * Reason: a look-up routine anchor could not be created.
- * Action: the cross-memory server terminates; make sure there is no shortage
+ * Reason: A look-up routine anchor could not be created.
+ * Action: The cross-memory server terminates; make sure there is no shortage
  * of ECSA on your system and contact support if the issue cannot be resolved.
  */
 #ifndef CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_ID
@@ -1463,9 +1463,9 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG      CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_ID" "CMS_LOG_LOOKUP_ANC_ALLOC_ERROR_MSG_TEXT
 
 /*
- * Reason: the current look-up routine anchor has been discarded explicitly via
+ * Reason: The current look-up routine anchor has been discarded explicitly via
  * a parameter.
- * Action: no action required.
+ * Action: No action required.
  */
 #ifndef CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG_ID
 #define CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG_ID     CMS_MSG_PRFX"0256I"
@@ -1474,8 +1474,8 @@ typedef struct CMSDynlinkEnv_tag {
 #define CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG        CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG_ID" "CMS_LOG_LOOKUP_ANC_RESET_REQ_MSG_TEXT
 
 /*
- * Reason: the current look-up routine anchor could not be discarded.
- * Action: the cross-memory server continues execution; review the return code
+ * Reason: The current look-up routine anchor could not be discarded.
+ * Action: The cross-memory server continues execution; review the return code
  * and contact support if the issue cannot be resolved.
  */
 #ifndef CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG_ID
