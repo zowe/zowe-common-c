@@ -1227,7 +1227,7 @@ typedef struct CMSDynlinkEnv_tag {
 #ifndef CMS_LOG_RESMGR_NT_NOT_CREATED_MSG_ID
 #define CMS_LOG_RESMGR_NT_NOT_CREATED_MSG_ID    CMS_MSG_PRFX"0234E"
 #endif
-#define CMS_LOG_RESMGR_NT_NOT_CREATED_MSG_TEXT  "RESMGR NAME/TOKEN not created,  RC = %d"
+#define CMS_LOG_RESMGR_NT_NOT_CREATED_MSG_TEXT  "RESMGR NAME/TOKEN not created, RC = %d"
 #define CMS_LOG_RESMGR_NT_NOT_CREATED_MSG       CMS_LOG_RESMGR_NT_NOT_CREATED_MSG_ID" "CMS_LOG_RESMGR_NT_NOT_CREATED_MSG_TEXT
 
 /*
@@ -1426,7 +1426,7 @@ typedef struct CMSDynlinkEnv_tag {
 #ifndef CMS_LOG_LOOKUP_ANC_REUSED_MSG_ID
 #define CMS_LOG_LOOKUP_ANC_REUSED_MSG_ID        CMS_MSG_PRFX"0252I"
 #endif
-#define CMS_LOG_LOOKUP_ANC_REUSED_MSG_TEXT      "Look-up routine anchor at % p has been reused"
+#define CMS_LOG_LOOKUP_ANC_REUSED_MSG_TEXT      "Look-up routine anchor at %p has been reused"
 #define CMS_LOG_LOOKUP_ANC_REUSED_MSG           CMS_LOG_LOOKUP_ANC_REUSED_MSG_ID" "CMS_LOG_LOOKUP_ANC_REUSED_MSG_TEXT
 
 /*
@@ -1436,7 +1436,7 @@ typedef struct CMSDynlinkEnv_tag {
 #ifndef CMS_LOG_LOOKUP_ANC_DELETED_MSG_ID
 #define CMS_LOG_LOOKUP_ANC_DELETED_MSG_ID       CMS_MSG_PRFX"0253I"
 #endif
-#define CMS_LOG_LOOKUP_ANC_DELETED_MSG_TEXT     "Look-up routine anchor at % p has been deleted"
+#define CMS_LOG_LOOKUP_ANC_DELETED_MSG_TEXT     "Look-up routine anchor at %p has been deleted"
 #define CMS_LOG_LOOKUP_ANC_DELETED_MSG          CMS_LOG_LOOKUP_ANC_DELETED_MSG_ID" "CMS_LOG_LOOKUP_ANC_DELETED_MSG_TEXT
 
 /*
