@@ -88,7 +88,7 @@ jobs:
           perform-release: ${{ github.event.inputs.PERFORM_RELEASE }}
  
       - name: '[Prep Release] Bump version'
-        if: ${{ github.event.inputs.PERFORM_RELEASE == 'true' && env.RELEASE == 'true' }}
+        if: ${{ github.event.inputs.PERFORM_RELEASE == 'true' }}
         uses: zowe-actions/zlux-builds/bump-zis-version@v2.x/main
         with:
           version: 'PATCH'
