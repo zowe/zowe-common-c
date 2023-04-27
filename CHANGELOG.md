@@ -3,6 +3,8 @@
 ## `2.8.0`
 
 - Bugfix: `fileCopy` would not work when convert encoding was not requested. The destination file would be created, but without the requested content.
+- Feature: `fileCopy` now copies with the target having the permissions of the source, as opposed to the previous 700 permissions.
+- Bugfix: respondWithUnixFileMetadata would not return UID or GID of a file if the id-to-name mapping failed, which is possible when an account is removed.
 
 ## `2.5.0`
 

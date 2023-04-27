@@ -731,6 +731,7 @@ void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, 
              "failed to obtain user name for uid=%d, returnCode: %d, reasonCode: 0x%08x\n",
              info.ownerUID, returnCode, reasonCode);
+      snprintf(owner, USER_NAME_LEN+1, "%d", info.ownerUID);
     }
     trimRight(owner, USER_NAME_LEN);
 
@@ -740,6 +741,7 @@ void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, 
              "failed to obtain group name for gid=%d, returnCode: %d, reasonCode: 0x%08x\n",
              info.ownerGID, returnCode, reasonCode);
+      snprintf(owner, GROUP_NAME_LEN+1, "%d", info.ownerGID);
     }
     trimRight(group, GROUP_NAME_LEN);
 
