@@ -72,7 +72,7 @@ typedef int64_t ssize_t;
 
 #include "nativeconversion.h"
 
-#if defined(__IBMC__) || defined(__IBMCPP__)
+#ifdef __ZOWE_OS_ZOS
 #pragma convert(819)
 #endif
 
@@ -126,7 +126,7 @@ static char asciiConsole[8] = "console";
 static char asciiLog[4] = "log";
 static char asciiDotJS[4] = ".js";
 
-#if defined(__IBMC__) || defined(__IBMCPP__)
+#ifdef __ZOWE_OS_ZOS
 #pragma convert(pop)
 #endif
 
