@@ -111,7 +111,7 @@ char *getCAA(void){
 }
 
 #ifndef LE_MAX_SUPPORTED_ZOS
-#define LE_MAX_SUPPORTED_ZOS 0x01020500u
+#define LE_MAX_SUPPORTED_ZOS 0x01030100
 #endif
 
 void abortIfUnsupportedCAA() {
