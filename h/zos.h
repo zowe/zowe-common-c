@@ -489,6 +489,103 @@ typedef struct ecvt_tag{
   /* more unmapped fields here */
 } ECVT;
 
+typedef struct SymbfpInputArguments_tag{
+  Addr31 patternAddr;
+  int    patternLength;
+  Addr31 targetAddr;
+  Addr31 targetLengthAddr;
+  Addr31 symbolTableAddr; // can be 0 for default.
+  Addr31 timestampAddr; //an 8 char area for timestamp, or all 0 for current time
+  Addr31 returnCodeAddr;
+  Addr31 workAreaAddr; //1024 byte work area on a doubleword boundary
+} SymbfpInputArguments;
+
+
+typedef struct SymbTableEntry_tag {
+  union {
+    char * __ptr32 symbolPtr; // Do not use when bit SymbtPtrsAreOffsets is on.
+    int32_t symbolOffset; //Only use if bit SymbtPtrsAreOffsets is on.
+  };
+
+  int32_t symbolLength; //includes & and .
+
+  union {
+    char * __ptr32 subtextPtr; // Do not use when bit SymbtPtrsAreOffsets is on.
+    int32_t subtextOffset; //offset from start of symbol area
+  };
+  int32_t subtextLength;
+} SymbTableEntry;
+
+/* IBM DSECT SYMBT
+ * 
+ * Doc variable prefix: symbt
+ * Doc define scheme: Without underscores
+ */
+typedef struct SymbTable_tag {
+  uint8_t flag0;
+#define SYMBT_NO_DEFAULT_SYMBOLS       0x80
+#define SYMBT_ONLY_STATIC_SYMBOLS      0x40
+#define SYMBT_TIMESTAMP_IS_GMT         0x20
+#define SYMBT_TIMESTAMP_IS_LOCAL       0x10
+#define SYMBT_WARN_SUBSTRINGS          0x08
+#define SYMBT_CHECK_NULL_SUBTEXT       0x04
+#define SYMBT_PTRS_ARE_OFFSETS         0x02
+#define SYMBT_ONLY_DYNAMIC_SYMBOLS     0x01
+
+  uint8_t flag1;
+#define SYMBT_FLAG1_RSV1               0x80
+#define SYMBT_TIMESTAMP_IS_STCK        0x40
+#define SYMBT_WARN_NO_SUB              0x20
+#define SYMBT_INDIRECT_SYMBOL_AREA     0x10
+#define SYMBT_MIXED_CASE_SYMBOLS       0x08
+#define SYMBT_FLAG1_RSV2               0x06
+#define SYMBT_SYMBT1                   0x01
+
+  
+  int16_t numberOfSymbols;
+  SymbTableEntry firstEntry; //a ptr when SymbtIndirectSymbolArea, else just the struct
+} SymbTable;
+
+typedef struct SymbTable1_tag{
+  uint8_t flag0;
+  uint8_t flag1;
+
+  uint8_t flag2;
+#define SYMBT1_PRESERVE_ALIGNMENT      0x80
+#define SYMBT1_NO_DOUBLE_AMPERSAND     0x40
+#define SYMBT1_IEFSJSYM                0x20
+#define SYMBT1_CONTINUE_AFTER_FULL     0x10
+
+  uint8_t flag3;
+#define SYMBT1_JES_SYMBOLS             0x01
+  char * __ptr32 nextSymbTable;
+  char reserved1[6];
+
+  int16_t numberOfSymbols;
+  SymbTableEntry firstEntry; //a ptr when SymbtIndirectSymbolArea, else just the struct
+} SymbTable1;
+
+#define SYMBT_MAXSTATIC_SYMBOL_LENGTH_ZOSV2R2 16
+#define SYMBT_MAXSTATIC_SYMBOL_LENGTH 8
+#define SYMBT_MAXSTATIC_ENTRIES_PREZOSR4 103
+#define SYMBT_MAXSTATIC_ENTRIES_ZOSV2R2_8 1631
+#define SYMBT_MAXSTATIC_ENTRIES_ZOSV2R2_16 1119
+#define SYMBT_MAXSTATIC_ENTRIES_ZOSV2R2_44 731
+#define SYMBT_MAXSTATIC_ENTRIES_ZOSR4 928
+#define SYMBT_MAXSTATIC_ENTRY_DATA_LENGTH_ZOSV2R2 62
+#define SYMBT_MAXSTATIC_ENTRIES 928
+#define SYMBT_MAXSTATIC_SUBTEXT_LENGTH_ZOSV2R2 17
+#define SYMBT_MAXSTATIC_LONG_SUBTEXT_LENGTH_ZOSV2R2 44
+#define SYMBT_MAXSTATIC_SUBTEXT_LENGTH 9
+#define SYMBT_MAXSTATIC_TABLE_SIZE_PREZOSR4 3609
+#define SYMBT_MAXSTATIC_TABLE_SIZE_ZOSV2R2 57088
+#define SYMBT_MAXSTATIC_TABLE_SIZE_PREZOSV2R2 32512
+#define SYMBT_MAXSTATIC_TABLE_SIZE_ZOSR4 32512
+#define SYMBT_MAXSTATIC_TABLE_SIZE 32512
+
+#define RESOLVESYMBOL_RETURN_BAD_INPUT 1
+
+
 typedef struct gda_tag{
   char   gdaid[4];  /* eyecatcher "GDA " */
   char   stuff[0x60];
@@ -1433,6 +1530,18 @@ DSAB *getDSAB(char *ddname);
 int dsabIsOMVS(DSAB *dsab);
 
 int locate(char *dsn, int *volserCount, char *firstVolser);
+
+/*
+  Input: A symbol starting with & and not ending with .
+  Output: resolved symbol or NULL
+*/
+char *resolveSymbolBySyscall(char *inputSymbol, int *rc, int *rsn);
+
+/*
+  Input: A symbol starting with & and not ending with .
+  Output: resolved symbol or NULL
+*/
+char *resolveSymbol(char *inputSymbol, int *rc, int *rsn);
 
 #define VERIFY_GENERATE_IDT        0x800
 #define VERIFY_WITHOUT_LOG         0x400
