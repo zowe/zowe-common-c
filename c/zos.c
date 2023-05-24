@@ -323,7 +323,7 @@ TCB *getNextSiblingTCB(TCB *tcb){
   Input: A symbol starting with & and not ending with .
   Output: resolved symbol or NULL
 */
-char *resolveSymbolBySyscall(char *inputSymbol, int *rc, int *rsn) {
+char *resolveSymbolBySyscall(const char *inputSymbol, int *rc, int *rsn) {
   int inputLen = strlen(inputSymbol);
   if (inputLen == 0 || inputSymbol[0] != '&' || inputSymbol[inputLen-1] == '.'){
     *rc=RESOLVESYMBOL_RETURN_BAD_INPUT;
@@ -412,9 +412,9 @@ char *resolveSymbolBySyscall(char *inputSymbol, int *rc, int *rsn) {
   Input: A symbol starting with & and not ending with .
   Output: resolved symbol or NULL
 */
-char *resolveSymbol(char *inputSymbol, int *rc, int *rsn) {
+char *resolveSymbol(const char *inputSymbol, int *rc, int *rsn) {
   ECVT *ecvt = getECVT();
-  SymbTable *symbt = (*SymbTable)ecvt->ecvtsymt;
+  SymbTable *symbt = ecvt->ecvtsymt;
   SymbTable *symbt1;
 //  dumpbuffer((char*)symbt, 0x400);
 

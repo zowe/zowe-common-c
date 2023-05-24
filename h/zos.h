@@ -368,127 +368,6 @@ typedef struct PSA_tag{
   unsigned int psamodew;
 } PSA;
 
-typedef struct ecvt_tag{
-  char  eyecatcher[4];
-  Addr31 ecvtcplx;   /* address IXCCPLX */
-  char  ecvtsplx[8];/* Sysplex name used for debugging */
-  int   ecvtsple;   /* sysplex partitioning ECB */
-  Addr31 ecvtsplq;   /* sysplex partitioning queue */
-  Addr31 ecvtstc1;   /*  V(IEATSTC1) */
-  Addr31 ecvtstc2;   /*  V(IEATSTC2) */
-  /* offset 0x20 here */
-  Addr31 ecvtstc3;   /*  V(IEATSTC3) */
-  Addr31 ecvtstc4;   /*  V(IEATSTC4) */
-
-  Addr31 ecvtappc;   /*  Anchor for APPC structures */
-  Addr31 ecvtsch;    /*  Anchor for APPC scheduler data structures */
-  /* offset 0x30 here */
-  int   ecvtiosf;   /*  IOS Flags  --- offset 0x30*/
-  Addr31 ecvtomda;   /* operations measurement data - console services */
-  short ecvtr038;   /* reserved */
-  char  ecvtcnz;
-  char  ecvtaloc;   /* flags */
-  Addr31 ecvtbpms;   /* BELOW 16M, pageable device support start addr */
-  Addr31 ecvtbpme;   /* BELOW 16M, pageable device support end   addr - offset x40 */
-  Addr31 ecvtapms;   /* ABOVE 16M, pageable device support start addr */
-  Addr31 ecvtapme;   /* ABOVE 16M, pageable device support end   addr  */
-  Addr31 ecvtqucb;   /* XCF data area IXCTQUCB anchor - offset 0x4C */
-  Addr31 ecvtssdf;   /* free SSD queue */
-  int   ecvtssds;   /* sequence number for previous and compare double swap */
-  int   ecvtr058;   /* reserved */
-  Addr31 ecvtsrbt;   /* SSD resource manager */
-  Addr31 ecvtdpqh;   /* Queue of DU-ALpools for PC Auth - offset 0x60 */
-  Addr31 ecvttcre;   /* V(IEAVTCRE) entry */
-  char  ecvtxcfg[16];  /* Sysplex Configuration requirements bitstring */
-  int   ecvtr078;   /* reserved */
-  int   ecvtr07C;   /* reserved */
-  /* Offset 0x80 Here */
-  Addr31 ecvtscha;   /* V(IEAVSCHA) schedule */
-  int   ecvtr084;   /* reserved */
-  Addr31 ecvtdlcb;   /* CSVDLCB DLCB for the Current LNKLST set */
-  Addr31 ecvtnttp;   /* address of system level name/token header */
-  /* Offset 0x90 Here */
-  Addr31 ecvtsrbj;   /* V(IEAVJOIN) - see book */
-  Addr31 ecvtsrbl;   /* V(IEAVLEAV) - see book */
-  Addr31 ecvtmsch;   /* address of SLM (XES) subchannel list */
-  Addr31 ecvtcal;    /* address of Common Area List (CAL) of System Lock Manager (SLM) */
-  /* Offset 0xA0 Here */
-  char ecvtload[8]; /* edited MVS load parameter */
-  char ecvtmlpr[8]; /* load parameter used for this IPL */
-  /* offset 0xB0 Here */
-  Addr31 ecvttcp;    /* Token used by TCPIP */
-  int   ecvtr0B4;   /* reserved */
-  Addr31 ecvtnvdm;   /* Netview DM TCP ID Block Pointer */
-  int   ecvtr0BC;   /* reserved */
-  /* offset 0xC0 Here */
-  Addr31 ecvtgrmp;   /* Graphics Resource Monitor GRM data block */
-  Addr31 ecvtwlm;    /* WLM Vector table */
-  Addr31 ecvtcsm;    /* Communication Storage Manager (VTAM) */
-  Addr31 ecvtctbl;   /* Customer Anchor Table - RVT somewhere in here */
-  /* offset 0xD0 Here */
-  Addr31 ecvtpmcs;   /* V(IEAVPMCS)  process service routine */
-  Addr31 ecvtpmcr;   /* V(IEAVPMCR)  ditto-ish */
-  Addr31 ecvtstx1;   /* V(IEAVAX01) STAX defer yes */
-  Addr31 ecvtstx2;   /* V(IEAVAX02) STAX defer no */
-  /* Offset 0xE0 Here */
-  int   ecvtslid;   /* Slip Trap ID or 0x00000000 */
-  Addr31 ecvtcsvt;   /* CSV Table - Callable Services Vector - Important and Common */
-  Addr31 ecvtasa;    /* ASA Table */
-  Addr31 ecvtexpm;   /* V(IEAVEXPM) GETXSB service routine */
-  /* Offset 0xF0 Here */
-  Addr31 ecvtocvt;   /* OpenMVS Anchor, its CVT */
-  Addr31 ecvtoext;   /* OpenMVS  external data - what is this? */
-  Addr31 ecvtcmps;   /* V(CSRCMPSS) - compression services routine */
-  Addr31 ecvtnucp;   /* nucleus dataset name */
-  /* Offset 0x100 Here */
-  Addr31 ecvtxrat;   /* XES Anchor Table for branch entry routine addresses */
-  Addr31 ecvtpwvt;   /* Processor Workunit Queue Vector Table */
-  char  ecvtclon[2];/* System.within Sysplex 2-char ID */
-  char  ecvtgmod;   /* GRS operation mode, NONE, 1 - Ring , 2 - Star */
-  char  ecvtr10B[5]; /* reserved */
-  /* Offset 0x110 */
-  char  ecvtr110[10]; /* reserved */
-  short ecvtptim;     /* time value for parallel detach (RTM) */
-  Addr31 ecvtjcct;     /* JES Communication Control Table */
-  /* Offset 0x120 */
-  Addr31 ecvtlsab;     /* Logger Services Anchor Block */
-  Addr31 ecvtetpe;     /* V(IEAVETPE) */
-  Addr31 ecvtsymt;     /* System static Symbol table - Mapped by SYMBT withing ASASYMBP */
-  Addr31 ecvtesym;     /* V(IEAVESYM) */
-  char unmapped1[0x20];
-  /* Offset 0x150 */
-  char ecvthdnm[8];
-  char ecvtlpnm[8];
-  char ecvtvmnm[8];
-  /* Offset 0x168 */
-  Addr31 ecvtgrm;    /* V(CRG52GRM) */
-  Addr31 ecvtseif;   /* V(CRG52SEI) */
-  /* Offset 0x170 */
-  Addr31 ecvtaes;    /* V(IEAVEAES) */
-  Addr31 ecvtrsmt;   /* Addr registration services management table */
-  char   ecvtmmem[16];
-  /* Offset 0x188 */
-  Addr31 ecvtipa;    /* Addr of Initzltn Parameter Area - like "D IPLINFO" */
-  char   ecvtmmet[16]; 
-  Addr31 ecvtmmeq;
-  /* Offset 0x1A0 */
-  char unmapped2[0x3C];
-  /* OFFSET 0x1DC */
-  int  ecvtpseq;
-  char ecvtpown[16];
-  char ecvtpnam[16];
-  char ecvtpver[2];
-  char ecvtprel[2];
-  char ecvtpmod[2];
-  char ecvtpdvl;
-  char ecvtttfl;     /* transaction trace flags */
-  /* OFFSET 0x208 */
-  char unmapped208[0x3D0-0x208]; 
-  /* OFFSET 0x3D0 */
-  Addr31 ecvtizugsp;      /* ZOSMF info */
-  /* more unmapped fields here */
-} ECVT;
-
 typedef struct SymbfpInputArguments_tag{
   Addr31 patternAddr;
   int    patternLength;
@@ -584,6 +463,127 @@ typedef struct SymbTable1_tag{
 #define SYMBT_MAXSTATIC_TABLE_SIZE 32512
 
 #define RESOLVESYMBOL_RETURN_BAD_INPUT 1
+
+typedef struct ecvt_tag{
+  char  eyecatcher[4];
+  Addr31 ecvtcplx;   /* address IXCCPLX */
+  char  ecvtsplx[8];/* Sysplex name used for debugging */
+  int   ecvtsple;   /* sysplex partitioning ECB */
+  Addr31 ecvtsplq;   /* sysplex partitioning queue */
+  Addr31 ecvtstc1;   /*  V(IEATSTC1) */
+  Addr31 ecvtstc2;   /*  V(IEATSTC2) */
+  /* offset 0x20 here */
+  Addr31 ecvtstc3;   /*  V(IEATSTC3) */
+  Addr31 ecvtstc4;   /*  V(IEATSTC4) */
+
+  Addr31 ecvtappc;   /*  Anchor for APPC structures */
+  Addr31 ecvtsch;    /*  Anchor for APPC scheduler data structures */
+  /* offset 0x30 here */
+  int   ecvtiosf;   /*  IOS Flags  --- offset 0x30*/
+  Addr31 ecvtomda;   /* operations measurement data - console services */
+  short ecvtr038;   /* reserved */
+  char  ecvtcnz;
+  char  ecvtaloc;   /* flags */
+  Addr31 ecvtbpms;   /* BELOW 16M, pageable device support start addr */
+  Addr31 ecvtbpme;   /* BELOW 16M, pageable device support end   addr - offset x40 */
+  Addr31 ecvtapms;   /* ABOVE 16M, pageable device support start addr */
+  Addr31 ecvtapme;   /* ABOVE 16M, pageable device support end   addr  */
+  Addr31 ecvtqucb;   /* XCF data area IXCTQUCB anchor - offset 0x4C */
+  Addr31 ecvtssdf;   /* free SSD queue */
+  int   ecvtssds;   /* sequence number for previous and compare double swap */
+  int   ecvtr058;   /* reserved */
+  Addr31 ecvtsrbt;   /* SSD resource manager */
+  Addr31 ecvtdpqh;   /* Queue of DU-ALpools for PC Auth - offset 0x60 */
+  Addr31 ecvttcre;   /* V(IEAVTCRE) entry */
+  char  ecvtxcfg[16];  /* Sysplex Configuration requirements bitstring */
+  int   ecvtr078;   /* reserved */
+  int   ecvtr07C;   /* reserved */
+  /* Offset 0x80 Here */
+  Addr31 ecvtscha;   /* V(IEAVSCHA) schedule */
+  int   ecvtr084;   /* reserved */
+  Addr31 ecvtdlcb;   /* CSVDLCB DLCB for the Current LNKLST set */
+  Addr31 ecvtnttp;   /* address of system level name/token header */
+  /* Offset 0x90 Here */
+  Addr31 ecvtsrbj;   /* V(IEAVJOIN) - see book */
+  Addr31 ecvtsrbl;   /* V(IEAVLEAV) - see book */
+  Addr31 ecvtmsch;   /* address of SLM (XES) subchannel list */
+  Addr31 ecvtcal;    /* address of Common Area List (CAL) of System Lock Manager (SLM) */
+  /* Offset 0xA0 Here */
+  char ecvtload[8]; /* edited MVS load parameter */
+  char ecvtmlpr[8]; /* load parameter used for this IPL */
+  /* offset 0xB0 Here */
+  Addr31 ecvttcp;    /* Token used by TCPIP */
+  int   ecvtr0B4;   /* reserved */
+  Addr31 ecvtnvdm;   /* Netview DM TCP ID Block Pointer */
+  int   ecvtr0BC;   /* reserved */
+  /* offset 0xC0 Here */
+  Addr31 ecvtgrmp;   /* Graphics Resource Monitor GRM data block */
+  Addr31 ecvtwlm;    /* WLM Vector table */
+  Addr31 ecvtcsm;    /* Communication Storage Manager (VTAM) */
+  Addr31 ecvtctbl;   /* Customer Anchor Table - RVT somewhere in here */
+  /* offset 0xD0 Here */
+  Addr31 ecvtpmcs;   /* V(IEAVPMCS)  process service routine */
+  Addr31 ecvtpmcr;   /* V(IEAVPMCR)  ditto-ish */
+  Addr31 ecvtstx1;   /* V(IEAVAX01) STAX defer yes */
+  Addr31 ecvtstx2;   /* V(IEAVAX02) STAX defer no */
+  /* Offset 0xE0 Here */
+  int   ecvtslid;   /* Slip Trap ID or 0x00000000 */
+  Addr31 ecvtcsvt;   /* CSV Table - Callable Services Vector - Important and Common */
+  Addr31 ecvtasa;    /* ASA Table */
+  Addr31 ecvtexpm;   /* V(IEAVEXPM) GETXSB service routine */
+  /* Offset 0xF0 Here */
+  Addr31 ecvtocvt;   /* OpenMVS Anchor, its CVT */
+  Addr31 ecvtoext;   /* OpenMVS  external data - what is this? */
+  Addr31 ecvtcmps;   /* V(CSRCMPSS) - compression services routine */
+  Addr31 ecvtnucp;   /* nucleus dataset name */
+  /* Offset 0x100 Here */
+  Addr31 ecvtxrat;   /* XES Anchor Table for branch entry routine addresses */
+  Addr31 ecvtpwvt;   /* Processor Workunit Queue Vector Table */
+  char  ecvtclon[2];/* System.within Sysplex 2-char ID */
+  char  ecvtgmod;   /* GRS operation mode, NONE, 1 - Ring , 2 - Star */
+  char  ecvtr10B[5]; /* reserved */
+  /* Offset 0x110 */
+  char  ecvtr110[10]; /* reserved */
+  short ecvtptim;     /* time value for parallel detach (RTM) */
+  Addr31 ecvtjcct;     /* JES Communication Control Table */
+  /* Offset 0x120 */
+  Addr31 ecvtlsab;     /* Logger Services Anchor Block */
+  Addr31 ecvtetpe;     /* V(IEAVETPE) */
+  SymbTable * __ptr32 ecvtsymt;     /* System static Symbol table - Mapped by SYMBT withing ASASYMBP */
+  Addr31 ecvtesym;     /* V(IEAVESYM) */
+  char unmapped1[0x20];
+  /* Offset 0x150 */
+  char ecvthdnm[8];
+  char ecvtlpnm[8];
+  char ecvtvmnm[8];
+  /* Offset 0x168 */
+  Addr31 ecvtgrm;    /* V(CRG52GRM) */
+  Addr31 ecvtseif;   /* V(CRG52SEI) */
+  /* Offset 0x170 */
+  Addr31 ecvtaes;    /* V(IEAVEAES) */
+  Addr31 ecvtrsmt;   /* Addr registration services management table */
+  char   ecvtmmem[16];
+  /* Offset 0x188 */
+  Addr31 ecvtipa;    /* Addr of Initzltn Parameter Area - like "D IPLINFO" */
+  char   ecvtmmet[16]; 
+  Addr31 ecvtmmeq;
+  /* Offset 0x1A0 */
+  char unmapped2[0x3C];
+  /* OFFSET 0x1DC */
+  int  ecvtpseq;
+  char ecvtpown[16];
+  char ecvtpnam[16];
+  char ecvtpver[2];
+  char ecvtprel[2];
+  char ecvtpmod[2];
+  char ecvtpdvl;
+  char ecvtttfl;     /* transaction trace flags */
+  /* OFFSET 0x208 */
+  char unmapped208[0x3D0-0x208]; 
+  /* OFFSET 0x3D0 */
+  Addr31 ecvtizugsp;      /* ZOSMF info */
+  /* more unmapped fields here */
+} ECVT;
 
 
 typedef struct gda_tag{
@@ -1535,13 +1535,13 @@ int locate(char *dsn, int *volserCount, char *firstVolser);
   Input: A symbol starting with & and not ending with .
   Output: resolved symbol or NULL
 */
-char *resolveSymbolBySyscall(char *inputSymbol, int *rc, int *rsn);
+char *resolveSymbolBySyscall(const char *inputSymbol, int *rc, int *rsn);
 
 /*
   Input: A symbol starting with & and not ending with .
   Output: resolved symbol or NULL
 */
-char *resolveSymbol(char *inputSymbol, int *rc, int *rsn);
+char *resolveSymbol(const char *inputSymbol, int *rc, int *rsn);
 
 #define VERIFY_GENERATE_IDT        0x800
 #define VERIFY_WITHOUT_LOG         0x400
