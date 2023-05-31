@@ -1,4 +1,3 @@
-import * as os from 'os';
 import { ConfigManager } from "Configuration";
 
 console.log("hello ConfigMgr, args were ["+scriptArgs+"]");

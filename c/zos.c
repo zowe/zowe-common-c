@@ -247,6 +247,8 @@ ECVT *getECVT(void) {
   return (ECVT*)(cvt->cvtecvt);
 }
 
+
+
 char *getSysplexName (void) {
   ECVT *ecvt = getECVT();
   return ecvt->ecvtsplx;
@@ -316,6 +318,175 @@ TCB *getParentTCB(TCB *tcb){
 TCB *getNextSiblingTCB(TCB *tcb){
   return (TCB*)tcb->tcbntc;
 }
+
+/*
+  Input: A symbol starting with & and not ending with .
+  Output: resolved symbol or NULL
+*/
+char *resolveSymbolBySyscall(const char *inputSymbol, int *rc, int *rsn) {
+  int inputLen = strlen(inputSymbol);
+  if (inputLen == 0 || inputSymbol[0] != '&' || inputSymbol[inputLen-1] == '.'){
+    *rc=RESOLVESYMBOL_RETURN_BAD_INPUT;
+    return NULL;
+  }
+
+
+  ALLOC_STRUCT31(
+    STRUCT31_NAME(below2G),
+    STRUCT31_FIELDS(
+      char input[1024];
+      char output[1024];
+      char workarea[1024];
+      char savearea[72];
+      SymbfpInputArguments symbfArguments;
+      //symboltable;
+      //char timestamp[8];
+      int returnCode;
+      int outputLength;
+    )
+  );
+  
+  snprintf(below2G->input, 1024, "%s", inputSymbol);
+  below2G->symbfArguments.patternAddr = below2G->input;
+  below2G->symbfArguments.patternLength = sizeof(below2G->input);
+  below2G->outputLength = 1024;
+  
+  below2G->symbfArguments.patternAddr = &below2G->input;
+  below2G->symbfArguments.targetAddr = &below2G->output;
+  below2G->symbfArguments.targetLengthAddr = &below2G->outputLength;
+  below2G->symbfArguments.returnCodeAddr = &below2G->returnCode;
+  below2G->symbfArguments.workAreaAddr = &below2G->workarea;
+  
+  int loadStatus = 0;
+  int symbfAddress = (int)loadByName("ASASYMBF",&loadStatus);
+//  printf("symbf address at 0x%x, status=%d\n", symbfAddress, loadStatus);
+
+  if (!loadStatus) {
+    __asm(ASM_PREFIX
+#ifdef __XPLINK__
+         " LA 13,%[savearea] \n"
+#endif
+         " LLGF 15,%[symbfAddress] \n"
+         " LA 1,%[symbfArguments] \n"
+#ifdef _LP64
+         " SAM31 \n"
+         " SYSSTATE AMODE64=NO \n"
+#endif
+         " BASR 14,15 \n"
+#ifdef _LP64
+         " SAM64 \n"
+         " SYSSTATE AMODE64=YES \n"
+#endif
+          :
+          :[savearea]"m"(below2G->savearea),[symbfArguments]"m"(below2G->symbfArguments),[symbfAddress]"m"(symbfAddress)
+          :"r0","r1","r14","r15"
+#ifdef __XPLINK__
+         ,"r13"
+#endif
+         );
+    } else {
+//     printf("Could not locate ASASYMBF, status=%d\n", loadStatus);
+      *rc=loadStatus;
+      FREE_STRUCT31(STRUCT31_NAME(below2G));
+      return NULL;
+
+    }
+
+//    printf("input '%s', output '%s'\n", below2G->input, below2G->output);
+    int outputLen = strlen(below2G->output);
+    if (outputLen != 0){
+      char *result = safeMalloc(sizeof(below2G->output), "output");
+      snprintf(result, outputLen+1, "%s", below2G->output);
+      FREE_STRUCT31(STRUCT31_NAME(below2G));
+      return result;
+    } else{
+      FREE_STRUCT31(STRUCT31_NAME(below2G));
+      return NULL;
+    }
+
+
+}
+
+
+/*
+  Input: A symbol starting with & and not ending with .
+  Output: resolved symbol or NULL
+*/
+char *resolveSymbol(const char *inputSymbol, int *rc, int *rsn) {
+  ECVT *ecvt = getECVT();
+  SymbTable *symbt = ecvt->ecvtsymt;
+  SymbTable *symbt1;
+//  dumpbuffer((char*)symbt, 0x400);
+
+
+
+  int inputLen = strlen(inputSymbol);
+  if (inputLen == 0 || inputSymbol[0] != '&' || inputSymbol[inputLen-1] == '.'){
+    *rc=RESOLVESYMBOL_RETURN_BAD_INPUT;
+    return NULL;
+  }
+
+  bool useEntryOffsets = (symbt->flag0 & SYMBT_PTRS_ARE_OFFSETS) != 0;
+  bool isType1 = (symbt->flag1 & SYMBT_SYMBT1) != 0;
+  int16_t entryCount;
+  if (isType1) {
+    symbt1 = ecvt->ecvtsymt;
+    entryCount = symbt1->numberOfSymbols;
+  } else {
+    entryCount = symbt->numberOfSymbols;
+  }
+
+//  printf("using offsets? %s\n", useEntryOffsets ? "true" : "false");
+//  printf("is type1? %s\n", isType1 ? "true" : "false");
+//  printf("there are %d (0x%x) entries\n", entryCount, entryCount);
+
+  SymbTableEntry *firstEntry = isType1 ? &symbt1->firstEntry : &symbt->firstEntry;
+  if ((symbt->flag1 & SYMBT_INDIRECT_SYMBOL_AREA) != 0) {
+    firstEntry =  isType1 ? &symbt1->firstEntry : &symbt->firstEntry;
+//    printf("indirect symbol area\n");
+  }
+//  printf("firstEntry is at 0x%p\n", firstEntry);
+//  dumpbuffer((char*)firstEntry, 0x20);
+
+
+  SymbTableEntry *entry = firstEntry;
+
+  for (int i = 0; i < entryCount; i++) {
+    if (useEntryOffsets) {
+      //printf("firstEntry = 0x%p, symbol offset = 0x%x, length=%d, subtext offset = 0x%x, length=%d\n", firstEntry, entry->symbolOffset, entry->symbolLength, entry->subtextOffset, entry->subtextLength);
+      
+      char *currentSymbol = (char*)firstEntry + entry->symbolOffset;
+//      printf("Symbol=%.*s\n", entry->symbolLength, currentSymbol);
+
+      // extra '.' at end to account for
+      if ((inputLen+1 == entry->symbolLength) && (memcmp(currentSymbol, inputSymbol, inputLen) == 0) && currentSymbol[inputLen]=='.'){
+        char *result = (char*) safeMalloc(entry->subtextLength+1, "subtext");
+        snprintf(result, entry->subtextLength+1, "%s", (char*)firstEntry + entry->subtextOffset);
+        return result;
+      }
+
+      entry = entry+1;
+    } else{
+      char *currentSymbol = entry->symbolPtr;
+
+      printf("Symbol=%.*s\n", entry->symbolLength, currentSymbol);
+
+
+      // extra '.' at end to account for
+      if ((inputLen+1 == entry->symbolLength) && (memcmp(currentSymbol, inputSymbol, inputLen) == 0) && currentSymbol[inputLen]=='.'){
+        char *result = (char*) safeMalloc(entry->subtextLength+1, "subtext");
+        snprintf(result, entry->subtextLength+1, "%s", entry->subtextPtr);
+        return result;
+      }
+    }
+ 
+     //printf("next entry at 0x%p\n", entry);
+
+  }
+
+  return resolveSymbolBySyscall(inputSymbol, rc, rsn);
+}
+
 
 
 /* SAF

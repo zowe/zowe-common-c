@@ -40,6 +40,7 @@
 #endif
 
 #include "zowetypes.h"
+#include "zos.h"
 #include "alloc.h"
 #include "utils.h"
 #include "openprims.h"
@@ -60,6 +61,35 @@
 #include "nativeconversion.h"
 
 /* zos module - moved to its own file because it may grow a lot */
+
+static JSValue zosResolveSymbol(JSContext *ctx, JSValueConst this_val,
+                                int argc, JSValueConst *argv){
+  size_t len;
+  const char *symbol = JS_ToCStringLen(ctx, &len, argv[0]);
+  if (!symbol){
+    return JS_EXCEPTION;
+  }
+
+#ifdef __ZOWE_OS_ZOS
+  char symbolNative[len+1];
+  memcpy(symbolNative,symbol,len+1);
+  convertToNative(symbolNative,len);
+
+
+  int rc = 0;
+  int rsn = 0;
+  char *result = resolveSymbol(symbolNative, &rc, &rsn);
+#endif
+
+  JS_FreeCString(ctx,symbol);
+
+#ifdef __ZOWE_OS_ZOS
+  return newJSStringFromNative(ctx, result, strlen(result));
+#else
+  return JS_NewString(ctx, NULL);
+#endif
+}
+
 
 static JSValue zosChangeTag(JSContext *ctx, JSValueConst this_val,
                             int argc, JSValueConst *argv){
@@ -355,6 +385,8 @@ static const char EXTATTR_PROGCTL_ASCII[16] = { 0x45, 0x58, 0x54, 0x41, 0x54, 0x
 
 static const char dslistASCII[7] ={ 0x64, 0x73, 0x6c, 0x69, 0x73, 0x74, 0x00};
 
+static const char resolveSymbolASCII[14] ={ 0x72, 0x65, 0x73, 0x6f, 0x6c, 0x76, 0x65, 0x53, 0x79, 0x6d, 0x62, 0x6f, 0x6c, 0x00};
+
 #ifndef __ZOWE_OS_ZOS
 /* stub the constants that non-ZOS does not define */
 #define EXTATTR_SHARELIB 1
@@ -367,6 +399,7 @@ static const JSCFunctionListEntry zosFunctions[] = {
   JS_CFUNC_DEF(changeStreamCCSIDASCII, 2, zosChangeStreamCCSID),
   JS_CFUNC_DEF(zstatASCII, 1, zosStat),
   JS_CFUNC_DEF(dslistASCII, 1, zosDatasetInfo),
+  JS_CFUNC_DEF(resolveSymbolASCII, 1, zosResolveSymbol),
   JS_PROP_INT32_DEF(EXTATTR_SHARELIB_ASCII, EXTATTR_SHARELIB, JS_PROP_CONFIGURABLE ),
   JS_PROP_INT32_DEF(EXTATTR_PROGCTL_ASCII, EXTATTR_PROGCTL, JS_PROP_CONFIGURABLE ),
   /* ALSO, "cp" with magic ZOS-unix see fopen not fileOpen */

@@ -1,5 +1,4 @@
 import * as zos from 'zos';
-import * as os from 'os';
 
 var test1 = function(filename){
   let zstats = zos.zstat(filename);

@@ -767,7 +767,7 @@ static JSValue xplatformGetpid(JSContext *ctx, JSValueConst this_val,
 
 
 static char fileCopyASCII[9] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79,  0x00 };
-static char fileCopyConvertedASCII[18] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79, 
+static char fileCopyConvertedASCII[18] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79,
 					  0x43, 0x6f, 0x6e, 0x76, 0x65, 0x72, 0x74, 0x65, 0x64, 0x00 };
 static char dirnameASCII[8] = {0x64, 0x69, 0x72, 0x6e, 0x61, 0x6d, 0x65,  0x00 };
 static char stringFromBytesASCII[16] = {0x73, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x46, 0x72, 0x6f, 0x6d, 0x42, 0x79, 0x74, 0x65, 0x73,  0x00 };
@@ -1136,8 +1136,10 @@ static int js_experiment_init(JSContext *ctx, JSModuleDef *m)
 
 static char asciiSTD[4] ={ 0x73, 0x74, 0x64, 0};
 static char asciiOS[3] ={ 0x6F, 0x73, 0};
-static char asciiExperiment[11] ={ 0x65, 0x78, 0x70, 0x65, 
-				   0x72, 0x69, 0x6d, 0x65, 
+static char asciiCM_STD[7] = { 0x63, 0x6d, 0x5f, 0x73, 0x74, 0x64, 0 };
+static char asciiCM_OS[6] = { 0x63, 0x6d, 0x5f, 0x6f, 0x73, 0 };
+static char asciiExperiment[11] ={ 0x65, 0x78, 0x70, 0x65,
+				   0x72, 0x69, 0x6d, 0x65,
 				   0x6e, 0x74, 0};
 static char asciiZOS[4] = { 0x7a, 0x6F, 0x73, 0};
 static char asciiNet[4] = { 0x6e, 0x65, 0x74, 0};
@@ -1439,8 +1441,14 @@ static JSContext *makeEmbeddedJSContext(JSRuntime *rt){
 static void initContextModules(JSContext *ctx, EJSNativeModule **nativeModules, int nativeModuleCount){    
   /* system modules */
   /* printf("before init std\n");*/
+
+  // TODO: remove next major release, deprecated module std, it is replaced by cm_std
   js_init_module_std(ctx, asciiSTD);
+  // TODO: remove next major release, deprecated module os, it is replaced by cm_os
   js_init_module_os(ctx, asciiOS);
+
+  js_init_module_std(ctx, asciiCM_STD);
+  js_init_module_os(ctx, asciiCM_OS);
   js_init_module_experiment(ctx, asciiExperiment);
   ejsInitModuleZOS(ctx, asciiZOS);
   ejsInitModuleNet(ctx, asciiNet);
