@@ -15,6 +15,42 @@
 #include "fdpoll.h"
 #include "tls.h"
 
+int getClientCertificate(gsk_handle soc_handle,
+                         char *clientCertificate,
+                         unsigned int clientCertificateBufferSize,
+                         unsigned int *clientCertificateLength) {
+                         
+  if (clientCertificate == NULL || clientCertificateBufferSize <= 0) {
+    return -1;
+  }
+  
+  memset(clientCertificate, 0, clientCertificateBufferSize);
+  *clientCertificateLength = 0;
+  
+  gsk_cert_data_elem *gskCertificateArray = NULL;
+  int gskCertificateArrayElementCount = 0;      
+  
+  int rc = gsk_attribute_get_cert_info(soc_handle, GSK_PARTNER_CERT_INFO, &gskCertificateArray, &gskCertificateArrayElementCount);     
+  
+  if (rc != 0) {
+    return rc;
+  }
+        
+  gsk_cert_data_elem *tmp = gskCertificateArray;
+  
+  for (int i = 0; i < gskCertificateArrayElementCount; i++) {
+    if (tmp->cert_data_id == CERT_BODY_DER) {
+      if (clientCertificateBufferSize >= tmp->cert_data_l) {
+        memcpy(clientCertificate, tmp->cert_data_p, tmp->cert_data_l);
+        *clientCertificateLength = tmp->cert_data_l;
+      }
+    }
+    tmp++;
+  }
+  
+  return 0;
+}
+
 int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   int rc = 0;
   TlsEnvironment *env = (TlsEnvironment *)safeMalloc(sizeof(*env), "Tls Environment");
@@ -30,6 +66,21 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_2, GSK_PROTOCOL_TLSV1_2_ON);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_SERVER_EPHEMERAL_DH_GROUP_SIZE, GSK_SERVER_EPHEMERAL_DH_GROUP_SIZE_2048);
   rc = rc || gsk_attribute_set_buffer(env->envHandle, GSK_KEYRING_FILE, settings->keyring, 0);
+/*
+ * Certificates won't be validated but can still
+ * be used to map to an identity. This should
+ * never be turned on in production.
+ */
+#ifdef DEV_DONT_VALIDATE_CLIENT_CERTIFICATES
+  rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_CLIENT_AUTH_TYPE, GSK_CLIENT_AUTH_PASSTHRU_TYPE);
+#endif
+/*
+ * Certificates are required for a successful handshake. Probably
+ * only used for debugging in odd cases.
+ */
+#ifdef DEV_ONLY_ALLOW_CLIENT_CERTIFICATES
+  rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_CLIENT_AUTH_ALERT, GSK_CLIENT_AUTH_NOCERT_ALERT_ON);
+#endif
   if (settings->stash) {
     rc = rc || gsk_attribute_set_buffer(env->envHandle, GSK_KEYRING_STASH_FILE, settings->stash, 0);
   }
@@ -109,8 +160,13 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
   if (label) {
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_KEYRING_LABEL, label, 0);
   }
+  /*
+   * GSK_SERVER_SESSION_WITH_CL_AUTH allows client authentication if a client certificate
+   * is present, whereas GSK_SERVER_SESSION doesn't allow it even if present. GSK_SERVER_SESSION_WITH_CL_AUTH
+   * does NOT make ZSS require client certificate authentication overall.
+   */
   rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_SESSION_TYPE,
-                                    isServer ? GSK_SERVER_SESSION : GSK_CLIENT_SESSION);
+                                    isServer ? GSK_SERVER_SESSION_WITH_CL_AUTH : GSK_CLIENT_SESSION);
   if (ciphers) {
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_V3_CIPHER_SPECS_EXPANDED, ciphers, 0);
     rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);

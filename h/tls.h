@@ -140,6 +140,10 @@ int tlsSocketClose(TlsSocket *socket);
 int tlsRead(TlsSocket *socket, const char *buf, int size, int *outLength);
 int tlsWrite(TlsSocket *socket, const char *buf, int size, int *outLength);
 const char *tlsStrError(int rc);
+int getClientCertificate(gsk_handle soc_handle,
+                         char *clientCertificate,
+                         unsigned int clientCertificateBufferSize,
+                         unsigned int *clientCertificateLength);
 
 #define TLS_ALLOC_ERROR (-1)
 

@@ -2675,8 +2675,19 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
 
     CrossMemoryServerName *privilegedServerName = getConfiguredProperty(service->server, HTTP_SERVER_PRIVILEGED_SERVER_PROPERTY);
     int pwdCheckRC = 0, pwdCheckRSN = 0;
-    pwdCheckRC = zisCheckUsernameAndPassword(privilegedServerName,
-        request->username, request->password, &status);
+    if (request->flags & HTTP_REQUEST_FLAG_CERTIFICATE_AS_PASSWORD ||
+        request->flags & HTTP_REQUEST_FLAG_JWT_AS_PASSWORD) {
+      pwdCheckRC =
+          zisCheckUsername(privilegedServerName,
+                           request->username,
+                           &status);    
+    } else {
+      pwdCheckRC =
+          zisCheckUsernameAndPassword(privilegedServerName,
+                                      request->username,
+                                      request->password,
+                                      &status);
+    }
     authResponse->type = AUTH_TYPE_RACF;
     authResponse->responseDetails.safStatus = status.safStatus;
 
@@ -3135,6 +3146,245 @@ static void logTimeoutLookupError(const char *username, const int rc, const int 
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING,
           "serviceAuthNativeWithSessionToken: Error when getting session duration for user '%s'. rc=%d, rsn=%d\n",
           username, rc, rsn);
+}
+
+static bool extractValidSessionToken(HttpService *service,
+                                     HttpResponse *response) {
+
+  char *tokenCookieText =
+      getCookieValue(response->request, getSessionTokenCookieName(service));
+  
+  if (!tokenCookieText) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Couldn't find session cookie in request.\n");
+    return false;
+  }
+
+  uint64 timeRemainingStck = 0;
+  int sessionLengthSec = 0;
+          
+  if (!sessionTokenStillValid(service, response->request, tokenCookieText,
+                              sessionLengthSec, &timeRemainingStck)) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Session cookie is no longer valid.\n");
+    return false;
+  }
+  
+  char *sessionToken =
+      generateSessionTokenKeyValue(service,
+                                   response->request,
+                                   response->request->username);
+
+  if (!sessionToken){
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "Couldn't generate session cookie.\n");
+    return false;
+  }
+  
+  response->sessionTimeout = sessionLengthSec;
+  response->sessionCookie = sessionToken;
+  
+  return true;
+}
+
+static void addJwtCookieHeader(HttpResponse *response) {
+
+  unsigned int jwtLength = strlen(response->request->authToken);
+  unsigned int jwtCookieLength = JWT_COOKIE_NAME_LENGTH + jwtLen + 2; /* +2 for '=' and null */
+  
+  char jwtCookie[jwtCookieLength];
+  snprintf(jwtCookie, jwtCookieLength, "%s=%s", JWT_COOKIE_NAME, response->request->authToken);
+
+  addStringHeader(response, "Set-Cookie", jwtCookie);
+}
+
+static bool extractJwt(HttpResponse *response,
+                       HttpService *service) {
+
+  HttpHeader *authenticationHeader = getHeader(response->request,"Authorization");
+
+  request->authToken = getCookieValue(request,JWT_COOKIE_NAME);
+                       
+  if (!request->authToken) {
+    extractBearerToken(request, authorizationHeader);
+  }
+  
+  JwtContext *const jwtContext = service->server->config->jwtContext;
+  if (!jwtContext) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "Couldn't find jwtContext in server.\n");
+    return false;
+  }
+  
+  int jwtRc = 0;
+  
+  Jwt *jwt = jwtVerifyAndParseToken(jwtContext,
+                                    request->authToken,
+                                    true,
+                                    response->slh,
+                                    &jwtRc);
+                                    
+  if (jwtRc != RC_JWT_OK) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Couldn't verify and parse token: jwtRc = 0x%x\n", jwtRc);
+    return false;
+  }
+  
+  if (!jwtAreBasicClaimsValid(jwt, NULL)) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Jwt basic claims aren't valid.\n");
+    return false;
+  }
+  
+  if (!jwt->subject) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Jwt has no subject.\n");
+    return false;
+  }
+  
+  request->username = jwt->subject;
+  request->password = NULL;
+  request->flags |= HTTP_REQUEST_FLAG_JWT_AS_PASSWORD;
+  
+  addJwtCookieHeader(response);
+  
+  return true;
+}
+
+static bool extractUserFromClientCertificate(HttpResponse *response) {
+
+#define TLS_CLIENT_CERTIFICATE_BUFFER_SIZE 65536
+
+  char *clientCertificate =
+      SLHAlloc(response->slh,
+               TLS_CLIENT_CERTIFICATE_BUFFER_SIZE);
+  
+  if (!clientCertificate) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
+            "Couldn't allocate %d bytes for client certificate buffer.\n",
+            TLS_CLIENT_CERTIFICATE_BUFFER_SIZE);
+    return false;  
+  }
+  
+  unsigned int clientCertificateLength = 0;
+  
+  int tlsRc =
+      getClientCertificate(response->socket->tlsSocket->socketHandle,
+                           clientCertificate,
+                           TLS_CLIENT_CERTIFICATE_BUFFER_SIZE,
+                           &clientCertificateLength);
+
+  if (tlsRc != 0) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+            "getClientCertificate: tlsRc = 0x%x\n", tlsRc);
+    return false;
+  }
+                           
+#define USER_MAX_LENGTH 8
+
+  char user =
+      SLHAlloc(response->slh, USER_MAX_LENGTH + 1); /* +1 for null */
+
+  if (!user) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
+            "Couldn't allocate %d bytes for tso id buffer.\n",
+            USER_MAX_LENGTH + 1);
+    return false;  
+  }
+
+  int safRc = 0, racfRc = 0, racfRsn = 0;
+  
+  safRc = getUseridByCertificate(clientCertificate,
+                                 clientCertificateLength,
+                                 user,
+                                 &racfRc,
+                                 &racfRsn);
+                                 
+  if (safRc != 0) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+            "getUseridByCertificate: safRc = 0x%x; racfRc = 0x%x; racfRsn = 0x%x\n",
+            safRc, racfRc, racfRsn);
+    return false;    
+  }
+  
+  request->username = user;
+  request->password = NULL;
+  request->flags |= HTTP_REQUEST_FLAG_CERTIFICATE_AS_PASSWORD;
+                 
+  return true;
+}
+
+/*
+ * Certificate authentication is supported by default. Developers can
+ * determine the allowed fallback by specifying 'authFlags' in
+ * the HttpService pointer in your Installer function. This could
+ * potentially be used for everything since certificate authentication
+ * only matters when a client certificate is present in request during
+ * the tls handshake.
+ */
+static bool serviceAuthNativeWithCertificate(HttpService *service,
+                                             HttpRequest *request,
+                                             HttpResponse *response,
+                                             AuthResponse *authResponse) {
+
+ /*
+  * If the session token is valid, we don't need to do any
+  * authentication. 
+  */
+
+  if (extractValidSessionToken(service, response) {
+    return true;
+  }
+
+  bool isAuthenticated = false;
+
+  /*
+   * 1. Client certificate (if present)
+   * 2. JWT (if present and allowed)
+   * 3. BasicAuth (if present and allowed)
+   */
+   
+  if (extractUserClientCertificate(response)) {
+    isAuthenticated = true;
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "(%s) authenticated using certificate.\n", request->username);
+  } else if (service->authFlags & SERVICE_AUTH_FLAG_ALLOW_JWT && extractJwt(response, service)) {
+    isAuthenticated = true;
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "(%s) authenticated using jwt.\n", request->username);
+  } else if (service->authFlags & SERVICE_AUTH_FLAG_ALLOW_BASIC_AUTH) {
+    HttpHeader *header = getHeader(request, "Authorization");
+    if (header) {
+      if (extractBasicAuth(request, header)) {
+        isAuthenticated = true;
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "(%s) authenticated using BasicAuth.\n", request->username);
+      }
+    }
+  }
+   
+  if (!isAuthenticated) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Couldn't authenticate caller with any supported method.\n", request->username);
+    return false;
+  }
+  
+  /*
+   * Make sure the user can login using racroute=verify.
+   * If okay, generate a session cookie and attach to
+   * response.
+   * 
+   * The only case with a password being provided to racroute=verify
+   * is when BasicAuth is used. All other cases use the option to not
+   * specify a password.
+   */
+  
+  if (nativeAuth(service, request, authResponse)) {
+    int sessionRc = 0, sessionRsn = 0;
+    if (getUserSessionValidity(request->username,
+                               service->server->config,
+                               &response->sessionTimeout,
+                               &sessionRc,
+                               &sessionRsn)) {
+      response->sessionCookie =
+          generateSessionTokenKeyValue(service,
+                                       request,
+                                       request->username);
+      return true;
+    }
+    logTimeoutLookupError(request->username, sessionRc, sessionRsn);
+  }
+  
+  return false;
 }
 
 static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *request,  HttpResponse *response,
@@ -3602,6 +3852,9 @@ static int handleHttpService(HttpServer *server,
   case SERVICE_AUTH_CUSTOM:
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "CUSTOM auth not yet supported\n");
     request->authenticated = FALSE;
+    break;
+  case SERVICE_AUTH_CLIENT_CERTIFICATE:
+    request->authenticated = serviceAuthNativeWithCertificate(service, request, response, &authResponse);
     break;
   case SERVICE_AUTH_NATIVE_WITH_SESSION_TOKEN:
     switch (server->config->authTokenType) {
