@@ -91,6 +91,6 @@ jobs:
         if: ${{ github.event.inputs.PERFORM_RELEASE == 'true' }}
         uses: zowe-actions/zlux-builds/bump-zis-version@v2.x/main
         with:
-          version: 'PATCH'
+          version: 'MINOR'
         env: 
          GITHUB_TOKEN: ${{ secrets.ZOWE_ROBOT_TOKEN }}
