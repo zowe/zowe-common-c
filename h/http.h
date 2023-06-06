@@ -125,6 +125,13 @@ typedef struct HttpRequest_tag{
   ShortLivedHeap *slh;
   Socket *socket;
   BufferedInputStream *input;
+  /*
+   * The signal to use racroute=verify with the
+   * nopw argument. We need to make sure the user
+   * is valid.
+   */
+#define HTTP_REQUEST_FLAG_CERTIFICATE_AS_PASSWORD 1
+#define HTTP_REQUEST_FLAG_JWT_AS_PASSWORD         2
   int flags;
   int characterEncoding;
   int contentLength; /* -1 if unknown */

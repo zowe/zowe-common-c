@@ -3163,7 +3163,7 @@ static bool extractValidSessionToken(HttpService *service,
   int sessionLengthSec = 0;
           
   if (!sessionTokenStillValid(service, response->request, tokenCookieText,
-                              sessionLengthSec, &timeRemainingStck)) {
+                              &sessionLengthSec, &timeRemainingStck)) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Session cookie is no longer valid.\n");
     return false;
   }
@@ -3184,10 +3184,13 @@ static bool extractValidSessionToken(HttpService *service,
   return true;
 }
 
+#define JWT_COOKIE_NAME "apimlAuthenticationToken"
+#define JWT_COOKIE_NAME_LENGTH 24
+
 static void addJwtCookieHeader(HttpResponse *response) {
 
   unsigned int jwtLength = strlen(response->request->authToken);
-  unsigned int jwtCookieLength = JWT_COOKIE_NAME_LENGTH + jwtLen + 2; /* +2 for '=' and null */
+  unsigned int jwtCookieLength = JWT_COOKIE_NAME_LENGTH + jwtLength + 2; /* +2 for '=' and null */
   
   char jwtCookie[jwtCookieLength];
   snprintf(jwtCookie, jwtCookieLength, "%s=%s", JWT_COOKIE_NAME, response->request->authToken);
@@ -3198,12 +3201,12 @@ static void addJwtCookieHeader(HttpResponse *response) {
 static bool extractJwt(HttpResponse *response,
                        HttpService *service) {
 
-  HttpHeader *authenticationHeader = getHeader(response->request,"Authorization");
+  HttpHeader *authorizationHeader = getHeader(response->request,"Authorization");
 
-  request->authToken = getCookieValue(request,JWT_COOKIE_NAME);
+  response->request->authToken = getCookieValue(response->request, JWT_COOKIE_NAME);
                        
-  if (!request->authToken) {
-    extractBearerToken(request, authorizationHeader);
+  if (!response->request->authToken) {
+    extractBearerToken(response->request, authorizationHeader);
   }
   
   JwtContext *const jwtContext = service->server->config->jwtContext;
@@ -3215,7 +3218,7 @@ static bool extractJwt(HttpResponse *response,
   int jwtRc = 0;
   
   Jwt *jwt = jwtVerifyAndParseToken(jwtContext,
-                                    request->authToken,
+                                    response->request->authToken,
                                     true,
                                     response->slh,
                                     &jwtRc);
@@ -3235,9 +3238,9 @@ static bool extractJwt(HttpResponse *response,
     return false;
   }
   
-  request->username = jwt->subject;
-  request->password = NULL;
-  request->flags |= HTTP_REQUEST_FLAG_JWT_AS_PASSWORD;
+  response->request->username = jwt->subject;
+  response->request->password = NULL;
+  response->request->flags |= HTTP_REQUEST_FLAG_JWT_AS_PASSWORD;
   
   addJwtCookieHeader(response);
   
@@ -3275,7 +3278,7 @@ static bool extractUserFromClientCertificate(HttpResponse *response) {
                            
 #define USER_MAX_LENGTH 8
 
-  char user =
+  char *user =
       SLHAlloc(response->slh, USER_MAX_LENGTH + 1); /* +1 for null */
 
   if (!user) {
@@ -3300,9 +3303,9 @@ static bool extractUserFromClientCertificate(HttpResponse *response) {
     return false;    
   }
   
-  request->username = user;
-  request->password = NULL;
-  request->flags |= HTTP_REQUEST_FLAG_CERTIFICATE_AS_PASSWORD;
+  response->request->username = user;
+  response->request->password = NULL;
+  response->request->flags |= HTTP_REQUEST_FLAG_CERTIFICATE_AS_PASSWORD;
                  
   return true;
 }
@@ -3325,7 +3328,7 @@ static bool serviceAuthNativeWithCertificate(HttpService *service,
   * authentication. 
   */
 
-  if (extractValidSessionToken(service, response) {
+  if (extractValidSessionToken(service, response)) {
     return true;
   }
 
@@ -3337,7 +3340,7 @@ static bool serviceAuthNativeWithCertificate(HttpService *service,
    * 3. BasicAuth (if present and allowed)
    */
    
-  if (extractUserClientCertificate(response)) {
+  if (extractUserFromClientCertificate(response)) {
     isAuthenticated = true;
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "(%s) authenticated using certificate.\n", request->username);
   } else if (service->authFlags & SERVICE_AUTH_FLAG_ALLOW_JWT && extractJwt(response, service)) {
@@ -3494,8 +3497,6 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   }
 }
 
-#define JWT_COOKIE_NAME "apimlAuthenticationToken"
-#define JWT_COOKIE_NAME_LENGTH 24
 
 static int serviceAuthWithJwt(HttpService *service,
                               HttpRequest *request,
