@@ -1985,16 +1985,15 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
     size_t buf_len;
     uint8_t *buf;
     JSValue func_val;
-    char *nameToLoad = (char*)moduleName;
+    char *nameToLoad = malloc(modNameLen + 4); // in case .js is not included
 
     if (endsWith(nativeName,".js") ||
         endsWith(nativeName,".mjs")){
       /*  printf("module filename already has extension '%s'\n",nativeName); */
+      memcpy(nameToLoad, moduleName, modNameLen);
     } else {
-      char asciiExtendedName[modNameLen+3+1];
-      memcpy(asciiExtendedName,moduleName,modNameLen);
-      memcpy(asciiExtendedName+modNameLen,asciiDotJS,4);
-      nameToLoad = asciiExtendedName;
+      memcpy(nameToLoad, moduleName, modNameLen);
+      memcpy(nameToLoad + modNameLen, asciiDotJS, 4);
     }
     buf = js_load_file(ctx, &buf_len, nameToLoad);
     if (!buf){
