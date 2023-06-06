@@ -1996,7 +1996,7 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
       memcpy(nameToLoad + modNameLen, asciiDotJS, 4);
     }
     buf = js_load_file(ctx, &buf_len, nameToLoad);
-    free(nameToLoad);
+    safeFree(nameToLoad, modNameLen + 4);
     if (!buf){
       fprintf(stderr,"js_load_file failure. A file requested module '%s' but it could not be loaded.\n",nativeName);
       fflush(stderr);
