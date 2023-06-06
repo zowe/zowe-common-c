@@ -2030,8 +2030,7 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
       }
 #endif
 
-      JS_ThrowReferenceError(ctx, "could not load module filename '%s'",
-			     nameToLoad);
+      JS_ThrowReferenceError(ctx, "could not load module filename '%s'", nativeName);
       return NULL;
     } else {
       convertFromNative((char*)buf, (int)buf_len);
