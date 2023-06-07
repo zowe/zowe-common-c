@@ -1985,7 +1985,7 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
     size_t buf_len;
     uint8_t *buf;
     JSValue func_val;
-    char *nameToLoad = char asciiExtendedName[modNameLen + 3 + 1];
+    char nameToLoad[modNameLen + 3 + 1];
 
     if (endsWith(nativeName,".js") ||
         endsWith(nativeName,".mjs")){
