@@ -1985,7 +1985,7 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
     size_t buf_len;
     uint8_t *buf;
     JSValue func_val;
-    char nameToLoad[modNameLen + 3 + 1];
+    char nameToLoad[modNameLen + sizeof(asciiDotJS) + 1] = {0};
 
     if (endsWith(nativeName,".js") ||
         endsWith(nativeName,".mjs")){
@@ -1993,7 +1993,7 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
       memcpy(nameToLoad, moduleName, modNameLen);
     } else {
       memcpy(nameToLoad, moduleName, modNameLen);
-      memcpy(nameToLoad + modNameLen, asciiDotJS, 4);
+      memcpy(nameToLoad + modNameLen, asciiDotJS, sizeof(asciiDotJS));
     }
     buf = js_load_file(ctx, &buf_len, nameToLoad);
     if (!buf){
