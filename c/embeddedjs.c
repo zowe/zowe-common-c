@@ -1985,7 +1985,7 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
     size_t buf_len;
     uint8_t *buf;
     JSValue func_val;
-    char *nameToLoad = safeMalloc(modNameLen + 4, "UTF-8 module path"); // in case .js is not included
+    char *nameToLoad = char asciiExtendedName[modNameLen + 3 + 1];
 
     if (endsWith(nativeName,".js") ||
         endsWith(nativeName,".mjs")){
@@ -1996,7 +1996,6 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
       memcpy(nameToLoad + modNameLen, asciiDotJS, 4);
     }
     buf = js_load_file(ctx, &buf_len, nameToLoad);
-    safeFree(nameToLoad, modNameLen + 4);
     if (!buf){
       fprintf(stderr,"js_load_file failure. A file requested module '%s' but it could not be loaded.\n",nativeName);
       fflush(stderr);
