@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `2.9.0`
+
+- Feature: configmgr's zos module now has a "resolveSymbol" function which takes a string starting with & which can be used to resolve static and dynamic zos symbols
+
 ## `2.8.0`
 
 - Bugfix: `fileCopy` would not work when convert encoding was not requested. The destination file would be created, but without the requested content.
