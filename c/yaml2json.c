@@ -925,7 +925,7 @@ static int emitScalar(yaml_emitter_t *emitter, char *scalar, char *tag, int styl
 
 static int writeJsonAsYaml1(yaml_emitter_t *emitter, Json *json){
   yaml_event_t event;
-  char scalarBuffer[256];
+  char scalarBuffer[MAX_ACCESS_PATH];
   if (jsonIsArray(json)){
     JsonArray *array = jsonAsArray(json);
     int elementCount = jsonArrayGetCount(array);
