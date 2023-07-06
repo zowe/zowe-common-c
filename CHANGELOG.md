@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `2.10.0`
+
+- Feature: The configmgr can now use the zos module in embedded code inside yaml files.   The configmgr runs scripts with ES6 style modules, but has a more limited environment (currently) in embedded JS.   The modules made visible are done so explicitly in embeddedjs.c, but this eventually could be made configurable more softly.   The ZOS module is only added when run on ZOS and includes things like looking up dataset info, manipulating file tags, and using the 'extattr' function to change non-POSIX file attributes.
+
 ## `2.9.0`
 
 - Feature: configmgr's zos module now has a "resolveSymbol" function which takes a string starting with & which can be used to resolve static and dynamic zos symbols
