@@ -2102,10 +2102,16 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
   if (true){ /* load_std) {*/
     const char *source = "import * as std from 'std';\n"
       "import * as os from 'os';\n"
+#ifdef __ZOWE_OS_ZOS
+      "import * as zos from 'zos';\n"
+#endif
       /*  "import * as experiment from 'experiment';\n" */
       /*       "import * as FFI1 from 'FFI1';\n" */
       "globalThis.std = std;\n"
       "globalThis.os = os;\n"
+#ifdef __ZOWE_OS_ZOS
+      "globalThis.zos = zos;\n"
+#endif
       /* "globalThis.experiment = experiment;\n"; */
       ;
     size_t sourceLen = strlen(source);
