@@ -2,7 +2,8 @@
 
 ## `2.10.0`
 
-- Feature: The configmgr can now use the zos module in embedded code inside yaml files.   The configmgr runs scripts with ES6 style modules, but has a more limited environment (currently) in embedded JS.   The modules made visible are done so explicitly in embeddedjs.c, but this eventually could be made configurable more softly.   The ZOS module is only added when run on ZOS and includes things like looking up dataset info, manipulating file tags, and using the 'extattr' function to change non-POSIX file attributes.
+- Feature: The configmgr can now use the 'zos' module in YAML config templates. The 'zos' module is only added when run on ZOS. For a list of available functions, see https://github.com/zowe/zowe-install-packaging/blob/v2.x/staging/build/zwe/types/%40qjstypes/zos.d.ts (#384)
+- Bugfix: configmgr parsing of yaml to json was limited to 256 characters for strings. This has been updated to 1024 to allow for up to max unix path strings. (#383)
 
 ## `2.9.0`
 
