@@ -1992,7 +1992,7 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
     if (endsWith(nativeName,".js") ||
         endsWith(nativeName,".mjs")){
       /*  printf("module filename already has extension '%s'\n",nativeName); */
-	  memcpy(nameToLoad, moduleName, modNameLen);
+      memcpy(nameToLoad, moduleName, modNameLen);
     } else {
       memcpy(nameToLoad, moduleName, modNameLen);
       memcpy(nameToLoad + modNameLen, asciiDotJS, sizeof(asciiDotJS));
