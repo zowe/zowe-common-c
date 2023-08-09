@@ -1480,7 +1480,7 @@ typedef struct WTO2Common31_tag{
   char mcsFlags2;
 } WTO2Common31;
 
-void message(char *message){
+void message2(char *message){
 
   ALLOC_STRUCT31(
     STRUCT31_NAME(below2G),
@@ -1509,7 +1509,7 @@ void message(char *message){
 }
 
 #define WTO_MAX_SIZE 126
-void wtoPrintf(char *formatString, ...){
+void wtoPrintfMetal(char *formatString, ...){
   char text[WTO_MAX_SIZE+1];       /* Allow for trailing null character */
   va_list argPointer;
   int cnt;
@@ -1546,7 +1546,7 @@ void wtoPrintf(char *formatString, ...){
   if (cnt>0 && text[cnt-1] == '\n')   /* If text ends with \n */
     text[cnt-1] = 0;                  /* Change it into a null character */
 
-  message(text);
+  message2(text);
 }
 
 /* end WTO SECTION */

@@ -1529,6 +1529,10 @@ DSAB *getDSAB(char *ddname);
 
 int dsabIsOMVS(DSAB *dsab);
 
+void message2(char *message);
+
+void wtoPrintfMetal(char *formatString, ...);
+
 int locate(char *dsn, int *volserCount, char *firstVolser);
 
 /*
