@@ -767,7 +767,7 @@ static JSValue xplatformGetpid(JSContext *ctx, JSValueConst this_val,
 
 
 static char fileCopyASCII[9] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79,  0x00 };
-static char fileCopyConvertedASCII[18] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79, 
+static char fileCopyConvertedASCII[18] = {0x66, 0x69, 0x6c, 0x65, 0x43, 0x6f, 0x70, 0x79,
 					  0x43, 0x6f, 0x6e, 0x76, 0x65, 0x72, 0x74, 0x65, 0x64, 0x00 };
 static char dirnameASCII[8] = {0x64, 0x69, 0x72, 0x6e, 0x61, 0x6d, 0x65,  0x00 };
 static char stringFromBytesASCII[16] = {0x73, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x46, 0x72, 0x6f, 0x6d, 0x42, 0x79, 0x74, 0x65, 0x73,  0x00 };
@@ -1136,8 +1136,10 @@ static int js_experiment_init(JSContext *ctx, JSModuleDef *m)
 
 static char asciiSTD[4] ={ 0x73, 0x74, 0x64, 0};
 static char asciiOS[3] ={ 0x6F, 0x73, 0};
-static char asciiExperiment[11] ={ 0x65, 0x78, 0x70, 0x65, 
-				   0x72, 0x69, 0x6d, 0x65, 
+static char asciiCM_STD[7] = { 0x63, 0x6d, 0x5f, 0x73, 0x74, 0x64, 0 };
+static char asciiCM_OS[6] = { 0x63, 0x6d, 0x5f, 0x6f, 0x73, 0 };
+static char asciiExperiment[11] ={ 0x65, 0x78, 0x70, 0x65,
+				   0x72, 0x69, 0x6d, 0x65,
 				   0x6e, 0x74, 0};
 static char asciiZOS[4] = { 0x7a, 0x6F, 0x73, 0};
 static char asciiNet[4] = { 0x6e, 0x65, 0x74, 0};
@@ -1439,8 +1441,14 @@ static JSContext *makeEmbeddedJSContext(JSRuntime *rt){
 static void initContextModules(JSContext *ctx, EJSNativeModule **nativeModules, int nativeModuleCount){    
   /* system modules */
   /* printf("before init std\n");*/
+
+  // TODO: remove next major release, deprecated module std, it is replaced by cm_std
   js_init_module_std(ctx, asciiSTD);
+  // TODO: remove next major release, deprecated module os, it is replaced by cm_os
   js_init_module_os(ctx, asciiOS);
+
+  js_init_module_std(ctx, asciiCM_STD);
+  js_init_module_os(ctx, asciiCM_OS);
   js_init_module_experiment(ctx, asciiExperiment);
   ejsInitModuleZOS(ctx, asciiZOS);
   ejsInitModuleNet(ctx, asciiNet);
@@ -1977,16 +1985,17 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
     size_t buf_len;
     uint8_t *buf;
     JSValue func_val;
-    char *nameToLoad = (char*)moduleName;
+    const size_t len = modNameLen + sizeof(asciiDotJS) + 1;
+    char nameToLoad[len];
+    memset(nameToLoad, 0, len);
 
     if (endsWith(nativeName,".js") ||
         endsWith(nativeName,".mjs")){
       /*  printf("module filename already has extension '%s'\n",nativeName); */
+      memcpy(nameToLoad, moduleName, modNameLen);
     } else {
-      char asciiExtendedName[modNameLen+3+1];
-      memcpy(asciiExtendedName,moduleName,modNameLen);
-      memcpy(asciiExtendedName+modNameLen,asciiDotJS,4);
-      nameToLoad = asciiExtendedName;
+      memcpy(nameToLoad, moduleName, modNameLen);
+      memcpy(nameToLoad + modNameLen, asciiDotJS, sizeof(asciiDotJS));
     }
     buf = js_load_file(ctx, &buf_len, nameToLoad);
     if (!buf){
@@ -2023,8 +2032,7 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
       }
 #endif
 
-      JS_ThrowReferenceError(ctx, "could not load module filename '%s'",
-			     nameToLoad);
+      JS_ThrowReferenceError(ctx, "could not load module filename '%s'", nativeName);
       return NULL;
     } else {
       convertFromNative((char*)buf, (int)buf_len);
@@ -2094,10 +2102,16 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
   if (true){ /* load_std) {*/
     const char *source = "import * as std from 'std';\n"
       "import * as os from 'os';\n"
+#ifdef __ZOWE_OS_ZOS
+      "import * as zos from 'zos';\n"
+#endif
       /*  "import * as experiment from 'experiment';\n" */
       /*       "import * as FFI1 from 'FFI1';\n" */
       "globalThis.std = std;\n"
       "globalThis.os = os;\n"
+#ifdef __ZOWE_OS_ZOS
+      "globalThis.zos = zos;\n"
+#endif
       /* "globalThis.experiment = experiment;\n"; */
       ;
     size_t sourceLen = strlen(source);

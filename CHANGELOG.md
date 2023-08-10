@@ -1,5 +1,14 @@
 # Zowe Common C Changelog
 
+## `2.10.0`
+
+- Feature: The configmgr can now use the 'zos' module in YAML config templates. The 'zos' module is only added when run on ZOS. For a list of available functions, see https://github.com/zowe/zowe-install-packaging/blob/v2.x/staging/build/zwe/types/%40qjstypes/zos.d.ts (#384)
+- Bugfix: configmgr parsing of yaml to json was limited to 256 characters for strings. This has been updated to 1024 to allow for up to max unix path strings. (#383)
+
+## `2.9.0`
+
+- Feature: configmgr's zos module now has a "resolveSymbol" function which takes a string starting with & which can be used to resolve static and dynamic zos symbols
+
 ## `2.8.0`
 
 - Bugfix: `fileCopy` would not work when convert encoding was not requested. The destination file would be created, but without the requested content.

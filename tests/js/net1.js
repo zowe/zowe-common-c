@@ -1,5 +1,3 @@
-import * as zos from 'zos';
-import * as os from 'os';
 import * as net from 'net';
 
 /*

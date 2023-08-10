@@ -1847,9 +1847,15 @@ static void ensureLE64(){
 int main(int argc, char **argv){
   LoggingContext *logContext = makeLoggingContext();
   logConfigureStandardDestinations(logContext);
-  if (argc >= 3 && !strcmp("-script",argv[1])){
+  if (argc >= 3 && 
+      (!strcmp("-script",argv[1]) ||
+       !strcmp("-embeddedScript",argv[1]))){
     char *filename = argv[2];
     EJSNativeModule *modules[1];
+    int loadMode = EJS_LOAD_IS_MODULE;
+    if (!strcmp("-embeddedScript",argv[1])){
+      loadMode = EJS_LOAD_NOT_MODULE;
+    }
     EmbeddedJS *ejs = allocateEmbeddedJS(NULL);
     modules[0] = exportConfigManagerToEJS(ejs);
     configureEmbeddedJS(ejs,modules,1,argc,argv);
@@ -1858,7 +1864,7 @@ int main(int argc, char **argv){
       fflush(stdout);
       fflush(stderr);
     */
-    int evalStatus = ejsEvalFile(ejs,filename,EJS_LOAD_IS_MODULE);
+    int evalStatus = ejsEvalFile(ejs,filename,loadMode);
     /* printf("Done with EJS: File eval returns %d_______________________________________________\n",evalStatus); */
   } else {
     return simpleMain(argc,argv);

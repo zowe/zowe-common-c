@@ -874,30 +874,32 @@ int setTextUnit(int type, int size, char* stringValue, int numValue, int key,
   }
 }
 
+typedef TextUnit *__ptr32 *__ptr32 TextUnitPtrArray;
+
 int dynallocNewDataset(TextUnit **inputTextUnit, int inputTextUnitCount, int *reasonCode) {
   ALLOC_STRUCT31(
     STRUCT31_NAME(below2G),
     STRUCT31_FIELDS(
       DynallocParms parms;
-      TextUnit ** __ptr32 textUnits;
+      TextUnitPtrArray textUnits;
     )
   );
 
-  below2G->textUnits = (TextUnit **)safeMalloc31(sizeof(TextUnit*) * inputTextUnitCount, "Text units array");
+  below2G->textUnits = (TextUnitPtrArray)safeMalloc31(sizeof(TextUnit*__ptr32) * inputTextUnitCount, "Text units array");
   if(below2G->textUnits == NULL) {
     return -1;
   }
   DynallocParms *parms = &below2G->parms;
   dynallocParmsInit(parms);
 
-  dynallocParmsSetTextUnits(parms, (TextUnit * __ptr32 *)below2G->textUnits, inputTextUnitCount);
+  dynallocParmsSetTextUnits(parms, (TextUnitPtrArray)below2G->textUnits, inputTextUnitCount);
 
   int rc;
 
   do {
     rc = 0;
     for (int i = 0; i < inputTextUnitCount; i++) { 
-      below2G->textUnits[i] = inputTextUnit[i];
+      below2G->textUnits[i] = (TextUnit *__ptr32)inputTextUnit[i];
       if (below2G->textUnits[i] == NULL) {
         rc = -1;
         break;
