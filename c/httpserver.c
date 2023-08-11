@@ -3176,14 +3176,12 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
     } 
   }
 
-  /* Doubtful that it would be greater than 8k... */
+#define TLS_CLIENT_CERTIFICATE_MAX_LENGTH 65536
 
-#define TLS_CLIENT_CERTIFICATE_MAX_LENGTH 8000
-
-  char clientCertificate[TLS_CLIENT_CERTIFICATE_MAX_LENGTH] = {0};
+  char *clientCertificate = safeMalloc(TLS_CLIENT_CERTIFICATE_MAX_LENGTH, "Client Certificate");
   unsigned int clientCertificateLength = 0;
 
-  int rc = getClientCertificate(response->socket->tlsSocket->socketHandle, clientCertificate, sizeof(clientCertificate), &clientCertificateLength);
+  int rc = getClientCertificate(response->socket->tlsSocket->socketHandle, clientCertificate, TLS_CLIENT_CERTIFICATE_MAX_LENGTH, &clientCertificateLength);
   if (rc != 0) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "getClientCertificate - %d.\n", rc);    
   }
@@ -3209,7 +3207,6 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Found user '%s' from client certificate.\n", request->username);
         request->password = NULL;
         request->flags = HTTP_REQUEST_NO_PASSWORD;
-        // null password with a valid user tells the server we authenticated with a certificate
         authDataFound = TRUE;
       } else {
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "No user was found for client certificate. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x\n", safReturnCode, racfReturnCode, racfReasonCode);
@@ -3217,6 +3214,11 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
     } else {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Client certificate was attached to request, but credentials are also attached. Server won't attempt to map the client certificate.\n");
     }
+  }
+
+  if (clientCertificate) {
+    safeFree(clientCertificate, TLS_CLIENT_CERTIFICATE_MAX_LENGTH);
+    clientCertificate = NULL;
   }
 
   response->sessionCookie = NULL;
