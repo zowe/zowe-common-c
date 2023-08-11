@@ -2653,7 +2653,7 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
   } else if (authDataFound){
     ACEE *acee = NULL;
     strupcase(request->username); /* upfold username */
-    if (request->password == NULL) {
+    if (!(request->flags & HTTP_REQUEST_NO_PASSWORD)) {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Password is null. Calling safAuthenticate without a password.\n");
     } else {
 #ifdef ENABLE_DANGEROUS_AUTH_TRACING
@@ -2679,7 +2679,7 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
 
     CrossMemoryServerName *privilegedServerName = getConfiguredProperty(service->server, HTTP_SERVER_PRIVILEGED_SERVER_PROPERTY);
     int pwdCheckRC = 0, pwdCheckRSN = 0;
-    if (request->password != NULL) {
+    if (!(request->flags & HTTP_REQUEST_NO_PASSWORD)) {
       pwdCheckRC = zisCheckUsernameAndPassword(privilegedServerName,
           request->username, request->password, &status);
       authResponse->type = AUTH_TYPE_RACF;
@@ -3202,12 +3202,13 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
 #define TLS_USERID_LENGTH 9
       char userid[TLS_USERID_LENGTH] = {0};
       int racfReturnCode = 0, racfReasonCode = 0;
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "There was no token or credentials found in the request. Server is attempting to map the client certificate.\n");
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "There was no token or credentials found in the request. Server is attempting to map the client certificate.\n");
       int safReturnCode = getUseridByCertificate(clientCertificate, clientCertificateLength, userid, &racfReturnCode, &racfReasonCode);
       if (safReturnCode == 0) {
         request->username = userid;
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Found user '%s' from client certificate.\n", request->username);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Found user '%s' from client certificate.\n", request->username);
         request->password = NULL;
+        request->flags = HTTP_REQUEST_NO_PASSWORD;
         // null password with a valid user tells the server we authenticated with a certificate
         authDataFound = TRUE;
       } else {
