@@ -668,6 +668,27 @@ int cfgSetConfigPath(ConfigManager *mgr, const char *configName, char *configPat
 #define YAML_ERROR_MAX 1024
 #define MAX_PDS_NAME 1000 /* very generous */
 
+static void replaceFileNameInString(char *string, char *replaceWith, int all) {
+
+  char  buffer[YAML_ERROR_MAX+USS_MAX_PATH_LENGTH+1] = {0};
+  char *index;
+  char *start = string;
+
+  index = strstr(string, "&name");
+
+  while (index != NULL) {
+    strncat(buffer, start, index - start);
+    strcat(buffer, replaceWith);
+    start = index + strlen("&name");
+    if (!all) {
+      break;
+		}
+    index = strstr(start, "&name");
+  }
+  strcat(buffer, start);
+  strcpy(string, buffer);
+}
+
 static Json *readYamlIntoJson(ConfigManager *mgr, char *filename, bool allowMissingFile){
   char errorBuffer[YAML_ERROR_MAX];
   trace(mgr,DEBUG,"before read YAML mgr=0x%p file=%s\n",mgr,filename);
@@ -675,6 +696,9 @@ static Json *readYamlIntoJson(ConfigManager *mgr, char *filename, bool allowMiss
   yaml_document_t *doc = readYAML2(filename,errorBuffer,YAML_ERROR_MAX,&wasMissing);
   /*
    * errorBuffer is ebcdic.
+   *
+   * parser explanation was passed into 'convertToNative()' to go from
+   * ascii to ebcdic.
    */
   trace(mgr,DEBUG,"yaml doc at 0x%p, allowMissing=%d wasMissing=%d\n",doc,allowMissingFile,wasMissing);
   if (doc){
@@ -687,11 +711,26 @@ static Json *readYamlIntoJson(ConfigManager *mgr, char *filename, bool allowMiss
   } else{
 #ifndef __ZOWE_OS_ZOS
     /*
-     * Let's convert to ascii if we aren't on z/OS.
+     * Let's convert to ascii if we aren't on z/OS?
      */
     e2a(errorBuffer,YAML_ERROR_MAX);
 #endif
-    trace(mgr,INFO,"Couldn't read '%s', because, %s\n",filename,errorBuffer);
+    /* 
+     * We should get the absolute path to the file name because the 'filename'
+     * variable is a relative path. It will make debugging more difficult.
+     *
+     * msg is a buffer that can take the max path length and error length. We'll replace &name
+     * here for better user experience.
+     */
+    char msg[YAML_ERROR_MAX + USS_MAX_PATH_LENGTH+1] = {0};
+    strcpy(msg,errorBuffer);
+    char fileOrPath[USS_MAX_PATH_LENGTH+1] = {0};
+    if (!realpath(filename,fileOrPath)) {
+      trace(mgr,DEBUG,"realpath(): ERRNO=%d\n",errno); /* i hope not */
+      strcpy(fileOrPath,filename);
+    }
+		replaceFileNameInString(msg,fileOrPath,1);
+    trace(mgr,INFO,"%s - %s\n","ZWEL0318E",msg);
     return NULL;
   }
 }
@@ -1734,7 +1773,7 @@ static int simpleMain(int argc, char **argv){
   }
   int loadStatus = cfgLoadConfiguration(mgr,configName);
   if (loadStatus){
-    trace(mgr,INFO,"Failed to load configuration, element may be bad, or less likely a bad merge.\n");
+    trace(mgr,INFO,"%s - Failed to load configuration, element may be bad, or less likely a bad merge.\n", "ZWEL0319E");
     return loadStatus;
   }
   trace(mgr,DEBUG,"configuration parms are loaded\n");
