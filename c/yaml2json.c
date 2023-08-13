@@ -123,15 +123,23 @@ static int yamlReadHandler(void *data, unsigned char *buffer, size_t size, size_
 }
 
 static void decodeParserError(yaml_parser_t *parser, char *errorBuf, size_t errorBufSize) {
+  size_t problemLen = strlen(parser->problem);
+  char problemNative[problemLen + 1];
+  snprintf (problemNative, problemLen + 1, "%s", parser->problem);
+  convertToNative(problemNative, problemLen);
+  char *nativeContext = NULL;
+  if (parser->context) {
+    size_t contextLen = strlen(parser->context);
+    char contextNative[contextLen + 1];
+    snprintf(contextNative, contextLen + 1, "%s", parser->context);
+    convertToNative(contextNative, contextLen);
+    nativeContext = contextNative;
+  }
   switch (parser->error) {
     case YAML_MEMORY_ERROR:
       snprintf(errorBuf, errorBufSize, "YAML memory error: not enough memory for parsing");
       break;
     case YAML_READER_ERROR: {
-      size_t problemLen = strlen(parser->problem);
-      char problemNative[problemLen + 1];
-      snprintf (problemNative, problemLen + 1, "%s", parser->problem);
-      convertToNative(problemNative, problemLen);
       if (parser->problem_value != -1) {
         snprintf(errorBuf, errorBufSize, "YAML reader error: %s: #%X at %ld", problemNative, parser->problem_value, (long)parser->problem_offset);
       } else {
@@ -141,27 +149,33 @@ static void decodeParserError(yaml_parser_t *parser, char *errorBuf, size_t erro
     }
     case YAML_SCANNER_ERROR:
       if (parser->context) {
-        snprintf(errorBuf, errorBufSize, "YAML scanner error: %s at line %d, column %d"
-                "%s at line %d, column %d\n", parser->context,
+        snprintf(errorBuf, errorBufSize,
+                "%s at line %d, column %d; "
+                "%s at line %d, column %d.",
+                nativeContext,
                 (int)parser->context_mark.line+1, (int)parser->context_mark.column+1,
-                parser->problem, (int)parser->problem_mark.line+1,
+                problemNative, (int)parser->problem_mark.line+1,
                 (int)parser->problem_mark.column+1);
       } else {
-        snprintf(errorBuf, errorBufSize, "YAML scanner error: %s at line %d, column %d",
-                 parser->problem, (int)parser->problem_mark.line+1,
+        snprintf(errorBuf, errorBufSize,
+                "%s at line %d, column %d.",
+                 problemNative, (int)parser->problem_mark.line+1,
                  (int)parser->problem_mark.column+1);
       }
       break;
       case YAML_PARSER_ERROR:
         if (parser->context) {
-          snprintf(errorBuf, errorBufSize, "YAML parser error: %s at line %d, column %d\n"
-                   "%s at line %d, column %d", parser->context,
-                   (int)parser->context_mark.line+1, (int)parser->context_mark.column+1,
-                   parser->problem, (int)parser->problem_mark.line+1,
-                   (int)parser->problem_mark.column+1);
+          snprintf(errorBuf, errorBufSize,
+                  "%s at line %d, column %d; "
+                  "%s at line %d, column %d.",
+                  nativeContext,
+                  (int)parser->context_mark.line+1, (int)parser->context_mark.column+1,
+                  problemNative, (int)parser->problem_mark.line+1,
+                  (int)parser->problem_mark.column+1);
         } else {
-          snprintf(errorBuf, errorBufSize, "YAML parser error: %s at line %d, column %d",
-                   parser->problem, (int)parser->problem_mark.line+1,
+          snprintf(errorBuf, errorBufSize,
+                   "%s at line %d, column %d.",
+                   problemNative, (int)parser->problem_mark.line+1,
                    (int)parser->problem_mark.column+1);
         }
         break;

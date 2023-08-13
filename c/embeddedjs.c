@@ -1890,7 +1890,6 @@ Json *evaluateJsonTemplates(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
     visitJSON(json,NULL,NULL,-1,evaluationVisitor,&evalContext);
     return json;
   } else {
-    printf("top json is not an object\n");
     return NULL;
   }
 }

@@ -673,6 +673,9 @@ static Json *readYamlIntoJson(ConfigManager *mgr, char *filename, bool allowMiss
   trace(mgr,DEBUG,"before read YAML mgr=0x%p file=%s\n",mgr,filename);
   bool wasMissing = false;
   yaml_document_t *doc = readYAML2(filename,errorBuffer,YAML_ERROR_MAX,&wasMissing);
+  /*
+   * errorBuffer is ebcdic.
+   */
   trace(mgr,DEBUG,"yaml doc at 0x%p, allowMissing=%d wasMissing=%d\n",doc,allowMissingFile,wasMissing);
   if (doc){
     if (mgr->traceLevel >= 1){
@@ -682,11 +685,13 @@ static Json *readYamlIntoJson(ConfigManager *mgr, char *filename, bool allowMiss
   } else if (allowMissingFile && wasMissing){
     return NULL;
   } else{
-    trace(mgr,INFO,"WARNING, yaml read failed, errorBuffer='%s'\n",errorBuffer);
-#ifdef __ZOWE_OS_ZOS
-    a2e(errorBuffer,YAML_ERROR_MAX);
+#ifndef __ZOWE_OS_ZOS
+    /*
+     * Let's convert to ascii if we aren't on z/OS.
+     */
+    e2a(errorBuffer,YAML_ERROR_MAX);
 #endif
-    trace(mgr,INFO,"WARNING, yaml read failed, errorBuffer='%s'\n",errorBuffer);
+    trace(mgr,INFO,"Couldn't read '%s', because, %s\n",filename,errorBuffer);
     return NULL;
   }
 }
@@ -1729,7 +1734,7 @@ static int simpleMain(int argc, char **argv){
   }
   int loadStatus = cfgLoadConfiguration(mgr,configName);
   if (loadStatus){
-    trace(mgr,INFO,"Failed to load configuration, element may be bad, or less likey a bad merge\n");
+    trace(mgr,INFO,"Failed to load configuration, element may be bad, or less likely a bad merge.\n");
     return loadStatus;
   }
   trace(mgr,DEBUG,"configuration parms are loaded\n");
