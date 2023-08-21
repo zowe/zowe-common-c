@@ -123,7 +123,7 @@ void abortIfUnsupportedCAA() {
     const char *continueWithWarning = getenv("ZWE_zowe_launcher_unsafeDisableZosVersionCheck");
     /* using STDENV in JCL can result in env values that need trimming... */
     char *trimmed[strlen(continueWithWarning)+1];
-    strncopy(trimmed, continueWithWarning, strlen(continueWithWarning));
+    strncpy(trimmed, continueWithWarning, strlen(continueWithWarning));
     trimRight(trimmed, strlen(trimmed));
     
     if (!strcmp(trimmed, "true")) {
