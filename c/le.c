@@ -121,7 +121,12 @@ void abortIfUnsupportedCAA() {
 #ifndef METTLE
   if (zosVersion > LE_MAX_SUPPORTED_ZOS) {
     const char *continueWithWarning = getenv("ZWE_zowe_launcher_unsafeDisableZosVersionCheck");
-    if (!strcmp(continueWithWarning, "true")) {
+    /* using STDENV in JCL can result in env values that need trimming... */
+    char *trimmed[strlen(continueWithWarning)+1];
+    strncopy(trimmed, continueWithWarning, strlen(continueWithWarning));
+    trimRight(trimmed, strlen(trimmed));
+    
+    if (!strcmp(trimmed, "true")) {
       printf("warning: z/OS version = 0x%08X, max supported version = 0x%08X - "
              "CAA fields require verification\n", zosVersion, LE_MAX_SUPPORTED_ZOS);
     } else {
