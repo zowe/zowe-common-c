@@ -126,6 +126,7 @@ typedef struct HttpRequest_tag{
   Socket *socket;
   BufferedInputStream *input;
   int flags;
+#define HTTP_REQUEST_NO_PASSWORD 0x01
   int characterEncoding;
   int contentLength; /* -1 if unknown */
   char *contentType;
