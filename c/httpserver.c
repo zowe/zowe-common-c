@@ -2653,19 +2653,23 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
   } else if (authDataFound){
     ACEE *acee = NULL;
     strupcase(request->username); /* upfold username */
+    if (!(request->flags & HTTP_REQUEST_NO_PASSWORD)) {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Password is null. Calling safAuthenticate without a password.\n");
+    } else {
 #ifdef ENABLE_DANGEROUS_AUTH_TRACING
  #ifdef METTLE
-    printf("SAF auth for user: '%s'\n", request->username);
+      printf("SAF auth for user: '%s'\n", request->username);
  #else
-    printf("u: '%s' p: '%s'\n",request->username,request->password);
+      printf("u: '%s' p: '%s'\n",request->username,request->password);
  #endif
 #endif
-    if (isLowerCasePasswordAllowed() || isPassPhrase(request->password)) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "mixed-case system or a pass phrase, not upfolding password\n");
-      /* don't upfold password */
-    } else {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "non-mixed-case system, not a pass phrase, upfolding password\n");
-      strupcase(request->password); /* upfold password */
+      if (isLowerCasePasswordAllowed() || isPassPhrase(request->password)) {
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "mixed-case system or a pass phrase, not upfolding password\n");
+        /* don't upfold password */
+      } else {
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "non-mixed-case system, not a pass phrase, upfolding password\n");
+        strupcase(request->password); /* upfold password */
+      }
     }
 
 #if APF_AUTHORIZED
@@ -2675,10 +2679,17 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
 
     CrossMemoryServerName *privilegedServerName = getConfiguredProperty(service->server, HTTP_SERVER_PRIVILEGED_SERVER_PROPERTY);
     int pwdCheckRC = 0, pwdCheckRSN = 0;
-    pwdCheckRC = zisCheckUsernameAndPassword(privilegedServerName,
-        request->username, request->password, &status);
-    authResponse->type = AUTH_TYPE_RACF;
-    authResponse->responseDetails.safStatus = status.safStatus;
+    if (!(request->flags & HTTP_REQUEST_NO_PASSWORD)) {
+      pwdCheckRC = zisCheckUsernameAndPassword(privilegedServerName,
+          request->username, request->password, &status);
+      authResponse->type = AUTH_TYPE_RACF;
+      authResponse->responseDetails.safStatus = status.safStatus;
+    } else {
+      pwdCheckRC = zisCheckUsername(privilegedServerName,
+          request->username, &status);
+      authResponse->type = AUTH_TYPE_RACF;
+      authResponse->responseDetails.safStatus = status.safStatus;
+    }
 
     if (pwdCheckRC != 0) {
 #ifdef DEBUG_AUTH
@@ -3142,7 +3153,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
   int authDataFound = FALSE; 
   HttpHeader *authenticationHeader = getHeader(request,"Authorization");
   char *tokenCookieText = getCookieValue(request,getSessionTokenCookieName(service));
-  
+
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
           "serviceAuthNativeWithSessionToken: authenticationHeader 0x%p\n",
           "extractFunction 0x%p\n",
@@ -3162,9 +3173,54 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
       if (service->authExtractionFunction(service, request) == 0){
         authDataFound = TRUE;
       }
+    } 
+  }
+
+#define TLS_CLIENT_CERTIFICATE_MAX_LENGTH 65536
+
+  char *clientCertificate = safeMalloc(TLS_CLIENT_CERTIFICATE_MAX_LENGTH, "Client Certificate");
+  unsigned int clientCertificateLength = 0;
+
+  int rc = getClientCertificate(response->socket->tlsSocket->socketHandle, clientCertificate, TLS_CLIENT_CERTIFICATE_MAX_LENGTH, &clientCertificateLength);
+  if (rc != 0) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "getClientCertificate - %d.\n", rc);    
+  }
+
+#ifdef ENABLE_DANGEROUS_AUTH_TRACING
+  /* We probably don't want to dump their certificate, right? */
+  dumpbuffer(clientCertificate, clientCertificateLength);
+#endif
+
+  if (rc == 0 && clientCertificateLength > 0) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "There is a client certificate attached to the request.\n");
+    /*
+     * We don't want to do this if we already found authentication data.
+     */
+    if (authDataFound == FALSE) {
+#define TLS_USERID_LENGTH 9
+      char userid[TLS_USERID_LENGTH] = {0};
+      int racfReturnCode = 0, racfReasonCode = 0;
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "There was no token or credentials found in the request. Server is attempting to map the client certificate.\n");
+      int safReturnCode = getUseridByCertificate(clientCertificate, clientCertificateLength, userid, &racfReturnCode, &racfReasonCode);
+      if (safReturnCode == 0) {
+        request->username = userid;
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Found user '%s' from client certificate.\n", request->username);
+        request->password = NULL;
+        request->flags = HTTP_REQUEST_NO_PASSWORD;
+        authDataFound = TRUE;
+      } else {
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "No user was found for client certificate. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x\n", safReturnCode, racfReturnCode, racfReasonCode);
+      }
+    } else {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Client certificate was attached to request, but credentials are also attached. Server won't attempt to map the client certificate.\n");
     }
   }
-  
+
+  if (clientCertificate) {
+    safeFree(clientCertificate, TLS_CLIENT_CERTIFICATE_MAX_LENGTH);
+    clientCertificate = NULL;
+  }
+
   response->sessionCookie = NULL;
 
   AUTH_TRACE("AUTH: tokenCookieText: %s\n",(tokenCookieText ? tokenCookieText : "<noAuthToken>"));
