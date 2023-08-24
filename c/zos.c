@@ -1471,21 +1471,12 @@ int safStat(int options, char *safClass, char *copy, int copyLength, int *racfSt
 
 /* begin WTO SECTION 
 
-TODO(?): This is code duplication from metalio.c but the following works for LE & metal */
-
-typedef struct WTO2Common31_tag{
-  char replyBufferLength; /* 31-bit WTOR only, else 0 */
-  char length; /* message length +4 */
-  char mcsFlags1;
-  char mcsFlags2;
-} WTO2Common31;
-
 void message2(char *message){
 
   ALLOC_STRUCT31(
     STRUCT31_NAME(below2G),
     STRUCT31_FIELDS(
-      WTO2Common31 common;
+      WTOCommon31 common;
       char text[126];          /* Maximum length of WTO text is 126 - ABEND D23-xxxx0005 if longer than 126 */
     )
   );

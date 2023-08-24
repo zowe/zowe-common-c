@@ -55,6 +55,7 @@
 #include "qsam.h"
 #include "metalio.h"
 #include "alloc.h"
+#include "zos.h"
 
 static int isopen(void * dcbptr) {
 
