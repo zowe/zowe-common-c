@@ -378,30 +378,7 @@ SYSOUT *getSYSOUTStruct(char *ddname, SYSOUT *existingSysout, char *buffer){
 */
 void message(char *message){
 
-  ALLOC_STRUCT31(
-    STRUCT31_NAME(below2G),
-    STRUCT31_FIELDS(
-      WTOCommon31 common;
-      char text[126];          /* Maximum length of WTO text is 126 - ABEND D23-xxxx0005 if longer than 126 */
-    )
-  );
-
-  int len = strlen(message);
-  if (len>sizeof(below2G->text))
-    len=sizeof(below2G->text);
-
-  below2G->common.length = len+sizeof(below2G->common); /* +4 for header */
-  memcpy(below2G->text,message,len);
-
-  __asm(ASM_PREFIX
-        " WTO MF=(E,(%[wtobuf])) \n"
-        :
-        :[wtobuf]"NR:r1"(&below2G->common)
-        :"r0","r1","r15");
-
-  FREE_STRUCT31(
-    STRUCT31_NAME(below2G)
-  );
+  message2(message);
 }
 
 /* this can only be called from authorized callers */
@@ -485,44 +462,13 @@ void sendWTO(int descriptorCode, int routingCode, char *message, int length){
 }
 
 #define WTO_MAX_SIZE 126
-void wtoPrintf(char *formatString, ...){
-  char text[WTO_MAX_SIZE+1];       /* Allow for trailing null character */
+void wtoPrintf(char *formatString, ...) {
   va_list argPointer;
-  int cnt;
-
-  for (int pass=0; pass<2; pass++){
-
-    /* The resulting text string from vsnprintf is unpredictable if
-       there is an error in the format string or arguments.  In that
-       case we will set the output text area to null, repeat the
-       vsnprintf, and then find the length of the null terminated
-       string.  This avoids initializing the output text area prior
-       to every successful request.
-    */
-
-    va_start(argPointer,formatString);
-    cnt = vsnprintf(text,sizeof(text),formatString,argPointer);
-    va_end(argPointer);
-
-    if (cnt<0){
-      if (pass==0)
-        memset(text,0,sizeof(text));  /* Clear the text buffer before retrying the vsnprint request */
-      else {
-        text[WTO_MAX_SIZE] = 0;       /* Ensure strlen stops at the end of the text buffer */
-        cnt = strlen(text);           /* Find the end of the text string */
-      }
-    } else
-      break;                          /* vsnprintf did not return an error - cnt was set */
-  }
-  if (cnt>WTO_MAX_SIZE)               /* If more data to format than the text buffer length */
-    cnt = WTO_MAX_SIZE;               /* Truncate the formatted length to the text buffer length */
-
-  /* We never want to include a final \n character in the WTO text */
-
-  if (cnt>0 && text[cnt-1] == '\n')   /* If text ends with \n */
-    text[cnt-1] = 0;                  /* Change it into a null character */
-
-  message(text);
+  va_start(argPointer, formatString);
+  
+  wtoPrintf3(formatString, argPointer);
+  
+  va_end(argPointer);
 }
 
 void authWTOPrintf(char *formatString, ...){

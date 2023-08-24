@@ -1509,7 +1509,7 @@ void message2(char *message){
 }
 
 #define WTO_MAX_SIZE 126
-void wtoPrintfMetal(char *formatString, ...){
+void wtoPrintf3(char *formatString, ...) {
   char text[WTO_MAX_SIZE+1];       /* Allow for trailing null character */
   va_list argPointer;
   int cnt;
