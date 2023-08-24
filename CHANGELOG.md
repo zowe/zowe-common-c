@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `2.11.0`
+
+- WTO printing methods have been moved to zos.c to be more available as utilities (for ex: for the Launcher)
+
 ## `2.10.0`
 
 - Feature: The configmgr can now use the 'zos' module in YAML config templates. The 'zos' module is only added when run on ZOS. For a list of available functions, see https://github.com/zowe/zowe-install-packaging/blob/v2.x/staging/build/zwe/types/%40qjstypes/zos.d.ts (#384)
