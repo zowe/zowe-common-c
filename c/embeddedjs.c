@@ -1985,16 +1985,17 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
     size_t buf_len;
     uint8_t *buf;
     JSValue func_val;
-    char *nameToLoad = (char*)moduleName;
+    const size_t len = modNameLen + sizeof(asciiDotJS) + 1;
+    char nameToLoad[len];
+    memset(nameToLoad, 0, len);
 
     if (endsWith(nativeName,".js") ||
         endsWith(nativeName,".mjs")){
       /*  printf("module filename already has extension '%s'\n",nativeName); */
+      memcpy(nameToLoad, moduleName, modNameLen);
     } else {
-      char asciiExtendedName[modNameLen+3+1];
-      memcpy(asciiExtendedName,moduleName,modNameLen);
-      memcpy(asciiExtendedName+modNameLen,asciiDotJS,4);
-      nameToLoad = asciiExtendedName;
+      memcpy(nameToLoad, moduleName, modNameLen);
+      memcpy(nameToLoad + modNameLen, asciiDotJS, sizeof(asciiDotJS));
     }
     buf = js_load_file(ctx, &buf_len, nameToLoad);
     if (!buf){
@@ -2031,8 +2032,7 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
       }
 #endif
 
-      JS_ThrowReferenceError(ctx, "could not load module filename '%s'",
-			     nameToLoad);
+      JS_ThrowReferenceError(ctx, "could not load module filename '%s'", nativeName);
       return NULL;
     } else {
       convertFromNative((char*)buf, (int)buf_len);
@@ -2102,10 +2102,16 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
   if (true){ /* load_std) {*/
     const char *source = "import * as std from 'std';\n"
       "import * as os from 'os';\n"
+#ifdef __ZOWE_OS_ZOS
+      "import * as zos from 'zos';\n"
+#endif
       /*  "import * as experiment from 'experiment';\n" */
       /*       "import * as FFI1 from 'FFI1';\n" */
       "globalThis.std = std;\n"
       "globalThis.os = os;\n"
+#ifdef __ZOWE_OS_ZOS
+      "globalThis.zos = zos;\n"
+#endif
       /* "globalThis.experiment = experiment;\n"; */
       ;
     size_t sourceLen = strlen(source);

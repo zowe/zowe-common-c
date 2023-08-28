@@ -120,9 +120,15 @@ void abortIfUnsupportedCAA() {
   unsigned int zosVersion = ecvt->ecvtpseq;
 #ifndef METTLE
   if (zosVersion > LE_MAX_SUPPORTED_ZOS) {
-    printf("error: z/OS version = 0x%08X, max supported version = 0x%08X - "
-           "CAA fields require verification\n", zosVersion, LE_MAX_SUPPORTED_ZOS);
-    abort();
+    const char *continueWithWarning = getenv("ZWE_zowe_launcher_unsafeDisableZosVersionCheck");
+    if (!strcmp(continueWithWarning, "true")) {
+      printf("warning: z/OS version = 0x%08X, max supported version = 0x%08X - "
+             "CAA fields require verification\n", zosVersion, LE_MAX_SUPPORTED_ZOS);
+    } else {
+      printf("error: z/OS version = 0x%08X, max supported version = 0x%08X - "
+             "CAA fields require verification\n", zosVersion, LE_MAX_SUPPORTED_ZOS);
+      abort();
+    }
   }
 #else
   /* Metal uses its own copy of CAA, reserved fields will always be available */
