@@ -70,13 +70,6 @@ typedef struct WTORPrefix31_tag{
   char *replayECBAddress;
 } WTORPrefix31;
 
-typedef struct WTOCommon31_tag{
-  char replyBufferLength; /* 31-bit WTOR only, else 0 */
-  char length; /* message length +4 */
-  char mcsFlags1;
-  char mcsFlags2;
-} WTOCommon31;
-
 #define WTO_ROUTE_CODE_OPERATOR_ACTION 1
 #define WTO_ROUTE_CODE_OPERATOR_INFORMATION 2
 #define WTO_ROUTE_CODE_TAPE_POOL 3

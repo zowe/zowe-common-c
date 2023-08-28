@@ -1522,6 +1522,13 @@ typedef struct IDTA_tag {
   char            reserved[8];
 } IDTA;
 
+typedef struct WTOCommon31_tag{
+  char replyBufferLength; /* 31-bit WTOR only, else 0 */
+  char length; /* message length +4 */
+  char mcsFlags1;
+  char mcsFlags2;
+} WTOCommon31;
+
 ZOWE_PRAGMA_PACK_RESET
 
 DSAB *getDSAB(char *ddname);
