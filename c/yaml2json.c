@@ -134,13 +134,14 @@ static void decodeParserError(yaml_parser_t *parser, char *errorBuf, size_t erro
     strcpy(problemNative, parser->problem);
     convertToNative(problemNative, problemLen);
   }
-  char *nativeContext = NULL;
+  size_t contextLen = 0;
+  char *contextNative = NULL;
   if (parser->context) {
-    size_t contextLen = strlen(parser->context);
-    nativeContext = safeMalloc(contextLen + 1, "parser context");
-    if (nativeContext) {
-      memset(nativeContext, 0, contextLen + 1);
-      strcpy(nativeContext, parser->context);
+    contextLen = strlen(parser->context);
+    contextNative = safeMalloc(contextLen + 1, "parser context");
+    if (contextNative) {
+      memset(contextNative, 0, contextLen + 1);
+      strcpy(contextNative, parser->context);
       convertToNative(contextNative, contextLen);
     }
   }
@@ -164,7 +165,7 @@ static void decodeParserError(yaml_parser_t *parser, char *errorBuf, size_t erro
         snprintf(errorBuf, errorBufSize,
                 "Couldn't scan file '%s': %s at line %d, column %d, "
                 "%s at line %d, column %d.",
-                filename, nativeContext,
+                filename, contextNative,
                 (int)parser->context_mark.line+1, (int)parser->context_mark.column+1,
                 problemNative, (int)parser->problem_mark.line+1,
                 (int)parser->problem_mark.column+1);
@@ -180,7 +181,7 @@ static void decodeParserError(yaml_parser_t *parser, char *errorBuf, size_t erro
           snprintf(errorBuf, errorBufSize,
                   "Couldn't parse file '%s': %s at line %d, column %d, "
                   "%s at line %d, column %d.",
-                  filename, nativeContext,
+                  filename, contextNative,
                   (int)parser->context_mark.line+1, (int)parser->context_mark.column+1,
                   problemNative, (int)parser->problem_mark.line+1,
                   (int)parser->problem_mark.column+1);
