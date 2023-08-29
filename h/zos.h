@@ -1536,9 +1536,9 @@ DSAB *getDSAB(char *ddname);
 
 int dsabIsOMVS(DSAB *dsab);
 
-void message2(char *message);
+void wtoMessage(const char *message);
 
-void wtoPrintf3(char *formatString, ...);
+void wtoPrintf3(const char *formatString, ...);
 
 int locate(char *dsn, int *volserCount, char *firstVolser);
 

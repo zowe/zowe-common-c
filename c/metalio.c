@@ -379,7 +379,7 @@ SYSOUT *getSYSOUTStruct(char *ddname, SYSOUT *existingSysout, char *buffer){
 */
 void message(char *message){
 
-  message2(message);
+  wtoMessage(message);
 }
 
 /* this can only be called from authorized callers */
