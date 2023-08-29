@@ -8,12 +8,51 @@
   Copyright Contributors to the Zowe Project.
 */
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <errno.h>
 #include "alloc.h"
 #include "bpxnet.h"
 #include "fdpoll.h"
 #include "tls.h"
+
+int getClientCertificate(gsk_handle soc_handle, char *clientCertificate, unsigned int clientCertificateBufferSize, unsigned int *clientCertificateLength) {
+
+  int rc = 0;
+
+  if (clientCertificate == NULL || clientCertificateBufferSize <= 0) {
+    return -1;
+  }
+
+  memset(clientCertificate, 0, clientCertificateBufferSize);
+  *clientCertificateLength = 0;
+
+  gsk_cert_data_elem *gskCertificateArray = NULL;
+  int gskCertificateArrayElementCount = 0; 
+
+  rc = gsk_attribute_get_cert_info(soc_handle, GSK_PARTNER_CERT_INFO, &gskCertificateArray, &gskCertificateArrayElementCount);
+
+  if (rc != 0) {
+    return rc;
+  }
+
+  for (int i = 0; i < gskCertificateArrayElementCount; i++) {
+    gsk_cert_data_elem *tmp = &gskCertificateArray[i];
+    if (tmp->cert_data_id == CERT_BODY_DER) {
+      if (clientCertificateBufferSize >= tmp->cert_data_l) {
+        memcpy(clientCertificate, tmp->cert_data_p, tmp->cert_data_l);
+        *clientCertificateLength = tmp->cert_data_l;
+      } else {
+        rc = -1; /* tls rc are all positive */
+      }
+      break;
+    }
+  }
+
+  gsk_free_cert_data(gskCertificateArray, gskCertificateArrayElementCount);
+
+  return rc;
+}
 
 int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   int rc = 0;
@@ -29,6 +68,11 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_1, GSK_PROTOCOL_TLSV1_1_OFF);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_2, GSK_PROTOCOL_TLSV1_2_ON);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_SERVER_EPHEMERAL_DH_GROUP_SIZE, GSK_SERVER_EPHEMERAL_DH_GROUP_SIZE_2048);
+
+#ifdef DEV_DO_NOT_VALIDATE_CLIENT_CERTIFICATES
+  rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_CLIENT_AUTH_TYPE, GSK_CLIENT_AUTH_PASSTHRU_TYPE);
+#endif
+
   rc = rc || gsk_attribute_set_buffer(env->envHandle, GSK_KEYRING_FILE, settings->keyring, 0);
   if (settings->stash) {
     rc = rc || gsk_attribute_set_buffer(env->envHandle, GSK_KEYRING_STASH_FILE, settings->stash, 0);
@@ -94,9 +138,9 @@ static int secureSocketSend(int fd, void *data, int len, char *userData) {
   }
   return rc;
 }
-
+ 
 int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isServer) {
-  int   rc = 0;
+  int rc = 0;
   gsk_iocallback ioCallbacks = {secureSocketRecv, secureSocketSend, NULL, NULL, NULL, NULL};
   TlsSocket *socket = (TlsSocket*)safeMalloc(sizeof(TlsSocket), "Tls Socket");
   if (!socket) {
@@ -109,8 +153,7 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
   if (label) {
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_KEYRING_LABEL, label, 0);
   }
-  rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_SESSION_TYPE,
-                                    isServer ? GSK_SERVER_SESSION : GSK_CLIENT_SESSION);
+  rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_SESSION_TYPE, isServer ? GSK_SERVER_SESSION_WITH_CL_AUTH : GSK_CLIENT_SESSION);
   if (ciphers) {
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_V3_CIPHER_SPECS_EXPANDED, ciphers, 0);
     rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);

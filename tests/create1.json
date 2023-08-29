@@ -1,0 +1,11 @@
+{"ndisp":"CATALOG",
+ "status":"NEW",
+ "space":"TRK",
+ "dsorg":"PO",
+ "lrecl":80,
+ "recfm":"FB",
+  "dir":20,
+  "prime":3,
+  "secnd":3,
+  "dsnt":"PDS",
+  "close":"true"}
