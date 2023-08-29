@@ -668,27 +668,6 @@ int cfgSetConfigPath(ConfigManager *mgr, const char *configName, char *configPat
 #define YAML_ERROR_MAX 1024
 #define MAX_PDS_NAME 1000 /* very generous */
 
-static void replaceFileNameInString(char *string, char *replaceWith, int all) {
-
-  char  buffer[YAML_ERROR_MAX+USS_MAX_PATH_LENGTH+1] = {0};
-  char *index;
-  char *start = string;
-
-  index = strstr(string, "&name");
-
-  while (index != NULL) {
-    strncat(buffer, start, index - start);
-    strcat(buffer, replaceWith);
-    start = index + strlen("&name");
-    if (!all) {
-      break;
-		}
-    index = strstr(start, "&name");
-  }
-  strcat(buffer, start);
-  strcpy(string, buffer);
-}
-
 static Json *readYamlIntoJson(ConfigManager *mgr, char *filename, bool allowMissingFile){
   char errorBuffer[YAML_ERROR_MAX];
   trace(mgr,DEBUG,"before read YAML mgr=0x%p file=%s\n",mgr,filename);
@@ -713,26 +692,25 @@ static Json *readYamlIntoJson(ConfigManager *mgr, char *filename, bool allowMiss
     /*
      * Let's convert to ascii if we aren't on z/OS?
      */
-    e2a(errorBuffer,YAML_ERROR_MAX);
+    e2a(errorBuffer,sizeof(errorBuffer));
 #endif
-    /* 
-     * We should get the absolute path to the file name because the 'filename'
-     * variable is a relative path. It will make debugging more difficult.
-     *
-     * msg is a buffer that can take the max path length and error length. We'll replace &name
-     * here for better user experience.
-     */
-    char msg[YAML_ERROR_MAX + USS_MAX_PATH_LENGTH+1] = {0};
-    strcpy(msg,errorBuffer);
-    char fileOrPath[USS_MAX_PATH_LENGTH+1] = {0};
-    if (!realpath(filename,fileOrPath)) {
-      trace(mgr,DEBUG,"realpath(): ERRNO=%d\n",errno); /* i hope not */
-      strcpy(fileOrPath,filename);
-    }
-		replaceFileNameInString(msg,fileOrPath,1);
     trace(mgr,INFO,"%s - %s\n","ZWEL0318E",msg);
     return NULL;
   }
+}
+
+static char *getAbsolutePathOrKeepRelativePath(const char *filename, ShortLivedHeap *slh) {
+
+  char *fileOrPath = SLHAlloc(slh, USS_MAX_PATH_LENGTH+1);
+
+  if (fileOrPath) {
+    if (!realpath(filename, fileOrPath)) {
+      trace(mgr,DEBUG,"Couldn't get absolute path for '%s'. errno=%d\n", filename, errno);
+      strcpy(fileOrPath, filename);
+    }    
+  }
+
+  return fileOrPath;
 }
 
 static Json *readJson(ConfigManager *mgr, CFGConfig *config, ConfigPathElement *pathElement, bool *nullAllowedPtr){
@@ -746,7 +724,13 @@ static Json *readJson(ConfigManager *mgr, CFGConfig *config, ConfigPathElement *
     return NULL;
   }
   if (pathElement->flags & CONFIG_PATH_OMVS_FILE){
-    return readYamlIntoJson(mgr,pathElement->data,false);
+    /*
+     * This probably won't ever return null because we'd have to fail an allocation of 1024 bytes...
+     * Just in case, we will default to pathElement->data if 'absolutePath' comes back as null because
+     * it should be the same thing anyways.
+     */
+    char *absolutePath = getAbsolutePathOrKeepRelativePath(pathElement->data,mgr->slh);
+    return readYamlIntoJson(mgr,absolutePath ? absolutePath : pathElement->data,false);
   } else if (pathElement->flags & CONFIG_PATH_MVS_PARMLIB){
     char pdsMemberSpec[MAX_PDS_NAME];
     trace(mgr,DEBUG,"pathElement=0x%p config=0x%p\n",pathElement,config);
