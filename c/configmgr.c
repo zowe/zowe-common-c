@@ -694,18 +694,19 @@ static Json *readYamlIntoJson(ConfigManager *mgr, char *filename, bool allowMiss
      */
     e2a(errorBuffer,sizeof(errorBuffer));
 #endif
-    trace(mgr,INFO,"%s - %s\n","ZWEL0318E",msg);
+    trace(mgr,INFO,"%s - %s\n","ZWEL0318E",errorBuffer);
     return NULL;
   }
 }
 
-static char *getAbsolutePathOrKeepRelativePath(const char *filename, ShortLivedHeap *slh) {
+static char *getAbsolutePathOrKeepRelativePath(const char *filename, ConfigManager *mgr) {
 
-  char *fileOrPath = SLHAlloc(slh, USS_MAX_PATH_LENGTH+1);
+  char *fileOrPath = SLHAlloc(mgr->slh, USS_MAX_PATH_LENGTH+1);
 
   if (fileOrPath) {
+    memset(fileOrPath, 0, USS_MAX_PATH_LENGTH+1);
     if (!realpath(filename, fileOrPath)) {
-      trace(mgr,DEBUG,"Couldn't get absolute path for '%s'. errno=%d\n", filename, errno);
+      trace(mgr, DEBUG, "Couldn't get absolute path for '%s'. errno=%d\n", filename, errno);
       strcpy(fileOrPath, filename);
     }    
   }
@@ -729,7 +730,7 @@ static Json *readJson(ConfigManager *mgr, CFGConfig *config, ConfigPathElement *
      * Just in case, we will default to pathElement->data if 'absolutePath' comes back as null because
      * it should be the same thing anyways.
      */
-    char *absolutePath = getAbsolutePathOrKeepRelativePath(pathElement->data,mgr->slh);
+    char *absolutePath = getAbsolutePathOrKeepRelativePath(pathElement->data,mgr);
     return readYamlIntoJson(mgr,absolutePath ? absolutePath : pathElement->data,false);
   } else if (pathElement->flags & CONFIG_PATH_MVS_PARMLIB){
     char pdsMemberSpec[MAX_PDS_NAME];

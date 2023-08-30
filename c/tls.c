@@ -8,6 +8,7 @@
   Copyright Contributors to the Zowe Project.
 */
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <errno.h>
 #include "alloc.h"
