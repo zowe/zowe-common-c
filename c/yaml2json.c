@@ -122,51 +122,85 @@ static int yamlReadHandler(void *data, unsigned char *buffer, size_t size, size_
   return rc;
 }
 
-static void decodeParserError(yaml_parser_t *parser, char *errorBuf, size_t errorBufSize) {
+static void decodeParserError(yaml_parser_t *parser, char *errorBuf, size_t errorBufSize, const char *filename) {
+  /*
+   * Convert diagnostics (problem and context) from ascii to ebcdic so that the error buffer that is returned from this function
+   * is in native codepage.
+   */
+  size_t problemLen = strlen(parser->problem);
+  char *problemNative = safeMalloc(problemLen + 1, "parser problem");
+  if (problemNative) {
+    memset(problemNative, 0, problemLen + 1);
+    strcpy(problemNative, parser->problem);
+    convertToNative(problemNative, problemLen);
+  }
+  size_t contextLen = 0;
+  char *contextNative = NULL;
+  if (parser->context) {
+    contextLen = strlen(parser->context);
+    contextNative = safeMalloc(contextLen + 1, "parser context");
+    if (contextNative) {
+      memset(contextNative, 0, contextLen + 1);
+      strcpy(contextNative, parser->context);
+      convertToNative(contextNative, contextLen);
+    }
+  }
   switch (parser->error) {
     case YAML_MEMORY_ERROR:
-      snprintf(errorBuf, errorBufSize, "YAML memory error: not enough memory for parsing");
+      snprintf(errorBuf, errorBufSize, "Couldn't allocate enough memory to process file '%s'.", filename);
       break;
     case YAML_READER_ERROR: {
-      size_t problemLen = strlen(parser->problem);
-      char problemNative[problemLen + 1];
-      snprintf (problemNative, problemLen + 1, "%s", parser->problem);
-      convertToNative(problemNative, problemLen);
       if (parser->problem_value != -1) {
-        snprintf(errorBuf, errorBufSize, "YAML reader error: %s: #%X at %ld", problemNative, parser->problem_value, (long)parser->problem_offset);
+        snprintf(errorBuf,
+                 errorBufSize,
+                 "Couldn't read file '%s': %s, #%x at %zu.",
+                 filename, problemNative, parser->problem_value, parser->problem_offset);
       } else {
-        snprintf(errorBuf, errorBufSize, "YAML reader error: %s at %ld", problemNative, (long)parser->problem_offset);
+        snprintf(errorBuf, errorBufSize, "Couldn't read file %s: %s at %zu.", filename, problemNative, parser->problem_offset);
       }
       break;
     }
     case YAML_SCANNER_ERROR:
       if (parser->context) {
-        snprintf(errorBuf, errorBufSize, "YAML scanner error: %s at line %d, column %d"
-                "%s at line %d, column %d\n", parser->context,
+        snprintf(errorBuf, errorBufSize,
+                "Couldn't scan file '%s': %s at line %d, column %d, "
+                "%s at line %d, column %d.",
+                filename, contextNative,
                 (int)parser->context_mark.line+1, (int)parser->context_mark.column+1,
-                parser->problem, (int)parser->problem_mark.line+1,
+                problemNative, (int)parser->problem_mark.line+1,
                 (int)parser->problem_mark.column+1);
       } else {
-        snprintf(errorBuf, errorBufSize, "YAML scanner error: %s at line %d, column %d",
-                 parser->problem, (int)parser->problem_mark.line+1,
-                 (int)parser->problem_mark.column+1);
+        snprintf(errorBuf, errorBufSize,
+                "Couldn't scan file '%s': %s at line %d, column %d.",
+                filename, problemNative, (int)parser->problem_mark.line+1,
+                (int)parser->problem_mark.column+1);
       }
       break;
       case YAML_PARSER_ERROR:
         if (parser->context) {
-          snprintf(errorBuf, errorBufSize, "YAML parser error: %s at line %d, column %d\n"
-                   "%s at line %d, column %d", parser->context,
-                   (int)parser->context_mark.line+1, (int)parser->context_mark.column+1,
-                   parser->problem, (int)parser->problem_mark.line+1,
-                   (int)parser->problem_mark.column+1);
+          snprintf(errorBuf, errorBufSize,
+                  "Couldn't parse file '%s': %s at line %d, column %d, "
+                  "%s at line %d, column %d.",
+                  filename, contextNative,
+                  (int)parser->context_mark.line+1, (int)parser->context_mark.column+1,
+                  problemNative, (int)parser->problem_mark.line+1,
+                  (int)parser->problem_mark.column+1);
         } else {
-          snprintf(errorBuf, errorBufSize, "YAML parser error: %s at line %d, column %d",
-                   parser->problem, (int)parser->problem_mark.line+1,
+          snprintf(errorBuf, errorBufSize,
+                   "Couldn't parse file '%s': %s at line %d, column %d.",
+                   filename, problemNative, (int)parser->problem_mark.line+1,
                    (int)parser->problem_mark.column+1);
         }
         break;
       default:
-        snprintf(errorBuf, errorBufSize, "YAML parser: unknown error");
+        snprintf(errorBuf, errorBufSize, "Couldn't process file '%s' because of an unknown error type '%d'.", filename, parser->error);
+  }
+  /*
+   * We've already copied the information into the errorBuffer so we can free these now.
+   */
+  safeFree(problemNative, problemLen);
+  if (contextNative) {
+    safeFree(contextNative, contextLen);
   }
 }
 
@@ -193,7 +227,7 @@ yaml_document_t *readYAML2(const char *filename, char *errorBuf, size_t errorBuf
     }
     yaml_parser_set_input(&parser, yamlReadHandler, file);
     if (!yaml_parser_load(&parser, document)) {
-      decodeParserError(&parser, errorBuf, errorBufSize);
+      decodeParserError(&parser, errorBuf, errorBufSize, filename);
       break;
     }
     if (!yaml_document_get_root_node(document)){
