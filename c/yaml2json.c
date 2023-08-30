@@ -152,10 +152,10 @@ static void decodeParserError(yaml_parser_t *parser, char *errorBuf, size_t erro
       if (parser->problem_value != -1) {
         snprintf(errorBuf,
                  errorBufSize,
-                 "Couldn't read file '%s': %s, #%x at %ld.",
-                 filename, problemNative, parser->problem_value, (long)parser->problem_offset);
+                 "Couldn't read file '%s': %s, #%x at %zu.",
+                 filename, problemNative, parser->problem_value, parser->problem_offset);
       } else {
-        snprintf(errorBuf, errorBufSize, "Couldn't read file %s: %s at %ld.", filename, problemNative, (long)parser->problem_offset);
+        snprintf(errorBuf, errorBufSize, "Couldn't read file %s: %s at %zu.", filename, problemNative, parser->problem_offset);
       }
       break;
     }
