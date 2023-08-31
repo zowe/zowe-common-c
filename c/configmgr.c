@@ -673,6 +673,12 @@ static Json *readYamlIntoJson(ConfigManager *mgr, char *filename, bool allowMiss
   trace(mgr,DEBUG,"before read YAML mgr=0x%p file=%s\n",mgr,filename);
   bool wasMissing = false;
   yaml_document_t *doc = readYAML2(filename,errorBuffer,YAML_ERROR_MAX,&wasMissing);
+  /*
+   * errorBuffer is ebcdic.
+   *
+   * parser explanation was passed into 'convertToNative()' to go from
+   * ascii to ebcdic.
+   */
   trace(mgr,DEBUG,"yaml doc at 0x%p, allowMissing=%d wasMissing=%d\n",doc,allowMissingFile,wasMissing);
   if (doc){
     if (mgr->traceLevel >= 1){
@@ -682,13 +688,30 @@ static Json *readYamlIntoJson(ConfigManager *mgr, char *filename, bool allowMiss
   } else if (allowMissingFile && wasMissing){
     return NULL;
   } else{
-    trace(mgr,INFO,"WARNING, yaml read failed, errorBuffer='%s'\n",errorBuffer);
-#ifdef __ZOWE_OS_ZOS
-    a2e(errorBuffer,YAML_ERROR_MAX);
+#ifndef __ZOWE_OS_ZOS
+    /*
+     * Let's convert to ascii if we aren't on z/OS?
+     */
+    e2a(errorBuffer,sizeof(errorBuffer));
 #endif
-    trace(mgr,INFO,"WARNING, yaml read failed, errorBuffer='%s'\n",errorBuffer);
+    trace(mgr,INFO,"%s - %s\n","ZWEL0318E",errorBuffer);
     return NULL;
   }
+}
+
+static char *getAbsolutePathOrKeepRelativePath(const char *filename, ConfigManager *mgr) {
+
+  char *fileOrPath = SLHAlloc(mgr->slh, USS_MAX_PATH_LENGTH+1);
+
+  if (fileOrPath) {
+    memset(fileOrPath, 0, USS_MAX_PATH_LENGTH+1);
+    if (!realpath(filename, fileOrPath)) {
+      trace(mgr, DEBUG, "Couldn't get absolute path for '%s'. errno=%d\n", filename, errno);
+      strcpy(fileOrPath, filename);
+    }    
+  }
+
+  return fileOrPath;
 }
 
 static Json *readJson(ConfigManager *mgr, CFGConfig *config, ConfigPathElement *pathElement, bool *nullAllowedPtr){
@@ -702,7 +725,13 @@ static Json *readJson(ConfigManager *mgr, CFGConfig *config, ConfigPathElement *
     return NULL;
   }
   if (pathElement->flags & CONFIG_PATH_OMVS_FILE){
-    return readYamlIntoJson(mgr,pathElement->data,false);
+    /*
+     * This probably won't ever return null because we'd have to fail an allocation of 1024 bytes...
+     * Just in case, we will default to pathElement->data if 'absolutePath' comes back as null because
+     * it should be the same thing anyways.
+     */
+    char *absolutePath = getAbsolutePathOrKeepRelativePath(pathElement->data,mgr);
+    return readYamlIntoJson(mgr,absolutePath ? absolutePath : pathElement->data,false);
   } else if (pathElement->flags & CONFIG_PATH_MVS_PARMLIB){
     char pdsMemberSpec[MAX_PDS_NAME];
     trace(mgr,DEBUG,"pathElement=0x%p config=0x%p\n",pathElement,config);
@@ -1729,7 +1758,7 @@ static int simpleMain(int argc, char **argv){
   }
   int loadStatus = cfgLoadConfiguration(mgr,configName);
   if (loadStatus){
-    trace(mgr,INFO,"Failed to load configuration, element may be bad, or less likey a bad merge\n");
+    trace(mgr,INFO,"%s - Failed to load configuration, element may be bad, or less likely a bad merge.\n", "ZWEL0319E");
     return loadStatus;
   }
   trace(mgr,DEBUG,"configuration parms are loaded\n");
