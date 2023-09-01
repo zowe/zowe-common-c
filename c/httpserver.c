@@ -2653,7 +2653,7 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
   } else if (authDataFound){
     ACEE *acee = NULL;
     strupcase(request->username); /* upfold username */
-    if (!(request->flags & HTTP_REQUEST_NO_PASSWORD)) {
+    if (request->flags & HTTP_REQUEST_NO_PASSWORD) {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Password is null. Calling safAuthenticate without a password.\n");
     } else {
 #ifdef ENABLE_DANGEROUS_AUTH_TRACING
@@ -2680,11 +2680,13 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
     CrossMemoryServerName *privilegedServerName = getConfiguredProperty(service->server, HTTP_SERVER_PRIVILEGED_SERVER_PROPERTY);
     int pwdCheckRC = 0, pwdCheckRSN = 0;
     if (!(request->flags & HTTP_REQUEST_NO_PASSWORD)) {
+      printf("checking username and password\n");
       pwdCheckRC = zisCheckUsernameAndPassword(privilegedServerName,
           request->username, request->password, &status);
       authResponse->type = AUTH_TYPE_RACF;
       authResponse->responseDetails.safStatus = status.safStatus;
     } else {
+      printf("checking username\n");
       pwdCheckRC = zisCheckUsername(privilegedServerName,
           request->username, &status);
       authResponse->type = AUTH_TYPE_RACF;
@@ -3198,7 +3200,8 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
      */
     if (authDataFound == FALSE) {
 #define TLS_USERID_LENGTH 9
-      char userid[TLS_USERID_LENGTH] = {0};
+      char *userid = SLHAlloc(response->request->slh, TLS_USERID_LENGTH);
+      memset(userid, 0, TLS_USERID_LENGTH);
       int racfReturnCode = 0, racfReasonCode = 0;
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "There was no token or credentials found in the request. Server is attempting to map the client certificate.\n");
       int safReturnCode = getUseridByCertificate(clientCertificate, clientCertificateLength, userid, &racfReturnCode, &racfReasonCode);
@@ -3209,7 +3212,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
         request->flags = HTTP_REQUEST_NO_PASSWORD;
         authDataFound = TRUE;
       } else {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "No user was found for client certificate. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x\n", safReturnCode, racfReturnCode, racfReasonCode);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "No user was found for client certificate. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x)\n", safReturnCode, racfReturnCode, racfReasonCode);
       }
     } else {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Client certificate was attached to request, but credentials are also attached. Server won't attempt to map the client certificate.\n");
