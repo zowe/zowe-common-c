@@ -2653,7 +2653,7 @@ static int safAuthenticate(HttpService *service, HttpRequest *request, AuthRespo
   } else if (authDataFound){
     ACEE *acee = NULL;
     strupcase(request->username); /* upfold username */
-    if (!(request->flags & HTTP_REQUEST_NO_PASSWORD)) {
+    if (request->flags & HTTP_REQUEST_NO_PASSWORD) {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Password is null. Calling safAuthenticate without a password.\n");
     } else {
 #ifdef ENABLE_DANGEROUS_AUTH_TRACING
@@ -3178,6 +3178,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
 
 #define TLS_CLIENT_CERTIFICATE_MAX_LENGTH 65536
 
+  char *userid = NULL: /* allocate on slh so we have for duration of request and response. */
   char *clientCertificate = safeMalloc(TLS_CLIENT_CERTIFICATE_MAX_LENGTH, "Client Certificate");
   unsigned int clientCertificateLength = 0;
 
@@ -3197,10 +3198,10 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
      * We don't want to do this if we already found authentication data.
      */
     if (authDataFound == FALSE) {
-#define TLS_USERID_LENGTH 9
-      char userid[TLS_USERID_LENGTH] = {0};
       int racfReturnCode = 0, racfReasonCode = 0;
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "There was no token or credentials found in the request. Server is attempting to map the client certificate.\n");
+      userid = SLHAlloc(response->request->slh, 9);
+      memset(userid, 0, 9);
       int safReturnCode = getUseridByCertificate(clientCertificate, clientCertificateLength, userid, &racfReturnCode, &racfReasonCode);
       if (safReturnCode == 0) {
         request->username = userid;
@@ -3209,7 +3210,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
         request->flags = HTTP_REQUEST_NO_PASSWORD;
         authDataFound = TRUE;
       } else {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "No user was found for client certificate. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x\n", safReturnCode, racfReturnCode, racfReasonCode);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "No user was found for client certificate. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x)\n", safReturnCode, racfReturnCode, racfReasonCode);
       }
     } else {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Client certificate was attached to request, but credentials are also attached. Server won't attempt to map the client certificate.\n");
