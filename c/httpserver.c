@@ -3178,7 +3178,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
 
 #define TLS_CLIENT_CERTIFICATE_MAX_LENGTH 65536
 
-  char *userid = NULL: /* allocate on slh so we have for duration of request and response. */
+  char *userid = NULL; /* allocate on slh so we have for duration of request and response. */
   char *clientCertificate = safeMalloc(TLS_CLIENT_CERTIFICATE_MAX_LENGTH, "Client Certificate");
   unsigned int clientCertificateLength = 0;
 
