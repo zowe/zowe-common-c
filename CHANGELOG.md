@@ -1,4 +1,4 @@
-# Zowe Common C Changelog 
+# Zowe Common C Changelog
 
 ## `2.11.0`
 
