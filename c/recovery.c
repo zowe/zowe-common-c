@@ -1053,6 +1053,12 @@ static StackedState getStackedState(StackedStateExtractionCode code) {
   return state;
 }
 
+static uint8_t getPSWKey(void) {
+  int pswHighWord;
+  __asm(" EPSW 0,0 " : "=NR:r0"(pswHighWord));
+  return (pswHighWord >> 20) & 0x0F;
+}
+
 typedef struct RecoveryStatePool_tag {
 
 #define RCVR_STATE_POOL_EYECATCHER    "RCVSPOOL"
@@ -1072,15 +1078,12 @@ static CPID makeRecoveryStatePool(unsigned int primaryCellCount,
                                   unsigned int secondaryCellCount,
                                   int storageSubpool) {
 
-  StackedState stackedState = getStackedState(STACKED_STATE_EXTRACTION_CODE_01);
-  uint8_t pswKey = (stackedState.state01.psw & 0x00F0000000000000LLU) >> 52;
-
   unsigned alignedCellSize =
       cellpoolGetDWordAlignedSize(sizeof(RecoveryStateEntry));
   CPID poolID = cellpoolBuild(primaryCellCount,
                               secondaryCellCount,
                               alignedCellSize,
-                              storageSubpool, pswKey,
+                              storageSubpool, getPSWKey(),
                               &(CPHeader){"ZWESRECOVERYSTATEPOOL   "});
 
   return poolID;
@@ -1199,8 +1202,7 @@ static int establishRouterInternal(RecoveryContext *userContext,
   }
 #endif /* RCVR_CPOOL_STATES */
 
-  StackedState stackedState = getStackedState(STACKED_STATE_EXTRACTION_CODE_01);
-  context->routerPSWKey = (stackedState.state01.psw & 0x00F0000000000000LLU) >> 48;
+  context->routerPSWKey = getPSWKey() << 4;
 
   __asm(
       "         ST    12,%0                                                    \n"
@@ -1786,13 +1788,11 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
 
   newEntry->linkageStackToken = linkageStackToken;
 
-  /* Extract key from the newly created stacked state. IPK cannot be used
-   * as it requires the extract-authority set.
+  /* Extract the current key from the PSW.
    * This value will be used to restore the current's recovery state key if
    * it changes during the recovery process - this usually happens under an SRB
    * when SETRP retry with key 0. */
-  StackedState stackedState = getStackedState(STACKED_STATE_EXTRACTION_CODE_01);
-  newEntry->key = (stackedState.state01.psw & 0x00F0000000000000LLU) >> 48;
+  newEntry->key = getPSWKey() << 4;
 
   __asm(
 
