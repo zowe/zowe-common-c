@@ -164,7 +164,11 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
     /*
      * TLS 1.3 needs this.
      */
-    rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_SERVER_TLS_KEY_SHARES, keyshares, 0);
+    if (isServer) {
+      rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_SERVER_TLS_KEY_SHARES, keyshares, 0);
+    } else {
+      rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_CLIENT_TLS_KEY_SHARES, keyshares, 0);
+    }
   }
   rc = rc || gsk_attribute_set_callback(socket->socketHandle, GSK_IO_CALLBACK, &ioCallbacks);
   rc = rc || gsk_secure_socket_init(socket->socketHandle);
