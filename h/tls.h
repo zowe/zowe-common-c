@@ -129,6 +129,12 @@ typedef struct TlsSettings_tag {
 #define TLS_SECP256R1 "0023"
 #define TLS_SECP521R1 "0025"
   char *keyshares;
+  /*
+     TLSv1.3 isn't supported on some zos versions. Having it
+     enabled causes issues.
+     TODO: Find out why it isn't negotiating 1.2.
+  */
+  char *maxTls;
 } TlsSettings;
 
 typedef struct TlsEnvironment_tag {
