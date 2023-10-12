@@ -1500,9 +1500,8 @@ void wtoMessage(const char *message){
 }
 
 #define WTO_MAX_SIZE 126
-void wtoPrintf3(const char *formatString, ...) {
+void wtoPrintf3(const char *formatString, va_list arg) {
   char text[WTO_MAX_SIZE+1];       /* Allow for trailing null character */
-  va_list argPointer;
   int cnt;
 
   for (int pass=0; pass<2; pass++){
@@ -1515,9 +1514,7 @@ void wtoPrintf3(const char *formatString, ...) {
        to every successful request.
     */
 
-    va_start(argPointer,formatString);
-    cnt = vsnprintf(text,sizeof(text),formatString,argPointer);
-    va_end(argPointer);
+    cnt = vsnprintf(text,sizeof(text),formatString,arg);
 
     if (cnt<0){
       if (pass==0)
