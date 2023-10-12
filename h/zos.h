@@ -13,6 +13,12 @@
 #ifndef __ZOS__
 #define __ZOS__  1
 
+#ifdef METTLE
+#include <metal/stdarg.h>
+#else
+#include <stdarg.h>
+#endif
+
 #ifndef __LONGNAME__
 
 #define extractPSW EXTRPSW
@@ -1538,7 +1544,7 @@ int dsabIsOMVS(DSAB *dsab);
 
 void wtoMessage(const char *message);
 
-void wtoPrintf3(const char *formatString, ...);
+void wtoPrintf3(const char *formatString, va_list arg);
 
 int locate(char *dsn, int *volserCount, char *firstVolser);
 
