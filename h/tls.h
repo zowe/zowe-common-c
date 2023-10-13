@@ -124,7 +124,7 @@ typedef struct TlsSettings_tag {
 #define TLS_AES_128_GCM_SHA256 "1301"
 #define TLS_AES_256_GCM_SHA384 "1302"
 #define TLS_CHACHA20_POLY1305_SHA256 "1303"
-  char *ciphers1_2;
+  char *ciphers;
 #define TLS_X25519 "0029"
 #define TLS_SECP256R1 "0023"
 #define TLS_SECP521R1 "0025"
@@ -135,7 +135,6 @@ typedef struct TlsSettings_tag {
      TODO: Find out why it isn't negotiating 1.2.
   */
   char *maxTls;
-  char *ciphers1_3;
 } TlsSettings;
 
 typedef struct TlsEnvironment_tag {
