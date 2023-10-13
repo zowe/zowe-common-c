@@ -165,7 +165,8 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
     return TLS_ALLOC_ERROR;
   }
   char *label = env->settings->label;
-  char *ciphers = env->settings->ciphers;
+  char *ciphers1_2 = env->settings->ciphers1_2;
+  char *ciphers1_3 = env->settings->ciphers1_3;
   char *keyshares = env->settings->keyshares;
   rc = rc || gsk_secure_socket_open(env->envHandle, &socket->socketHandle);
   rc = rc || gsk_attribute_set_numeric_value(socket->socketHandle, GSK_FD, fd);
@@ -173,14 +174,13 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_KEYRING_LABEL, label, 0);
   }
   rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_SESSION_TYPE, isServer ? GSK_SERVER_SESSION_WITH_CL_AUTH : GSK_CLIENT_SESSION);
-  if (ciphers) {
-    rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_V3_CIPHER_SPECS_EXPANDED, ciphers, 0);
-    rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);
-  }
   /*
     To be safe,
   */
   if (isTLSV13Enabled(env->settings)) {
+    if (ciphers1_3) {
+      rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_V3_CIPHER_SPECS_EXPANDED, ciphers1_3, 0);
+    }
     if (keyshares) {
      /*   
        Only TLS 1.3 needs this.
@@ -191,7 +191,12 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
         rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_CLIENT_TLS_KEY_SHARES, keyshares, 0);
       }
     }
+  } else {
+    if (ciphers1_2) {
+      rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_V3_CIPHER_SPECS_EXPANDED, ciphers1_3, 0);
+    }
   }
+  rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);
   rc = rc || gsk_attribute_set_callback(socket->socketHandle, GSK_IO_CALLBACK, &ioCallbacks);
   rc = rc || gsk_secure_socket_init(socket->socketHandle);
   if (rc == 0) {
