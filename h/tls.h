@@ -121,7 +121,14 @@ typedef struct TlsSettings_tag {
 #define TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 "C030" // 256-bit AES in Galois Counter Mode encryption with 128-bit AEAD message authentication and ephemeral ECDH key exchange signed with an RSA certificate
 #define TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256 "C031" // 128-bit AES in Galois Counter Mode encryption with 128-bit AEAD message authentication and fixed ECDH key exchange signed with an RSA certificate
 #define TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384 "C032" // 256-bit AES in Galois Counter Mode encryption with 128-bit AEAD message authentication and fixed ECDH key exchange signed with an RSA certificate
+#define TLS_AES_128_GCM_SHA256 "1301"
+#define TLS_AES_256_GCM_SHA384 "1302"
+#define TLS_CHACHA20_POLY1305_SHA256 "1303"
   char *ciphers;
+#define TLS_X25519 "0029"
+#define TLS_SECP256R1 "0023"
+#define TLS_SECP521R1 "0025"
+  char *keyshares;
 } TlsSettings;
 
 typedef struct TlsEnvironment_tag {

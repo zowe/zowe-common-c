@@ -67,6 +67,7 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_OFF);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_1, GSK_PROTOCOL_TLSV1_1_OFF);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_2, GSK_PROTOCOL_TLSV1_2_ON);
+  rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_3, GSK_PROTOCOL_TLSV1_3_ON);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_SERVER_EPHEMERAL_DH_GROUP_SIZE, GSK_SERVER_EPHEMERAL_DH_GROUP_SIZE_2048);
 
 #ifdef DEV_DO_NOT_VALIDATE_CLIENT_CERTIFICATES
@@ -148,6 +149,7 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
   }
   char *label = env->settings->label;
   char *ciphers = env->settings->ciphers;
+  char *keyshares = env->settings->keyshares;
   rc = rc || gsk_secure_socket_open(env->envHandle, &socket->socketHandle);
   rc = rc || gsk_attribute_set_numeric_value(socket->socketHandle, GSK_FD, fd);
   if (label) {
@@ -157,6 +159,16 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
   if (ciphers) {
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_V3_CIPHER_SPECS_EXPANDED, ciphers, 0);
     rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);
+  }
+  if (keyshares) {
+    /*
+     * TLS 1.3 needs this.
+     */
+    if (isServer) {
+      rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_SERVER_TLS_KEY_SHARES, keyshares, 0);
+    } else {
+      rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_CLIENT_TLS_KEY_SHARES, keyshares, 0);
+    }
   }
   rc = rc || gsk_attribute_set_callback(socket->socketHandle, GSK_IO_CALLBACK, &ioCallbacks);
   rc = rc || gsk_secure_socket_init(socket->socketHandle);
