@@ -15,6 +15,7 @@
 #include "bpxnet.h"
 #include "fdpoll.h"
 #include "tls.h"
+#include "zos.h"
 
 int getClientCertificate(gsk_handle soc_handle, char *clientCertificate, unsigned int clientCertificateBufferSize, unsigned int *clientCertificateLength) {
 
@@ -54,6 +55,17 @@ int getClientCertificate(gsk_handle soc_handle, char *clientCertificate, unsigne
   return rc;
 }
 
+static int isTLSV13Enabled(TlsSettings *settings) {
+  ECVT *ecvt = getECVT();
+  if ((ecvt->ecvtpseq > 0x1020300) && (settings->maxTls == NULL || !strcmp(settings->maxTls, "TLSv1.3"))) {
+    return true;
+  }
+  /*
+    Default to false for versions lower than 2.3 and when set to anything other than TLSV1.3.
+  */
+  return false;
+}
+
 int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   int rc = 0;
   TlsEnvironment *env = (TlsEnvironment *)safeMalloc(sizeof(*env), "Tls Environment");
@@ -67,7 +79,12 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_OFF);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_1, GSK_PROTOCOL_TLSV1_1_OFF);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_2, GSK_PROTOCOL_TLSV1_2_ON);
-  rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_3, GSK_PROTOCOL_TLSV1_3_ON);
+  /*
+    We will treat not set as allowing TLSv1.3.
+  */
+  if (isTLSV13Enabled(settings)) {
+    rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_3, GSK_PROTOCOL_TLSV1_3_ON);
+  }
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_SERVER_EPHEMERAL_DH_GROUP_SIZE, GSK_SERVER_EPHEMERAL_DH_GROUP_SIZE_2048);
 
 #ifdef DEV_DO_NOT_VALIDATE_CLIENT_CERTIFICATES
@@ -155,19 +172,24 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
   if (label) {
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_KEYRING_LABEL, label, 0);
   }
-  rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_SESSION_TYPE, isServer ? GSK_SERVER_SESSION_WITH_CL_AUTH : GSK_CLIENT_SESSION);
   if (ciphers) {
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_V3_CIPHER_SPECS_EXPANDED, ciphers, 0);
     rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);
   }
-  if (keyshares) {
-    /*
-     * TLS 1.3 needs this.
+  rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_SESSION_TYPE, isServer ? GSK_SERVER_SESSION_WITH_CL_AUTH : GSK_CLIENT_SESSION);
+  /*
+    To be safe,
+  */
+  if (isTLSV13Enabled(env->settings)) {
+    if (keyshares) {
+     /*   
+       Only TLS 1.3 needs this.
      */
-    if (isServer) {
-      rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_SERVER_TLS_KEY_SHARES, keyshares, 0);
-    } else {
-      rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_CLIENT_TLS_KEY_SHARES, keyshares, 0);
+      if (isServer) {
+        rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_SERVER_TLS_KEY_SHARES, keyshares, 0);
+      } else {
+        rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_CLIENT_TLS_KEY_SHARES, keyshares, 0);
+      }
     }
   }
   rc = rc || gsk_attribute_set_callback(socket->socketHandle, GSK_IO_CALLBACK, &ioCallbacks);
