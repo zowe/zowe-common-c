@@ -1095,32 +1095,6 @@ static void removeRecoveryStatePool(CPID pool) {
 
 #endif /* RCVR_CPOOL_STATES */
 
-
-#define RCVR_LINKAGE_STACK_MARKER_PART1 0xC0DE0F20
-#define RCVR_LINKAGE_STACK_MARKER_PART2 0x23100512
-
-static void markLinkageStackEntry(void) {
-  __asm("         MSTA  8                                                      \n"
-        :
-        : "NR:r8"(RCVR_LINKAGE_STACK_MARKER_PART1),
-          "NR:r9"(RCVR_LINKAGE_STACK_MARKER_PART2)
-  );
-}
-
-static bool isAtRouterLinkageStackLevel(void) {
-  uint32_t modArea1, modArea2;
-  __asm("         ESTA  8,9                                                    \n"
-        : "=NR:r8"(modArea1), "=NR:r9"(modArea2)
-        : "NR:r9"(STACKED_STATE_EXTRACTION_CODE_03)
-  );
-  if (modArea1 == RCVR_LINKAGE_STACK_MARKER_PART1 &&
-      modArea2 == RCVR_LINKAGE_STACK_MARKER_PART2) {
-    return true;
-  } else {
-    return false;
-  }
-}
-
 static int establishRouterInternal(RecoveryContext *userContext,
                                    RecoveryStatePool *userStatePool,
                                    int flags) {
@@ -1251,13 +1225,6 @@ static int establishRouterInternal(RecoveryContext *userContext,
            flags & RCVR_ROUTER_FLAG_NON_INTERRUPTIBLE);
     flags |= RCVR_ROUTER_FLAG_FRR;
 
-  }
-
-  /* Mark the current linkage-stack entry if we're in PC, i.e., we're guaranteed
-   * to have linkage-stack. This will later be used to determine if we're at
-   * the same linkage-stack level. */
-  if (flags & RCVR_ROUTER_FLAG_PC_CAPABLE) {
-    markLinkageStackEntry();
   }
 
   context->flags = flags;
@@ -1764,13 +1731,8 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
     return RC_RCV_CONTEXT_NOT_FOUND;
   }
 
-  int16_t linkageStackToken;
-  if ((context->flags & RCVR_ROUTER_FLAG_PC_CAPABLE) &&
-      isAtRouterLinkageStackLevel()) {
-    /* We're at the same linkage-stack level as our ESTAEX/FRR; no need to make
-     * an expensive linkage-stack query call. */
-    linkageStackToken = 0;
-  } else {
+  int16_t linkageStackToken = 0;
+  if (!(flags & RCVR_FLAG_NO_LSTACK_QUERY)) {
     linkageStackToken = getLinkageStackToken();
     if (linkageStackToken == -1) {
       return RC_RCV_LNKSTACK_ERROR;

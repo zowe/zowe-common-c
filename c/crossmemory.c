@@ -1668,7 +1668,7 @@ static int allocateMsgQueueElement(CrossMemoryServer *server,
 
   int recoveryRC = recoveryPush(
       "allocateMsgQueueElement()",
-      RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY,
+      RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY | RCVR_FLAG_NO_LSTACK_QUERY,
       "ABEND in CPOOL GET for msg queue element",
       NULL, NULL,
       NULL, NULL
@@ -1973,13 +1973,14 @@ static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
 #ifdef CMS_ABEND_DIAG
   int pushRC = recoveryPush("CMS service function call",
                             RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY |
-                            RCVR_FLAG_SDWA_TO_LOGREC,
+                            RCVR_FLAG_SDWA_TO_LOGREC | RCVR_FLAG_NO_LSTACK_QUERY,
                             "RCMS",
                             extractServiceFunctionAbendInfo, &abendInfo,
                             NULL, NULL);
 #else
   int pushRC = recoveryPush("CMS service function call",
-                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY | RCVR_FLAG_PRODUCE_DUMP,
+                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY |
+                            RCVR_FLAG_PRODUCE_DUMP | RCVR_FLAG_NO_LSTACK_QUERY,
                             "RCMS", NULL, NULL, NULL, NULL);
 #endif
 
@@ -2037,11 +2038,13 @@ static int handleProgramCall(PCHandlerParmList *parmList, bool isSpaceSwitchPC) 
 
 #ifdef CMS_ABEND_DIAG
   int pushRC = recoveryPush("CMS PC handler",
-                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY | RCVR_FLAG_SDWA_TO_LOGREC,
+                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY |
+                            RCVR_FLAG_SDWA_TO_LOGREC | RCVR_FLAG_NO_LSTACK_QUERY,
                             "RCMS", NULL, NULL, NULL, NULL);
 #else
   int pushRC = recoveryPush("CMS PC handler",
-                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY,
+                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY |
+                            RCVR_FLAG_NO_LSTACK_QUERY,
                             "RCMS", NULL, NULL, NULL, NULL);
 #endif
 
