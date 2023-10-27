@@ -1732,7 +1732,8 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
   }
 
   int16_t linkageStackToken = 0;
-  if (!(flags & RCVR_FLAG_NO_LSTACK_QUERY)) {
+  if (!(context->flags & RCVR_ROUTER_FLAG_SKIP_LSTACK_QUERY) ||
+      (flags & RCVR_FLAG_QUERY_LSTACK)) {
     linkageStackToken = getLinkageStackToken();
     if (linkageStackToken == -1) {
       return RC_RCV_LNKSTACK_ERROR;

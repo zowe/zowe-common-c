@@ -1626,10 +1626,12 @@ ZOWE_PRAGMA_PACK_RESET
       recoveryRC = recoveryEstablishRouter2(&(envAddr)->recoveryContext, \
                                             (cmsGlobalAreaAddr)->pcssRecoveryPool, \
                                             RCVR_ROUTER_FLAG_PC_CAPABLE | \
-                                            RCVR_ROUTER_FLAG_RUN_ON_TERM); \
+                                            RCVR_ROUTER_FLAG_RUN_ON_TERM | \
+                                            RCVR_ROUTER_FLAG_SKIP_LSTACK_QUERY); \
     } else { \
       recoveryRC = recoveryEstablishRouter(RCVR_ROUTER_FLAG_PC_CAPABLE | \
-                                           RCVR_ROUTER_FLAG_RUN_ON_TERM); \
+                                           RCVR_ROUTER_FLAG_RUN_ON_TERM | \
+                                           RCVR_ROUTER_FLAG_SKIP_LSTACK_QUERY); \
     } \
     if (recoveryRC != RC_RCV_OK) { \
       returnCode = RC_CMS_ERROR; \
@@ -1668,7 +1670,7 @@ static int allocateMsgQueueElement(CrossMemoryServer *server,
 
   int recoveryRC = recoveryPush(
       "allocateMsgQueueElement()",
-      RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY | RCVR_FLAG_NO_LSTACK_QUERY,
+      RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY,
       "ABEND in CPOOL GET for msg queue element",
       NULL, NULL,
       NULL, NULL
@@ -1973,14 +1975,13 @@ static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
 #ifdef CMS_ABEND_DIAG
   int pushRC = recoveryPush("CMS service function call",
                             RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY |
-                            RCVR_FLAG_SDWA_TO_LOGREC | RCVR_FLAG_NO_LSTACK_QUERY,
+                            RCVR_FLAG_SDWA_TO_LOGREC,
                             "RCMS",
                             extractServiceFunctionAbendInfo, &abendInfo,
                             NULL, NULL);
 #else
   int pushRC = recoveryPush("CMS service function call",
-                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY |
-                            RCVR_FLAG_PRODUCE_DUMP | RCVR_FLAG_NO_LSTACK_QUERY,
+                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY | RCVR_FLAG_PRODUCE_DUMP,
                             "RCMS", NULL, NULL, NULL, NULL);
 #endif
 
@@ -2038,13 +2039,11 @@ static int handleProgramCall(PCHandlerParmList *parmList, bool isSpaceSwitchPC) 
 
 #ifdef CMS_ABEND_DIAG
   int pushRC = recoveryPush("CMS PC handler",
-                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY |
-                            RCVR_FLAG_SDWA_TO_LOGREC | RCVR_FLAG_NO_LSTACK_QUERY,
+                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY | RCVR_FLAG_SDWA_TO_LOGREC,
                             "RCMS", NULL, NULL, NULL, NULL);
 #else
   int pushRC = recoveryPush("CMS PC handler",
-                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY |
-                            RCVR_FLAG_NO_LSTACK_QUERY,
+                            RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY,
                             "RCMS", NULL, NULL, NULL, NULL);
 #endif
 

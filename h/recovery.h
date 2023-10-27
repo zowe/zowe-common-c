@@ -243,7 +243,7 @@ typedef struct RecoveryStateEntry_tag {
 #define RCVR_FLAG_SDWA_TO_LOGREC        0x08000000
 #define RCVR_FLAG_DISABLE               0x10000000
 #define RCVR_FLAG_CPOOL_BASED           0x20000000
-#define RCVR_FLAG_NO_LSTACK_QUERY       0x40000000
+#define RCVR_FLAG_QUERY_LSTACK          0x40000000
   volatile char state;
 #define RECOVERY_STATE_DISABLED         0x00
 #define RECOVERY_STATE_ENABLED          0x01
@@ -283,6 +283,7 @@ typedef struct RecoveryContext_tag {
 #define RCVR_ROUTER_FLAG_SRB                  0x20000000
 #define RCVR_ROUTER_FLAG_LOCKED               0x40000000
 #define RCVR_ROUTER_FLAG_FRR                  0x80000000
+#define RCVR_ROUTER_FLAG_SKIP_LSTACK_QUERY    0x00010000
   int previousESPIEToken;
   unsigned char routerPSWKey;
   uint8_t structVersion;
@@ -471,7 +472,7 @@ bool recoveryIsRouterEstablished();
 *     RCVR_FLAG_DELETE_ON_RETRY  - state is removed on retry
 *     RCVR_FLAG_SDWA_TO_LOGREC   - SDWA is written to LOGREC
 *     RCVR_FLAG_DISABLE          - state is disabled
-*     RCVR_FLAG_NO_LSTACK_QUERY  - linkage-stack query will not be used
+*     RCVR_FLAG_QUERY_LSTACK     - perform a linkage-stack query
 *   dumpTitle                 - SVC dump title
 *   userAnalysisFunction      - function called in the very beginning of
 *                               recovery
