@@ -70,9 +70,12 @@ static int isTLSV13Available(TlsSettings *settings) {
 #define TLS_V1_0 1
 #define TLS_V1_1 2
 #define TLS_V1_2 3
-#define TLS_v1_3 4
+#define TLS_V1_3 4
 
-static tlsNames char*[] = {
+#define TLS_MIN_DEFAULT TLS_V1_2
+#define TLS_MAX_DEFAULT TLS_V1_3
+
+static char *TLS_NAMES[5] = {
   "invalid",
   "TLSv1.0",
   "TLSv1.1",
@@ -85,23 +88,23 @@ static tlsNames char*[] = {
 static int getTlsMax(TlsSettings *settings) {
   if (settings->maxTls != NULL) {
     for (int i = 0; i < TLS_NAMES_LENGTH; i++) {
-      if (!strcmp(settings->maxTls, tlsNames[i])) {
+      if (!strcmp(settings->maxTls, TLS_NAMES[i])) {
         return i;
       }
     }
   }
-  return TLS_INVALID;
+  return TLS_MAX_DEFAULT;
 }
 
 static int getTlsMin(TlsSettings *settings) {
   if (settings->minTls != NULL) {
     for (int i = 0; i < TLS_NAMES_LENGTH; i++) {
-      if (!strcmp(settings->minTls, tlsNames[i])) {
+      if (!strcmp(settings->minTls, TLS_NAMES[i])) {
         return i;
       }
     }
   }
-  return TLS_INVALID;
+  return TLS_MIN_DEFAULT;
 }
 
 int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
@@ -117,14 +120,8 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
 
   int tlsMin = getTlsMin(settings);
   int tlsMax = getTlsMax(settings);
-  if (tlsMax != TLS_INVALID && tlsMax < tlsMin) {
+  if (tlsMax < tlsMin) {
     tlsMin = tlsMax;
-  }
-  if (tlsMax == TLS_INVALID) {
-    tlsMax = TLS_V1_3;
-  }
-  if (tlsMin == TLS_INVALID) {
-    tlsMin = TLS_V1_2;
   }
   if (tlsMin <= TLS_V1_0 && tlsMax >= TLS_V1_0) {
     rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_OFF);
@@ -230,10 +227,17 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
     rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);
   }
   rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_SESSION_TYPE, isServer ? GSK_SERVER_SESSION_WITH_CL_AUTH : GSK_CLIENT_SESSION);
+
+  int tlsMin = getTlsMin(env->settings);
+  int tlsMax = getTlsMax(env->settings);
+  if (tlsMax < tlsMin) {
+    tlsMin = tlsMax;
+  }
+
   /*
-    To be safe,
+    To be safe, only enable tls 1.3 content when it is being used
   */
-  if (isTLSV13Enabled(env->settings)) {
+  if (isTLSV13Available(env->settings) && tlsMin <= TLS_V1_3 && tlsMax >= TLS_V1_3) {
     if (keyshares) {
      /*   
        Only TLS 1.3 needs this.

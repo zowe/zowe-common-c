@@ -135,6 +135,7 @@ typedef struct TlsSettings_tag {
      TODO: Find out why it isn't negotiating 1.2.
   */
   char *maxTls;
+  char *minTls;
 } TlsSettings;
 
 typedef struct TlsEnvironment_tag {
