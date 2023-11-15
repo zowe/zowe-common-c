@@ -124,13 +124,19 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
     tlsMin = tlsMax;
   }
   if (tlsMin <= TLS_V1_0 && tlsMax >= TLS_V1_0) {
+    rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_ON);
+  } else {
     rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_OFF);
   }
   if (tlsMin <= TLS_V1_1 && tlsMax >= TLS_V1_1) {
+    rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_1, GSK_PROTOCOL_TLSV1_1_ON);
+  } else {
     rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_1, GSK_PROTOCOL_TLSV1_1_OFF);
   }
   if (tlsMin <= TLS_V1_2 && tlsMax >= TLS_V1_2) {
     rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_2, GSK_PROTOCOL_TLSV1_2_ON);
+  } else {
+    rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_2, GSK_PROTOCOL_TLSV1_2_OFF);
   }
   if (isTLSV13Available(settings) && tlsMin <= TLS_V1_3 && tlsMax >= TLS_V1_3) {
     rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_3, GSK_PROTOCOL_TLSV1_3_ON);
