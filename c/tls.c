@@ -16,6 +16,7 @@
 #include "fdpoll.h"
 #include "tls.h"
 #include "zos.h"
+#include "logging.h"
 
 int getClientCertificate(gsk_handle soc_handle, char *clientCertificate, unsigned int clientCertificateBufferSize, unsigned int *clientCertificateLength) {
 
@@ -89,10 +90,12 @@ static int getTlsMax(TlsSettings *settings) {
   if (settings->maxTls != NULL) {
     for (int i = 0; i < TLS_NAMES_LENGTH; i++) {
       if (!strcmp(settings->maxTls, TLS_NAMES[i])) {
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Min TLS requested=%d\n",i);
         return i;
       }
     }
   }
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Min TLS defaulting\n");
   return TLS_MAX_DEFAULT;
 }
 
@@ -100,10 +103,12 @@ static int getTlsMin(TlsSettings *settings) {
   if (settings->minTls != NULL) {
     for (int i = 0; i < TLS_NAMES_LENGTH; i++) {
       if (!strcmp(settings->minTls, TLS_NAMES[i])) {
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Max TLS requested=%d\n",i);
         return i;
       }
     }
   }
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Max TLS defaulting\n");
   return TLS_MIN_DEFAULT;
 }
 
@@ -124,18 +129,24 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
     tlsMin = tlsMax;
   }
   if (tlsMin <= TLS_V1_0 && tlsMax >= TLS_V1_0) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.0 off\n");
     rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_ON);
   } else {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.0 on\n");
     rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_OFF);
   }
   if (tlsMin <= TLS_V1_1 && tlsMax >= TLS_V1_1) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.1 off\n");
     rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_1, GSK_PROTOCOL_TLSV1_1_ON);
   } else {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.1 on\n");
     rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_1, GSK_PROTOCOL_TLSV1_1_OFF);
   }
   if (tlsMin <= TLS_V1_2 && tlsMax >= TLS_V1_2) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.2 on\n");
     rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_2, GSK_PROTOCOL_TLSV1_2_ON);
   } else {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.2 off\n");
     rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_2, GSK_PROTOCOL_TLSV1_2_OFF);
   }
   if (isTLSV13Available(settings) && tlsMin <= TLS_V1_3 && tlsMax >= TLS_V1_3) {
