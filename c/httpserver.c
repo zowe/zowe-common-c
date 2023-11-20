@@ -4227,10 +4227,13 @@ void respondWithUnixFileContents2 (HttpService* service, HttpResponse* response,
 // Response must ALWAYS be finished on return
 void respondWithUnixFileContentsWithAutocvtMode (HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode, int autocvt) {
   printf("-------------INSIDE respondWithUnixFileContentsWithAutocvtMode \n");
+  printf("Absolute Path Before: %s\n", absolutePath);
   FileInfo info;
   int returnCode;
   int reasonCode;
   int status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+
+  printf("Absolute Path After: %s\n", absolutePath);
 
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "finfo:\n");
 #ifdef DEBUG
@@ -4938,7 +4941,7 @@ int makeHTMLForDirectory(HttpResponse *response, char *dirname, char *stem, int 
 
 // Response must ALWAYS be finished on return
 int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotted){
-  printf("---INSIDE makeJSONForDirectory");
+  printf("---INSIDE makeJSONForDirectory\n");
   int count;
   int returnCode;
   int reasonCode;
@@ -5032,7 +5035,7 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
     directoryClose(directory,&returnCode,&reasonCode);
   }
   }
-  printf("---EXITING makeJSONForDirectory");
+  printf("---EXITING makeJSONForDirectory\n");
   finishResponse(response);
   return 0;
 }
