@@ -154,7 +154,6 @@ typedef struct CipherMap_tag {
 
 #define TLS_IANA_CIPHER_MAP(ianaCipherMap)\
   static const CipherMap ianaCipherMap[] = {\
-    //Ciphers below are defined elsewhere in tls.h
     {"TLS_NULL_WITH_NULL_NULL", TLS_NULL_WITH_NULL_NULL},\
     {"TLS_RSA_WITH_NULL_MD5", TLS_RSA_WITH_NULL_MD5},\
     {"TLS_RSA_WITH_NULL_SHA", TLS_RSA_WITH_NULL_SHA},\
