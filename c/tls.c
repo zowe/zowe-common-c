@@ -243,6 +243,7 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_KEYRING_LABEL, label, 0);
   }
   if (ciphers) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Ciphers set to %s\n", ciphers);
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_V3_CIPHER_SPECS_EXPANDED, ciphers, 0);
     rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);
   }
