@@ -5420,7 +5420,7 @@ static void serializeStartRunning(HttpConversation *conversation) {
 #define MAIN_WAIT_MILLIS 10000
 
 static int httpTaskMain(RLETask *task){
-  printf("---INSIDE pseudoRespond\n");
+  printf("---INSIDE httpTaskMain\n");
   int serviceResult = 0;
 
   HttpWorkElement *element = (HttpWorkElement*)task->userPointer;
@@ -6109,6 +6109,7 @@ HttpResponse *pseudoRespond(HttpServer *server, HttpRequest *request, ShortLived
 int httpWorkElementHandler(STCBase *base,
                            STCModule *module,
                            WorkElementPrefix *prefix) {
+  printf("---INSIDE httpWorkElementHandler\n");
   int status = 0;
   switch (prefix->payloadCode) {
   case HTTP_CONSIDER_CLOSE_CONVERSATION:
@@ -6361,6 +6362,7 @@ int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
 
 void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 {
+  printf("INSIDE registerHttpServerModuleWithBase\n");
   /* server pointer will be copied/accessible from module->data */
   STCModule *httpModule = stcRegisterModule2(base,
                                              STC_MODULE_JEDHTTP,
@@ -6373,6 +6375,7 @@ void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 }
 
 int mainHttpLoop(HttpServer *server){
+  printf("INSIDE mainHttpLoop\n");
   STCBase *base = server->base;
   /* server pointer will be copied/accessible from module->data */
   STCModule *httpModule = stcRegisterModule2(base,
