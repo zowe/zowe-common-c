@@ -3518,7 +3518,6 @@ static void serializeConsiderCloseEnqueue(HttpConversation *conversation, int su
 
 static void serveRequest(HttpService* service, HttpResponse* response,
                          HttpRequest* request) {
-  printf("---INSIDE serveRequest\n");
   if ((SERVICE_TYPE_FILES == service->serviceType) ||
       (SERVICE_TYPE_FILES_SECURE == service->serviceType)) {
     serveFile(service, response);
@@ -3681,7 +3680,6 @@ static int handleHttpService(HttpServer *server,
   if (request->authenticated == FALSE){
     if (service->authFlags & SERVICE_AUTH_FLAG_OPTIONAL) {
       // Allow the service to decide when to respond with HTTP 401
-      printf("---serveRequest in if\n");
       serveRequest(service, response, request);
     } else {
       respondWithAuthError(response, &authResponse);
@@ -3692,7 +3690,6 @@ static int handleHttpService(HttpServer *server,
     int impersonating = startImpersonating(service, request);
 
     if (isImpersonationValid(service, impersonating)) {
-      printf("---serveRequest in if and else\n");
       serveRequest(service, response, request);
     } else {
       reportImpersonationError(service, impersonating);
@@ -3747,7 +3744,6 @@ HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
    */
 
 static int serviceLoop(Socket *socket){
-  printf("---INSIDE serviceLoop\n");
   int serviceCount = 0;
   int returnCode;
   int reasonCode;
@@ -3800,6 +3796,7 @@ static int serviceLoop(Socket *socket){
 
 
 void parseURI(HttpRequest *request){
+  printf("---INSIDE parseURI\n");
   char *uri = request->uri;
   int len = strlen(uri);
   int qPos = indexOf(uri,len,ASCII_QUESTION,0);
@@ -3898,7 +3895,7 @@ void parseURI(HttpRequest *request){
     }
     request->parsedFile = NULL;
   }
-  
+  printf("---EXITING PARSEURI");
 }
 
 /*
@@ -3967,7 +3964,6 @@ void respondWithMessage(HttpResponse *response, int status,
 
 // Response must ALWAYS be finished on return
 void serveFile(HttpService *service, HttpResponse *response){
-  printf("---INSIDE SERVE FILE\n");
   HttpRequest *request = response->request;
   char *fileFrag = stringListPrint(request->parsedFile,0,1000,"/",0);
   char *filename = stringConcatenate(response->slh,service->pathRoot,fileFrag);
@@ -4232,7 +4228,7 @@ void respondWithUnixFileContents2 (HttpService* service, HttpResponse* response,
 // Response must ALWAYS be finished on return
 void respondWithUnixFileContentsWithAutocvtMode (HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode, int autocvt) {
   printf("-------------INSIDE respondWithUnixFileContentsWithAutocvtMode \n");
-  printf("Absolute Path Before: %s\n", absolutePath);
+  printf("---Absolute Path Before: %s\n", absolutePath);
   FileInfo info;
   int returnCode;
   int reasonCode;
@@ -4245,7 +4241,6 @@ void respondWithUnixFileContentsWithAutocvtMode (HttpService* service, HttpRespo
   dumpbuffer((char*)&info, sizeof(FileInfo));
 #endif
 
-  printf("---------ABOVE STATUS\n");
   if (status != 0) {
     printf("---------STATUS 0\n");
     respondWithUnixFileNotFound(response, jsonMode);
@@ -4872,7 +4867,6 @@ int runServiceThread(Socket *socket){
 
 // Response must ALWAYS be finished on return
 int makeHTMLForDirectory(HttpResponse *response, char *dirname, char *stem, int includeDotted){
-  printf("---INSIDE makeHTMLForDirectory");
   int count;
   int returnCode;
   int reasonCode;
@@ -4940,14 +4934,12 @@ int makeHTMLForDirectory(HttpResponse *response, char *dirname, char *stem, int 
     }
     directoryClose(directory,&returnCode,&reasonCode);
   }
-  printf("---EXITING makeHTMLForDirectory");
   finishResponse(response);
   return 0;
 }
 
 // Response must ALWAYS be finished on return
 int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotted){
-  printf("---INSIDE makeJSONForDirectory\n");
   int count;
   int returnCode;
   int reasonCode;
@@ -5041,7 +5033,6 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
     directoryClose(directory,&returnCode,&reasonCode);
   }
   }
-  printf("---EXITING makeJSONForDirectory\n");
   finishResponse(response);
   return 0;
 }
@@ -5420,7 +5411,6 @@ static void serializeStartRunning(HttpConversation *conversation) {
 #define MAIN_WAIT_MILLIS 10000
 
 static int httpTaskMain(RLETask *task){
-  printf("---INSIDE httpTaskMain\n");
   int serviceResult = 0;
 
   HttpWorkElement *element = (HttpWorkElement*)task->userPointer;
@@ -5561,7 +5551,6 @@ static void logHTTPMethodAndURI(ShortLivedHeap *slh, HttpRequest *request) {
 // Response is finished on an error
 static void doHttpResponseWork(HttpConversation *conversation)
 {
-  printf("---INSIDE doHttpResponseWork\n");
   HttpRequestParser *parser = conversation->parser;
   HttpHeader *header = NULL;
   HttpResponse *response = NULL;
@@ -6090,7 +6079,6 @@ static int httpServerIOTrace = FALSE;
 /* this is a testing API for testing response generation without an HTTP server running */
 
 HttpResponse *pseudoRespond(HttpServer *server, HttpRequest *request, ShortLivedHeap *slh){
-  printf("---INSIDE pseudoRespond\n");
   HttpResponse *response = makeHttpResponse(request,slh,NULL);
   response->standaloneTestMode = TRUE;
   parseURI(request);
