@@ -3604,6 +3604,7 @@ static int handleHttpService(HttpServer *server,
                              HttpRequest *request,
                              HttpResponse *response){
 #ifdef __ZOWE_OS_ZOS
+  printf("---INSIDE handleHttpService\n");
   HttpConversation *conversation = response->conversation;
 
   if (conversation->requestCount > JED_HTTP_KEEP_ALIVE_MAX) {
@@ -3746,6 +3747,7 @@ HttpConversation *makeHttpConversation(SocketExtension *socketExtension,
    */
 
 static int serviceLoop(Socket *socket){
+  printf("---INSIDE serviceLoop\n");
   int serviceCount = 0;
   int returnCode;
   int reasonCode;
@@ -5418,6 +5420,7 @@ static void serializeStartRunning(HttpConversation *conversation) {
 #define MAIN_WAIT_MILLIS 10000
 
 static int httpTaskMain(RLETask *task){
+  printf("---INSIDE pseudoRespond\n");
   int serviceResult = 0;
 
   HttpWorkElement *element = (HttpWorkElement*)task->userPointer;
@@ -5558,6 +5561,7 @@ static void logHTTPMethodAndURI(ShortLivedHeap *slh, HttpRequest *request) {
 // Response is finished on an error
 static void doHttpResponseWork(HttpConversation *conversation)
 {
+  printf("---INSIDE doHttpResponseWork\n");
   HttpRequestParser *parser = conversation->parser;
   HttpHeader *header = NULL;
   HttpResponse *response = NULL;
@@ -6086,6 +6090,7 @@ static int httpServerIOTrace = FALSE;
 /* this is a testing API for testing response generation without an HTTP server running */
 
 HttpResponse *pseudoRespond(HttpServer *server, HttpRequest *request, ShortLivedHeap *slh){
+  printf("---INSIDE pseudoRespond\n");
   HttpResponse *response = makeHttpResponse(request,slh,NULL);
   response->standaloneTestMode = TRUE;
   parseURI(request);
