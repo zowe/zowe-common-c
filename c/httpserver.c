@@ -3518,7 +3518,7 @@ static void serializeConsiderCloseEnqueue(HttpConversation *conversation, int su
 
 static void serveRequest(HttpService* service, HttpResponse* response,
                          HttpRequest* request) {
-
+  printf("---INSIDE serveRequest\n");
   if ((SERVICE_TYPE_FILES == service->serviceType) ||
       (SERVICE_TYPE_FILES_SECURE == service->serviceType)) {
     serveFile(service, response);
@@ -3680,6 +3680,7 @@ static int handleHttpService(HttpServer *server,
   if (request->authenticated == FALSE){
     if (service->authFlags & SERVICE_AUTH_FLAG_OPTIONAL) {
       // Allow the service to decide when to respond with HTTP 401
+      printf("---serveRequest in if\n");
       serveRequest(service, response, request);
     } else {
       respondWithAuthError(response, &authResponse);
@@ -3690,6 +3691,7 @@ static int handleHttpService(HttpServer *server,
     int impersonating = startImpersonating(service, request);
 
     if (isImpersonationValid(service, impersonating)) {
+      printf("---serveRequest in if and else\n");
       serveRequest(service, response, request);
     } else {
       reportImpersonationError(service, impersonating);
@@ -3963,6 +3965,7 @@ void respondWithMessage(HttpResponse *response, int status,
 
 // Response must ALWAYS be finished on return
 void serveFile(HttpService *service, HttpResponse *response){
+  printf("---INSIDE SERVE FILE\n");
   HttpRequest *request = response->request;
   char *fileFrag = stringListPrint(request->parsedFile,0,1000,"/",0);
   char *filename = stringConcatenate(response->slh,service->pathRoot,fileFrag);
@@ -4277,6 +4280,7 @@ static char continueResponse[] = "HTTP/1.1 100 Continue\x0d\x0a\x0d\x0a";
 
 // Response must ALWAYS be finished on return
 void respondWithUnixFileContents(HttpResponse* response, char* absolutePath, int jsonMode) {
+  printf("---INSIDE respondWithUnixFileContents\n");
   respondWithUnixFileContents2(NULL, response, absolutePath, jsonMode);
   // Response is finished on return
 }
