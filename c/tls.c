@@ -122,26 +122,15 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   rc = rc || gsk_environment_open(&env->envHandle);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_SSLV2, GSK_PROTOCOL_SSLV2_OFF);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_SSLV3, GSK_PROTOCOL_SSLV3_OFF);
+  rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_OFF);
+  rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_1, GSK_PROTOCOL_TLSV1_1_OFF);
 
   int tlsMin = getTlsMin(settings);
   int tlsMax = getTlsMax(settings);
   if (tlsMax < tlsMin) {
     tlsMin = tlsMax;
   }
-  if (tlsMin <= TLS_V1_0 && tlsMax >= TLS_V1_0) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.0 on\n");
-    rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_ON);
-  } else {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.0 off\n");
-    rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_OFF);
-  }
-  if (tlsMin <= TLS_V1_1 && tlsMax >= TLS_V1_1) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.1 on\n");
-    rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_1, GSK_PROTOCOL_TLSV1_1_ON);
-  } else {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.1 off\n");
-    rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_1, GSK_PROTOCOL_TLSV1_1_OFF);
-  }
+  
   if (tlsMin <= TLS_V1_2 && tlsMax >= TLS_V1_2) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.2 on\n");
     rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_2, GSK_PROTOCOL_TLSV1_2_ON);
