@@ -145,7 +145,7 @@ int BPXCLO();
 #define TCP_NODELAY 0x00000001
 #endif
 
-static int socketTrace = 0;
+static int socketTrace = 1;
 int setSocketTrace(int toWhat) {
   int was = socketTrace;
 #ifndef METTLE
