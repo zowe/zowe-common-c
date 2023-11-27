@@ -231,7 +231,8 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   unsigned char subpool;
   unsigned short size;
   unsigned int flags;
-  char reserved1[56];
+  unsigned int callerCount;
+  char reserved1[52];
 
   void * __ptr32 userServerAnchor;
 

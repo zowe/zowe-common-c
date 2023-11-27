@@ -1352,14 +1352,13 @@ LSSPRLG  LARL  10,LSSPRLG          establish addressability using r10   \n\
          USING LSSPRLG,10                                               \n\
          LGR   5,4                 save latent parm as CPOOL uses r4    \n\
          USING PCLPARM,5                                                \n\
-         LLGT  2,PCLPPRM1          load global area from latent parm    \n\
-         USING GLA,2                                                    \n\
+         LLGT  6,PCLPPRM1          load global area from latent parm    \n\
+         USING GLA,6                                                    \n\
          SAM31                                                          \n\
          SYSSTATE AMODE64=NO                                            \n\
          CPOOL GET,C,CPID=GLASTCP,REGS=USE   allocate a stack cell      \n\
          SAM64                                                          \n\
          SYSSTATE AMODE64=YES                                           \n\
-         DROP  2                   drop, r2 is changed by CPOOL         \n\
          LTGFR 1,1                 check if we have a cell              \n\
          BNZ   LSSINIT             go init, if we have it               \n\
          LA    15,52               if not, leave with a bad RC (52)     \n\
@@ -1368,6 +1367,8 @@ LSSPRLG  LARL  10,LSSPRLG          establish addressability using r10   \n\
 LSSINIT  DS    0H                                                       \n\
          LGR   13,1                use new storage as stack in r13      \n\
          USING PCHSTACK,13                                              \n\
+         LHI   1,1                 load 1 as the increment value        \n\
+         LAA   1,1,GLACCNT         increment the caller counter         \n\
          EREGG 1,1                 restore r1 (CMS parm) for PC routine \n\
          MVC   PCHSAEYE,=C'F1SA'   init stack eyecatcher                \n\
          MVC   PCHPLEYE,=C'RSPCHEYE'  init PC parm eyecatcher           \n\
@@ -1378,7 +1379,7 @@ LSSINIT  DS    0H                                                       \n\
          DROP  13                  drop, it's no longer PCHSTACK        \n\
          J     LSSRET              go to metal PC routine               \n\
          LTORG                                                          \n\
-         DROP  5,10                drop, not needed any more            \n\
+         DROP  5,6,10              drop, not needed any more            \n\
 LSSRET   DS    0H                                                       \n\
          DROP                                                           \n\
          POP   USING                               ")
@@ -1393,8 +1394,10 @@ LSSRET   DS    0H                                                       \n\
          USING PCHSTACK,13                                              \n\
          LG    5,PCHPLLPL          load latent parm from PC parm        \n\
          USING PCLPARM,5                                                \n\
-         LLGT  2,PCLPPRM1          load global area from latent parm    \n\
-         USING GLA,2                                                    \n\
+         LLGT  6,PCLPPRM1          load global area from latent parm    \n\
+         USING GLA,6                                                    \n\
+         LHI   1,-1                -1 as the increment value            \n\
+         LAA   1,1,GLACCNT         decrement the caller counter         \n\
          SAM31                                                          \n\
          SYSSTATE AMODE64=NO                                            \n\
          CPOOL FREE,CPID=GLASTCP,CELL=(3),REGS=USE  free stack cell     \n\
@@ -1402,7 +1405,7 @@ LSSRET   DS    0H                                                       \n\
          SYSSTATE AMODE64=YES                                           \n\
          DROP  13                  drop, it's no longer valid           \n\
 LSSTERM  DS    0H                                                       \n\
-         DROP  5,10                drop, not needed any more            \n\
+         DROP  5,6,10              drop, not needed any more            \n\
          LGR   15,4                restore RC for caller                \n\
          EREGG 0,1                 restore r0 and r1 for caller         \n\
          PR                        return to caller                     \n\
@@ -2546,6 +2549,8 @@ static int startServer(CrossMemoryServer *server) {
   return RC_CMS_OK;
 }
 
+static void cmsSleep(int seconds);
+
 static int stopServer(CrossMemoryServer *server) {
 
   CrossMemoryServerGlobalArea *globalArea = server->globalArea;
@@ -2557,9 +2562,18 @@ static int stopServer(CrossMemoryServer *server) {
 
   server->flags &= ~CROSS_MEMORY_SERVER_FLAG_READY;
   globalArea->serverFlags &= ~CROSS_MEMORY_SERVER_FLAG_READY;
+
+  cmsSleep(1);
+  int callerCount = globalArea->callerCount;
+  while (callerCount != 0) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+            "%d callers are still using PC, waiting...", callerCount);
+    cmsSleep(1);
+    callerCount = globalArea->callerCount;
+  }
+
   globalArea->localServerAddress = NULL;
   globalArea->serverASID = 0;
-
   globalArea->pccpHandler = NULL;
   globalArea->pcInfo.pcssPCNumber = 0;
   globalArea->pcInfo.pcssSequenceNumber = 0;
@@ -5484,7 +5498,9 @@ void crossmemoryServerDESCTs(){
       "GLASBP   DS    X                                                        \n"
       "GLASIZE  DS    H                                                        \n"
       "GLAFLAG  DS    F                                                        \n"
-      "GLARSV1  DS    CL60                                                     \n"
+      "GLACCNT  DS    F                                                        \n"
+      "GLARSV1  DS    CL52                                                     \n"
+      "GLAUSRA  DS    A                                                        \n"
       "GLASNAM  DS    CL16                                                     \n"
       "GLALSAD  DS    A                                                        \n"
       "GLAASID  DS    H                                                        \n"
