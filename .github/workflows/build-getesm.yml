@@ -4,15 +4,12 @@ on:
     branches:
       - v2.x/staging 
       - v2.x/master
-      - v2.x/rc 
+      - v2.x/rc       
+      - v3.x/staging 
+      - v3.x/master
+      - v3.x/rc 
   pull_request:
     types: [opened, reopened, synchronize]
-  workflow_dispatch:
-    inputs:
-      PERFORM_RELEASE:
-        description: '[Release] perform release'
-        required: false
-        default: 'false'
   
 
 jobs:
@@ -68,7 +65,7 @@ jobs:
         if: success()
         with:
           artifacts: |
-            .pax/utils/getesm.pax
+            .pax/getesm/getesm.pax
           publish-target-path-pattern: libs-snapshot-local/org/zowe/utils/${{ steps.version.outputs.version }}-${{ steps.branch.outputs.branch }}
           publish-target-file-pattern: getesm-${{ steps.version.outputs.version }}-${{ steps.date.outputs.date }}.pax
           perform-release: ${{ github.event.inputs.PERFORM_RELEASE }}
