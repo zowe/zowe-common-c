@@ -18,6 +18,10 @@ SCRIPT_DIR=$(pwd)
 
 # build
 echo "$SCRIPT_NAME build getesm ..."
+echo "build folder:"
+ls -ltr "$SCRIPT_DIR/content/build"
+echo "parent folder:"
+ls -ltr "$SCRIPT_DIR/content"
 STEPLIB=CBC.SCCNCMP "$SCRIPT_DIR/content/build/build_getesm.sh"
 
 # clean up content folder
