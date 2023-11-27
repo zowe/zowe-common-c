@@ -1525,11 +1525,13 @@ HttpServer *makeHttpServerInner(STCBase *base,
   bool noTCP = false;
   SessionTokenKey sessionTokenKey = {0};
   if (initSessionTokenKey(&sessionTokenKey) != 0) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_ALWAYS, "Issue with session token key");
     return NULL;
   }
   if (addr != NULL && port != HTTP_DISABLE_TCP_PORT){
     listenerSocket = tcpServer2(addr,port,tlsFlags,returnCode,reasonCode);
     if (listenerSocket == NULL){
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_ALWAYS, "ListenerSocket came back null");
       return NULL;
     }
 #ifdef USE_ZOWE_TLS
@@ -1552,7 +1554,7 @@ HttpServer *makeHttpServerInner(STCBase *base,
   server->serverInstanceUID = (uint64)getFineGrainedTime();
   stcRegisterSocketExtension(base, listenerSocketExtension, STC_MODULE_JEDHTTP);
 
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "ListenerSocket on SD/WinSock=0x%x\n",
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_ALWAYS, "ListenerSocket on SD/WinSock=0x%x\n",
 	  (listenerSocket ? getSocketDebugID(listenerSocket) : 0));
 
   server->config = (HttpServerConfig*)safeMalloc31(sizeof(HttpServerConfig),"HttpServerConfig");
