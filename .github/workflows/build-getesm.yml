@@ -71,7 +71,7 @@ jobs:
         with:
           artifacts: |
             .pax/getesm/getesm.pax
-          publish-target-path-pattern: libs-snapshot-local/org/zowe/utils/${{ steps.version.outputs.version }}-${{ steps.branch.outputs.branch }}
+          publish-target-path-pattern: libs-snapshot-local/org/zowe/getesm/${{ steps.version.outputs.version }}-${{ steps.branch.outputs.branch }}
           publish-target-file-pattern: getesm-${{ steps.version.outputs.version }}-${{ steps.date.outputs.date }}.pax
           perform-release: ${{ github.event.inputs.PERFORM_RELEASE }}
           
