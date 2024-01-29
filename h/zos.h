@@ -64,6 +64,8 @@
 #define isCallerSRB           ZOSCSRB
 #define isCallerCrossMemory   ZOSCXMEM
 
+#define getExternalSecurityManager GETESM
+
 #endif
 
 
@@ -650,6 +652,7 @@ Addr31 getATCVT(void);
 void *getIEACSTBL(void);
 cvtfix *getCVTPrefix(void);
 ECVT *getECVT(void);
+ExternalSecurityManager getExternalSecurityManager(void);
 
 typedef struct ocvt_tag{  /* see SYS1.MACLIB(BPXZOCVT) */
   char eyecatcher[4]; /* "OCVT" */
