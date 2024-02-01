@@ -3518,7 +3518,6 @@ static void serializeConsiderCloseEnqueue(HttpConversation *conversation, int su
 
 static void serveRequest(HttpService* service, HttpResponse* response,
                          HttpRequest* request) {
-
   if ((SERVICE_TYPE_FILES == service->serviceType) ||
       (SERVICE_TYPE_FILES_SECURE == service->serviceType)) {
     serveFile(service, response);
@@ -3604,6 +3603,7 @@ static int handleHttpService(HttpServer *server,
                              HttpRequest *request,
                              HttpResponse *response){
 #ifdef __ZOWE_OS_ZOS
+  printf("---INSIDE handleHttpService\n");
   HttpConversation *conversation = response->conversation;
 
   if (conversation->requestCount > JED_HTTP_KEEP_ALIVE_MAX) {
@@ -3796,6 +3796,7 @@ static int serviceLoop(Socket *socket){
 
 
 void parseURI(HttpRequest *request){
+  printf("---INSIDE parseURI\n");
   char *uri = request->uri;
   int len = strlen(uri);
   int qPos = indexOf(uri,len,ASCII_QUESTION,0);
@@ -3894,7 +3895,7 @@ void parseURI(HttpRequest *request){
     }
     request->parsedFile = NULL;
   }
-  
+  printf("---EXITING PARSEURI");
 }
 
 /*
@@ -4226,10 +4227,14 @@ void respondWithUnixFileContents2 (HttpService* service, HttpResponse* response,
 
 // Response must ALWAYS be finished on return
 void respondWithUnixFileContentsWithAutocvtMode (HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode, int autocvt) {
+  printf("-------------INSIDE respondWithUnixFileContentsWithAutocvtMode \n");
+  printf("---Absolute Path Before: %s\n", absolutePath);
   FileInfo info;
   int returnCode;
   int reasonCode;
   int status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
+
+  printf("Absolute Path After: %s\n", absolutePath);
 
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "finfo:\n");
 #ifdef DEBUG
@@ -4237,12 +4242,15 @@ void respondWithUnixFileContentsWithAutocvtMode (HttpService* service, HttpRespo
 #endif
 
   if (status != 0) {
+    printf("---------STATUS 0\n");
     respondWithUnixFileNotFound(response, jsonMode);
     // Response is finished on return
   } else if(fileInfoIsDirectory(&info)) {
+    printf("---------STATUS NON ZERO ELSE IF\n");
     respondWithUnixDirectory(response, absolutePath, jsonMode);
     // Response is finished on return
   } else {
+    printf("---------STATUS NON ZERO ELSE\n");
     bool asB64 = TRUE;
     char *base64Param = getQueryParam(response->request, "responseType");
 
@@ -4269,6 +4277,7 @@ static char continueResponse[] = "HTTP/1.1 100 Continue\x0d\x0a\x0d\x0a";
 
 // Response must ALWAYS be finished on return
 void respondWithUnixFileContents(HttpResponse* response, char* absolutePath, int jsonMode) {
+  printf("---INSIDE respondWithUnixFileContents\n");
   respondWithUnixFileContents2(NULL, response, absolutePath, jsonMode);
   // Response is finished on return
 }
@@ -4361,6 +4370,7 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
 
 // Response must ALWAYS be finished on return
 void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* absolutePath, int jsonMode, int autocvt, bool asB64) {
+  printf("---INSIDE respondWithUnixFile2\n");
   FileInfo info;
   int returnCode;
   int reasonCode;
@@ -4517,6 +4527,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
     respondWithUnixFileNotFound(response, jsonMode);
     // Response is finished on return
   }
+  printf("---EXITING respondWithUnixFile2\n");
 }
 
 // Response must ALWAYS be finished on return
@@ -4527,6 +4538,7 @@ void respondWithUnixFile(HttpResponse* response, char* absolutePath, int jsonMod
 
 // Response must ALWAYS be finished on return
 void respondWithUnixDirectory(HttpResponse *response, char* absolutePath, int jsonMode) {
+  printf("----INSIDE respondWithUnixDirectory\n");
   int returnCode;
   int reasonCode;
     UnixFile *directory = NULL;
@@ -4535,10 +4547,12 @@ void respondWithUnixDirectory(HttpResponse *response, char* absolutePath, int js
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "Directory case: %s\n",absolutePath);
   
  if ((directory = directoryOpen(absolutePath,&returnCode,&reasonCode)) == NULL){
+    printf("---- permission denied\n");
     respondWithJsonError(response, "Permission denied", 403, "Forbidden");
     // Response is finished on return
   }
   else {
+    printf("---- permission granted\n");
     directoryClose(directory,&returnCode,&reasonCode);
     setResponseStatus(response,200,"OK");
     addStringHeader(response, "Cache-control", "no-store");
@@ -4546,6 +4560,7 @@ void respondWithUnixDirectory(HttpResponse *response, char* absolutePath, int js
     addStringHeader(response,"Server","jdmfws");
     addStringHeader(response,"Transfer-Encoding","chunked");
     if (jsonMode == 0) {
+      printf("-----JSON ZERO\n");
       setContentType(response,"text/html");
       writeHeader(response);
       StringListElt *parsedFileTail = firstStringListElt(response->request->parsedFile);
@@ -4556,6 +4571,7 @@ void respondWithUnixDirectory(HttpResponse *response, char* absolutePath, int js
       // Response is finished on return
     }
     else {
+      printf("-----JSON NONZERO\n");
       setContentType(response,"application/json");
       writeHeader(response);
       makeJSONForDirectory(response,absolutePath,TRUE);
@@ -6081,6 +6097,7 @@ HttpResponse *pseudoRespond(HttpServer *server, HttpRequest *request, ShortLived
 int httpWorkElementHandler(STCBase *base,
                            STCModule *module,
                            WorkElementPrefix *prefix) {
+  printf("---INSIDE httpWorkElementHandler\n");
   int status = 0;
   switch (prefix->payloadCode) {
   case HTTP_CONSIDER_CLOSE_CONVERSATION:
@@ -6333,6 +6350,7 @@ int httpBackgroundHandler(STCBase *base, STCModule *module, int selectStatus) {
 
 void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 {
+  printf("INSIDE registerHttpServerModuleWithBase\n");
   /* server pointer will be copied/accessible from module->data */
   STCModule *httpModule = stcRegisterModule2(base,
                                              STC_MODULE_JEDHTTP,
@@ -6345,6 +6363,7 @@ void registerHttpServerModuleWithBase(HttpServer *server, STCBase *base)
 }
 
 int mainHttpLoop(HttpServer *server){
+  printf("INSIDE mainHttpLoop\n");
   STCBase *base = server->base;
   /* server pointer will be copied/accessible from module->data */
   STCModule *httpModule = stcRegisterModule2(base,

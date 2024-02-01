@@ -706,12 +706,14 @@ void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, in
  * caller.
  */
 void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
+  printf("---INSIDE respondWithUnixFileMetadata");
   FileInfo info;
   int returnCode;
   int reasonCode;
   int status = fileInfo(absolutePath, &info, &returnCode, &reasonCode);
 
   if (status == 0) {
+    printf("---STATUS 0");
     jsonPrinter *out = respondWithJsonPrinter(response);
 
     setResponseStatus(response, 200, "OK");
@@ -761,8 +763,10 @@ void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
     finishResponse(response);
   }
   else {
+    printf("---STATUS NON 0");
     respondWithUnixFileNotFound(response, TRUE);
   }
+  printf("---EXITING respondWithUnixFileMetadata");
 }
 
 void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
