@@ -54,7 +54,7 @@ jobs:
           PR_DESCRIPTION: ${{ github.event.pull_request.body }}
         run: |
           # Safely print the PR description using Node.js
-          
+          rm "/tmp/pr_description.txt"
           node -e "const fs=require('fs'); fs.writeFileSync('/tmp/pr_description.txt', process.env.PR_DESCRIPTION);"
           # Use diff to compare the two files
           if diff -wB /tmp/pr_description.txt .github/pull_request_template.md > /dev/null; then
