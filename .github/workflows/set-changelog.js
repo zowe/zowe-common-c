@@ -13,6 +13,7 @@ const fs = require('fs');
 // Must run with args: PR_NUMBER
 const PR_NUMBER = process.argv[2];
 const description = fs.readFileSync('/tmp/pr_description.txt', 'utf8');
+console.log(description);
 let changelogMsg, version;
 
 if (description.includes('VERSION:') && description.includes('CHANGELOG:')) {
