@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `2.13.0`
+- Added support for using "zowe.network" and "components.zss.zowe.network" to set TLS version properties. (#411)
+- Added utility for general usage returning the name of External Security Manager
+
 ## `2.11.0`
 
 - WTO printing methods have been moved to zos.c to be more available as utilities (for ex: for the Launcher)
