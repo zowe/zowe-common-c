@@ -367,8 +367,19 @@ typedef struct RecoveryContext_tag {
 *     RCVR_ROUTER_FLAG_NONE               - no flags
 *     RCVR_ROUTER_FLAG_NON_INTERRUPTIBLE  - cancel or detach will not
 *                                           interrupted recovery process
-*     RCVR_ROUTER_FLAG_PC_CAPABALE        - should be set when the recovery
+*     RCVR_ROUTER_FLAG_PC_CAPABLE         - should be set when the recovery
 *                                           needs to used in PC calls
+*     RCVR_ROUTER_FLAG_RUN_ON_TERM        - ESTAEX exit to be scheduled in case
+*                                           of termination events (see the
+*                                           description of the TERM parameter
+*                                           in the ESTAEX documentation)
+*     RCVR_ROUTER_FLAG_SKIP_LSTACK_QUERY  - by default do not perform
+*                                           linkage-stack queries in
+*                                           recoveryPush calls for this router
+*                                           (use this flag for a better
+*                                           performance if there are no
+*                                           linkage-stack entries added
+*                                           between recoveryPush calls)
 *
 * Return value:
 *   When a router has successfully been established, the function returns
@@ -393,8 +404,19 @@ int recoveryEstablishRouter(int flags);
 *     RCVR_ROUTER_FLAG_NONE               - no flags
 *     RCVR_ROUTER_FLAG_NON_INTERRUPTIBLE  - cancel or detach will not
 *                                           interrupted recovery process
-*     RCVR_ROUTER_FLAG_PC_CAPABALE        - should be set when the recovery
+*     RCVR_ROUTER_FLAG_PC_CAPABLE         - should be set when the recovery
 *                                           needs to used in PC calls
+*     RCVR_ROUTER_FLAG_RUN_ON_TERM        - ESTAEX exit to be scheduled in case
+*                                           of termination events (see the
+*                                           description of the TERM parameter
+*                                           in the ESTAEX documentation)
+*     RCVR_ROUTER_FLAG_SKIP_LSTACK_QUERY  - by default do not perform
+*                                           linkage-stack queries in
+*                                           recoveryPush calls for this router
+*                                           (use this flag for a better
+*                                           performance if there are no
+*                                           linkage-stack entries added
+*                                           between recoveryPush calls)
 *
 * Return value:
 *   When a router has successfully been established, the function returns
