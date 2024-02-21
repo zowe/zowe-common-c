@@ -1,6 +1,8 @@
 # Zowe Common C Changelog
 
 
+## `3.0.0`
+- Added `zos.getZosVersion()` and `zos.getEsm()` calls for configmgr QJS (#428)
 
 ## `2.13.0`
 - Added support for using "zowe.network" and "components.zss.zowe.network" to set TLS version properties. (#411)
