@@ -1,5 +1,8 @@
 # Zowe Common C Changelog
 
+## `2.15.0`
+- Remove obsolete building script build_configmgr.sh (#410). (#423)
+
 ## `2.13.0`
 - Added support for using "zowe.network" and "components.zss.zowe.network" to set TLS version properties. (#411)
 - Added utility for general usage returning the name of External Security Manager
