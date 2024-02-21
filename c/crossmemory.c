@@ -1626,10 +1626,12 @@ ZOWE_PRAGMA_PACK_RESET
       recoveryRC = recoveryEstablishRouter2(&(envAddr)->recoveryContext, \
                                             (cmsGlobalAreaAddr)->pcssRecoveryPool, \
                                             RCVR_ROUTER_FLAG_PC_CAPABLE | \
-                                            RCVR_ROUTER_FLAG_RUN_ON_TERM); \
+                                            RCVR_ROUTER_FLAG_RUN_ON_TERM | \
+                                            RCVR_ROUTER_FLAG_SKIP_LSTACK_QUERY); \
     } else { \
       recoveryRC = recoveryEstablishRouter(RCVR_ROUTER_FLAG_PC_CAPABLE | \
-                                           RCVR_ROUTER_FLAG_RUN_ON_TERM); \
+                                           RCVR_ROUTER_FLAG_RUN_ON_TERM | \
+                                           RCVR_ROUTER_FLAG_SKIP_LSTACK_QUERY); \
     } \
     if (recoveryRC != RC_RCV_OK) { \
       returnCode = RC_CMS_ERROR; \

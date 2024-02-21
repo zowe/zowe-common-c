@@ -243,6 +243,7 @@ typedef struct RecoveryStateEntry_tag {
 #define RCVR_FLAG_SDWA_TO_LOGREC        0x08000000
 #define RCVR_FLAG_DISABLE               0x10000000
 #define RCVR_FLAG_CPOOL_BASED           0x20000000
+#define RCVR_FLAG_QUERY_LSTACK          0x40000000
   volatile char state;
 #define RECOVERY_STATE_DISABLED         0x00
 #define RECOVERY_STATE_ENABLED          0x01
@@ -282,6 +283,7 @@ typedef struct RecoveryContext_tag {
 #define RCVR_ROUTER_FLAG_SRB                  0x20000000
 #define RCVR_ROUTER_FLAG_LOCKED               0x40000000
 #define RCVR_ROUTER_FLAG_FRR                  0x80000000
+#define RCVR_ROUTER_FLAG_SKIP_LSTACK_QUERY    0x00010000
   int previousESPIEToken;
   unsigned char routerPSWKey;
   uint8_t structVersion;
@@ -365,8 +367,19 @@ typedef struct RecoveryContext_tag {
 *     RCVR_ROUTER_FLAG_NONE               - no flags
 *     RCVR_ROUTER_FLAG_NON_INTERRUPTIBLE  - cancel or detach will not
 *                                           interrupted recovery process
-*     RCVR_ROUTER_FLAG_PC_CAPABALE        - should be set when the recovery
+*     RCVR_ROUTER_FLAG_PC_CAPABLE         - should be set when the recovery
 *                                           needs to used in PC calls
+*     RCVR_ROUTER_FLAG_RUN_ON_TERM        - ESTAEX exit to be scheduled in case
+*                                           of termination events (see the
+*                                           description of the TERM parameter
+*                                           in the ESTAEX documentation)
+*     RCVR_ROUTER_FLAG_SKIP_LSTACK_QUERY  - by default do not perform
+*                                           linkage-stack queries in
+*                                           recoveryPush calls for this router
+*                                           (use this flag for a better
+*                                           performance if there are no
+*                                           linkage-stack entries added
+*                                           between recoveryPush calls)
 *
 * Return value:
 *   When a router has successfully been established, the function returns
@@ -391,8 +404,19 @@ int recoveryEstablishRouter(int flags);
 *     RCVR_ROUTER_FLAG_NONE               - no flags
 *     RCVR_ROUTER_FLAG_NON_INTERRUPTIBLE  - cancel or detach will not
 *                                           interrupted recovery process
-*     RCVR_ROUTER_FLAG_PC_CAPABALE        - should be set when the recovery
+*     RCVR_ROUTER_FLAG_PC_CAPABLE         - should be set when the recovery
 *                                           needs to used in PC calls
+*     RCVR_ROUTER_FLAG_RUN_ON_TERM        - ESTAEX exit to be scheduled in case
+*                                           of termination events (see the
+*                                           description of the TERM parameter
+*                                           in the ESTAEX documentation)
+*     RCVR_ROUTER_FLAG_SKIP_LSTACK_QUERY  - by default do not perform
+*                                           linkage-stack queries in
+*                                           recoveryPush calls for this router
+*                                           (use this flag for a better
+*                                           performance if there are no
+*                                           linkage-stack entries added
+*                                           between recoveryPush calls)
 *
 * Return value:
 *   When a router has successfully been established, the function returns
@@ -470,6 +494,7 @@ bool recoveryIsRouterEstablished();
 *     RCVR_FLAG_DELETE_ON_RETRY  - state is removed on retry
 *     RCVR_FLAG_SDWA_TO_LOGREC   - SDWA is written to LOGREC
 *     RCVR_FLAG_DISABLE          - state is disabled
+*     RCVR_FLAG_QUERY_LSTACK     - perform a linkage-stack query
 *   dumpTitle                 - SVC dump title
 *   userAnalysisFunction      - function called in the very beginning of
 *                               recovery
