@@ -154,6 +154,41 @@ static JSValue zosChangeStreamCCSID(JSContext *ctx, JSValueConst this_val,
   return JS_NewInt64(ctx,(int64_t)status);
 }
 
+static JSValue getZosVersion(JSContext *ctx, JSValueConst this_val,
+				    int argc, JSValueConst *argv){
+
+#ifdef __ZOWE_OS_ZOS
+  ECVT *ecvt = getECVT();
+  int version = ecvt->ecvtpseq;
+#else
+  int version = -1;
+#endif
+  return JS_NewInt64(ctx,(int64_t)version);
+}
+
+
+static JSValue getEsm(JSContext *ctx, JSValueConst this_val,
+				    int argc, JSValueConst *argv){
+
+#ifdef __ZOWE_OS_ZOS
+  switch(getExternalSecurityManager()) {
+  case ZOS_ESM_RTSS:
+    return newJSStringFromNative(ctx, "TSS", 3);
+  case ZOS_ESM_RACF:
+    return newJSStringFromNative(ctx, "RACF", 4);
+  case ZOS_ESM_ACF2:
+    return newJSStringFromNative(ctx, "ACF2", 4);
+  case ZOS_ESM_NONE:
+    return newJSStringFromNative(ctx, "NONE", 4);
+  default:
+    return JS_NewString(ctx, NULL);
+  }
+#else
+  return JS_NewString(ctx, NULL);
+#endif
+
+}
+
 
 /* return [obj, errcode] */
 static JSValue zosStat(JSContext *ctx, JSValueConst this_val,
@@ -377,6 +412,10 @@ static const char changeStreamCCSIDASCII[18] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x
 						0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x43, 0x43, 0x53, 0x49, 0x44, 0x00};
 static const char zstatASCII[6] ={ 0x7A, 0x73, 0x74, 0x61, 0x74, 0};
 
+static const char getZosVersionASCII[14] ={ 0x67, 0x65, 0x74, 0x5A, 0x6F, 0x73, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6F, 0x6E, 0x00};
+
+static const char getEsmASCII[7] = { 0x67, 0x65, 0x74, 0x45, 0x73, 0x6D, 0x00 };
+
 static const char EXTATTR_SHARELIB_ASCII[17] = { 0x45, 0x58, 0x54, 0x41, 0x54, 0x54, 0x52, 0x5f,
 						 0x53, 0x48, 0x41, 0x52, 0x45, 0x4c, 0x49, 0x42, 0x0};
 
@@ -398,6 +437,8 @@ static const JSCFunctionListEntry zosFunctions[] = {
   JS_CFUNC_DEF(changeExtAttrASCII, 3, zosChangeExtAttr),
   JS_CFUNC_DEF(changeStreamCCSIDASCII, 2, zosChangeStreamCCSID),
   JS_CFUNC_DEF(zstatASCII, 1, zosStat),
+  JS_CFUNC_DEF(zosVersionASCII, 0, getZosVersion),
+  JS_CFUNC_DEF(getEsmASCII, 0, getEsm),
   JS_CFUNC_DEF(dslistASCII, 1, zosDatasetInfo),
   JS_CFUNC_DEF(resolveSymbolASCII, 1, zosResolveSymbol),
   JS_PROP_INT32_DEF(EXTATTR_SHARELIB_ASCII, EXTATTR_SHARELIB, JS_PROP_CONFIGURABLE ),
