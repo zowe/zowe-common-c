@@ -437,7 +437,7 @@ static const JSCFunctionListEntry zosFunctions[] = {
   JS_CFUNC_DEF(changeExtAttrASCII, 3, zosChangeExtAttr),
   JS_CFUNC_DEF(changeStreamCCSIDASCII, 2, zosChangeStreamCCSID),
   JS_CFUNC_DEF(zstatASCII, 1, zosStat),
-  JS_CFUNC_DEF(zosVersionASCII, 0, getZosVersion),
+  JS_CFUNC_DEF(getZosVersionASCII, 0, getZosVersion),
   JS_CFUNC_DEF(getEsmASCII, 0, getEsm),
   JS_CFUNC_DEF(dslistASCII, 1, zosDatasetInfo),
   JS_CFUNC_DEF(resolveSymbolASCII, 1, zosResolveSymbol),
