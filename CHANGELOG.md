@@ -1,5 +1,8 @@
 # Zowe Common C Changelog
 
+## `2.16.0`
+- For correct base64 encoding scheme the buffer size is made to be divisble by 3 (#431). 
+
 ## `2.15.0`
 - Remove obsolete building script build_configmgr.sh (#410). (#423)
 
