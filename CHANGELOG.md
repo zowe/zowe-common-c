@@ -3,6 +3,7 @@
 ## `2.16.0`
 - For correct base64 encoding scheme the buffer size is made to be divisble by 3 (#431). 
 - Take into account leap seconds in xmem log messages' timestamps (#432, #433)
+- Using a temporary buffer pointer to avoid pointer corruption during file write (#437).
 
 ## `2.15.0`
 - Remove obsolete building script build_configmgr.sh (#410). (#423)
