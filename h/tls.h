@@ -125,9 +125,9 @@ typedef struct TlsSettings_tag {
 #define TLS_AES_256_GCM_SHA384 "1302"
 #define TLS_CHACHA20_POLY1305_SHA256 "1303"
   char *ciphers;
-#define TLS_X25519 "0029"
-#define TLS_SECP256R1 "0023"
-#define TLS_SECP521R1 "0025"
+#define TLS_ECURVE_X25519 "0029"
+#define TLS_ECURVE_SECP256R1 "0023"
+#define TLS_ECURVE_SECP521R1 "0025"
   char *keyshares;
   /*
      TLSv1.3 isn't supported on some zos versions. Having it
