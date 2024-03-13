@@ -935,12 +935,12 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
                              &reasonCode);
      if (status == 0) {
        int writtenLength = 0;
-       char *dataToWriteToFile = dataToWrite;
+       char *currentBufferStart = dataToWrite;
        while (dataSize != 0) {
-         writtenLength = fileWrite(file, dataToWriteToFile, dataSize, &returnCode, &reasonCode);
+         writtenLength = fileWrite(file, currentBufferStart, dataSize, &returnCode, &reasonCode);
          if (writtenLength >= 0) {
            dataSize -= writtenLength;
-           dataToWriteToFile += writtenLength;
+           currentBufferStart += writtenLength;
          }
          else {
            zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG, "Error writing to file: return: %d, rsn: %d.\n", returnCode, reasonCode);
