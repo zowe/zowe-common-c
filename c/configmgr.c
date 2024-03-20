@@ -773,7 +773,7 @@ int cfgSetParmlibMemberName(ConfigManager *mgr, const char *configName, const ch
   CFGConfig *config = getConfig(mgr,configName);
   if (config){
     int len = strlen(parmlibMemberName);
-    if (len < 3 || len  > PARMLIB_MEMBER_MAX){
+    if (len < 1 || len  > PARMLIB_MEMBER_MAX){
       return ZCFG_BAD_PARMLIB_MEMBER_NAME;
     } else {
       config->parmlibMemberName = substring(mgr,(char*)parmlibMemberName,0,len);
