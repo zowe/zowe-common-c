@@ -380,7 +380,9 @@ static bool isSyntacticallyInteger(yaml_char_t *data, int length){
 }
 
 static bool isSyntacticallyBool(yaml_char_t *data, int length){
-  if ((length == 4) &&
+  if (length == 0) {
+    return true
+  } else if ((length == 4) &&
       (!memcmp(data,"true",4) ||
        !memcmp(data,"True",4) ||
        !memcmp(data,"TRUE",4))){
