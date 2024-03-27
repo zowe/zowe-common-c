@@ -396,7 +396,9 @@ static bool isSyntacticallyBool(yaml_char_t *data, int length){
 }
 
 static bool isSyntacticallyNull(yaml_char_t *data, int length){
-  if ((length == 1) &&
+  if (length == 0 ) {
+    return true;
+  } else if ((length == 1) &&
       !memcmp(data,"~",1)){
     return true;
   } else if ((length == 4) &&
