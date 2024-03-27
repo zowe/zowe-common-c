@@ -126,9 +126,9 @@ jobs:
       - name: '[Dep 2] Quickjs'
         uses: actions/checkout@v3
         with:
-          repository: 1000turquoisepogs/quickjs-portable
+          repository: JoeNemo/quickjs-portable
           path: deps/configmgr/quickjs
-          ref: 'bugfix/os-sleep'
+          ref: 'main'
 
       - name: '[Prep 2] Setup jFrog CLI'
         uses: jfrog/setup-jfrog-cli@v2
