@@ -199,14 +199,12 @@ void jsonWriteBufferInternal(jsonPrinter *p, char *text, int len) {
 #endif
       loopCount++;
       if (newWriteReturn < 0) {
-        /* TODO: Replace by zowelog(...) */
         zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_SEVERE, "JSON: write error, rc %d, return code %d, reason code %08X\n",
               newWriteReturn, returnCode, reasonCode);
         jsonSetIOErrorFlag(p);
         break;
       }
       if (loopCount > 10) {
-        /* TODO: Replace by zowelog(...) */
         zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_SEVERE, "JSON: write error, too many attempts\n");
         jsonSetIOErrorFlag(p);
         break;
