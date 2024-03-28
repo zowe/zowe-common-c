@@ -510,11 +510,18 @@ static void getSTCK(uint64 *stckValue) {
   __asm(" STCK 0(%0)" : : "r"(stckValue));
 }
 
-int64 getLocalTimeOffset() {
+static int64 getLocalTimeOffset(void) {
   CVT * __ptr32 cvt = *(void * __ptr32 * __ptr32)0x10;
   void * __ptr32 cvtext2 = cvt->cvtext2;
   int64 *cvtldto = (int64 * __ptr32)(cvtext2 + 0x38);
   return *cvtldto;
+}
+
+static int64 getLeapSecondsOffset(void) {
+  CVT * __ptr32 cvt = *(void * __ptr32 * __ptr32)0x10;
+  void * __ptr32 cvtext2 = cvt->cvtext2;
+  int64 *cvtlso = (int64 * __ptr32)(cvtext2 + 0x50);
+  return *cvtlso;
 }
 
 static void getCurrentLogTimestamp(LogTimestamp *timestamp) {
@@ -523,6 +530,7 @@ static void getCurrentLogTimestamp(LogTimestamp *timestamp) {
   getSTCK(&stck);
 
   stck += getLocalTimeOffset();
+  stck -= getLeapSecondsOffset();
 
   stckToLogTimestamp(stck, timestamp);
 
@@ -1626,10 +1634,12 @@ ZOWE_PRAGMA_PACK_RESET
       recoveryRC = recoveryEstablishRouter2(&(envAddr)->recoveryContext, \
                                             (cmsGlobalAreaAddr)->pcssRecoveryPool, \
                                             RCVR_ROUTER_FLAG_PC_CAPABLE | \
-                                            RCVR_ROUTER_FLAG_RUN_ON_TERM); \
+                                            RCVR_ROUTER_FLAG_RUN_ON_TERM | \
+                                            RCVR_ROUTER_FLAG_SKIP_LSTACK_QUERY); \
     } else { \
       recoveryRC = recoveryEstablishRouter(RCVR_ROUTER_FLAG_PC_CAPABLE | \
-                                           RCVR_ROUTER_FLAG_RUN_ON_TERM); \
+                                           RCVR_ROUTER_FLAG_RUN_ON_TERM | \
+                                           RCVR_ROUTER_FLAG_SKIP_LSTACK_QUERY); \
     } \
     if (recoveryRC != RC_RCV_OK) { \
       returnCode = RC_CMS_ERROR; \

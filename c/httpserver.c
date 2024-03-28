@@ -3210,10 +3210,10 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
         request->flags = HTTP_REQUEST_NO_PASSWORD;
         authDataFound = TRUE;
       } else {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "No user was found for client certificate. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x)\n", safReturnCode, racfReturnCode, racfReasonCode);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "No user was found for client certificate. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x)\n", safReturnCode, racfReturnCode, racfReasonCode);
       }
     } else {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Client certificate was attached to request, but credentials are also attached. Server won't attempt to map the client certificate.\n");
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Client certificate was attached to request, but credentials are also attached. Server won't attempt to map the client certificate.\n");
     }
   }
 
@@ -4637,8 +4637,9 @@ static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile
   if (encoding == ENCODING_CHUNKED) {
     stream = makeChunkedOutputStreamInternal(response);
   }
-
-  int bufferSize = FILE_STREAM_BUFFER_SIZE;
+  
+  // To make bufferSize divisble by 3 for correct base64 encoding.
+  int bufferSize = FILE_STREAM_BUFFER_SIZE - (FILE_STREAM_BUFFER_SIZE % 3);
   char *buffer = safeMalloc(bufferSize+4, "streamBinaryBuffer");
   int encodedLength;
 
@@ -4710,7 +4711,8 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
     stream = makeChunkedOutputStreamInternal(response);
     /* fallthrough */
   case ENCODING_SIMPLE: {
-    int bufferSize = FILE_STREAM_BUFFER_SIZE;
+    // To make bufferSize divisble by 3 for correct base64 encoding.
+    int bufferSize = FILE_STREAM_BUFFER_SIZE - (FILE_STREAM_BUFFER_SIZE % 3);
     char *buffer = safeMalloc(bufferSize+4, "streamTextBuffer");
     char *translation = safeMalloc((2*bufferSize)+4, "streamTextConvertBuffer"); /* UTF inflation tolerance */
     int encodedLength;
