@@ -26,7 +26,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <sys/stat.h>
-
+#include <time.h>
 #endif
 
 #include "zowetypes.h"
@@ -457,20 +457,57 @@ LoggingDestination *logConfigureDestination2(LoggingContext *context,
   return destination;
 }
 
-void printStdout(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList){
+static char *logLevelToString(int level) {
+  switch (level) {
+    case ZOWE_LOG_SEVERE: return "severe";
+    case ZOWE_LOG_WARNING: return "warning";
+    case ZOWE_LOG_INFO: return "info";
+    case ZOWE_LOG_DEBUG: return "debug";
+    case ZOWE_LOG_DEBUG2: return "debug";
+    case ZOWE_LOG_DEBUG3: return "debug";
+    default: return "";
+  }
+}
+
+static void getCurrentTime(char *timeStamp, unsigned int timeStampSize) {
+  ISOTime isoTime = {0};
+  time_t unixTime = time(NULL);
+  convertUnixToISO((int) unixTime, &isoTime);
+  strncpy(timeStamp, isoTime.data, timeStampSize);
+}
+
+static void prependMetadata(int logLevel, char *fullMessage, unsigned int fullMessageSize, char *formatString, va_list argList) {
+  char time[64] = {0};
+  getCurrentTime((char *) &time, sizeof(time));
+  char message[256] = {0};
+  vsnprintf(message, sizeof(message), formatString, argList);
+  snprintf(fullMessage, fullMessageSize, "[%s:%p:%s:%s:%d:%s]: %s", time, getTCB(), __FILE__, __FUNCTION__, __LINE__, logLevelToString(logLevel), message);
+}
+
+void printToLog(FILE *destination, char *formatString, va_list argList, int logLevel) {
 #ifdef METTLE 
   printf("broken printf in logging.c\n");
-#else 
-  vfprintf(stdout,formatString,argList);
+#else
+  char fullMessage[1024] = {0};
+  prependMetadata(logLevel, (char *) &fullMessage, sizeof(fullMessage), formatString, argList);
+  fprintf(destination, "%s\n", fullMessage);
 #endif
 }
 
+void printStdout2(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList, int logLevel) {
+  printToLog(stdout, formatString, argList, logLevel);
+}
+
+void printStdout(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList){
+  printStdout2(context, component, data, formatString, argList, ZOWE_LOG_NA);
+}
+
+void printStderr2(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList, int logLevel) {
+  printToLog(stderr, formatString, argList, logLevel);
+}
+
 void printStderr(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList){
-#ifdef METTLE 
-  printf("broken printf in logging.c\n");
-#else 
-  vfprintf(stderr,formatString,argList);
-#endif
+  printStderr2(context, component, data, formatString, argList, ZOWE_LOG_NA);
 }
 
 void logConfigureStandardDestinations(LoggingContext *context){
@@ -478,8 +515,8 @@ void logConfigureStandardDestinations(LoggingContext *context){
     context = getLoggingContext();
   }
   logConfigureDestination(context,LOG_DEST_DEV_NULL,"/dev/null",NULL,NULL);
-  logConfigureDestination(context,LOG_DEST_PRINTF_STDOUT,"printf(stdout)",NULL,printStdout);
-  logConfigureDestination(context,LOG_DEST_PRINTF_STDERR,"printf(stderr)",NULL,printStderr);
+  logConfigureDestination(context,LOG_DEST_PRINTF_STDOUT,"printf(stdout)",NULL,printStdout2);
+  logConfigureDestination(context,LOG_DEST_PRINTF_STDERR,"printf(stderr)",NULL,printStderr2);
 }
 
 void logConfigureComponent(LoggingContext *context, uint64 compID, char *compName, int destination, int level){
@@ -690,7 +727,7 @@ void zowelog(LoggingContext *context, uint64 compID, int level, char *formatStri
     /* here, pass to a var-args handler */
     va_start(argPointer, formatString);
 
-    destination->handler(context,component,destination->data,formatString,argPointer);
+    destination->handler(context,component,destination->data,formatString,argPointer,level);
  
     va_end(argPointer);
   }
@@ -700,10 +737,10 @@ void zowelog(LoggingContext *context, uint64 compID, int level, char *formatStri
 static void printToDestination(LoggingDestination *destination,
                                struct LoggingContext_tag *context,
                                LoggingComponent *component,
-                               void *data, char *formatString, ...){
+                               int level, void *data, char *formatString, ...){
   va_list argPointer;
   va_start(argPointer, formatString);
-  destination->handler(context,component,destination->data,formatString,argPointer);
+  destination->handler(context,component,destination->data,formatString,argPointer,level);
   va_end(argPointer);
 }
 
@@ -748,7 +785,7 @@ void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int
     for (int i = 0; ; i++){
       char *result = destination->dumper(workBuffer, sizeof(workBuffer), data, dataSize, i);
       if (result != NULL){
-        printToDestination(destination, context, component, destination->data, "%s\n", result);
+        printToDestination(destination, context, component, level, destination->data, "%s\n", result);
       }
       else {
         break;

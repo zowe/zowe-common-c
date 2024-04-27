@@ -135,7 +135,8 @@ typedef void (*LogHandler)(struct LoggingContext_tag *context,
                            LoggingComponent *component, 
                            void *data, 
                            char *formatString,
-                           va_list argList);
+                           va_list argList,
+                           int logLevel);
 typedef char *(*DataDumper)(char *workBuffer, int workBufferSize, void *data, int dataSize, int lineNumber);
 
 ZOWE_PRAGMA_PACK
@@ -369,7 +370,9 @@ extern int logSetExternalContext(LoggingContext *context);
 extern LoggingContext *logGetExternalContext();
 
 void printStdout(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList);
+void printStdout2(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList, int logLevel);
 void printStderr(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList);
+void printStderr2(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList, int logLevel);
 
 #endif
 
