@@ -476,38 +476,91 @@ static void getCurrentTime(char *timeStamp, unsigned int timeStampSize) {
   strncpy(timeStamp, isoTime.data, timeStampSize);
 }
 
-static void prependMetadata(int logLevel, char *fullMessage, unsigned int fullMessageSize, char *formatString, va_list argList) {
+static void prependMetadata(int logLevel,
+                            char *fullMessage,
+                            unsigned int fullMessageSize,
+                            char *formatString,
+                            va_list argList,
+                            char *fileName,
+                            char *functionName,
+                            unsigned int lineNumber) {
   char time[64] = {0};
   getCurrentTime((char *) &time, sizeof(time));
   char message[256] = {0};
   vsnprintf(message, sizeof(message), formatString, argList);
-  snprintf(fullMessage, fullMessageSize, "[%s:%p:%s:%s:%d:%s]: %s", time, getTCB(), __FILE__, __FUNCTION__, __LINE__, logLevelToString(logLevel), message);
+  pthread_t pThread = pthread_self();
+  if (!fileName || !functionName || lineNumber == 0) {
+    snprintf(fullMessage,
+            fullMessageSize,
+            "<%s|tcb=%p|thread=%d|pid=%d|%s>: %s",
+            time,
+            getTCB(),
+            &pThread,
+            getpid(),
+            logLevelToString(logLevel),
+            message);
+  } else {
+    snprintf(fullMessage,
+             fullMessageSize,
+             "<%s|tcb=%p|thread=%d|pid=%d|%s:%s():%d|%s>: %s",
+             time,
+             getTCB(),
+             &pThread,
+             getpid(),
+             basename(fileName),
+             functionName,
+             lineNumber,
+             logLevelToString(logLevel),
+             message);
+  }
 }
 
-void printToLog(FILE *destination, char *formatString, va_list argList, int logLevel) {
+void printToLog(FILE *destination,
+                char *formatString,
+                va_list argList,
+                int logLevel,
+                char *fileName,
+                char *functionName,
+                unsigned int lineNumber) {
 #ifdef METTLE 
   printf("broken printf in logging.c\n");
 #else
   char fullMessage[1024] = {0};
-  prependMetadata(logLevel, (char *) &fullMessage, sizeof(fullMessage), formatString, argList);
+  prependMetadata(logLevel, (char *) &fullMessage, sizeof(fullMessage), formatString, argList, fileName, functionName, lineNumber);
   fprintf(destination, "%s\n", fullMessage);
 #endif
 }
 
-void printStdout2(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList, int logLevel) {
-  printToLog(stdout, formatString, argList, logLevel);
+void printStdout2(LoggingContext *context,
+                  LoggingComponent *component,
+                  void *data,
+                  char *formatString,
+                  va_list argList,
+                  int logLevel,
+                  char *fileName,
+                  char *functionName,
+                  unsigned int lineNumber) {
+  printToLog(stdout, formatString, argList, logLevel, fileName, functionName, lineNumber);
 }
 
 void printStdout(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList){
-  printStdout2(context, component, data, formatString, argList, ZOWE_LOG_NA);
+  printStdout2(context, component, data, formatString, argList, ZOWE_LOG_NA, "", "", 0);
 }
 
-void printStderr2(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList, int logLevel) {
-  printToLog(stderr, formatString, argList, logLevel);
+void printStderr2(LoggingContext *context,
+                  LoggingComponent *component,
+                  void *data,
+                  char *formatString,
+                  va_list argList,
+                  int logLevel,
+                  char *fileName,
+                  char *functionName,
+                  unsigned int lineNumber) {
+  printToLog(stderr, formatString, argList, logLevel, fileName, functionName, lineNumber);
 }
 
 void printStderr(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList){
-  printStderr2(context, component, data, formatString, argList, ZOWE_LOG_NA);
+  printStderr2(context, component, data, formatString, argList, ZOWE_LOG_NA, "", "", 0);
 }
 
 void logConfigureStandardDestinations(LoggingContext *context){
@@ -686,7 +739,14 @@ int logGetLevel(LoggingContext *context, uint64 compID){
   return component ? component->currentDetailLevel : ZOWE_LOG_NA;
 }
 
-void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...){
+void zowelogInner(LoggingContext *context,
+                  uint64 compID,
+                  int level,
+                  char *fileName,
+                  char *functionName,
+                  unsigned int lineNumber,
+                  char *formatString,
+                  va_list argPointer) {
 
   if (logShouldTrace(context, compID, level) == FALSE) {
     return;
@@ -703,8 +763,6 @@ void zowelog(LoggingContext *context, uint64 compID, int level, char *formatStri
   }
 
   if (maxDetailLevel >= level){
-    va_list argPointer;
-
     LoggingDestination *destination = &getDestinationTable(context, compID)[component->destination];
 //    printf("log.2 comp.dest=%d\n",component->destination);fflush(stdout);
     if (component->destination >= MAX_LOGGING_DESTINATIONS){
@@ -724,27 +782,44 @@ void zowelog(LoggingContext *context, uint64 compID, int level, char *formatStri
       lastResortLog(message);
       return;
     }
-    /* here, pass to a var-args handler */
-    va_start(argPointer, formatString);
-
-    destination->handler(context,component,destination->data,formatString,argPointer,level);
- 
-    va_end(argPointer);
+    destination->handler(context,component,destination->data,formatString,argPointer,level,fileName,functionName,lineNumber);
   }
+}
 
+void zowelog2(LoggingContext *context, uint64 compID, int level, char *fileName, char *functionName, unsigned int lineNumber, char *formatString, ...) {
+  va_list argPointer;
+  va_start(argPointer, formatString);
+  zowelogInner(context, compID, level, fileName, functionName, lineNumber, formatString, argPointer);
+  va_end(argPointer);
+}
+
+void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...){
+  va_list argPointer;
+  va_start(argPointer, formatString);
+  zowelogInner(context, compID, level, "", "", 0, formatString, argPointer);
+  va_end(argPointer);
 }
 
 static void printToDestination(LoggingDestination *destination,
                                struct LoggingContext_tag *context,
                                LoggingComponent *component,
-                               int level, void *data, char *formatString, ...){
+                               int level, char *fileName,
+                               char *functionName, unsigned int lineNumber,
+                               void *data, char *formatString, ...){
   va_list argPointer;
   va_start(argPointer, formatString);
-  destination->handler(context,component,destination->data,formatString,argPointer,level);
+  destination->handler(context,component,destination->data,formatString,argPointer,level,fileName,functionName,lineNumber);
   va_end(argPointer);
 }
 
-void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize){
+void zowedumpInner(LoggingContext *context,
+                   uint64 compID,
+                   int level,
+                   void *data,
+                   int dataSize,
+                   char *fileName,
+                   char *functionName,
+                   unsigned int lineNumber) {
 
   if (logShouldTrace(context, compID, level) == FALSE) {
     return;
@@ -785,7 +860,7 @@ void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int
     for (int i = 0; ; i++){
       char *result = destination->dumper(workBuffer, sizeof(workBuffer), data, dataSize, i);
       if (result != NULL){
-        printToDestination(destination, context, component, level, destination->data, "%s\n", result);
+        printToDestination(destination, context, component, level, fileName, functionName, lineNumber, destination->data, "%s\n", result);
       }
       else {
         break;
@@ -793,7 +868,14 @@ void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int
     }
 
   }
+}
 
+void zowedump2(LoggingContext *context, uint64 compID, int level, void *data, int dataSize, char *fileName, char *functionName, unsigned int lineNumber) {
+  zowedumpInner(context, compID, level, data, dataSize, fileName, functionName, lineNumber);
+}
+
+void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize){
+  zowedumpInner(context, compID, level, data, dataSize, "", "", 0);
 }
 
 bool logShouldTraceInternal(LoggingContext *context, uint64 componentID, int level) {
