@@ -535,10 +535,9 @@ static void getUserID(char *user, unsigned int userSize) {
 /*
  * These seem very generous.
  *
- *
  */
-#define LOG_USER_ID_MAX_LENGTH 8
-#define LOG_MESSAGE_MAX_LENGTH 512
+#define LOG_USER_ID_MAX_LENGTH   8
+#define LOG_MESSAGE_MAX_LENGTH   512
 #define LOG_TASK_INFO_MAX_LENGTH 128
 
 static void prependMetadata(int logLevel,
@@ -592,7 +591,7 @@ static void prependMetadata(int logLevel,
              getServiceName(),
              taskInformation,
              user,
-             logLevelToString(logLevel),
+             logLevelAsString,
              basename(fileName),
              functionName,
              lineNumber,
