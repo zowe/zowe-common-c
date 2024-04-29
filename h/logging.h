@@ -156,7 +156,7 @@ typedef struct LogComponentsMap_tag {
 
 struct LoggingContext_tag;
 
-typedef void (*LogHandler)(struct LoggingContext_tag *context,
+typedef void (*LogHandler2)(struct LoggingContext_tag *context,
                            LoggingComponent *component, 
                            void *data, 
                            char *formatString,
@@ -165,6 +165,13 @@ typedef void (*LogHandler)(struct LoggingContext_tag *context,
                            char *fileName,
                            char *functionName,
                            unsigned int lineNumber);
+
+typedef void (*LogHandler)(struct LoggingContext_tag *context,
+                            LoggingComponent *component, 
+                            void *data, 
+                            char *formatString,
+                            va_list argList);
+
 typedef char *(*DataDumper)(char *workBuffer, int workBufferSize, void *data, int dataSize, int lineNumber);
 
 ZOWE_PRAGMA_PACK
@@ -176,6 +183,7 @@ typedef struct LoggingDestination_tag{
   char  *name;
   void  *data;          /* used by destination to hold internal state */
   LogHandler handler;
+  LogHandler2 handler2;
   DataDumper dumper;
 } LoggingDestination;
 

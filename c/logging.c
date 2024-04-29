@@ -405,11 +405,13 @@ int setLoggingContext(LoggingContext *context) {
 #endif /* not LOGGING_CUSTOM_CONTEXT_GETTER */
 }
 
-LoggingDestination *logConfigureDestination(LoggingContext *context,
-                                            unsigned int id,
-                                            char *name,
-                                            void *data,
-                                            LogHandler handler){
+LoggingDestination *logConfigureDestination3(LoggingContext *context,
+                                             unsigned int id,
+                                             char *name,
+                                             void *data,
+                                             LogHandler handler,
+                                             DataDumper dumper,
+                                             LogHandler2 handler2) {
 
   if (context == NULL) {
     context = getLoggingContext();
@@ -442,9 +444,19 @@ LoggingDestination *logConfigureDestination(LoggingContext *context,
   destination->name = name;
   destination->data = data;
   destination->handler = handler;
-  destination->dumper = standardDumperFunction;
+  destination->handler2 = handler2;
+  destination->dumper = dumper != NULL ? dumper : standardDumperFunction;
   destination->state = LOG_DESTINATION_STATE_INIT;
   return destination;
+}
+
+LoggingDestination *logConfigureDestination(LoggingContext *context,
+                                            unsigned int id,
+                                            char *name,
+                                            void *data,
+                                            LogHandler handler){
+
+  return logConfigureDestination3(context, id, name, data, handler, NULL, NULL);
 }
 
 LoggingDestination *logConfigureDestination2(LoggingContext *context,
@@ -453,11 +465,8 @@ LoggingDestination *logConfigureDestination2(LoggingContext *context,
                                              void *data,
                                              LogHandler handler,
                                              DataDumper dumper){
-  LoggingDestination *destination = logConfigureDestination(context, id, name, data, handler);
-  if (destination != NULL) {
-    destination->dumper = dumper;
-  }
-  return destination;
+
+  return logConfigureDestination3(context, id, name, data, handler, dumper, NULL);
 }
 
 static char *logLevelToString(int level) {
@@ -533,15 +542,13 @@ static void prependMetadata(int logLevel,
                             unsigned int lineNumber) {
   char user[8+1] = {0};
   getUserID((char *) &user, sizeof(user) - 1);
-  //char time[64] = {0};
   zl_time_t time = {0};
   time = gettime();
-  //getCurrentTime((char *) &time, sizeof(time));
   char message[256] = {0};
   getMessage((char *) &message, sizeof(message), formatString, argList);
   char taskInformation[128] = {0};
   getTaskInformation((char *) &taskInformation, sizeof(taskInformation));
-  if (!fileName || !functionName || lineNumber == 0) {
+  if (!fileName || strlen(fileName) == 0 || !functionName || strlen(functionName) == 0 || lineNumber == 0) {
     snprintf(fullMessage,
             fullMessageSize,
             "%s <%s:%s> %s %s %s",
@@ -619,9 +626,9 @@ void logConfigureStandardDestinations(LoggingContext *context){
   if (context == NULL) {
     context = getLoggingContext();
   }
-  logConfigureDestination(context,LOG_DEST_DEV_NULL,"/dev/null",NULL,NULL);
-  logConfigureDestination(context,LOG_DEST_PRINTF_STDOUT,"printf(stdout)",NULL,printStdout2);
-  logConfigureDestination(context,LOG_DEST_PRINTF_STDERR,"printf(stderr)",NULL,printStderr2);
+  logConfigureDestination3(context,LOG_DEST_DEV_NULL,"/dev/null",NULL,NULL,NULL,NULL);
+  logConfigureDestination3(context,LOG_DEST_PRINTF_STDOUT,"printf(stdout)",NULL,printStdout,NULL,printStdout2);
+  logConfigureDestination3(context,LOG_DEST_PRINTF_STDERR,"printf(stderr)",NULL,printStderr,NULL,printStderr2);
 }
 
 void logConfigureComponent(LoggingContext *context, uint64 compID, char *compName, int destination, int level){
@@ -816,7 +823,6 @@ void zowelogInner(LoggingContext *context,
 
   if (maxDetailLevel >= level){
     LoggingDestination *destination = &getDestinationTable(context, compID)[component->destination];
-//    printf("log.2 comp.dest=%d\n",component->destination);fflush(stdout);
     if (component->destination >= MAX_LOGGING_DESTINATIONS){
       char message[128];
       sprintf(message,"Destination %d is out of range (log)\n",component->destination);
@@ -827,14 +833,17 @@ void zowelogInner(LoggingContext *context,
       printf("dev/null case\n");
       return;
     } 
-  //  printf("log.3\n");fflush(stdout);
     if (destination->state == LOG_DESTINATION_STATE_UNINITIALIZED){
       char message[128];
       sprintf(message,"Destination %d is not initialized for logging\n",component->destination);
       lastResortLog(message);
       return;
     }
-    destination->handler(context,component,destination->data,formatString,argPointer,level,fileName,functionName,lineNumber);
+    if (destination->handler2) {
+      destination->handler2(context,component,destination->data,formatString,argPointer,level,fileName,functionName,lineNumber);
+    } else {
+      destination->handler(context,component,destination->data,formatString,argPointer);
+    }
   }
 }
 
@@ -860,7 +869,11 @@ static void printToDestination(LoggingDestination *destination,
                                void *data, char *formatString, ...){
   va_list argPointer;
   va_start(argPointer, formatString);
-  destination->handler(context,component,destination->data,formatString,argPointer,level,fileName,functionName,lineNumber);
+  if (destination->handler2) {
+    destination->handler2(context,component,destination->data,formatString,argPointer,level,fileName,functionName,lineNumber);
+  } else {
+    destination->handler(context,component,destination->data,formatString,argPointer);
+  }
   va_end(argPointer);
 }
 
