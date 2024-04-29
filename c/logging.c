@@ -532,6 +532,15 @@ static void getUserID(char *user, unsigned int userSize) {
   }
 }
 
+/*
+ * These seem very generous.
+ *
+ *
+ */
+#define LOG_USER_ID_MAX_LENGTH 8
+#define LOG_MESSAGE_MAX_LENGTH 512
+#define LOG_TASK_INFO_MAX_LENGTH 128
+
 static void prependMetadata(int logLevel,
                             char *fullMessage,
                             unsigned int fullMessageSize,
@@ -540,23 +549,40 @@ static void prependMetadata(int logLevel,
                             char *fileName,
                             char *functionName,
                             unsigned int lineNumber) {
-  char user[8+1] = {0};
+  char user[LOG_USER_ID_MAX_LENGTH + 1] = {0};
   getUserID((char *) &user, sizeof(user) - 1);
   zl_time_t time = {0};
   time = gettime();
-  char message[256] = {0};
+  char message[LOG_MESSAGE_MAX_LENGTH + 1] = {0};
   getMessage((char *) &message, sizeof(message), formatString, argList);
-  char taskInformation[128] = {0};
+  char taskInformation[LOG_TASK_INFO_MAX_LENGTH + 1] = {0};
   getTaskInformation((char *) &taskInformation, sizeof(taskInformation));
-  if (!fileName || strlen(fileName) == 0 || !functionName || strlen(functionName) == 0 || lineNumber == 0) {
+  char *logLevelAsString = logLevelToString(logLevel);
+  /*
+   * The following fields were added in the second iteration of LogHandler.
+   *
+   * 1. fileName
+   * 2. functionName
+   * 3. lineNumber
+   * 4. logLevel
+   *
+   * (1,2,3) were never asked for, but (4) wasn't propogated down to the LogHandler and was just used to determine
+   * if the message should be printed. (4) is now passed to here so that it can be used to construct the common
+   * logging format.
+   *
+   * If one of these (1,2,3,4) isn't present, then they all aren't based on this implementation; therefore, we'll just format with what's
+   * available to us without relying on new arguments. The previous LogHandler will return null or empty values for (1,2), a 0 for (3), and
+   * ZOWE_LOG_NA for (4), which when going thorugh logLevelToString() will be an empty value.
+   *
+   */
+  if (!fileName || strlen(fileName) == 0 || !functionName || strlen(functionName) == 0 || lineNumber == 0 || strlen(logLevelAsString) == 0) {
     snprintf(fullMessage,
             fullMessageSize,
-            "%s <%s:%s> %s %s %s",
+            "%s <%s:%s> %s %s",
             time,
             getServiceName(),
             taskInformation,
             user,
-            logLevelToString(logLevel),
             message);
   } else {
     snprintf(fullMessage,
@@ -584,7 +610,7 @@ void printToLog(FILE *destination,
 #ifdef METTLE 
   printf("broken printf in logging.c\n");
 #else
-  char fullMessage[1024] = {0};
+  char fullMessage[LOG_USER_ID_MAX_LENGTH + LOG_MESSAGE_MAX_LENGTH + LOG_TASK_INFO_MAX_LENGTH + 1] = {0};
   prependMetadata(logLevel, (char *) &fullMessage, sizeof(fullMessage), formatString, argList, fileName, functionName, lineNumber);
   fprintf(destination, "%s\n", fullMessage);
 #endif
