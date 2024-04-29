@@ -27,6 +27,8 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <unistd.h>
+#include <sys/time.h>
 #endif
 
 #include "zowetypes.h"
@@ -36,6 +38,7 @@
 #include "utils.h"
 #include "logging.h"
 #include "printables_for_dump.h"
+#include "zos.h"
 
 #ifdef __ZOWE_OS_ZOS
 #include "le.h"
@@ -459,21 +462,65 @@ LoggingDestination *logConfigureDestination2(LoggingContext *context,
 
 static char *logLevelToString(int level) {
   switch (level) {
-    case ZOWE_LOG_SEVERE: return "severe";
-    case ZOWE_LOG_WARNING: return "warning";
-    case ZOWE_LOG_INFO: return "info";
-    case ZOWE_LOG_DEBUG: return "debug";
-    case ZOWE_LOG_DEBUG2: return "debug";
-    case ZOWE_LOG_DEBUG3: return "debug";
+    case ZOWE_LOG_SEVERE: return "CRITICAL";
+    case ZOWE_LOG_WARNING: return "WARN";
+    case ZOWE_LOG_INFO: return "INFO";
+    case ZOWE_LOG_DEBUG: return "DEBUG";
+    case ZOWE_LOG_DEBUG2: return "FINER";
+    case ZOWE_LOG_DEBUG3: return "TRACE";
     default: return "";
   }
 }
 
-static void getCurrentTime(char *timeStamp, unsigned int timeStampSize) {
-  ISOTime isoTime = {0};
-  time_t unixTime = time(NULL);
-  convertUnixToISO((int) unixTime, &isoTime);
-  strncpy(timeStamp, isoTime.data, timeStampSize);
+typedef struct zl_time_t {
+  char value[32];
+} zl_time_t;
+
+static zl_time_t gettime(void) {
+
+  time_t t = time(NULL);
+  const char *format = "%Y-%m-%d %H:%M:%S";
+
+  struct tm lt;
+  zl_time_t result;
+
+  gmtime_r(&t, &lt);
+
+  strftime(result.value, sizeof(result.value), format, &lt);
+
+  struct timeval now;
+  gettimeofday(&now, NULL);
+  int milli = now.tv_usec / 1000;
+  snprintf(result.value+strlen(result.value), 5, ".%03d", milli);
+
+  return result;
+}
+
+static char *getServiceName() {
+  return "ZWESZ1";
+}
+
+static void getTaskInformation(char *taskInformation, unsigned int taskInformationSize) {
+  pthread_t pThread = pthread_self();
+  snprintf(taskInformation, taskInformationSize, "tcb=0x%p,threadid=0x%p,pid=0x%p", getTCB(), &pThread, getpid());
+}
+
+static void getMessage(char *message, unsigned int messageSize, const char *formatString, va_list argList) {
+  vsnprintf(message, messageSize, formatString, argList);
+}
+
+/*
+ * 1. Try to get the name from the TCB.
+ * 2. Try to get the name from the login data base.
+ */
+static void getUserID(char *user, unsigned int userSize) {
+  TCB *tcb = getTCB();
+  ACEE *acee = (ACEE *) tcb->tcbsenv;
+  if (acee) {
+    snprintf(user, userSize, "%.*s", acee->aceeuser[0], acee->aceeuser[1]);
+  } else {
+    getlogin_r(user, userSize);
+  }
 }
 
 static void prependMetadata(int logLevel,
@@ -484,33 +531,38 @@ static void prependMetadata(int logLevel,
                             char *fileName,
                             char *functionName,
                             unsigned int lineNumber) {
-  char time[64] = {0};
-  getCurrentTime((char *) &time, sizeof(time));
+  char user[8+1] = {0};
+  getUserID((char *) &user, sizeof(user) - 1);
+  //char time[64] = {0};
+  zl_time_t time = {0};
+  time = gettime();
+  //getCurrentTime((char *) &time, sizeof(time));
   char message[256] = {0};
-  vsnprintf(message, sizeof(message), formatString, argList);
-  pthread_t pThread = pthread_self();
+  getMessage((char *) &message, sizeof(message), formatString, argList);
+  char taskInformation[128] = {0};
+  getTaskInformation((char *) &taskInformation, sizeof(taskInformation));
   if (!fileName || !functionName || lineNumber == 0) {
     snprintf(fullMessage,
             fullMessageSize,
-            "<%s|tcb=%p|thread=%d|pid=%d|%s>: %s",
+            "%s <%s:%s> %s %s %s",
             time,
-            getTCB(),
-            &pThread,
-            getpid(),
+            getServiceName(),
+            taskInformation,
+            user,
             logLevelToString(logLevel),
             message);
   } else {
     snprintf(fullMessage,
              fullMessageSize,
-             "<%s|tcb=%p|thread=%d|pid=%d|%s:%s():%d|%s>: %s",
-             time,
-             getTCB(),
-             &pThread,
-             getpid(),
+             "%s <%s:%s> %s %s (%s:%s:%d) %s",
+             time.value,
+             getServiceName(),
+             taskInformation,
+             user,
+             logLevelToString(logLevel),
              basename(fileName),
              functionName,
              lineNumber,
-             logLevelToString(logLevel),
              message);
   }
 }

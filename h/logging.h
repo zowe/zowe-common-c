@@ -70,6 +70,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define RC_LOG_ERROR    8
 
 #define ZOWE_LOG_NA      -1
+
 #define ZOWE_LOG_SEVERE   0
 #define ZOWE_LOG_ALWAYS   0
 #define ZOWE_LOG_WARNING  1
