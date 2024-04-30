@@ -24,27 +24,27 @@
 
 #define ZOWELOG_SEVERE($id, $fmt, ...) \
   zowelog2(NULL, $id, ZOWE_LOG_SEVERE, \
-          ___FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
+          __FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
 
 #define ZOWELOG_WARNING($id, $fmt, ...) \
   zowelog2(NULL, $id, ZOWE_LOG_WARNING, \
-          ___FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
+          __FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
 
 #define ZOWELOG_INFO($id, $fmt, ...) \
   zowelog2(NULL, $id, ZOWE_LOG_INFO, \
-          ___FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
+          __FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
 
 #define ZOWELOG_DEBUG($id, $fmt, ...) \
   zowelog2(NULL, $id, ZOWE_LOG_DEBUG, \
-          ___FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
+          __FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
 
 #define ZOWELOG_DEBUG2($id, $fmt, ...) \
   zowelog2(NULL, $id, ZOWE_LOG_DEBUG2, \
-          ___FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
+          __FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
 
 #define ZOWELOG_DEBUG3($id, $fmt, ...) \
   zowelog2(NULL, $id, ZOWE_LOG_DEBUG3, \
-          ___FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
+          __FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
 
 /** \file
  *  \brief logging.h defines a platform-independent logging facility that echoes some of Java logging.

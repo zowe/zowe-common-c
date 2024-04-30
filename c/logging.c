@@ -477,7 +477,7 @@ static char *logLevelToString(int level) {
     case ZOWE_LOG_DEBUG: return "DEBUG";
     case ZOWE_LOG_DEBUG2: return "FINER";
     case ZOWE_LOG_DEBUG3: return "TRACE";
-    default: return "";
+    default: return "NA";
   }
 }
 
@@ -511,7 +511,7 @@ static char *getServiceName() {
 
 static void getTaskInformation(char *taskInformation, unsigned int taskInformationSize) {
   pthread_t pThread = pthread_self();
-  snprintf(taskInformation, taskInformationSize, "tcb=0x%p,threadid=0x%p,pid=0x%p", getTCB(), &pThread, getpid());
+  snprintf(taskInformation, taskInformationSize, "0x%p:0x%p:%d", getTCB(), &pThread, getpid());
 }
 
 static void getMessage(char *message, unsigned int messageSize, const char *formatString, va_list argList) {
@@ -571,17 +571,20 @@ static void prependMetadata(int logLevel,
    *
    * If one of these (1,2,3,4) isn't present, then they all aren't based on this implementation; therefore, we'll just format with what's
    * available to us without relying on new arguments. The previous LogHandler will return null or empty values for (1,2), a 0 for (3), and
-   * ZOWE_LOG_NA for (4), which when going thorugh logLevelToString() will be an empty value.
+   * ZOWE_LOG_NA for (4), which when going thorugh logLevelToString() will be NA.
+   *
+   * The existing logs in the server should contain the level, as long as logConfigureDestination3() is used. If not, it will have the placeholder.
    *
    */
-  if (!fileName || strlen(fileName) == 0 || !functionName || strlen(functionName) == 0 || lineNumber == 0 || strlen(logLevelAsString) == 0) {
+  if (!fileName || strlen(fileName) == 0 || !functionName || strlen(functionName) == 0 || lineNumber == 0) {
     snprintf(fullMessage,
             fullMessageSize,
-            "%s <%s:%s> %s %s",
-            time,
+            "%s <%s:%s> %s %s %s",
+            time.value,
             getServiceName(),
             taskInformation,
             user,
+            logLevelAsString,
             message);
   } else {
     snprintf(fullMessage,
