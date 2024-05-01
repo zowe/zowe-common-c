@@ -183,8 +183,8 @@ typedef struct LoggingDestination_tag{
   char  *name;
   void  *data;          /* used by destination to hold internal state */
   LogHandler handler;
-  LogHandler2 handler2;
   DataDumper dumper;
+  LogHandler2 handler2;
 } LoggingDestination;
 
 #define MAX_LOGGING_COMPONENTS 256
@@ -292,9 +292,11 @@ extern LoggingContext *theLoggingContext;
 #define getLoggingContext GTLOGCTX
 #define setLoggingContext STLOGCTX
 #define zowelog ZOWELOG
+#define zowelog2 ZOWELOG2
 #define zowedump ZOWEDUMP
 #define logConfigureDestination LGCFGDST
 #define logConfigureDestination2 LGCFGDS2
+#define logConfigureDestination3 LGCFGDS3
 #define logConfigureStandardDestinations LGCFGSTD
 #define logConfigureComponent LGCFGCMP
 #define logSetLevel LGSETLVL
@@ -304,6 +306,8 @@ extern LoggingContext *theLoggingContext;
 #define logSetExternalContext LGSLOGCX
 #define printStdout LGPRSOUT
 #define printStderr LGPRSERR
+#define printStdout2 LGPROUT2
+#define printStderr2 LGPRERR2
 
 #endif 
 

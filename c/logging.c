@@ -505,7 +505,7 @@ static zl_time_t gettime(void) {
   return result;
 }
 
-static char *getServiceName() {
+static const char *getServiceName() {
   return "ZWESZ1";
 }
 
