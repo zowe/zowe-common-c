@@ -1,5 +1,13 @@
 # Zowe Common C Changelog
 
+## `2.16.0`
+- For correct base64 encoding scheme the buffer size is made to be divisble by 3 (#431). 
+- Take into account leap seconds in xmem log messages' timestamps (#432, #433)
+
+## `2.15.0`
+- Remove obsolete building script build_configmgr.sh (#410). (#423)
+- Add flags to avoid linkage-stack queries in the recovery facility (#404, #412)
+
 ## `2.13.0`
 - Added support for using "zowe.network" and "components.zss.zowe.network" to set TLS version properties. (#411)
 - Added utility for general usage returning the name of External Security Manager
