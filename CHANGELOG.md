@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `1.28.0`
+- Bugfix: fix an incorrect check in the recovery router code which might lead to
+  the state cell-pool being released prematurely (#446)
+
 ## `1.27.0`
 
 - Enhancement: Allow to specify 31-bit and 64-bit version of dataService library using `libraryName64` and `libraryName31` keys in DataService definition.
