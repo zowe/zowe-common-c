@@ -1108,7 +1108,27 @@ static JSValueSpec *resolveRef(JsonValidator *validator, ValidityException *pend
 static VResult validateJSONSimple(JsonValidator *validator,
                                   Json *value, JSValueSpec *valueSpec, int depth, EvalSet *evalSetList){
   if (jsonIsNull(value)){
-    return validateType(validator,JSTYPE_NULL,valueSpec,depth+1);
+    VResult typeResult = validateType(validator,JSTYPE_NULL,valueSpec,depth+1);
+    if (vStatusValid(typeResult.status)) {
+      return typeResult;
+    } else if (validator->allowStringToBeNull) {
+      // FIXME: Some users were relying upon a bug we fixed, where an empty value would be treated as a string.
+      // TODO: Remove this in v3, we should not keep this bug compatability forever.
+      if (((1 << JSTYPE_STRING) & valueSpec->typeMask) != 0){
+        Json *emptyStringJson = (Json*)safeMalloc(sizeof(Json), "Empty String JSON");
+        emptyStringJson->type = JSON_TYPE_STRING;
+        char emptyString[1] = {0};
+        emptyStringJson->data.string = emptyString;
+        // Check if schema is okay with an "empty string" as the previous bug had null be empty string.
+        VResult stringResult = validateJSONString(validator,emptyStringJson,valueSpec,depth+1);
+        safeFree((char*)emptyStringJson, sizeof(Json));
+        return stringResult;
+      } else{
+        return simpleFailure(validator, "string cannot be null for %s\n", validatorAccessPath(validator));
+      }                   
+    } else {
+      return typeResult;
+    }
   } else if (jsonIsBoolean(value)){
     return validateType(validator,JSTYPE_BOOLEAN,valueSpec,depth+1);
   } else if (jsonIsObject(value)){
@@ -1420,6 +1440,8 @@ static VResult validateJSON(JsonValidator *validator,
 int jsonValidateSchema(JsonValidator *validator, Json *value, JsonSchema *topSchema,
                        JsonSchema **otherSchemas, int otherSchemaCount){
   int result = 0;
+  validator->allowStringToBeNull = true;
+
   if (setjmp(validator->recoveryData) == 0) {  /* normal execution */
     validator->topSchema = topSchema;
     validator->otherSchemas = otherSchemas;
