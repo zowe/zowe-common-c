@@ -626,7 +626,14 @@ static JSValue xplatformLoadFileUTF8(JSContext *ctx, JSValueConst this_val,
   JS_ToInt32(ctx, &sourceCCSID, argv[1]);
 
   buf = (char*)js_load_file(ctx, &length, filename);
-  
+  if (!buf) {
+    size_t filenameNativeLen = strlen(filename);
+    char filenameNative[filenameNativeLen + 1];
+    snprintf(filenameNative, filenameNativeLen + 1, "%.*s", (int)filenameNativeLen, filename);
+    convertToNative(filenameNative, (int)filenameNativeLen);
+    perror(filenameNative);
+    return JS_EXCEPTION;
+  }
   if (sourceCCSID < 0){
     char *nativeBuffer = safeMalloc(length+1,"xplatformStringFromBytes");
     memcpy(nativeBuffer,buf,length);
