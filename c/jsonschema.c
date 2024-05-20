@@ -1326,14 +1326,34 @@ static VResult validateJSON(JsonValidator *validator,
     /* As we go through the valid enum values, record them in comma separated
      * form for displaying at the tail end of the error message.
      */
+
+    bool nullToString = false;
+    Json *emptyStringJson;
+    if (jsonIsNull(value)) {
+      VResult typeResult = validateType(validator,JSTYPE_NULL,valueSpec,depth+1);
+      if ((!vStatusValid(typeResult.status)) && (validator->allowStringToBeNull)) {
+        // FIXME: Some users were relying upon a bug we fixed, where an empty value would be treated as a string.
+        // TODO: Remove this in v3, we should not keep this bug compatability forever.
+        if (((1 << JSTYPE_STRING) & valueSpec->typeMask) != 0){
+          emptyStringJson = (Json*)safeMalloc(sizeof(Json), "Empty String JSON");
+          emptyStringJson->type = JSON_TYPE_STRING;
+          char emptyString[1] = {0};
+          emptyStringJson->data.string = emptyString;
+          nullToString = true;
+        }
+      }
+    }
+
     unsigned int validValuesMaxSize = (valueSpec->enumeratedValuesCount * (sizeof(Json*) + 3)) + 1;
     char *validValues = SLHAlloc(validator->evalHeap, validValuesMaxSize);
     if (validValues) {
       memset(validValues, 0, validValuesMaxSize);
     }
+
+    Json *whichValue = nullToString == true ? emptyStringJson : value;
     for (int ee=0; ee<valueSpec->enumeratedValuesCount; ee++){
       Json *enumValue = valueSpec->enumeratedValues[ee];
-      if (jsonEquals(value,enumValue)){
+      if (jsonEquals(whichValue,enumValue)){
         matched = true;
         break;
       }
@@ -1356,6 +1376,9 @@ static VResult validateJSON(JsonValidator *validator,
       if (validValues && strlen(validValues) > 0 && ee < valueSpec->enumeratedValuesCount - 1) {
         strcat(validValues, ", ");
       }
+    }
+    if (nullToString) {
+      safeFree((char*)emptyStringJson, sizeof(Json));
     }
     if (!matched){
       if (validValues && strlen(validValues) > 0) {
