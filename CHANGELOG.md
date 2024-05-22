@@ -2,6 +2,8 @@
 
 ## `2.17.0`
 - Fixed `xplatform.loadFileUTF8` when trying to open nonexistent file (#454)
+- Bugfix: fix an incorrect check in the recovery router code which might lead to
+  the state cell-pool being released prematurely (#446)
 
 ## `2.16.0`
 - No yaml value converted to null (#442)
