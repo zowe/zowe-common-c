@@ -612,7 +612,6 @@ uint8_t *js_load_file(JSContext *ctx, size_t *pbuf_len, const char *filename);
 /* (filename, ccsid) ccsid -1 implies guess best for platform, 0 implies don't translate */
 static JSValue xplatformLoadFileUTF8(JSContext *ctx, JSValueConst this_val,
                                      int argc, JSValueConst *argv){
-  size_t size;
   size_t length;
   char *buf;
 
@@ -626,7 +625,9 @@ static JSValue xplatformLoadFileUTF8(JSContext *ctx, JSValueConst this_val,
   JS_ToInt32(ctx, &sourceCCSID, argv[1]);
 
   buf = (char*)js_load_file(ctx, &length, filename);
-  
+  if (!buf) {
+    return JS_EXCEPTION;
+  }
   if (sourceCCSID < 0){
     char *nativeBuffer = safeMalloc(length+1,"xplatformStringFromBytes");
     memcpy(nativeBuffer,buf,length);
@@ -678,7 +679,6 @@ static int appendToFile(char *filename, const char *data, int length) {
 /* (filename, ccsid) ccsid -1 implies guess best for platform, 0 implies don't translate */
 static JSValue xplatformAppendFileUTF8(JSContext *ctx, JSValueConst this_val,
                                        int argc, JSValueConst *argv){
-  size_t size;
   size_t length;
 
   NATIVE_STR(filename,nativeFilename,0);
@@ -718,7 +718,6 @@ static JSValue xplatformAppendFileUTF8(JSContext *ctx, JSValueConst this_val,
 /* (filename, ccsid) ccsid -1 implies guess best for platform, 0 implies don't translate */
 static JSValue xplatformStoreFileUTF8(JSContext *ctx, JSValueConst this_val,
                                       int argc, JSValueConst *argv){
-  size_t size;
   size_t length;
 
   NATIVE_STR(filename,nativeFilename,0);
