@@ -24,27 +24,27 @@
 
 #define ZOWELOG_SEVERE($id, $fmt, ...) \
   zowelog2(NULL, $id, ZOWE_LOG_SEVERE, \
-          __FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
+          __FILE__, __FUNCTION__, __LINE__, NULL, $fmt, ##__VA_ARGS__)
 
 #define ZOWELOG_WARNING($id, $fmt, ...) \
   zowelog2(NULL, $id, ZOWE_LOG_WARNING, \
-          __FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
+          __FILE__, __FUNCTION__, __LINE__, NULL, $fmt, ##__VA_ARGS__)
 
 #define ZOWELOG_INFO($id, $fmt, ...) \
   zowelog2(NULL, $id, ZOWE_LOG_INFO, \
-          __FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
+          __FILE__, __FUNCTION__, __LINE__, NULL, $fmt, ##__VA_ARGS__)
 
 #define ZOWELOG_DEBUG($id, $fmt, ...) \
   zowelog2(NULL, $id, ZOWE_LOG_DEBUG, \
-          __FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
+          __FILE__, __FUNCTION__, __LINE__, NULL, $fmt, ##__VA_ARGS__)
 
 #define ZOWELOG_DEBUG2($id, $fmt, ...) \
   zowelog2(NULL, $id, ZOWE_LOG_DEBUG2, \
-          __FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
+          __FILE__, __FUNCTION__, __LINE__, NULL, $fmt, ##__VA_ARGS__)
 
 #define ZOWELOG_DEBUG3($id, $fmt, ...) \
   zowelog2(NULL, $id, ZOWE_LOG_DEBUG3, \
-          __FILE__, __FUNCTION__, __LINE__, $fmt, ##__VA_ARGS__)
+          __FILE__, __FUNCTION__, __LINE__, NULL, $fmt, ##__VA_ARGS__)
 
 /** \file
  *  \brief logging.h defines a platform-independent logging facility that echoes some of Java logging.
@@ -164,7 +164,8 @@ typedef void (*LogHandler2)(struct LoggingContext_tag *context,
                            int logLevel,
                            char *fileName,
                            char *functionName,
-                           unsigned int lineNumber);
+                           unsigned int lineNumber,
+                           const char *serviceName);
 
 typedef void (*LogHandler)(struct LoggingContext_tag *context,
                             LoggingComponent *component, 
@@ -396,6 +397,14 @@ LoggingDestination *logConfigureDestination2(LoggingContext *context,
                                              LogHandler handler,
                                              DataDumper dumper);
 
+LoggingDestination *logConfigureDestination3(LoggingContext *context,
+                                             unsigned int id,
+                                             char *name,
+                                             void *data,
+                                             LogHandler handler,
+                                             DataDumper dumper,
+                                             LogHandler2 handler2);
+
 void logConfigureStandardDestinations(LoggingContext *context);
 void logConfigureComponent(LoggingContext *context, 
                            uint64 compID,
@@ -410,9 +419,9 @@ extern int logSetExternalContext(LoggingContext *context);
 extern LoggingContext *logGetExternalContext();
 
 void printStdout(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList);
-void printStdout2(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList, int logLevel, char *fileName, char *functionName, unsigned int lineNumber);
+void printStdout2(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList, int logLevel, char *fileName, char *functionName, unsigned int lineNumber, const char *serviceName);
 void printStderr(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList);
-void printStderr2(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList, int logLevel, char *fileName, char *functionName, unsigned int lineNumber);
+void printStderr2(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList, int logLevel, char *fileName, char *functionName, unsigned int lineNumber, const char *serviceName);
 
 #endif
 

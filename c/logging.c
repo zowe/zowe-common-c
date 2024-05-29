@@ -481,31 +481,34 @@ static char *logLevelToString(int level) {
   }
 }
 
-typedef struct zl_time_t {
+typedef struct ZLTime_t {
   char value[32];
-} zl_time_t;
+} ZLTime;
 
-static zl_time_t gettime(void) {
+static int getTime(ZLTime *result) {
 
   time_t t = time(NULL);
   const char *format = "%Y-%m-%d %H:%M:%S";
 
   struct tm lt;
-  zl_time_t result;
-
   gmtime_r(&t, &lt);
 
-  strftime(result.value, sizeof(result.value), format, &lt);
+  if (strftime(result->value, sizeof(result->value), format, &lt) == 0) {
+    return 1;
+  }
 
   struct timeval now;
-  gettimeofday(&now, NULL);
-  int milli = now.tv_usec / 1000;
-  snprintf(result.value+strlen(result.value), 5, ".%03d", milli);
+  if (gettimeofday(&now, NULL) != 0) {
+    return 1;
+  }
 
-  return result;
+  int milli = now.tv_usec / 1000;
+  snprintf(result->value+strlen(result->value), 5, ".%03d", milli);
+
+  return 0;
 }
 
-static const char *getServiceName() {
+static const char *getDefaultServiceName() {
   return "ZWESZ1";
 }
 
@@ -547,11 +550,14 @@ static void prependMetadata(int logLevel,
                             va_list argList,
                             char *fileName,
                             char *functionName,
-                            unsigned int lineNumber) {
+                            unsigned int lineNumber,
+                            const char *serviceName) {
   char user[LOG_USER_ID_MAX_LENGTH + 1] = {0};
   getUserID((char *) &user, sizeof(user) - 1);
-  zl_time_t time = {0};
-  time = gettime();
+  ZLTime time = {0};
+  if (getTime(&time) != 0) {
+    strcpy(time.value, "0000-00-00 00:00:00.000");
+  }
   char message[LOG_MESSAGE_MAX_LENGTH + 1] = {0};
   getMessage((char *) &message, sizeof(message), formatString, argList);
   char taskInformation[LOG_TASK_INFO_MAX_LENGTH + 1] = {0};
@@ -575,13 +581,16 @@ static void prependMetadata(int logLevel,
    *
    * The existing logs in the server should contain the level, as long as logConfigureDestination3() is used. If not, it will have the placeholder.
    *
+   * Service name is configurable.
+   *
    */
-  if (!fileName || strlen(fileName) == 0 || !functionName || strlen(functionName) == 0 || lineNumber == 0) {
+  bool useFileMetadata = fileName && strlen(fileName) != 0 && functionName && strlen(functionName) != 0 && lineNumber != 0;
+  if (!useFileMetadata) {
     snprintf(fullMessage,
             fullMessageSize,
             "%s <%s:%s> %s %s %s",
             time.value,
-            getServiceName(),
+            serviceName != NULL && strlen(serviceName) != 0 ? serviceName : getDefaultServiceName(),
             taskInformation,
             user,
             logLevelAsString,
@@ -591,7 +600,7 @@ static void prependMetadata(int logLevel,
              fullMessageSize,
              "%s <%s:%s> %s %s (%s:%s:%d) %s",
              time.value,
-             getServiceName(),
+             serviceName != NULL && strlen(serviceName) != 0 ? serviceName : getDefaultServiceName(),
              taskInformation,
              user,
              logLevelAsString,
@@ -602,18 +611,19 @@ static void prependMetadata(int logLevel,
   }
 }
 
-void printToLog(FILE *destination,
-                char *formatString,
-                va_list argList,
-                int logLevel,
-                char *fileName,
-                char *functionName,
-                unsigned int lineNumber) {
-#ifdef METTLE 
+static void printToLog(FILE *destination,
+                       char *formatString,
+                       va_list argList,
+                       int logLevel,
+                       char *fileName,
+                       char *functionName,
+                       unsigned int lineNumber,
+                       const char *serviceName) {
+#ifdef METTLE
   printf("broken printf in logging.c\n");
 #else
   char fullMessage[LOG_USER_ID_MAX_LENGTH + LOG_MESSAGE_MAX_LENGTH + LOG_TASK_INFO_MAX_LENGTH + 1] = {0};
-  prependMetadata(logLevel, (char *) &fullMessage, sizeof(fullMessage), formatString, argList, fileName, functionName, lineNumber);
+  prependMetadata(logLevel, (char *) &fullMessage, sizeof(fullMessage), formatString, argList, fileName, functionName, lineNumber, serviceName);
   fprintf(destination, "%s\n", fullMessage);
 #endif
 }
@@ -626,12 +636,13 @@ void printStdout2(LoggingContext *context,
                   int logLevel,
                   char *fileName,
                   char *functionName,
-                  unsigned int lineNumber) {
-  printToLog(stdout, formatString, argList, logLevel, fileName, functionName, lineNumber);
+                  unsigned int lineNumber,
+                  const char *serviceName) {
+  printToLog(stdout, formatString, argList, logLevel, fileName, functionName, lineNumber, serviceName);
 }
 
 void printStdout(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList){
-  printStdout2(context, component, data, formatString, argList, ZOWE_LOG_NA, "", "", 0);
+  printStdout2(context, component, data, formatString, argList, ZOWE_LOG_NA, "", "", 0, "");
 }
 
 void printStderr2(LoggingContext *context,
@@ -642,12 +653,13 @@ void printStderr2(LoggingContext *context,
                   int logLevel,
                   char *fileName,
                   char *functionName,
-                  unsigned int lineNumber) {
-  printToLog(stderr, formatString, argList, logLevel, fileName, functionName, lineNumber);
+                  unsigned int lineNumber,
+                  const char *serviceName) {
+  printToLog(stderr, formatString, argList, logLevel, fileName, functionName, lineNumber, serviceName);
 }
 
 void printStderr(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList){
-  printStderr2(context, component, data, formatString, argList, ZOWE_LOG_NA, "", "", 0);
+  printStderr2(context, component, data, formatString, argList, ZOWE_LOG_NA, "", "", 0, "");
 }
 
 void logConfigureStandardDestinations(LoggingContext *context){
@@ -826,14 +838,15 @@ int logGetLevel(LoggingContext *context, uint64 compID){
   return component ? component->currentDetailLevel : ZOWE_LOG_NA;
 }
 
-void zowelogInner(LoggingContext *context,
-                  uint64 compID,
-                  int level,
-                  char *fileName,
-                  char *functionName,
-                  unsigned int lineNumber,
-                  char *formatString,
-                  va_list argPointer) {
+static void zowelogInner(LoggingContext *context,
+                         uint64 compID,
+                         int level,
+                         char *fileName,
+                         char *functionName,
+                         unsigned int lineNumber,
+                         const char *serviceName,
+                         char *formatString,
+                         va_list argPointer) {
 
   if (logShouldTrace(context, compID, level) == FALSE) {
     return;
@@ -868,24 +881,24 @@ void zowelogInner(LoggingContext *context,
       return;
     }
     if (destination->handler2) {
-      destination->handler2(context,component,destination->data,formatString,argPointer,level,fileName,functionName,lineNumber);
+      destination->handler2(context,component,destination->data,formatString,argPointer,level,fileName,functionName,lineNumber,serviceName);
     } else {
       destination->handler(context,component,destination->data,formatString,argPointer);
     }
   }
 }
 
-void zowelog2(LoggingContext *context, uint64 compID, int level, char *fileName, char *functionName, unsigned int lineNumber, char *formatString, ...) {
+void zowelog2(LoggingContext *context, uint64 compID, int level, char *fileName, char *functionName, unsigned int lineNumber, const char *serviceName, char *formatString, ...) {
   va_list argPointer;
   va_start(argPointer, formatString);
-  zowelogInner(context, compID, level, fileName, functionName, lineNumber, formatString, argPointer);
+  zowelogInner(context, compID, level, fileName, functionName, lineNumber, serviceName, formatString, argPointer);
   va_end(argPointer);
 }
 
 void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...){
   va_list argPointer;
   va_start(argPointer, formatString);
-  zowelogInner(context, compID, level, "", "", 0, formatString, argPointer);
+  zowelogInner(context, compID, level, "", "", 0, "", formatString, argPointer);
   va_end(argPointer);
 }
 
@@ -894,25 +907,27 @@ static void printToDestination(LoggingDestination *destination,
                                LoggingComponent *component,
                                int level, char *fileName,
                                char *functionName, unsigned int lineNumber,
+                               const char *serviceName,
                                void *data, char *formatString, ...){
   va_list argPointer;
   va_start(argPointer, formatString);
   if (destination->handler2) {
-    destination->handler2(context,component,destination->data,formatString,argPointer,level,fileName,functionName,lineNumber);
+    destination->handler2(context,component,destination->data,formatString,argPointer,level,fileName,functionName,lineNumber,serviceName);
   } else {
     destination->handler(context,component,destination->data,formatString,argPointer);
   }
   va_end(argPointer);
 }
 
-void zowedumpInner(LoggingContext *context,
-                   uint64 compID,
-                   int level,
-                   void *data,
-                   int dataSize,
-                   char *fileName,
-                   char *functionName,
-                   unsigned int lineNumber) {
+static void zowedumpInner(LoggingContext *context,
+                          uint64 compID,
+                          int level,
+                          void *data,
+                          int dataSize,
+                          char *fileName,
+                          char *functionName,
+                          unsigned int lineNumber,
+                          const char *serviceName) {
 
   if (logShouldTrace(context, compID, level) == FALSE) {
     return;
@@ -953,7 +968,7 @@ void zowedumpInner(LoggingContext *context,
     for (int i = 0; ; i++){
       char *result = destination->dumper(workBuffer, sizeof(workBuffer), data, dataSize, i);
       if (result != NULL){
-        printToDestination(destination, context, component, level, fileName, functionName, lineNumber, destination->data, "%s\n", result);
+        printToDestination(destination, context, component, level, fileName, functionName, lineNumber, serviceName, destination->data, "%s\n", result);
       }
       else {
         break;
@@ -963,12 +978,12 @@ void zowedumpInner(LoggingContext *context,
   }
 }
 
-void zowedump2(LoggingContext *context, uint64 compID, int level, void *data, int dataSize, char *fileName, char *functionName, unsigned int lineNumber) {
-  zowedumpInner(context, compID, level, data, dataSize, fileName, functionName, lineNumber);
+void zowedump2(LoggingContext *context, uint64 compID, int level, void *data, int dataSize, char *fileName, char *functionName, unsigned int lineNumber, const char *serviceName) {
+  zowedumpInner(context, compID, level, data, dataSize, fileName, functionName, lineNumber, serviceName);
 }
 
 void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize){
-  zowedumpInner(context, compID, level, data, dataSize, "", "", 0);
+  zowedumpInner(context, compID, level, data, dataSize, "", "", 0, "");
 }
 
 bool logShouldTraceInternal(LoggingContext *context, uint64 componentID, int level) {
