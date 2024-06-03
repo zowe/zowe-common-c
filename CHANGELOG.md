@@ -3,6 +3,8 @@
 ## `2.18.1`
 - Bugfix: IARV64 results must be checked for 0x7FFFF000 (#474)
 - Bugfix: SLH should not ABEND when MEMLIMIT is reached (additional NULL check)
+- Bugfix: support cross-memory server parameters longer than 128 characters 
+  (zowe/zss#684)
 
 ## `2.18.0`
 - Minor `components.zss.logLevels._zss.httpserver=5` debug messages enhancement (#471)
