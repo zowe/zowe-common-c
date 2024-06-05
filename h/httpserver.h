@@ -64,6 +64,10 @@
 
 #define HTTP_SERVER_PRIVILEGED_SERVER_PROPERTY  "zisServerName"
 
+#define HTTP_REQUEST_HEAP_DEFAULT_BLOCKS 1024
+#define HTTP_REQUEST_HEAP_MIN_BLOCKS 100
+#define HTTP_REQUEST_HEAP_MAX_BLOCKS 4096
+
 typedef struct BigBuffer_tag{
   ShortLivedHeap *slh;  /* can be null */
   char *data;
@@ -220,6 +224,7 @@ typedef struct HTTPServerConfig_tag {
   hashtable *userTimeouts;
   hashtable *groupTimeouts;
   int defaultTimeout;
+  unsigned int httpRequestHeapMaxBlocks;
   /* The config manager is optional, but zss and other servers need 
      a near-global way to get configuration data.
      */

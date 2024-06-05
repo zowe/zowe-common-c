@@ -1564,6 +1564,7 @@ HttpServer *makeHttpServerInner(STCBase *base,
   memcpy(&server->config->sessionTokenKey[0], &sessionTokenKey,
          sizeof (sessionTokenKey));
   server->config->authTokenType = SERVICE_AUTH_TOKEN_TYPE_LEGACY;
+  server->config->httpRequestHeapMaxBlocks = HTTP_REQUEST_HEAP_DEFAULT_BLOCKS;
 
   return server;
 }
@@ -1656,6 +1657,8 @@ static HttpServer *makeSecureHttpServerInner(STCBase *base, int port,
   int64 now = getFineGrainedTime();
   server->config->sessionTokenKeySize = sizeof (now);
   memcpy(&server->config->sessionTokenKey[0], &now, sizeof (now));
+  server->config->httpRequestHeapMaxBlocks = HTTP_REQUEST_HEAP_DEFAULT_BLOCKS;
+
   return server;
 }
 #endif
@@ -5821,7 +5824,9 @@ static int httpHandleTCP(STCBase *base,
         }
       }
 #endif // USE_ZOWE_TLS
-      ShortLivedHeap *slh = makeShortLivedHeap(READ_BUFFER_SIZE,100);
+      HttpServer *server = (HttpServer*) module->data;
+      unsigned int maxBlocks = server->config->httpRequestHeapMaxBlocks;
+      ShortLivedHeap *slh = makeShortLivedHeap(READ_BUFFER_SIZE, maxBlocks);
   #ifndef __ZOWE_OS_WINDOWS
       int writeBufferSize = 0x40000;
       setSocketWriteBufferSize(peerSocket,0x40000, &returnCode, &reasonCode);
