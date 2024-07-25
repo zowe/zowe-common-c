@@ -90,7 +90,7 @@ static int getTlsMax(TlsSettings *settings) {
   if (settings->maxTls != NULL) {
     for (int i = 0; i < TLS_NAMES_LENGTH; i++) {
       if (!strcmp(settings->maxTls, TLS_NAMES[i])) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Min TLS requested=%d\n",i);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Min TLS requested=%s\n", TLS_NAMES[i]);
         return i;
       }
     }
@@ -103,7 +103,7 @@ static int getTlsMin(TlsSettings *settings) {
   if (settings->minTls != NULL) {
     for (int i = 0; i < TLS_NAMES_LENGTH; i++) {
       if (!strcmp(settings->minTls, TLS_NAMES[i])) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Max TLS requested=%d\n",i);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Max TLS requested=%s\n", TLS_NAMES[i]);
         return i;
       }
     }
