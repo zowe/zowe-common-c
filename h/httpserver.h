@@ -224,6 +224,7 @@ typedef struct HTTPServerConfig_tag {
      a near-global way to get configuration data.
      */
   ConfigManager *configmgr;
+  FILE *logMemoryDestination;
 } HttpServerConfig;
 
 #define SESSION_TOKEN_COOKIE_NAME "jedHTTPSession"
@@ -465,6 +466,16 @@ HttpServer *makeSecureHttpServer(STCBase *base, int port,
                                  int *returnCode, int *reasonCode);
 #endif
 #ifdef USE_ZOWE_TLS
+HttpServer *makeSecureHttpServer3(STCBase *base,
+                                  InetAddr *addr,
+                                  int port,
+                                  TlsEnvironment *tlsEnv,
+                                  int tlsFlags,
+                                  char *cookieName,
+                                  int *returnCode,
+                                  int *reasonCode,
+                                  int logMemory,
+                                  FILE *logMemoryDestination);
 HttpServer *makeSecureHttpServer2(STCBase *base,
                                   InetAddr *addr,
                                   int port,

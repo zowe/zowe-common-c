@@ -23,12 +23,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
+//#include <strings.h>
 #include <stdarg.h>  
-#include <pthread.h>
+//#include <pthread.h>
 #include <inttypes.h>
 #define __SUSV3 1 /* This heinous hack is needed because dlfcn */
-#include <dlfcn.h>
+//#include <dlfcn.h>
 #undef __SUSV3 
 #endif
 

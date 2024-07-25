@@ -517,21 +517,11 @@ static void getTaskInformation(char *taskInformation, unsigned int taskInformati
   snprintf(taskInformation, taskInformationSize, "0x%p:0x%p:%d", getTCB(), &pThread, getpid());
 }
 
-static void getMessage(char *message, unsigned int messageSize, const char *formatString, va_list argList) {
-  vsnprintf(message, messageSize, formatString, argList);
-}
-
-/*
- * 1. Try to get the name from the TCB.
- * 2. Try to get the name from the login data base.
- */
 static void getUserID(char *user, unsigned int userSize) {
   TCB *tcb = getTCB();
   ACEE *acee = (ACEE *) tcb->tcbsenv;
   if (acee) {
     snprintf(user, userSize, "%.*s", acee->aceeuser[0], acee->aceeuser[1]);
-  } else {
-    getlogin_r(user, userSize);
   }
 }
 
@@ -559,7 +549,7 @@ static void prependMetadata(int logLevel,
     strcpy(time.value, "0000-00-00 00:00:00.000");
   }
   char message[LOG_MESSAGE_MAX_LENGTH + 1] = {0};
-  getMessage((char *) &message, sizeof(message), formatString, argList);
+  vsnprintf((char *)&message, sizeof(message), formatString, argList);
   char taskInformation[LOG_TASK_INFO_MAX_LENGTH + 1] = {0};
   getTaskInformation((char *) &taskInformation, sizeof(taskInformation));
   char *logLevelAsString = logLevelToString(logLevel);

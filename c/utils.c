@@ -1439,7 +1439,7 @@ static ListElt *cons64(void *data, ListElt *list){
 }
 
 
-static ShortLivedHeap *makeShortLivedHeapInternal(int blockSize, int maxBlocks, int is64){
+static ShortLivedHeap *makeShortLivedHeapInternal(int blockSize, int maxBlocks, int is64, const char *description, int logMemory, FILE *logMemoryDestination){
   ShortLivedHeap *heap = (ShortLivedHeap*)safeMalloc(sizeof(ShortLivedHeap),"ShortLivedHeap");
   memcpy(heap->eyecatcher,"SLH SLH ",8);
   
@@ -1449,6 +1449,16 @@ static ShortLivedHeap *makeShortLivedHeapInternal(int blockSize, int maxBlocks, 
   heap->blockCount = 0;
   heap->blockSize = blockSize;
   heap->maxBlocks = maxBlocks;
+  heap->logMemory = logMemory;
+  heap->logMemoryDestination = logMemoryDestination != NULL ? logMemoryDestination : stdout;
+  memset(heap->description, 0, sizeof(heap->description));
+  if (description != null) {
+    memcpy(heap->description, description, min(sizeof(heap->description) - 1), strlen(description));
+  }
+  if (heap->logMemory) {
+    fprintf(heap->logMemoryDestination, "allocated short lived heap -> [ptr=0x%p, blockSize=%d, maxBlocks=%d, description='%s']", heap, heap->blockSize, heap->maxBlocks, heap->description); 
+  }
+
   return heap;
 }
 
@@ -1465,16 +1475,20 @@ static void reportSLHFailure(ShortLivedHeap *slh, int size){
   }
 }
 
-ShortLivedHeap *makeShortLivedHeap(int blockSize, int maxBlocks){
+ShortLivedHeap *makeShortLivedHeap2(int blockSize, int maxBlocks, const char *description, int logMemory) {
 #ifdef __ZOWE_64
-  return makeShortLivedHeapInternal(blockSize,maxBlocks,TRUE);
+  return makeShortLivedHeapInternal(blockSize,maxBlocks,TRUE,description,logMemory);
 #else
-  return makeShortLivedHeapInternal(blockSize,maxBlocks,FALSE);
+  return makeShortLivedHeapInternal(blockSize,maxBlocks,FALSE,description,logMemory);
 #endif
 }
 
+ShortLivedHeap *makeShortLivedHeap(int blockSize, int maxBlocks){
+  return makeShortLivedHeap2(blockSize,maxBlocks,NULL,FALSE);
+}
+
 ShortLivedHeap *makeShortLivedHeap64(int blockSize, int maxBlocks){
-  return makeShortLivedHeapInternal(blockSize,maxBlocks,TRUE);
+  return makeShortLivedHeapInternal(blockSize,maxBlocks,TRUE,NULL,FALSE);
 }
 
 char *SLHAlloc(ShortLivedHeap *slh, int size){
@@ -1490,8 +1504,8 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
   */
   int remainingHeapBytes = (slh->blockSize * (slh->maxBlocks - slh->blockCount));
   if (size > remainingHeapBytes){
-    printf("SLH at 0x%p cannot allocate above block size %d > %d mxbl %d bkct %d bksz %d\n",
-	   slh,size,remainingHeapBytes,slh->maxBlocks,slh->blockCount,slh->blockSize);
+    printf("SLH at 0x%p cannot allocate above block size %d > %d mxbl %d bkct %d bksz %d. description='%s'\n",
+	   slh,size,remainingHeapBytes,slh->maxBlocks,slh->blockCount,slh->blockSize,slh->description);
     fflush(stdout);
     char *mem = (char*)0;
     mem[0] = 13;
@@ -1541,9 +1555,21 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
   }
   slh->bytesRemaining -= size;
   data = slh->activeBlock;
-  slh->activeBlock += size;
-  return (char *)data;
+  slh->activeBlock += size
+  
+  if (slh->logMemory) {
+    fprintf(slh->logMemoryDestination, "allocating %d bytes at 0x%p in short lived heap -> [ptr=0x%p, blockSize=%d, maxBlocks=%d, blockCount=%d, description='%s']",
+            size,
+            data,
+            slh,
+            slh->blockSize,
+            slh->maxBlocks,
+            slh->blockCount,
+            heap->description);
   }
+  
+  return (char *)data;
+}
 
 void SLHFree(ShortLivedHeap *slh){
   ListElt *chain = slh->blockChain;
@@ -1559,6 +1585,9 @@ void SLHFree(ShortLivedHeap *slh){
     }
     chain = chain->next;
     safeFree((char*)elt,sizeof(ListElt));
+  }
+  if (slh->logMemory) {
+    fprintf(slh->logMemoryDestination, "freeing short lived heap -> [ptr=0x%p, blockSize=%d, maxBlocks=%d, description='%s']", slh, slh->blockSize, slh->maxBlocks, slh->description);
   }
   safeFree((char*)slh,sizeof(ShortLivedHeap));
 }

@@ -186,11 +186,15 @@ typedef struct ShortLivedHeap_tag{
   int maxBlocks;
   int blockCount;
   int blockSize;
+  char description[64];
+  int logMemory;
+  FILE *logMemoryDestination;
 } ShortLivedHeap;
 
 #ifndef __LONGNAME__
 #define makeShortLivedHeap MAKESLH
 #define makeShortLivedHeap64 MAKSLH64
+#define makeShortLivedHeap2 MAKESLH2
 #define SLHAlloc SLHALLOC
 #define SLHFree SLHFREE
 #define noisyMalloc NYMALLOC
@@ -214,6 +218,7 @@ typedef struct ShortLivedHeap_tag{
  */
 
 ShortLivedHeap *makeShortLivedHeap(int blockSize, int maxBlocks);
+ShortLivedHeap *makeShortLivedHeap2(int blockSize, int maxBlocks, const char *description, int logMemory, FILE *logMemoryDestination);
 ShortLivedHeap *makeShortLivedHeap64(int blockSize, int maxBlocks);
 
 /**

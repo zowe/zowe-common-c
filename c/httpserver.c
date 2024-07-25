@@ -1518,7 +1518,8 @@ HttpServer *makeHttpServerInner(STCBase *base,
                                 void *tlsEnv,
                                 int tlsFlags,
                                 char *cookieName,
-                                int *returnCode, int *reasonCode){
+                                int *returnCode, int *reasonCode,
+                                int logMemory, FILE *logMemoryDestination){
   //logConfigureComponent(NULL, LOG_COMP_HTTPSERVER, "httpserver", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
   Socket *listenerSocket = NULL;
   /* if "noTCP" is true, this server only receives IO thru tunnelling */
@@ -1541,7 +1542,9 @@ HttpServer *makeHttpServerInner(STCBase *base,
   HttpServer *server = (HttpServer*)safeMalloc31(sizeof(HttpServer),"HTTP Server");
   memset(server,0,sizeof(HttpServer));
   server->base = base;
-  server->slh = makeShortLivedHeap(65536,100);
+  server->logMemory = logMemory;
+  server->logMemoryDestination = logMemoryDestination;
+  server->slh = makeShortLivedHeap2(65536,100,"Server Main SLH", server->logMemory, server->logMemoryDestination);
   server->cookieName = cookieName;
   SocketExtension *listenerSocketExtension = makeSocketExtension(listenerSocket,server->slh,FALSE,server,65536);
   listenerSocket->userData = listenerSocketExtension;
@@ -1669,7 +1672,7 @@ HttpServer *makeSecureHttpServer(STCBase *base,
                                  int *returnCode,
                                  int *reasonCode
                                 ) {
-  return makeHttpServerInner(base, addr, port, tlsEnv, tlsFlags, SESSION_TOKEN_COOKIE_NAME, returnCode, reasonCode);
+  return makeHttpServerInner(base, addr, port, tlsEnv, tlsFlags, SESSION_TOKEN_COOKIE_NAME, returnCode, reasonCode, 0, NULL);
 }
 HttpServer *makeSecureHttpServer2(STCBase *base,
                                   InetAddr *addr,
@@ -1680,7 +1683,19 @@ HttpServer *makeSecureHttpServer2(STCBase *base,
                                   int *returnCode,
                                   int *reasonCode
                                   ) {
-  return makeHttpServerInner(base, addr, port, tlsEnv, tlsFlags, cookieName, returnCode, reasonCode);
+  return makeHttpServerInner(base, addr, port, tlsEnv, tlsFlags, cookieName, returnCode, reasonCode, 0, NULL);
+}
+HttpServer *makeSecureHttpServer3(STCBase *base,
+                                  InetAddr *addr,
+                                  int port,
+                                  TlsEnvironment *tlsEnv,
+                                  int tlsFlags,
+                                  char *cookieName,
+                                  int *returnCode,
+                                  int *reasonCode
+                                  int logMemory,
+                                  FILE *logMemoryDestination) {
+  return makeHttpServerInner(base, addr, port, tlsEnv, tlsFlags, cookieName, returnCode, reasonCode, logMemory, logMemoryDestination);
 }
 
 #endif // USE_ZOWE_TLS
@@ -1748,8 +1763,10 @@ static char *getNative(char *s){
  * but now infuses the HttpResponse with its own SLH */
 HttpResponse *makeHttpResponse(HttpRequest *request, ShortLivedHeap *slh, Socket *socket){
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "makeHttpResponse called with req=0x%p, slh=0x%p, socket=0x%p\n",
-         request, slh, socket);
-  ShortLivedHeap *responseSLH = makeShortLivedHeap(65536,100);
+         request, slh, socket->socketAddr);
+  char description[128] = {0};
+  snprintf(description, sizeof(description) - 1, "RSLH: [socket=0x%p,uri='%s']", socket->socketAddr, request->uri);
+  ShortLivedHeap *responseSLH = makeShortLivedHeap2(65536,100,description,server->logMemory,server->logMemoryDestination);
   HttpResponse *response = (HttpResponse*)SLHAlloc(responseSLH,sizeof(HttpResponse));
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "makeHttpResponse after SLHAlloc, resp=0x%p\n", response);
   if (NULL != request) {
@@ -5769,6 +5786,7 @@ static int httpHandleTCP(STCBase *base,
   int reasonCode = 0;
   int rsStatus = 0; /* rs_ssl results */
 
+  HttpServer *server = (HttpServer *) module->data;
   SocketExtension *extension = (SocketExtension*)socket->userData;
 
   zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "TCP Socket %s is READY, at=0x%p extension=0x%p\n",
@@ -5821,7 +5839,9 @@ static int httpHandleTCP(STCBase *base,
         }
       }
 #endif // USE_ZOWE_TLS
-      ShortLivedHeap *slh = makeShortLivedHeap(READ_BUFFER_SIZE,100);
+      char description[128] = {0};
+      snprintf(description, sizeof(description) - 1, "SKTSLH: [socket=0x%p]", socket->socketAddr);
+      ShortLivedHeap *slh = makeShortLivedHeap2(READ_BUFFER_SIZE,100,description,server->logMemory,server->logMemoryDestination);
   #ifndef __ZOWE_OS_WINDOWS
       int writeBufferSize = 0x40000;
       setSocketWriteBufferSize(peerSocket,0x40000, &returnCode, &reasonCode);
