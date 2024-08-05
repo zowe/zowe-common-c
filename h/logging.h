@@ -295,6 +295,7 @@ extern LoggingContext *theLoggingContext;
 #define zowelog ZOWELOG
 #define zowelog2 ZOWELOG2
 #define zowedump ZOWEDUMP
+#define zowedump2 ZOWEDUM2
 #define logConfigureDestination LGCFGDST
 #define logConfigureDestination2 LGCFGDS2
 #define logConfigureDestination3 LGCFGDS3
@@ -377,7 +378,9 @@ bool logShouldTraceInternal(LoggingContext *context, uint64 componentID, int lev
  */
 
 void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...);
+void zowelog2(LoggingContext *context, uint64 compID, int level, char *fileName, char *functionName, unsigned int lineNumber, const char *serviceName, char *formatString, ...);
 void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize);
+void zowedump2(LoggingContext *context, uint64 compID, int level, void *data, int dataSize, char *fileName, char *functionName, unsigned int lineNumber, const char *serviceName);
 
 #define LOGCHECK(context,component,level) \
   ((component > MAX_LOGGING_COMPONENTS) ? \
