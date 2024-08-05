@@ -32,8 +32,8 @@
  * Test that logging is functional with and without new helper macros. Prove backwards compatibility.
  */
 void main() {
-  LoggingContext *context = NULL;
-  //LoggingContext *context = makeLoggingContext();
+  LoggingContext *context = makeLoggingContext();
+
   logConfigureStandardDestinations(context);
   logConfigureComponent(context, LOG_COMP_DATASERVICE, "DATASERVICE", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
 
