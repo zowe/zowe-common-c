@@ -2846,9 +2846,9 @@ int extractBasicAuth(HttpRequest *request, HttpHeader *authHeader){
     char *authString = NULL;
     AUTH_TRACE("start authEnd loop\n");
     while ((authEnd < headerLength) && (ebcdicHeader[authEnd] > 0x041)){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "authEnd=%d\n",authEnd);
       authEnd++;
     }
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "authEnd=%d\n",authEnd);
     authLen = authEnd-authStart;
     encodedAuthString = SLHAlloc(slh,authLen+1);
     authString = SLHAlloc(slh,authLen+1);
