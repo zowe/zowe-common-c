@@ -1,5 +1,8 @@
 # Zowe Common C Changelog
 
+## `2.18.0`
+- As a part of curve customization support, supported curves and their mapping to iana numbers are defined in tls.h. They are set using 'gsk_attribute_set_buffer' in tls.c. Currently, the list of supported curves can be seen here https://www.ibm.com/docs/en/zos/3.1.0?topic=programming-cipher-suite-definitions#csdcwh__tttcsd (#466).
+
 ## `2.17.0`
 - Fixed `xplatform.loadFileUTF8` when trying to open nonexistent file (#454)
 - Bugfix: fix an incorrect check in the recovery router code which might lead to
