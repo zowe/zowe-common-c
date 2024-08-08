@@ -125,6 +125,18 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_OFF);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_1, GSK_PROTOCOL_TLSV1_1_OFF);
 
+  char *curves = settings->curves;
+  int curveRC = 0;
+  if (curves) {
+    curveRC = gsk_attribute_set_buffer(env->envHandle, GSK_CLIENT_ECURVE_LIST, curves, 0);
+    if (!curveRC) {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Curves set using gsk_attribute_set_buffer\n");
+    } else {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Failure to set curves using gsk_attribute_set_buffer\n");
+    }
+    rc = rc || curveRC;
+  }
+
   int tlsMin = getTlsMin(settings);
   int tlsMax = getTlsMax(settings);
   if (tlsMax < tlsMin) {
@@ -235,6 +247,17 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Ciphers set to %s\n", ciphers);
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_V3_CIPHER_SPECS_EXPANDED, ciphers, 0);
     rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);
+  }
+  char *curves = env->settings->curves;
+  int curveRC = 0;
+  if (curves) {
+    curveRC = gsk_attribute_set_buffer(socket->socketHandle, GSK_CLIENT_ECURVE_LIST, curves, 0);
+    if (!curveRC) {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Curves set using gsk_attribute_set_buffer\n");
+    } else {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Failure to set curves using gsk_attribute_set_buffer\n");
+    }
+    rc = rc || curveRC;
   }
   rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_SESSION_TYPE, isServer ? GSK_SERVER_SESSION_WITH_CL_AUTH : GSK_CLIENT_SESSION);
 
