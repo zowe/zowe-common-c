@@ -1564,6 +1564,7 @@ HttpServer *makeHttpServerInner(STCBase *base,
   memcpy(&server->config->sessionTokenKey[0], &sessionTokenKey,
          sizeof (sessionTokenKey));
   server->config->authTokenType = SERVICE_AUTH_TOKEN_TYPE_LEGACY;
+  server->config->httpRequestHeapMaxBlocks = HTTP_REQUEST_HEAP_DEFAULT_BLOCKS;
 
   return server;
 }
@@ -1656,6 +1657,8 @@ static HttpServer *makeSecureHttpServerInner(STCBase *base, int port,
   int64 now = getFineGrainedTime();
   server->config->sessionTokenKeySize = sizeof (now);
   memcpy(&server->config->sessionTokenKey[0], &now, sizeof (now));
+  server->config->httpRequestHeapMaxBlocks = HTTP_REQUEST_HEAP_DEFAULT_BLOCKS;
+
   return server;
 }
 #endif
@@ -3210,10 +3213,10 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
         request->flags = HTTP_REQUEST_NO_PASSWORD;
         authDataFound = TRUE;
       } else {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "No user was found for client certificate. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x)\n", safReturnCode, racfReturnCode, racfReasonCode);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "No user was found for client certificate. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x)\n", safReturnCode, racfReturnCode, racfReasonCode);
       }
     } else {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_INFO, "Client certificate was attached to request, but credentials are also attached. Server won't attempt to map the client certificate.\n");
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Client certificate was attached to request, but credentials are also attached. Server won't attempt to map the client certificate.\n");
     }
   }
 
@@ -4637,8 +4640,9 @@ static int streamBinaryForFile2(HttpResponse *response, Socket *socket, UnixFile
   if (encoding == ENCODING_CHUNKED) {
     stream = makeChunkedOutputStreamInternal(response);
   }
-
-  int bufferSize = FILE_STREAM_BUFFER_SIZE;
+  
+  // To make bufferSize divisble by 3 for correct base64 encoding.
+  int bufferSize = FILE_STREAM_BUFFER_SIZE - (FILE_STREAM_BUFFER_SIZE % 3);
   char *buffer = safeMalloc(bufferSize+4, "streamBinaryBuffer");
   int encodedLength;
 
@@ -4710,7 +4714,8 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
     stream = makeChunkedOutputStreamInternal(response);
     /* fallthrough */
   case ENCODING_SIMPLE: {
-    int bufferSize = FILE_STREAM_BUFFER_SIZE;
+    // To make bufferSize divisble by 3 for correct base64 encoding.
+    int bufferSize = FILE_STREAM_BUFFER_SIZE - (FILE_STREAM_BUFFER_SIZE % 3);
     char *buffer = safeMalloc(bufferSize+4, "streamTextBuffer");
     char *translation = safeMalloc((2*bufferSize)+4, "streamTextConvertBuffer"); /* UTF inflation tolerance */
     int encodedLength;
@@ -5819,7 +5824,9 @@ static int httpHandleTCP(STCBase *base,
         }
       }
 #endif // USE_ZOWE_TLS
-      ShortLivedHeap *slh = makeShortLivedHeap(READ_BUFFER_SIZE,100);
+      HttpServer *server = (HttpServer*) module->data;
+      unsigned int maxBlocks = server->config->httpRequestHeapMaxBlocks;
+      ShortLivedHeap *slh = makeShortLivedHeap(READ_BUFFER_SIZE, maxBlocks);
   #ifndef __ZOWE_OS_WINDOWS
       int writeBufferSize = 0x40000;
       setSocketWriteBufferSize(peerSocket,0x40000, &returnCode, &reasonCode);
