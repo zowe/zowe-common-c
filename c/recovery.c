@@ -497,7 +497,7 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         LA    1,RCVXINF           LOAD ROUTER SERVICE INFO             \n"
       "         BRAS  14,RCVSIFLB         RECORD IT, REMOVE CONTEXT, PERCOLATE \n"
       "         TM    RCXFLAG1,R@CF1USP   USER STATE POOL?                     \n"
-      "         BZ    RCVFRL04            NO, DO NOT FREE IT                   \n"
+      "         BNZ   RCVFRL04            NO, DO NOT FREE IT                   \n"
       "         LT    2,RCXSCPID          CELL POOL ZERO?                      \n"
       "         BZ    RCVFRL04            YES, DO NOT FREE IT                  \n"
 #ifdef _LP64
@@ -505,6 +505,8 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         SYSSTATE AMODE64=NO                                            \n"
 #endif
       "         CPOOL DELETE,CPID=(2)     FREE THE STATE CELL POOL             \n"
+      "         LGFI  2,X'7FFFFBA3'       MAKE AN OBVIOUSLY BAD ADDRESS        \n"
+      "         ST    2,RCXSCPID          MARK THE CPID FOR DEBUGGING PURPOSES \n"
 #ifdef _LP64
       "         SAM64                                                          \n"
       "         SYSSTATE AMODE64=YES                                           \n"
@@ -1291,6 +1293,8 @@ RecoveryStatePool *recoveryMakeStatePool(unsigned int stateCount) {
 
 void recoveryRemoveStatePool(RecoveryStatePool *statePool) {
   removeRecoveryStatePool(statePool->cellPool);
+  // put a bad address for debugging (in case the statePool storage survives)
+  statePool->cellPool = 0x7FFFFBA1;
   storageRelease(statePool, sizeof(RecoveryStatePool));
 }
 

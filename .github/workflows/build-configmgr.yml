@@ -126,7 +126,7 @@ jobs:
       - name: '[Dep 2] Quickjs'
         uses: actions/checkout@v3
         with:
-          repository: joenemo/quickjs-portable
+          repository: JoeNemo/quickjs-portable
           path: deps/configmgr/quickjs
           ref: 'main'
 
