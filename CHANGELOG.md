@@ -8,6 +8,7 @@
 - Bugfix: fix an incorrect check in the recovery router code which might lead to
   the state cell-pool being released prematurely (#446)
 - Allocating SLH for http server with configurable value 'httpRequestHeapMaxBlocks' in yaml (#447).
+- Return error when last config file is non existent or has some error (#460).
 
 ## `2.16.0`
 - No yaml value converted to null (#442)
