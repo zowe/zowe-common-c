@@ -2846,9 +2846,9 @@ int extractBasicAuth(HttpRequest *request, HttpHeader *authHeader){
     char *authString = NULL;
     AUTH_TRACE("start authEnd loop\n");
     while ((authEnd < headerLength) && (ebcdicHeader[authEnd] > 0x041)){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "authEnd=%d\n",authEnd);
       authEnd++;
     }
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "authEnd=%d\n",authEnd);
     authLen = authEnd-authStart;
     encodedAuthString = SLHAlloc(slh,authLen+1);
     authString = SLHAlloc(slh,authLen+1);
@@ -2913,8 +2913,8 @@ int extractBearerToken(HttpRequest *request, HttpHeader *authHeader) {
   AUTH_TRACE("start tokenEnd loop\n");
   while ((tokenEnd < headerLength) && (ebcdicHeader[tokenEnd] > 0x041)){
     tokenEnd++;
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "tokenEnd=%d\n", tokenEnd);
   }
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "tokenEnd=%d\n", tokenEnd);
   const int tokenLen = tokenEnd - tokenStart;
   AUTH_TRACE("bearer token length = %d\n", tokenLen);
 
