@@ -3,6 +3,9 @@
 ## `2.18.0`
 - Minor `components.zss.logLevels._zss.httpserver=5` debug messages enhancement (#471)
 
+## `2.18.0`
+- Minor `components.zss.logLevels._zss.httpserver=5` debug messages enhancement (#471)
+
 ## `2.17.0`
 - Fixed `xplatform.loadFileUTF8` when trying to open nonexistent file (#454)
 - Bugfix: fix an incorrect check in the recovery router code which might lead to
