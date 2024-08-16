@@ -281,7 +281,7 @@ typedef struct CipherMap_tag {
 
   typedef struct CurveMap_tag {
   const char* name;
-  const char* groupId;  //number string
+  const char* groupId;  //I.A.N.A Elliptic curve enumerator (number string)
 } CurveMap;
 
 #define TLS_IANA_CURVE_MAP(ianaCurveMap)\
