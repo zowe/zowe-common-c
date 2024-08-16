@@ -1,5 +1,8 @@
 # Zowe Common C Changelog
 
+## `2.18.1`
+- Bugfix: IARV64 results must be checked for 0x7FFFF000 (#474)
+
 ## `2.18.0`
 - Minor `components.zss.logLevels._zss.httpserver=5` debug messages enhancement (#471)
 
