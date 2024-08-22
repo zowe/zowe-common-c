@@ -43,6 +43,8 @@
 #include "utils.h"
 #include "zvt.h"
 
+#define CMS_STATIC_ASSERT($expr) typedef char p[($expr) ? 1 : -1]
+
 #define CROSS_MEMORY_SERVER_MIN_NAME_LENGTH   4
 #define CROSS_MEMORY_SERVER_MAX_NAME_LENGTH   16
 
@@ -598,11 +600,31 @@ typedef struct CrossMemoryServerConfigServiceParm_tag {
   char eyecatcher[8];
 #define CMS_CONFIG_SERVICE_PARM_EYECATCHER "RSCMSCSY"
   char nameNullTerm[CMS_CONFIG_PARM_MAX_NAME_LENGTH + 1];
-  char padding[7];
-  CrossMemoryServerConfigParm result;
+  uint8_t version;
+#define CMS_CONFIG_SERVICE_PARM_VERSION_0 0
+#define CMS_CONFIG_SERVICE_PARM_VERSION_2 2
+#define CMS_CONFIG_SERVICE_PARM_SIZE_V0   227
+#define CMS_CONFIG_SERVICE_PARM_SIZE_V2   227
+#define CMS_CONFIG_SERVICE_PARM_VERSION   CMS_CONFIG_SERVICE_PARM_VERSION_2
+  char padding[6];
+  union {
+    CrossMemoryServerConfigParm result;
+    struct { // only for versions >= 2
+      int32_t nameLength;
+      int32_t valueBufferLength;
+      PAD_LONG(0, const char *name);
+      PAD_LONG(1, void *valueBuffer);
+      CrossMemoryServerConfigParmExt result;
+    } ext;
+  };
 } CrossMemoryServerConfigServiceParm;
 
 ZOWE_PRAGMA_PACK_RESET
+
+CMS_STATIC_ASSERT(CMS_CONFIG_SERVICE_PARM_SIZE_V0 ==
+                  sizeof(CrossMemoryServerConfigServiceParm));
+CMS_STATIC_ASSERT(CMS_CONFIG_SERVICE_PARM_SIZE_V2 ==
+                  sizeof(CrossMemoryServerConfigServiceParm));
 
 static void initLogMessagePrefix(LogMessagePrefix *prefix) {
   LogTimestamp currentTime;
@@ -984,7 +1006,7 @@ int cmsAddConfigParm(CrossMemoryServer *server,
   ShortLivedHeap *slh = server->slh;
 
   size_t keyLength = strlen(name);
-  if (keyLength > CMS_CONFIG_PARM_MAX_NAME_LENGTH) {
+  if (keyLength > CMS_CONFIG_PARM_EXT_MAX_NAME_LENGTH) {
     return RC_CMS_CONFIG_PARM_NAME_TOO_LONG;
   }
 
@@ -995,16 +1017,17 @@ int cmsAddConfigParm(CrossMemoryServer *server,
 
   strcpy(keyNullTerm, name);
 
-  CrossMemoryServerConfigParm *parm =
-      (CrossMemoryServerConfigParm *)SLHAlloc(
+  CrossMemoryServerConfigParmExt *parm =
+      (CrossMemoryServerConfigParmExt *)SLHAlloc(
           slh,
-          sizeof(CrossMemoryServerConfigParm)
+          sizeof(CrossMemoryServerConfigParmExt)
       );
   if (parm == NULL) {
     return RC_CMS_SLH_ALLOC_FAILED;
   }
 
-  memcpy(parm->eyecatcher, CMS_PARM_EYECATCHER, sizeof(parm->eyecatcher));
+  memcpy(parm->eyecatcher, CMS_CONFIG_PARM_EXT_EYECATCHER,
+         sizeof(parm->eyecatcher));
   parm->type = type;
 
   switch (type) {
@@ -1012,11 +1035,15 @@ int cmsAddConfigParm(CrossMemoryServer *server,
   {
     const char *charValueNullTerm = value;
     size_t valueLength = strlen(charValueNullTerm);
-    if (valueLength > sizeof(parm->charValueNullTerm) - 1) {
+    if (valueLength > CMS_CONFIG_PARM_EXT_MAX_VALUE_SIZE) {
       return RC_CMS_CHAR_PARM_TOO_LONG;
     }
     parm->valueLength = valueLength;
-    strcpy(parm->charValueNullTerm, charValueNullTerm);
+    parm->value = SLHAlloc(slh, valueLength + 1);
+    if (parm->value == NULL) {
+      return RC_CMS_SLH_ALLOC_FAILED;
+    }
+    strcpy(parm->value, charValueNullTerm);
   }
   break;
   default:
@@ -1784,6 +1811,9 @@ static int handleConfigService(CrossMemoryServer *server,
     return RC_CMS_STDSVC_PARM_NULL;
   }
 
+  // Copying different versions using the same size is fine because both v0 and
+  // v2 have the same size, but, if this changes in the future, more complicated
+  // logic would need to be implemented.
   CrossMemoryServerConfigServiceParm localParm;
   cmCopyFromSecondaryWithCallerKey(&localParm, callerParm,
                                    sizeof(CrossMemoryServerConfigServiceParm));
@@ -1793,16 +1823,58 @@ static int handleConfigService(CrossMemoryServer *server,
     return RC_CMS_STDSVC_PARM_BAD_EYECATCHER;
   }
 
-  localParm.nameNullTerm[sizeof(localParm.nameNullTerm) - 1] = '\0';
-
-  CrossMemoryServerConfigParm *configParm =
-      htGet(server->configParms, localParm.nameNullTerm);
-  if (configParm == NULL) {
-    return RC_CMS_CONFIG_PARM_NOT_FOUND;
+  if (localParm.version != CMS_CONFIG_SERVICE_PARM_VERSION_0 &&
+      localParm.version != CMS_CONFIG_SERVICE_PARM_VERSION_2) {
+    return RC_CMS_STDSVC_PARM_BAD_VERSION;
   }
 
-  cmCopyToSecondaryWithCallerKey(&callerParm->result, configParm,
-                                 sizeof(callerParm->result));
+  if (localParm.version == CMS_CONFIG_SERVICE_PARM_VERSION_0) {
+    localParm.nameNullTerm[sizeof(localParm.nameNullTerm) - 1] = '\0';
+    CrossMemoryServerConfigParmExt *configParm = htGet(server->configParms,
+                                                       localParm.nameNullTerm);
+    if (configParm == NULL) {
+      return RC_CMS_CONFIG_PARM_NOT_FOUND;
+    }
+    size_t valueCopyLength = configParm->type == CMS_CONFIG_PARM_TYPE_CHAR ?
+        configParm->valueLength + 1 : configParm->valueLength;
+    if (valueCopyLength > sizeof(localParm.result.charValueNullTerm)) {
+      return RC_CMS_CONFIG_VALUE_BUF_TOO_SMALL;
+    }
+    localParm.result = (CrossMemoryServerConfigParm) {
+        .eyecatcher = CMS_PARM_EYECATCHER,
+        .valueLength = configParm->valueLength,
+        .type = configParm->type,
+    };
+    memcpy(localParm.result.charValueNullTerm, configParm->value,
+           valueCopyLength);
+    cmCopyToSecondaryWithCallerKey(callerParm, &localParm,
+                                   CMS_CONFIG_SERVICE_PARM_SIZE_V0);
+  } else {
+    char nameLocalBuffer[CMS_CONFIG_PARM_EXT_MAX_NAME_LENGTH + 1];
+    if (localParm.ext.nameLength > sizeof(nameLocalBuffer) - 1) {
+      return RC_CMS_CONFIG_PARM_NAME_TOO_LONG;
+    }
+    cmCopyFromSecondaryWithCallerKey(nameLocalBuffer, localParm.ext.name,
+                                     localParm.ext.nameLength);
+    nameLocalBuffer[localParm.ext.nameLength] = '\0';
+    CrossMemoryServerConfigParmExt *configParm = htGet(server->configParms,
+                                                       nameLocalBuffer);
+    if (configParm == NULL) {
+      return RC_CMS_CONFIG_PARM_NOT_FOUND;
+    }
+    size_t valueCopyLength = configParm->type == CMS_CONFIG_PARM_TYPE_CHAR ?
+        configParm->valueLength + 1 : configParm->valueLength;
+    localParm.ext.result = *configParm;
+    localParm.ext.result.value = localParm.ext.valueBuffer;
+    cmCopyToSecondaryWithCallerKey(callerParm, &localParm,
+                                   CMS_CONFIG_SERVICE_PARM_SIZE_V2);
+    if (valueCopyLength > localParm.ext.valueBufferLength) {
+      return RC_CMS_CONFIG_VALUE_BUF_TOO_SMALL;
+    }
+    cmCopyToSecondaryWithCallerKey(localParm.ext.valueBuffer,
+                                   configParm->value,
+                                   valueCopyLength);
+  }
 
   return RC_CMS_OK;
 }
@@ -5335,6 +5407,7 @@ int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,
   memcpy(parmList.eyecatcher, CMS_CONFIG_SERVICE_PARM_EYECATCHER,
          sizeof(parmList.eyecatcher));
   memcpy(parmList.nameNullTerm, name, nameLength);
+  parmList.version = CMS_CONFIG_SERVICE_PARM_VERSION_0;
 
   int serviceRC = cmsCallService(
       serverName,
@@ -5364,6 +5437,7 @@ int cmsGetConfigParmUnchecked(const CrossMemoryServerName *serverName,
   memcpy(parmList.eyecatcher, CMS_CONFIG_SERVICE_PARM_EYECATCHER,
          sizeof(parmList.eyecatcher));
   memcpy(parmList.nameNullTerm, name, nameLength);
+  parmList.version = CMS_CONFIG_SERVICE_PARM_VERSION_0;
 
   CrossMemoryServerGlobalArea *cmsGA = NULL;
   int getGlobalAreaRC = cmsGetGlobalArea(serverName, &cmsGA);
@@ -5383,6 +5457,91 @@ int cmsGetConfigParmUnchecked(const CrossMemoryServerName *serverName,
   }
 
   *parm = parmList.result;
+
+  return RC_CMS_OK;
+}
+
+int cmsGetConfigParmExt(const CrossMemoryServerName *serverName,
+                        const char *name,
+                        void *valueBuffer,
+                        int valueBufferSize,
+                        CrossMemoryServerConfigParmExt *parm,
+                        int *rsn) {
+
+  size_t nameLength = strlen(name);
+  if (nameLength > CMS_CONFIG_PARM_EXT_MAX_NAME_LENGTH) {
+    return RC_CMS_CONFIG_PARM_NAME_TOO_LONG;
+  }
+
+  CrossMemoryServerConfigServiceParm parmList = {
+      .eyecatcher = CMS_CONFIG_SERVICE_PARM_EYECATCHER,
+      .version = CMS_CONFIG_SERVICE_PARM_VERSION,
+      .ext.nameLength = nameLength,
+      .ext.name = name,
+      .ext.valueBufferLength = valueBufferSize,
+      .ext.valueBuffer = valueBuffer,
+  };
+
+  int serviceRC = cmsCallService(
+      serverName,
+      CROSS_MEMORY_SERVER_CONFIG_SERVICE_ID,
+      &parmList,
+      rsn
+  );
+  if (serviceRC != RC_CMS_OK) {
+    if (serviceRC == RC_CMS_CONFIG_VALUE_BUF_TOO_SMALL) {
+      *parm = parmList.ext.result;
+    }
+    return serviceRC;
+  }
+
+  *parm = parmList.ext.result;
+
+  return RC_CMS_OK;
+}
+
+int cmsGetConfigParmExtUnchecked(const CrossMemoryServerName *serverName,
+                                 const char *name,
+                                 void *valueBuffer,
+                                 int valueBufferSize,
+                                 CrossMemoryServerConfigParmExt *parm,
+                                 int *rsn) {
+
+  size_t nameLength = strlen(name);
+  if (nameLength > CMS_CONFIG_PARM_EXT_MAX_NAME_LENGTH) {
+    return RC_CMS_CONFIG_PARM_NAME_TOO_LONG;
+  }
+
+  CrossMemoryServerConfigServiceParm parmList = {
+      .eyecatcher = CMS_CONFIG_SERVICE_PARM_EYECATCHER,
+      .version = CMS_CONFIG_SERVICE_PARM_VERSION,
+      .ext.nameLength = nameLength,
+      .ext.name = name,
+      .ext.valueBufferLength = valueBufferSize,
+      .ext.valueBuffer = valueBuffer,
+  };
+
+  CrossMemoryServerGlobalArea *cmsGA = NULL;
+  int getGlobalAreaRC = cmsGetGlobalArea(serverName, &cmsGA);
+  if (getGlobalAreaRC != RC_CMS_OK) {
+    return getGlobalAreaRC;
+  }
+
+  int serviceRC = cmsCallService3(
+      cmsGA,
+      CROSS_MEMORY_SERVER_CONFIG_SERVICE_ID,
+      &parmList,
+      CMS_CALL_FLAG_NO_SAF_CHECK,
+      rsn
+  );
+  if (serviceRC != RC_CMS_OK) {
+    if (serviceRC == RC_CMS_CONFIG_VALUE_BUF_TOO_SMALL) {
+      *parm = parmList.ext.result;
+    }
+    return serviceRC;
+  }
+
+  *parm = parmList.ext.result;
 
   return RC_CMS_OK;
 }
