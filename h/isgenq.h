@@ -53,11 +53,11 @@ typedef struct ENQToken_tag {
  * being held for this QNAME and RNAME combination. See more details in the
  * ISGENQ documentation.
  *
- * @param qname Enqueue major name
- * @param rname Enqueue minor name
- * @param scope Scope of the enqueue (use one of ISGENQ_SCOPE_xxxx)
- * @param token Token used to release the enqueue
- * @param reasonCode Reason code from ISGENQ
+ * @param[in] qname Enqueue major name
+ * @param[in] rname Enqueue minor name
+ * @param[in] scope Scope of the enqueue (use one of ISGENQ_SCOPE_xxxx)
+ * @param[out] token Token used to release the enqueue
+ * @param[out] reasonCode Reason code from ISGENQ
  * @return Return code from ISGENQ
  */
 int isgenqTryExclusiveLock(const QName *qname,
@@ -82,11 +82,11 @@ int isgenqGetExclusiveLockOrFail(const QName *qname,
  * held for this QNAME and RNAME combination, the current task is suspended.
  * See more details in the ISGENQ documentation.
  *
- * @param qname Enqueue major name
- * @param rname Enqueue minor name
- * @param scope Scope of the enqueue (use one of ISGENQ_SCOPE_xxxx)
- * @param token Token used to release the enqueue
- * @param reasonCode Reason code from ISGENQ
+ * @param[in] qname Enqueue major name
+ * @param[in] rname Enqueue minor name
+ * @param[in] scope Scope of the enqueue (use one of ISGENQ_SCOPE_xxxx)
+ * @param[out] token Token used to release the enqueue
+ * @param[out] reasonCode Reason code from ISGENQ
  * @return Return code from ISGENQ
  */
 int isgenqGetExclusiveLock(const QName *qname,
@@ -99,11 +99,11 @@ int isgenqGetExclusiveLock(const QName *qname,
  * being held for this QNAME and RNAME combination. See more details in the
  * ISGENQ documentation.
  *
- * @param qname Enqueue major name
- * @param rname Enqueue minor name
- * @param scope Scope of the enqueue (use one of ISGENQ_SCOPE_xxxx)
- * @param token Token used to release the enqueue
- * @param reasonCode Reason code from ISGENQ
+ * @param[in] qname Enqueue major name
+ * @param[in] rname Enqueue minor name
+ * @param[in] scope Scope of the enqueue (use one of ISGENQ_SCOPE_xxxx)
+ * @param[out] token Token used to release the enqueue
+ * @param[out] reasonCode Reason code from ISGENQ
  * @return Return code from ISGENQ
  */
 int isgenqTrySharedLock(const QName *qname,
@@ -116,11 +116,11 @@ int isgenqTrySharedLock(const QName *qname,
  * being held for this QNAME and RNAME combination, the current task is
  * suspended. See more details in the ISGENQ documentation.
  *
- * @param qname Enqueue major name
- * @param rname Enqueue minor name
- * @param scope Scope of the enqueue (use one of ISGENQ_SCOPE_xxxx)
- * @param token Token used to release the enqueue
- * @param reasonCode Reason code from ISGENQ
+ * @param[in] qname Enqueue major name
+ * @param[in] rname Enqueue minor name
+ * @param[in] scope Scope of the enqueue (use one of ISGENQ_SCOPE_xxxx)
+ * @param[out] token Token used to release the enqueue
+ * @param[out] reasonCode Reason code from ISGENQ
  * @return Return code from ISGENQ
  */
 int isgenqGetSharedLock(const QName *qname,
@@ -134,11 +134,10 @@ int isgenqGetSharedLock(const QName *qname,
  * acquiring the actual lock in case of success. See more details in the ISGENQ
  * documentation.
  *
- * @param qname Enqueue major name
- * @param rname Enqueue minor name
- * @param scope Scope of the enqueue (use one of ISGENQ_SCOPE_xxxx)
- * @param token Token used to release the enqueue
- * @param reasonCode Reason code from ISGENQ
+ * @param[in] qname Enqueue major name
+ * @param[in] rname Enqueue minor name
+ * @param[in] scope Scope of the enqueue (use one of ISGENQ_SCOPE_xxxx)
+ * @param[out] reasonCode Reason code from ISGENQ
  * @return Return code from ISGENQ
  */
 int isgenqTestExclusiveLock(const QName *qname,
@@ -150,11 +149,10 @@ int isgenqTestExclusiveLock(const QName *qname,
  * acquiring the actual lock in case of success. See more details in the ISGENQ
  * documentation.
  *
- * @param qname Enqueue major name
- * @param rname Enqueue minor name
- * @param scope Scope of the enqueue (use one of ISGENQ_SCOPE_xxxx)
- * @param token Token used to release the enqueue
- * @param reasonCode Reason code from ISGENQ
+ * @param[in] qname Enqueue major name
+ * @param[in] rname Enqueue minor name
+ * @param[in] scope Scope of the enqueue (use one of ISGENQ_SCOPE_xxxx)
+ * @param[out] reasonCode Reason code from ISGENQ
  * @return Return code from ISGENQ
  */
 int isgenqTestSharedLock(const QName *qname,
@@ -166,10 +164,10 @@ int isgenqTestSharedLock(const QName *qname,
  * @brief The function does the same as isgenqTestExclusiveLock. See more
  * details in the ISGENQ documentation.
  *
- * @param qname Enqueue major name
- * @param rname Enqueue minor name
- * @param scope Scope of the enqueue (use one of ISGENQ_SCOPE_xxxx)
- * @param reasonCode Reason code from ISGENQ
+ * @param[in] qname Enqueue major name
+ * @param[in] rname Enqueue minor name
+ * @param[in] scope Scope of the enqueue (use one of ISGENQ_SCOPE_xxxx)
+ * @param[out] reasonCode Reason code from ISGENQ
  * @return Return code from ISGENQ
  */
 int isgenqTestLock(const QName *qname,
@@ -180,11 +178,11 @@ int isgenqTestLock(const QName *qname,
  * @brief The function releases a lock using the token obtain during the
  * corresponding get call. See more details in the ISGENQ documentation.
  *
- * @param token Token used to acquire the lock
- * @param reasonCode Reason code from ISGENQ
+ * @param[in] token Token used to acquire the lock
+ * @param[out] reasonCode Reason code from ISGENQ
  * @return Return code from ISGENQ
  */
-int isgenqReleaseLock(ENQToken *token, int *reasonCode);
+int isgenqReleaseLock(const ENQToken *token, int *reasonCode);
 
 #define IS_ISGENQ_LOCK_OBTAINED($isgenqRC, $isgenqRSN) \
     ($isgenqRC <= 4 && ((unsigned)$isgenqRSN & 0xFFFF) != 0x0404)

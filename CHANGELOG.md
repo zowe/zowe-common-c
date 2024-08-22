@@ -1,5 +1,7 @@
 # Zowe Common C Changelog
 
+## `3.0.0`
+- Add support for LE 64-bit in isgenq.c (#422).
 
 ## `2.17.0`
 - Fixed `xplatform.loadFileUTF8` when trying to open nonexistent file (#454)

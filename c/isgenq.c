@@ -22,14 +22,6 @@
 #include "zowetypes.h"
 #include "isgenq.h"
 
-#if !defined(METTLE) && defined(_LP64)
-/* TODO the ISGENQ code may not work under LE 64-bit */
-#error LE 64-bit is not supported
-#endif
-
-#ifdef METTLE
-__asm("GLBENQPL    ISGENQ MF=(L,GLBENQPL)" : "DS"(GLBENQPL));
-#endif
 
 int isgenqTryExclusiveLock(const QName *qname,
                            const RName *rname,
@@ -37,15 +29,7 @@ int isgenqTryExclusiveLock(const QName *qname,
                            ENQToken *token,
                            int *reasonCode) {
 
-  QName localQName = *qname;
-  RName localRName = *rname;
-
-#ifdef METTLE
-  __asm(" ISGENQ MF=L" : "DS"(isgenqParmList));
-  isgenqParmList = GLBENQPL;
-#else
-  char isgenqParmList[512];
-#endif
+  char parmList[200] = {0};
 
   int rc = 0, rsn = 0;
   __asm(
@@ -59,32 +43,39 @@ int isgenqTryExclusiveLock(const QName *qname,
       ",CONTENTIONACT=FAIL"
       ",USERDATA=NO_USERDATA"
       ",RESLIST=NO"
-      ",QNAME=(%2)"
-      ",RNAME=(%3)"
-      ",RNAMELEN=(%4)"
+      ",QNAME=%[qname]"
+      ",RNAME=%[rname]"
+      ",RNAMELEN=%[rname_len]"
       ",CONTROL=EXCLUSIVE"
       ",RESERVEVOLUME=NO"
       ",SCOPE=VALUE"
-      ",SCOPEVAL=(%5)"
+      ",SCOPEVAL=(%[scope])"
       ",RNL=YES"
-      ",ENQTOKEN=(%6)"
+      ",ENQTOKEN=%[token]"
       ",COND=YES"
-      ",RETCODE=%0"
-      ",RSNCODE=%1"
-      ",PLISTVER=IMPLIED_VERSION"
-      ",MF=(E,(%7),COMPLETE)"
+      ",RETCODE=GPR15"
+      ",RSNCODE=GPR00"
+      ",PLISTVER=2"
+      ",MF=(E,%[parmlist],COMPLETE)"
       "                                                                        \n"
       "         DROP                                                           \n"
       "         POP USING                                                      \n"
-      : "=m"(rc), "=m"(rsn)
-      : "r"(&localQName.value), "r"(&localRName.value), "r"(&localRName.length),
-        "r"(&scope), "r"(token), "r"(&isgenqParmList)
-      : "r0", "r1", "r2", "r14", "r15"
+
+      : [token]"=m"(*token), [rc]"=NR:r15"(rc), [rsn]"=NR:r0"(rsn)
+
+      : [qname]"m"(qname->value),
+        [rname]"m"(rname->value),
+        [rname_len]"m"(rname->length),
+        [scope]"r"(&scope),
+        [parmlist]"m"(parmList)
+
+      : "r1", "r2", "r14"
   );
 
   if (reasonCode != NULL) {
     *reasonCode = rsn;
   }
+
   return rc;
 }
 
@@ -94,15 +85,7 @@ int isgenqGetExclusiveLock(const QName *qname,
                            ENQToken *token,
                            int *reasonCode) {
 
-  QName localQName = *qname;
-  RName localRName = *rname;
-
-#ifdef METTLE
-  __asm(" ISGENQ MF=L" : "DS"(isgenqParmList));
-  isgenqParmList = GLBENQPL;
-#else
-  char isgenqParmList[512];
-#endif
+  char parmList[200] = {0};
 
   int rc = 0, rsn = 0;
   __asm(
@@ -116,32 +99,39 @@ int isgenqGetExclusiveLock(const QName *qname,
       ",CONTENTIONACT=WAIT"
       ",USERDATA=NO_USERDATA"
       ",RESLIST=NO"
-      ",QNAME=(%2)"
-      ",RNAME=(%3)"
-      ",RNAMELEN=(%4)"
+      ",QNAME=%[qname]"
+      ",RNAME=%[rname]"
+      ",RNAMELEN=%[rname_len]"
       ",CONTROL=EXCLUSIVE"
       ",RESERVEVOLUME=NO"
       ",SCOPE=VALUE"
-      ",SCOPEVAL=(%5)"
+      ",SCOPEVAL=(%[scope])"
       ",RNL=YES"
-      ",ENQTOKEN=(%6)"
+      ",ENQTOKEN=%[token]"
       ",COND=YES"
-      ",RETCODE=%0"
-      ",RSNCODE=%1"
-      ",PLISTVER=IMPLIED_VERSION"
-      ",MF=(E,(%7),COMPLETE)"
+      ",RETCODE=GPR15"
+      ",RSNCODE=GPR00"
+      ",PLISTVER=2"
+      ",MF=(E,%[parmlist],COMPLETE)"
       "                                                                        \n"
       "         DROP                                                           \n"
       "         POP USING                                                      \n"
-      : "=m"(rc), "=m"(rsn)
-      : "r"(&localQName.value), "r"(&localRName.value), "r"(&localRName.length),
-        "r"(&scope), "r"(token), "r"(&isgenqParmList)
-      : "r0", "r1", "r2", "r14", "r15"
+
+      : [token]"=m"(*token), [rc]"=NR:r15"(rc), [rsn]"=NR:r0"(rsn)
+
+      : [qname]"m"(qname->value),
+        [rname]"m"(rname->value),
+        [rname_len]"m"(rname->length),
+        [scope]"r"(&scope),
+        [parmlist]"m"(parmList)
+
+      : "r1", "r2", "r14"
   );
 
   if (reasonCode != NULL) {
     *reasonCode = rsn;
   }
+
   return rc;
 }
 
@@ -151,15 +141,7 @@ int isgenqTrySharedLock(const QName *qname,
                         ENQToken *token,
                         int *reasonCode) {
 
-  QName localQName = *qname;
-  RName localRName = *rname;
-
-#ifdef METTLE
-  __asm(" ISGENQ MF=L" : "DS"(isgenqParmList));
-  isgenqParmList = GLBENQPL;
-#else
-  char isgenqParmList[512];
-#endif
+  char parmList[200] = {0};
 
   int rc = 0, rsn = 0;
   __asm(
@@ -173,32 +155,39 @@ int isgenqTrySharedLock(const QName *qname,
       ",CONTENTIONACT=FAIL"
       ",USERDATA=NO_USERDATA"
       ",RESLIST=NO"
-      ",QNAME=(%2)"
-      ",RNAME=(%3)"
-      ",RNAMELEN=(%4)"
+      ",QNAME=%[qname]"
+      ",RNAME=%[rname]"
+      ",RNAMELEN=%[rname_len]"
       ",CONTROL=SHARED"
       ",RESERVEVOLUME=NO"
       ",SCOPE=VALUE"
-      ",SCOPEVAL=(%5)"
+      ",SCOPEVAL=(%[scope])"
       ",RNL=YES"
-      ",ENQTOKEN=(%6)"
+      ",ENQTOKEN=%[token]"
       ",COND=YES"
-      ",RETCODE=%0"
-      ",RSNCODE=%1"
-      ",PLISTVER=IMPLIED_VERSION"
-      ",MF=(E,(%7),COMPLETE)"
+      ",RETCODE=GPR15"
+      ",RSNCODE=GPR00"
+      ",PLISTVER=2"
+      ",MF=(E,%[parmlist],COMPLETE)"
       "                                                                        \n"
       "         DROP                                                           \n"
       "         POP USING                                                      \n"
-      : "=m"(rc), "=m"(rsn)
-      : "r"(&localQName.value), "r"(&localRName.value), "r"(&localRName.length),
-        "r"(&scope), "r"(token), "r"(&isgenqParmList)
-      : "r0", "r1", "r2", "r14", "r15"
+
+      : [token]"=m"(*token), [rc]"=NR:r15"(rc), [rsn]"=NR:r0"(rsn)
+
+      : [qname]"m"(qname->value),
+        [rname]"m"(rname->value),
+        [rname_len]"m"(rname->length),
+        [scope]"r"(&scope),
+        [parmlist]"m"(parmList)
+
+      : "r1", "r2", "r14"
   );
 
   if (reasonCode != NULL) {
     *reasonCode = rsn;
   }
+
   return rc;
 }
 
@@ -208,15 +197,7 @@ int isgenqGetSharedLock(const QName *qname,
                         ENQToken *token,
                         int *reasonCode) {
 
-  QName localQName = *qname;
-  RName localRName = *rname;
-
-#ifdef METTLE
-  __asm(" ISGENQ MF=L" : "DS"(isgenqParmList));
-  isgenqParmList = GLBENQPL;
-#else
-  char isgenqParmList[512];
-#endif
+  char parmList[200] = {0};
 
   int rc = 0, rsn = 0;
   __asm(
@@ -230,32 +211,39 @@ int isgenqGetSharedLock(const QName *qname,
       ",CONTENTIONACT=WAIT"
       ",USERDATA=NO_USERDATA"
       ",RESLIST=NO"
-      ",QNAME=(%2)"
-      ",RNAME=(%3)"
-      ",RNAMELEN=(%4)"
+      ",QNAME=%[qname]"
+      ",RNAME=%[rname]"
+      ",RNAMELEN=%[rname_len]"
       ",CONTROL=SHARED"
       ",RESERVEVOLUME=NO"
       ",SCOPE=VALUE"
-      ",SCOPEVAL=(%5)"
+      ",SCOPEVAL=(%[scope])"
       ",RNL=YES"
-      ",ENQTOKEN=(%6)"
+      ",ENQTOKEN=%[token]"
       ",COND=YES"
-      ",RETCODE=%0"
-      ",RSNCODE=%1"
-      ",PLISTVER=IMPLIED_VERSION"
-      ",MF=(E,(%7),COMPLETE)"
+      ",RETCODE=GPR15"
+      ",RSNCODE=GPR00"
+      ",PLISTVER=2"
+      ",MF=(E,%[parmlist],COMPLETE)"
       "                                                                        \n"
       "         DROP                                                           \n"
       "         POP USING                                                      \n"
-      : "=m"(rc), "=m"(rsn)
-      : "r"(&localQName.value), "r"(&localRName.value), "r"(&localRName.length),
-        "r"(&scope), "r"(token), "r"(&isgenqParmList)
-      : "r0", "r1", "r2", "r14", "r15"
+
+      : [token]"=m"(*token), [rc]"=NR:r15"(rc), [rsn]"=NR:r0"(rsn)
+
+      : [qname]"m"(qname->value),
+        [rname]"m"(rname->value),
+        [rname_len]"m"(rname->length),
+        [scope]"r"(&scope),
+        [parmlist]"m"(parmList)
+
+      : "r1", "r2", "r14"
   );
 
   if (reasonCode != NULL) {
     *reasonCode = rsn;
   }
+
   return rc;
 }
 
@@ -264,17 +252,8 @@ int isgenqTestLock(const QName *qname,
                    uint8_t scope,
                    int *reasonCode) {
 
-  QName localQName = *qname;
-  RName localRName = *rname;
-
-#ifdef METTLE
-  __asm(" ISGENQ MF=L" : "DS"(isgenqParmList));
-  isgenqParmList = GLBENQPL;
-#else
-  char isgenqParmList[512];
-#endif
-
-  ENQToken localToken;
+  ENQToken token = {0};
+  char parmList[200] = {0};
 
   int rc = 0, rsn = 0;
   __asm(
@@ -286,32 +265,39 @@ int isgenqTestLock(const QName *qname,
       "         ISGENQ   REQUEST=OBTAIN"
       ",TEST=YES"
       ",RESLIST=NO"
-      ",QNAME=(%2)"
-      ",RNAME=(%3)"
-      ",RNAMELEN=(%4)"
+      ",QNAME=%[qname]"
+      ",RNAME=%[rname]"
+      ",RNAMELEN=%[rname_len]"
       ",CONTROL=EXCLUSIVE"
       ",RESERVEVOLUME=NO"
       ",SCOPE=VALUE"
-      ",SCOPEVAL=(%5)"
+      ",SCOPEVAL=(%[scope])"
       ",RNL=YES"
-      ",ENQTOKEN=(%6)"
+      ",ENQTOKEN=%[token]"
       ",COND=YES"
-      ",RETCODE=%0"
-      ",RSNCODE=%1"
-      ",PLISTVER=IMPLIED_VERSION"
-      ",MF=(E,(%7),COMPLETE)"
+      ",RETCODE=GPR15"
+      ",RSNCODE=GPR00"
+      ",PLISTVER=2"
+      ",MF=(E,%[parmlist],COMPLETE)"
       "                                                                        \n"
       "         DROP                                                           \n"
       "         POP USING                                                      \n"
-      : "=m"(rc), "=m"(rsn)
-      : "r"(&localQName.value), "r"(&localRName.value), "r"(&localRName.length),
-        "r"(&scope), "r"(&localToken), "r"(&isgenqParmList)
-      : "r0", "r1", "r2", "r14", "r15"
+
+      : [token]"=m"(token), [rc]"=NR:r15"(rc), [rsn]"=NR:r0"(rsn)
+
+      : [qname]"m"(qname->value),
+        [rname]"m"(rname->value),
+        [rname_len]"m"(rname->length),
+        [scope]"r"(&scope),
+        [parmlist]"m"(parmList)
+
+      : "r1", "r2", "r14"
   );
 
   if (reasonCode != NULL) {
     *reasonCode = rsn;
   }
+
   return rc;
 }
 
@@ -329,17 +315,8 @@ int isgenqTestSharedLock(const QName *qname,
                          uint8_t scope,
                          int *reasonCode) {
 
-  QName localQName = *qname;
-  RName localRName = *rname;
-
-#ifdef METTLE
-  __asm(" ISGENQ MF=L" : "DS"(isgenqParmList));
-  isgenqParmList = GLBENQPL;
-#else
-  char isgenqParmList[512];
-#endif
-
-  ENQToken localToken;
+  ENQToken token = {0};
+  char parmList[200] = {0};
 
   int rc = 0, rsn = 0;
   __asm(
@@ -351,43 +328,45 @@ int isgenqTestSharedLock(const QName *qname,
       "         ISGENQ   REQUEST=OBTAIN"
       ",TEST=YES"
       ",RESLIST=NO"
-      ",QNAME=(%2)"
-      ",RNAME=(%3)"
-      ",RNAMELEN=(%4)"
+      ",QNAME=%[qname]"
+      ",RNAME=%[rname]"
+      ",RNAMELEN=%[rname_len]"
       ",CONTROL=SHARED"
       ",RESERVEVOLUME=NO"
       ",SCOPE=VALUE"
-      ",SCOPEVAL=(%5)"
+      ",SCOPEVAL=(%[scope])"
       ",RNL=YES"
-      ",ENQTOKEN=(%6)"
+      ",ENQTOKEN=%[token]"
       ",COND=YES"
-      ",RETCODE=%0"
-      ",RSNCODE=%1"
-      ",PLISTVER=IMPLIED_VERSION"
-      ",MF=(E,(%7),COMPLETE)"
+      ",RETCODE=GPR15"
+      ",RSNCODE=GPR00"
+      ",PLISTVER=2"
+      ",MF=(E,%[parmlist],COMPLETE)"
       "                                                                        \n"
       "         DROP                                                           \n"
       "         POP USING                                                      \n"
-      : "=m"(rc), "=m"(rsn)
-      : "r"(&localQName.value), "r"(&localRName.value), "r"(&localRName.length),
-        "r"(&scope), "r"(&localToken), "r"(&isgenqParmList)
-      : "r0", "r1", "r2", "r14", "r15"
+
+      : [token]"=m"(token), [rc]"=NR:r15"(rc), [rsn]"=NR:r0"(rsn)
+
+      : [qname]"m"(qname->value),
+        [rname]"m"(rname->value),
+        [rname_len]"m"(rname->length),
+        [scope]"r"(&scope),
+        [parmlist]"m"(parmList)
+
+      : "r1", "r2", "r14"
   );
 
   if (reasonCode != NULL) {
     *reasonCode = rsn;
   }
+
   return rc;
 }
 
-int isgenqReleaseLock(ENQToken *token, int *reasonCode) {
+int isgenqReleaseLock(const ENQToken *token, int *reasonCode) {
 
-#ifdef METTLE
-  __asm(" ISGENQ MF=L" : "DS"(isgenqParmList));
-  isgenqParmList = GLBENQPL;
-#else
-  char isgenqParmList[512];
-#endif
+  char parmList[200] = {0};
 
   int rc = 0, rsn = 0;
   __asm(
@@ -398,24 +377,28 @@ int isgenqReleaseLock(ENQToken *token, int *reasonCode) {
       "         USING ENQREL,2                                                 \n"
       "         ISGENQ   REQUEST=RELEASE"
       ",RESLIST=NO"
-      ",ENQTOKEN=(%2)"
+      ",ENQTOKEN=%[token]"
       ",OWNINGTTOKEN=CURRENT_TASK"
       ",COND=YES"
-      ",RETCODE=%0"
-      ",RSNCODE=%1"
-      ",PLISTVER=IMPLIED_VERSION"
-      ",MF=(E,(%3),COMPLETE)"
+      ",RETCODE=GPR15"
+      ",RSNCODE=GPR00"
+      ",PLISTVER=2"
+      ",MF=(E,%[parmlist],COMPLETE)"
       "                                                                        \n"
       "         DROP                                                           \n"
       "         POP USING                                                      \n"
-      : "=m"(rc), "=m"(rsn)
-      : "r"(token), "r"(&isgenqParmList)
-      : "r0", "r1", "r2", "r14", "r15"
+
+      : [rc]"=NR:r15"(rc), [rsn]"=NR:r0"(rsn)
+
+      : [token]"m"(*token), [parmlist]"m"(parmList)
+
+      : "r1", "r2", "r14"
   );
 
   if (reasonCode != NULL) {
     *reasonCode = rsn;
   }
+
   return rc;
 }
 
