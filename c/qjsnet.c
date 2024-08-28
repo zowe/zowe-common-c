@@ -189,6 +189,7 @@ static int httpGet(bool isTLS,
   int status = 0;
   char buffer[2048];
   LoggingContext *loggingContext = getLoggingContext();
+  int rc = 0;
 
   do{
     clientSettings.host = host;
@@ -216,7 +217,7 @@ static int httpGet(bool isTLS,
     if (httpTrace){
       printf("successfully initialized http client\n");
     }
-    status = httpClientSessionInit(httpClientContext, &session);
+    status = httpClientSessionInit2(httpClientContext, &session, &rc);
     if (status){
       if (httpTrace){
 	printf("error initing session: %d\n", status);
