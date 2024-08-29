@@ -37,6 +37,11 @@
 #include "logging.h"
 #include "printables_for_dump.h"
 
+#include "timeutls.h"
+#include "zos.h"
+#include "openprims.h"
+#include "zssLogging.h"
+
 #ifdef __ZOWE_OS_ZOS
 #include "le.h"
 #endif
@@ -311,7 +316,7 @@ static void lastResortLog(char *s){
 }
 
 /* default dumper, based on dumpBufferToStream from utils.c */
-static char *standardDumperFunction(char *workBuffer, int workBufferSize,
+char *standardDumperFunction(char *workBuffer, int workBufferSize,
                                     void *data, int dataSize, int lineNumber){
 
   int formatWidth = 32;
@@ -455,7 +460,7 @@ LoggingDestination *logConfigureDestination2(LoggingContext *context,
   return destination;
 }
 
-void printStdout(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList){
+void printStdout(LoggingContext *context, LoggingComponent *component, char* path, int line, int level, uint64 compID, void *data, char *formatString, va_list argList){
 #ifdef METTLE 
   printf("broken printf in logging.c\n");
 #else 
@@ -463,7 +468,7 @@ void printStdout(LoggingContext *context, LoggingComponent *component, void *dat
 #endif
 }
 
-void printStderr(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList){
+void printStderr(LoggingContext *context, LoggingComponent *component, char* path, int line, int level, uint64 compID, void *data, char *formatString, va_list argList){
 #ifdef METTLE 
   printf("broken printf in logging.c\n");
 #else 
@@ -647,7 +652,10 @@ int logGetLevel(LoggingContext *context, uint64 compID){
   return component ? component->currentDetailLevel : ZOWE_LOG_NA;
 }
 
-void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...){
+
+
+void _zowelog(LoggingContext *context, uint64 compID, char* path, int line, int level, char *formatString, ...){
+//void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...){
 
   if (logShouldTrace(context, compID, level) == FALSE) {
     return;
@@ -688,7 +696,7 @@ void zowelog(LoggingContext *context, uint64 compID, int level, char *formatStri
     /* here, pass to a var-args handler */
     va_start(argPointer, formatString);
 
-    destination->handler(context,component,destination->data,formatString,argPointer);
+    destination->handler(context,component,path,line,level,compID,destination->data,formatString,argPointer);
  
     va_end(argPointer);
   }
@@ -698,14 +706,16 @@ void zowelog(LoggingContext *context, uint64 compID, int level, char *formatStri
 static void printToDestination(LoggingDestination *destination,
                                struct LoggingContext_tag *context,
                                LoggingComponent *component,
+							   char* path, int line,
+                               int level, uint64 compID,
                                void *data, char *formatString, ...){
   va_list argPointer;
   va_start(argPointer, formatString);
-  destination->handler(context,component,destination->data,formatString,argPointer);
+  destination->handler(context,component,path,line,level,compID,destination->data,formatString,argPointer);
   va_end(argPointer);
 }
 
-void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize){
+void _zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize, char* path, int line){
 
   if (logShouldTrace(context, compID, level) == FALSE) {
     return;
@@ -746,7 +756,7 @@ void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int
     for (int i = 0; ; i++){
       char *result = destination->dumper(workBuffer, sizeof(workBuffer), data, dataSize, i);
       if (result != NULL){
-        printToDestination(destination, context, component, destination->data, "%s\n", result);
+        printToDestination(destination, context, component, path, line, level, compID, destination->data, "%s\n", result);
       }
       else {
         break;
