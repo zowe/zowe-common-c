@@ -39,7 +39,7 @@ char * strcopy_safe(char * dest, const char * source, int dest_size);
 
 int indexOf(char *str, int len, char c, int startPos);
 int lastIndexOf(const char *str, int len, char c);
-int indexOfString(char *str, int len, char *searchString, int startPos);
+int indexOfString(const char * sourceString, size_t sourceLength, const char * searchString, size_t startPos);
 int lastIndexOfString(char *str, int len, char *searchString);
 int indexOfStringInsensitive(char *str, int len, char *searchString, int startPos);
 
