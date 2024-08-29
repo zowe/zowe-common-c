@@ -455,6 +455,25 @@ LoggingDestination *logConfigureDestination2(LoggingContext *context,
   return destination;
 }
 
+LoggingDestination *logConfigureDestination3(LoggingContext *context,
+                                             unsigned int id,
+                                             char *name,
+                                             void *data,
+                                             LogHandler handler,
+                                             DataDumper dumper,
+                                             LogHandler2 handler2){
+  LoggingDestination *destination = logConfigureDestination(context, id, name, data, handler);
+  if (destination != NULL) {
+    if (destination->handler2 != NULL) {
+      destination->handler2 = handler2;
+    }
+    if (destination->dumper != NULL) {
+      destination->dumper = dumper;
+    }
+  }
+  return destination;
+}
+
 void printStdout(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList){
 #ifdef METTLE 
   printf("broken printf in logging.c\n");
@@ -648,7 +667,51 @@ int logGetLevel(LoggingContext *context, uint64 compID){
 }
 
 void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...){
+  if (logShouldTrace(context, compID, level) == FALSE) {
+    return;
+  }
+  if (context == NULL) {
+    context = getLoggingContext();
+  }
 
+  int maxDetailLevel = 0;
+  LoggingComponent *component = getComponent(context, compID, &maxDetailLevel);
+  if (component == NULL) {
+    return;
+  }
+
+  if (maxDetailLevel >= level){
+    va_list argPointer;
+    LoggingDestination *destination = &getDestinationTable(context, compID)[component->destination];
+//    printf("log.2 comp.dest=%d\n",component->destination);fflush(stdout);
+
+    if (component->destination >= MAX_LOGGING_DESTINATIONS){
+      char message[128];
+      sprintf(message,"Destination %d is out of range (log)\n",component->destination);
+      lastResortLog(message);
+      return;
+    } else if (component->destination == 0 && destination->state != LOG_DESTINATION_STATE_UNINITIALIZED){
+      /* silently do nothing, /dev/null is always destination 0 and always does nothing */
+      printf("dev/null case\n");
+      return;
+    } 
+
+  //  printf("log.3\n");fflush(stdout);
+    if (destination->state == LOG_DESTINATION_STATE_UNINITIALIZED){
+      char message[128];
+      sprintf(message,"Destination %d is not initialized for logging\n",component->destination);
+      lastResortLog(message);
+      return;
+    }
+    /* here, pass to a var-args handler */
+    va_start(argPointer, formatString);
+		destination->handler(context,component,destination->data,formatString,argPointer);
+
+    va_end(argPointer);
+  }
+}
+
+void zowelog2(LoggingContext *context, uint64 compID, int level, void *userData, char *formatString, ...){
   if (logShouldTrace(context, compID, level) == FALSE) {
     return;
   }
@@ -687,12 +750,13 @@ void zowelog(LoggingContext *context, uint64 compID, int level, char *formatStri
     }
     /* here, pass to a var-args handler */
     va_start(argPointer, formatString);
-
-    destination->handler(context,component,destination->data,formatString,argPointer);
- 
+    if (destination->handler2 != NULL) {
+      destination->handler2(context, component, destination->data, level, compID, userData, formatString, argPointer);
+    } else {
+      destination->handler(context, component, destination->data, formatString, argPointer);
+    }
     va_end(argPointer);
   }
-
 }
 
 static void printToDestination(LoggingDestination *destination,
