@@ -2,6 +2,7 @@
 
 ## `3.0.0`
 - Add support for LE 64-bit in isgenq.c (#422).
+- Bugfix: IARV64 results must be checked for 0x7FFFF000 (#474)
 
 ## `2.17.0`
 - Fixed `xplatform.loadFileUTF8` when trying to open nonexistent file (#454)
