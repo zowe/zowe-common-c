@@ -1,8 +1,5 @@
 # Zowe Common C Changelog
 
-## `2.19.0`
-- Adding more arguments to httpClientSessionInit to allow passing back rc (#467).
-
 ## `2.18.1`
 - Bugfix: IARV64 results must be checked for 0x7FFFF000 (#474)
 - Bugfix: SLH should not ABEND when MEMLIMIT is reached (additional NULL check)
