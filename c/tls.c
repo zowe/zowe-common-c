@@ -17,6 +17,7 @@
 #include "tls.h"
 #include "zos.h"
 #include "logging.h"
+#include <stdio.h>
 
 int getClientCertificate(gsk_handle soc_handle, char *clientCertificate, unsigned int clientCertificateBufferSize, unsigned int *clientCertificateLength) {
 
@@ -112,6 +113,40 @@ static int getTlsMin(TlsSettings *settings) {
   return TLS_MIN_DEFAULT;
 }
 
+gsk_data_buffer *getcache(
+    const unsigned char *   session_id,
+    unsigned int            session_id_length,
+    int                     ssl_version) {
+  return NULL;
+}
+
+gsk_data_buffer * putcache(
+    gsk_data_buffer *       ssl_session_data,
+    const unsigned char *   session_id,
+    unsigned int            session_id_length,
+    int                     ssl_version) {
+
+  printf("session data (%p): size=%u, addr=%p\n",
+         ssl_session_data, ssl_session_data->length, ssl_session_data->data);
+  dumpbuffer(ssl_session_data->data, ssl_session_data->length);
+  printf("session id (%p, %u): \'%s\'\n", session_id, session_id_length,
+         session_id);
+
+  return NULL;
+}
+
+void deletecache(
+    const unsigned char *   session_id,
+    unsigned int            session_id_length,
+    int                     ssl_version) {
+
+}
+
+void freecache(
+    gsk_data_buffer *       ssl_session_data) {
+
+}
+
 int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   int rc = 0;
   TlsEnvironment *env = (TlsEnvironment *)safeMalloc(sizeof(*env), "Tls Environment");
@@ -157,6 +192,21 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   if (settings->password) {
     rc = rc || gsk_attribute_set_buffer(env->envHandle, GSK_KEYRING_PW, settings->password, 0);
   }
+
+  if (settings->ciphers) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Ciphers(1) set to %s\n", settings->ciphers);
+    rc = rc || gsk_attribute_set_buffer(env->envHandle, GSK_V3_CIPHER_SPECS_EXPANDED, settings->ciphers, 0);
+    rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);
+  }
+
+  if (settings->keyshares) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Keyshares(1) set to %s\n",
+            settings->keyshares);
+    rc = rc ||
+         gsk_attribute_set_buffer(env->envHandle, GSK_SERVER_TLS_KEY_SHARES,
+                                  settings->keyshares, 0);
+  }
+
   rc = rc || gsk_environment_init(env->envHandle);
   if (rc == 0) {
   *outEnv = env;
@@ -168,8 +218,11 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
 }
 
 int tlsDestroy(TlsEnvironment *env) {
+  printf("tls env = %p, handle = %p\n", env, env->envHandle);
+  fflush(stdout);
   int rc = 0;
-  rc = gsk_environment_close(env->envHandle);
+  rc = gsk_environment_close(&env->envHandle);
+  printf("gsk_environment_close=%d (%s)\n", rc, gsk_strerror(rc));
   safeFree((char*)env, sizeof(*env));
   return rc;
 }
@@ -231,8 +284,8 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
   if (label) {
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_KEYRING_LABEL, label, 0);
   }
-  if (ciphers) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Ciphers set to %s\n", ciphers);
+  if (!isServer && ciphers) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Ciphers(2) set to %s\n", ciphers);
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_V3_CIPHER_SPECS_EXPANDED, ciphers, 0);
     rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);
   }
@@ -248,15 +301,11 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
     To be safe, only enable tls 1.3 content when it is being used
   */
   if (isTLSV13Available(env->settings) && tlsMin <= TLS_V1_3 && tlsMax >= TLS_V1_3) {
-    if (keyshares) {
-     /*   
-       Only TLS 1.3 needs this.
-     */
-      if (isServer) {
-        rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_SERVER_TLS_KEY_SHARES, keyshares, 0);
-      } else {
-        rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_CLIENT_TLS_KEY_SHARES, keyshares, 0);
-      }
+    if (!isServer && keyshares) {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Keyshares(2) set to %s\n", keyshares);
+      rc = rc || gsk_attribute_set_buffer(socket->socketHandle,
+                                          GSK_CLIENT_TLS_KEY_SHARES, keyshares,
+                                          0);
     }
   }
   rc = rc || gsk_attribute_set_callback(socket->socketHandle, GSK_IO_CALLBACK, &ioCallbacks);
@@ -267,6 +316,8 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
     safeFree((char*)socket, sizeof(*socket));
     *outSocket = NULL;
   }
+  printf("tlsSocketInit: %p,%p,%d\n",
+          socket, socket->socketHandle, rc);
   return rc;
 }
 
@@ -282,7 +333,12 @@ int tlsWrite(TlsSocket *socket, const char *buf, int size, int *outLength) {
 
 int tlsSocketClose(TlsSocket *socket) {
   int rc = 0;
+  rc = gsk_secure_socket_shutdown(socket->socketHandle);
+  printf("gsk_secure_socket_shutdown: %p,%p,%d\n",
+          socket, socket->socketHandle, rc);
   rc = gsk_secure_socket_close(&socket->socketHandle);
+  printf("gsk_secure_socket_close: %p,%p,%d\n",
+          socket, socket->socketHandle, rc);
   safeFree((char*)socket, sizeof(*socket));
   return rc;
 }

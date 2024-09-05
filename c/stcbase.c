@@ -105,7 +105,7 @@ int stcBaseMainLoop(STCBase *base, int selectTimeoutMillis)
   int returnCode=0, reasonCode=0;
 
   resetQueuedWorkEvent(base);
-  while (!base->stopRequested)
+  while (1)
   {
     BASETRACE_VERBOSE("before main loop wait\n");
 #ifdef __ZOWE_OS_ZOS
@@ -132,6 +132,13 @@ int stcBaseMainLoop(STCBase *base, int selectTimeoutMillis)
 #ifdef STCBASE_TRACE
       STCTRACE_VERBOSE("SELECTX timed out\n", NULL);
 #endif
+
+      if (base->stopRequested) {
+        printf("braking stc base loop\n");
+        fflush(stdout);
+        break;
+      }
+
 #ifdef TRACK_MEMORY
 #ifdef DEBUG
         showOutstanding ();
@@ -156,10 +163,6 @@ int stcBaseMainLoop(STCBase *base, int selectTimeoutMillis)
 #endif
         readReady = TRUE;
       }
-    }
-
-    if (base->stopRequested){
-      break;
     }
 
     /* clear immediately to sync better with fast posting PC routine */

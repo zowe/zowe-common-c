@@ -3300,7 +3300,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3,
            "serviceAuthNativeWithSessionToken: Neither cookie nor auth header\n");
 
-    return FALSE;
+    return TRUE;
   }
 }
 
