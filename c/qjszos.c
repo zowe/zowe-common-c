@@ -2,13 +2,13 @@
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
   this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
-  
+
   SPDX-License-Identifier: EPL-2.0
-  
+
   Copyright Contributors to the Zowe Project.
 */
 
-#ifdef METTLE 
+#ifdef METTLE
 
 #include <metal/metal.h>
 #include <metal/stddef.h>
@@ -17,8 +17,8 @@
 #include <metal/stdbool.h>
 #include <metal/string.h>
 #include <metal/stdarg.h>
-#include <metal/ctype.h>  
-#include <metal/stdbool.h>  
+#include <metal/ctype.h>
+#include <metal/stdbool.h>
 #include "metalio.h"
 #include "qsam.h"
 
@@ -30,11 +30,12 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdbool.h>
-#include <ctype.h>  
+#include <ctype.h>
 #include <sys/stat.h>
-#include <sys/types.h> 
-#include <stdint.h> 
-#include <stdbool.h> 
+#include <sys/statvfs.h>
+#include <sys/types.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <errno.h>
 
 #endif
@@ -98,8 +99,8 @@ static JSValue zosChangeTag(JSContext *ctx, JSValueConst this_val,
   if (!pathname){
     return JS_EXCEPTION;
   }
-  /* 
-     Since target function is QASCII, do NOT convert the path 
+  /*
+     Since target function is QASCII, do NOT convert the path
    */
 
   int ccsidInt = 0;
@@ -121,8 +122,8 @@ static JSValue zosChangeExtAttr(JSContext *ctx, JSValueConst this_val,
   if (!pathname){
     return JS_EXCEPTION;
   }
-  /* 
-     Since target function is QASCII, do NOT convert the path 
+  /*
+     Since target function is QASCII, do NOT convert the path
    */
 
   int extattrInt = 0;
@@ -136,7 +137,7 @@ static JSValue zosChangeExtAttr(JSContext *ctx, JSValueConst this_val,
 #endif
   JS_FreeCString(ctx,pathname);
   return JS_NewInt64(ctx,(int64_t)status);
-}  
+}
 
 static JSValue zosChangeStreamCCSID(JSContext *ctx, JSValueConst this_val,
 				    int argc, JSValueConst *argv){
@@ -209,7 +210,7 @@ static JSValue zosStat(JSContext *ctx, JSValueConst this_val,
   convertToNative(pathNative,len);
 
   res = stat(pathNative, &st);
-  
+
   JS_FreeCString(ctx, path);
   if (res < 0){
     err = errno;
@@ -307,12 +308,12 @@ static JSValue zosDatasetInfo(JSContext *ctx, JSValueConst this_val,
   JSValue result;
   size_t len;
   bool trace = false;
-  
+
   dsn = JS_ToCStringLen(ctx, &len, argv[0]);
   if (!dsn){
     return JS_EXCEPTION;
   }
-  
+
   if (trace){
     printf("dslist start\n");
   }
@@ -335,11 +336,11 @@ static JSValue zosDatasetInfo(JSContext *ctx, JSValueConst this_val,
   int fieldCount = defaultCSIFieldCount;
   char **csiFields = defaultCSIFields;
 
-  EntryDataSet *entrySet = returnEntries(dsnNative, 
+  EntryDataSet *entrySet = returnEntries(dsnNative,
 					 typesArg, datasetTypeCount,
 					 workAreaSizeArg,
-					 csiFields, fieldCount, 
-					 resumeNameArg, resumeCatalogNameArg, returnParms); 
+					 csiFields, fieldCount,
+					 resumeNameArg, resumeCatalogNameArg, returnParms);
   if (trace){
     printf("entrySet=0x%p\n",entrySet);
   }
@@ -361,10 +362,10 @@ static JSValue zosDatasetInfo(JSContext *ctx, JSValueConst this_val,
 			      newJSStringFromNative(ctx, catalogName, strlen(catalogName)),
 			      JS_PROP_C_W_E);
   }
-  
+
   char volser[7];
-  memset(volser,0,7);  
-  
+  memset(volser,0,7);
+
   if (trace){
     printf("%d datasets\n",entrySet->length);
   }
@@ -377,7 +378,7 @@ static JSValue zosDatasetInfo(JSContext *ctx, JSValueConst this_val,
   int dsCount = 0;
   for (int i = 0; i < entrySet->length; i++){
     EntryData *entry = entrySet->entries[i];
-   
+
     if (entry) {
       JSValue info = JS_NewObject(ctx);
       JS_DefinePropertyValueUint32(ctx, datasetArray, dsCount++, info, JS_PROP_C_W_E);
@@ -398,17 +399,67 @@ static JSValue zosDatasetInfo(JSContext *ctx, JSValueConst this_val,
 				JS_PROP_C_W_E);
     }
   }
-  
+
   JS_FreeCString(ctx, dsn);
-  
+
   return result;
 }
 
-static const char changeTagASCII[10] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65, 
+/* return [obj, errcode] */
+static JSValue getStatvfs(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+  const char *path;
+  int res, err;
+  struct statvfs statvfsBuffer;
+  JSValue obj;
+  size_t len;
+
+  path = JS_ToCStringLen(ctx, &len, argv[0]);
+  if (!path) {
+    return JS_EXCEPTION;
+  }
+
+  char pathNative[len + 1];
+  memcpy(pathNative, path, len + 1);
+  convertToNative(pathNative, len);
+
+  res = statvfs(pathNative, &statvfsBuffer);
+  JS_FreeCString(ctx, path);
+
+  if (res < 0) {
+    err = errno;
+    obj = JS_NULL;
+  } else {
+    err = 0;
+    obj = JS_NewObject(ctx);
+    if (JS_IsException(obj)) {
+      return JS_EXCEPTION;
+    }
+    ejsDefinePropertyValueStr(ctx, obj, "bsize", JS_NewInt64(ctx, statvfsBuffer.f_bsize), JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "blocks", JS_NewInt64(ctx, statvfsBuffer.f_blocks), JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "bavail", JS_NewInt64(ctx, statvfsBuffer.f_bavail), JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "fsid", JS_NewInt64(ctx, statvfsBuffer.f_fsid), JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "flag", JS_NewInt64(ctx, statvfsBuffer.f_flag), JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "frsize", JS_NewInt64(ctx, statvfsBuffer.f_frsize), JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "bfree", JS_NewInt64(ctx, statvfsBuffer.f_bfree), JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "files", JS_NewInt64(ctx, statvfsBuffer.f_files), JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "ffree", JS_NewInt64(ctx, statvfsBuffer.f_ffree), JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "favail", JS_NewInt64(ctx, statvfsBuffer.f_favail), JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "namemax", JS_NewInt64(ctx, statvfsBuffer.f_namemax), JS_PROP_C_W_E);
+#ifdef __ZOWE_OS_ZOS
+    ejsDefinePropertyValueStr(ctx, obj, "OEmaxfilesizehw", JS_NewInt32(ctx, statvfsBuffer.f_OEmaxfilesizehw), JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "OEmaxfilesizelw", JS_NewInt64(ctx, statvfsBuffer.f_OEmaxfilesizelw), JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "OEusedspace", JS_NewInt64(ctx, statvfsBuffer.f_OEusedspace), JS_PROP_C_W_E);
+    ejsDefinePropertyValueStr(ctx, obj, "OEinvarsec", JS_NewInt64(ctx, statvfsBuffer.f_OEinvarsec), JS_PROP_C_W_E);
+#endif
+  }
+  return ejsMakeObjectAndErrorArray(ctx, obj, err);
+}
+
+static const char changeTagASCII[10] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65,
 					0x54, 0x61, 0x67, 0x00};
-static const char changeExtAttrASCII[14] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65, 
+static const char changeExtAttrASCII[14] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65,
 					    0x45, 0x78, 0x74, 0x41, 0x74, 0x74, 0x72, 0x00};
-static const char changeStreamCCSIDASCII[18] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65, 
+static const char changeStreamCCSIDASCII[18] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65,
 						0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x43, 0x43, 0x53, 0x49, 0x44, 0x00};
 static const char zstatASCII[6] ={ 0x7A, 0x73, 0x74, 0x61, 0x74, 0};
 
@@ -426,6 +477,8 @@ static const char dslistASCII[7] ={ 0x64, 0x73, 0x6c, 0x69, 0x73, 0x74, 0x00};
 
 static const char resolveSymbolASCII[14] ={ 0x72, 0x65, 0x73, 0x6f, 0x6c, 0x76, 0x65, 0x53, 0x79, 0x6d, 0x62, 0x6f, 0x6c, 0x00};
 
+static const char getStatvfsASCII[11] = {0x67, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x76, 0x66, 0x73, 0x00};
+
 #ifndef __ZOWE_OS_ZOS
 /* stub the constants that non-ZOS does not define */
 #define EXTATTR_SHARELIB 1
@@ -441,6 +494,7 @@ static const JSCFunctionListEntry zosFunctions[] = {
   JS_CFUNC_DEF(getEsmASCII, 0, getEsm),
   JS_CFUNC_DEF(dslistASCII, 1, zosDatasetInfo),
   JS_CFUNC_DEF(resolveSymbolASCII, 1, zosResolveSymbol),
+  JS_CFUNC_DEF(getStatvfsASCII, 1, getStatvfs),
   JS_PROP_INT32_DEF(EXTATTR_SHARELIB_ASCII, EXTATTR_SHARELIB, JS_PROP_CONFIGURABLE ),
   JS_PROP_INT32_DEF(EXTATTR_PROGCTL_ASCII, EXTATTR_PROGCTL, JS_PROP_CONFIGURABLE ),
   /* ALSO, "cp" with magic ZOS-unix see fopen not fileOpen */
@@ -470,8 +524,8 @@ JSModuleDef *ejsInitModuleZOS(JSContext *ctx, const char *module_name){
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
   this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
-  
+
   SPDX-License-Identifier: EPL-2.0
-  
+
   Copyright Contributors to the Zowe Project.
 */
