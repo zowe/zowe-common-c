@@ -121,7 +121,7 @@ int httpClientContextInitSecure(HttpClientSettings *settings,
 
 void httpClientSessionDestroy(HttpClientSession *session);
 
-int httpClientSessionInit2(HttpClientContext *ctx, HttpClientSession **outSession, int *rc);
+int httpClientSessionInit(HttpClientContext *ctx, HttpClientSession **outSession);
 
 int httpClientSessionStageRequest(HttpClientContext *ctx,
                                   HttpClientSession *session,
