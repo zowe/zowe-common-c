@@ -1,7 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.1.0`
-- Feature: added javascript `zos.getStatvfs(path)` function to obtain file system information (#???).
+- Feature: added javascript `zos.getStatvfs(path)` function to obtain file system information (#482).
 
 ## `3.0.0`
 - Add support for LE 64-bit in isgenq.c (#422).
