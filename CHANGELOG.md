@@ -1,11 +1,16 @@
 # Zowe Common C Changelog
 
-## `3.1.0`
-- Feature: added javascript `zos.getStatvfs(path)` function to obtain file system information (#482).
-
 ## `3.0.0`
+- Feature: added javascript `zos.getStatvfs(path)` function to obtain file system information (#482).
 - Add support for LE 64-bit in isgenq.c (#422).
 - Bugfix: IARV64 results must be checked for 0x7FFFF000 (#474)
+- Adding more arguments to httpClientSessionInit to allow passing back rc (#467).
+- Bugfix: SLH should not ABEND when MEMLIMIT is reached (additional NULL check)
+- Bugfix: support cross-memory server parameters longer than 128 characters 
+  (zowe/zss#684)
+
+## `2.18.0`
+- Minor `components.zss.logLevels._zss.httpserver=5` debug messages enhancement (#471)
 
 ## `2.17.0`
 - Fixed `xplatform.loadFileUTF8` when trying to open nonexistent file (#454)
