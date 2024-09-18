@@ -5,6 +5,8 @@
 - Bugfix: SLH should not ABEND when MEMLIMIT is reached (additional NULL check)
 - Bugfix: support cross-memory server parameters longer than 128 characters 
   (zowe/zss#684)
+- Enhancement: Adding more arguments to httpClientSessionInit to allow passing back rc (#467).
+- Correcting changelog of PR #467 (#477).
 
 ## `2.18.0`
 - Minor `components.zss.logLevels._zss.httpserver=5` debug messages enhancement (#471)
