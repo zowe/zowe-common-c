@@ -1502,6 +1502,7 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
                       safeMalloc31(size+4,"SLH Oversize Extend"));
     if (bigBlock == NULL){
       reportSLHFailure(slh,size);
+      return NULL;
     }
     int *sizePtr = (int*)bigBlock;
     *sizePtr = size;
@@ -1528,6 +1529,7 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
                   safeMalloc31(slh->blockSize+4,"SLH Extend") );
     if (data == NULL){
       reportSLHFailure(slh,size);
+      return NULL;
     }
     int *sizePtr = (int*)data;
     *sizePtr = slh->blockSize;
