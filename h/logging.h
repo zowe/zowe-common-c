@@ -95,6 +95,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define LOG_COMP_ZOS           0x008F000100130000LLU
 #define LOG_COMP_HTTPCLIENT    0x008F000100140000LLU
 #define LOG_COMP_JWT           0x008F000100150000LLU
+#define LOG_COMP_JSON          0x008F000100160000LLU
 
 #define LOG_DEST_DEV_NULL      0x008F0000
 #define LOG_DEST_PRINTF_STDOUT 0x008F0001
@@ -126,6 +127,7 @@ typedef struct LogComponentsMap_tag {
   {LOG_COMP_ZOS, "zos"},\
   {LOG_COMP_HTTPCLIENT, "httpclient"},\
   {LOG_COMP_JWT, "jwt"},\
+  {LOG_COMP_JSON, "json"},\
   {0, NULL}\
 };
 
