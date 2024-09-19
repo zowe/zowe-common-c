@@ -19,8 +19,11 @@ export function test_someFunction() {
     const TEST = [ -1, 0, 1, 42 ]
     let errs = 0;
     for (let t in TEST) {
-        someFunction(TEST[t]);
-        ...
+        const result = someFunction(TEST[t]);
+        print.clog(result == TEST[t], `someFunction(${TEST[i]})=${result}`);
+        if (result != TEST[t]) {
+            errs++;
+        }
     }
     return { errors: errs, total: TEST.lenght }
 }
