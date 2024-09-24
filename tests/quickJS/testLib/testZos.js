@@ -13,29 +13,41 @@ import * as zos from 'zos';
 import * as print from '../lib/print';
 
 
+// int status = tagFile(pathname, ccsid);
 export function test_changeTag() {
+    const result = zos.changeTag('./');
+    print.purple(`DUMMY TEST: zos.changeTag(./)=${result}`);
     return { errors: 0, total: 0 }
 }
 
 
+// int status = changeExtendedAttributes(pathname, extattr, onOffInt ? true : false);
 export function test_changeExtAttr() {
+    const result = zos.changeExtAttr('./');
+    print.purple(`DUMMY TEST: zos.changeExtAttr(./)=${result}`);
     return { errors: 0, total: 0 }
 }
 
 
+// int status = convertOpenStream(fd, ccsid);
 export function test_changeStreamCCSID() {
+    const result = zos.changeStreamCCSID('./');
+    print.purple(`DUMMY TEST: zos.changeStreamCCSID(./)=${result}`);
     return { errors: 0, total: 0 }
 }
 
 
+// res = stat(pathNative, &st);
 export function test_zstat() {
+    const result = zos.zstat('./testLib/testZos.js');
+    print.purple(`DUMMY TEST: zos.zstat(./testLib/testZos.js)=${JSON.stringify(result)}`);
     return { errors: 0, total: 0 }
 }
 
 
 export function test_getZosVersion() {
     const result = zos.getZosVersion();
-    print.clog(true, `zos.getZosVersion()=${result}${result > 0 ? ` --hex--> 0x${result.toString(16)}` : ``}`);
+    print.conditionally(true, `zos.getZosVersion()=${result}${result > 0 ? `=hex(0x${result.toString(16)}` : ``})`);
     return { errors: result ? 0 : 1, total : 1 };
 }
 
@@ -45,16 +57,18 @@ export function test_getEsm() {
     const result = zos.getEsm();
 
     if (result == null || !EXPECTED.includes(result)) {
-        print.clog(false, `zos.getEsms()=${result}`);
+        print.conditionally(false, `zos.getEsms()=${result}`);
         return { errors: 1, total: 1 };
     }
-    print.clog(true, `zos.getEsms()=${result}`);
+    print.conditionally(true, `zos.getEsms()=${result}`);
     return { errors: 0, total: 1 };
 }
 
 
 
 export function test_dslist() {
+    const result = zos.dslist('SYS1.MACLIB');
+    print.purple(`DUMMY TEST: zos.zstat(SYS1.MACLIB)=${JSON.stringify(result)}`);
     return { errors: 0, total: 0 }
 }
 
@@ -65,7 +79,7 @@ export function test_resolveSymbol() {
     const yymmdd = (date.getFullYear() - 2000) * 10000 + (date.getMonth() + 1) * 100 + date.getDate() + '';
     let errs = 0;
 
-    print.clog(result == yymmdd, `zos.resolveSymbol('&YYMMDD')=${result} -> ${yymmdd}`);
+    print.conditionally(result == yymmdd, `zos.resolveSymbol('&YYMMDD')=${result} -> ${yymmdd}`);
     if (result != yymmdd) {
         errs ++
     }
@@ -73,12 +87,11 @@ export function test_resolveSymbol() {
     const SYMBOLS_ERR = [ undefined, null, '', 'YYMMDD', ' &', ['a', 'b'], '& UNDEFINED SYMBOL !@#$%^&*()' ];
     for (let s in SYMBOLS_ERR) {
         const result = zos.resolveSymbol(SYMBOLS_ERR[s]);
-        print.clog(result.length == 0, `zos.resolveSymbol(${SYMBOLS_ERR[s]})=${result}`);
+        print.conditionally(result.length == 0, `zos.resolveSymbol(${SYMBOLS_ERR[s]})=${result}`);
         if (result.length) {
             errs++
         }
     }
-
     return { errors: errs, total : SYMBOLS_ERR.length + 1 };;
 }
 
@@ -90,18 +103,18 @@ export function test_getStatvfs() {
 
     for (let p in PATHS_OK) {
         const result = zos.getStatvfs(PATHS_OK[p]);
-        print.clog(result[1] == 0, `zos.getStatvfs(${PATHS_OK[p]})=${result[1]}`);
+        print.conditionally(result[1] == 0, `zos.getStatvfs(${PATHS_OK[p]})=${result[1]}`);
         if (result[1] != 0) {
             errs++;
         }
         if (result[0]) {
-            console.log(`  stats=${JSON.stringify(result[0])}`);
+            console.log(`Stats=${JSON.stringify(result[0])}`);
         }
     }
 
     for (let p in PATHS_ERR) {
         const result = zos.getStatvfs(PATHS_ERR[p]);
-        print.clog(result[1] != 0, `zos.getStatvfs(${PATHS_ERR[p]})=${result[1]}`);
+        print.conditionally(result[1] != 0, `zos.getStatvfs(${PATHS_ERR[p]})=${result[1]}`);
         if (result[1] == 0) {
             errs++;
         }

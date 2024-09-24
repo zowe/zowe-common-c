@@ -10,6 +10,7 @@
 */
 
 import * as std from 'cm_std';
+import * as print from './lib/print';
 import * as testZos from './testLib/testZos';
 
 const TEST_ZOS = [
@@ -39,9 +40,9 @@ for (let testFunction in TESTS) {
 }
 
 if (errors) {
-    console.log(`\n${errors} error${errors == 1 ? '' : 's'} detected in ${total} tests, review the test output.\n`);
+    print.lines(print.RED, `${errors} error${errors == 1 ? '' : 's'} detected in ${total} tests, review the test output.`);
     std.exit(8);
 } else {
-    console.log(`\n${total} tests succesfull.\n`);
+    print.lines(print.GREEN, `${total} tests succesfull.`);
     std.exit(0);
 }

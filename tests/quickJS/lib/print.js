@@ -9,6 +9,43 @@
 // Copyright Contributors to the Zowe Project.
 */
 
-export function clog(condition, msg) {
-    console.log(`${condition ? '' : '== ERROR ==> '}${msg}`);
+export const RED = "\u001b[31m";
+export const GREEN = "\u001b[32m";
+export const YELLOW = "\u001b[33m";
+export const PURPLE = "\u001b[35m";
+export const CYAN = "\u001b[36m";
+export const RESET = "\u001b[0m";
+
+export function color(color, msg) {
+    console.log(`${color}${msg}${RESET}`);
+}
+
+export function red(msg) {
+    color(RED, msg);
+}
+
+export function green(msg) {
+    color(GREEN, msg);
+}
+
+export function yellow(msg) {
+    color(YELLOW, msg);
+}
+
+export function purple(msg) {
+    color(PURPLE, msg);
+}
+
+export function cyan(msg) {
+    color(CYAN, msg);
+}
+
+export function conditionally(condition, ...msg) {
+    console.log(`${condition ? GREEN : RED}` + msg + RESET);
+}
+
+export function lines(clr, msg) {
+    color(clr, `\n${'-'.repeat(msg.length)}`);
+    color(clr, `${msg}`);
+    color(clr, `${'-'.repeat(msg.length)}\n`);
 }
