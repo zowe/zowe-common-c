@@ -731,8 +731,10 @@ ByteOutputStream *makeByteOutputStream(int chunkSize){
 int bosWrite(ByteOutputStream *bos, char *data, int dataSize){
   if (bos->size+dataSize > bos->capacity){
     int extendSize = (bos->chunkSize > dataSize) ? bos->chunkSize : dataSize;
+#ifdef NDEBUG
     printf("bos extend currSize=0x%x dataSize=0x%x chunk=0x%x extend=0x%x\n",
            bos->size,dataSize,bos->chunkSize,extendSize);
+#endif
     int newCapacity = bos->capacity + extendSize;
     char *newData = safeMalloc(newCapacity,"BOS extend");
     memcpy(newData,bos->data,bos->size);
