@@ -1,7 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.1.0`
-- Bugfix: removed "ByteOutputStream" debug message, which was part of the `zwe` command output (#4??)
+- Bugfix: removed "ByteOutputStream" debug message, which was part of the `zwe` command output (#491)
 
 ## `3.0.0`
 - Feature: added javascript `zos.getStatvfs(path)` function to obtain file system information (#482).
