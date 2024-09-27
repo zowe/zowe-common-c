@@ -13,19 +13,3 @@ Keep in mind, test the simple cases like:
 * No parameters when exepecting some
 * Incorrect data types
 * Empty, null, undefined values...
-
-```javascript
-export function test_someFunction() {
-    const TEST = [ -1, 0, 1, 42 ]
-    let errs = 0;
-    for (let t in TEST) {
-        const result = someFunction(TEST[t]);
-        print.clog(result == TEST[t], `someFunction(${TEST[i]})=${result}`);
-        if (result != TEST[t]) {
-            errs++;
-        }
-    }
-    return { errors: errs, total: TEST.lenght }
-}
-
-```

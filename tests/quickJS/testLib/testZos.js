@@ -9,15 +9,30 @@
 // Copyright Contributors to the Zowe Project.
 */
 
+// ========================
+// zowe-common-c/c/qjszos.c
+// ========================
+
 import * as zos from 'zos';
 import * as print from '../lib/print';
+import * as test from '../lib/test';
 
 
-// int status = tagFile(pathname, ccsid);
 export function test_changeTag() {
-    const result = zos.changeTag('./');
-    print.purple(`DUMMY TEST: zos.changeTag(./)=${result}`);
-    return { errors: 0, total: 0 }
+    let errs;
+    const FAILS = [ ...test.CLASSIC_FAILS, 
+        './file, which does not exit', ['./file, which does not exit', 250000 ],
+    ]
+    const FINES = [
+        [ './testLib/hello.txt', 0 ],
+        [ './testLib/hello.txt', 859 ],
+        [ './testLib/hello.txt', 1047 ],
+    ];
+
+    errs = test.process(zos.changeTag, FAILS, -1, 'zos.changeTag');
+    errs += test.process(zos.changeTag, FINES, 0, 'zos.changeTag');
+
+    return { errors: errs, total: FAILS.length + FINES.length }
 }
 
 
@@ -37,17 +52,25 @@ export function test_changeStreamCCSID() {
 }
 
 
-// res = stat(pathNative, &st);
 export function test_zstat() {
-    const result = zos.zstat('./testLib/testZos.js');
-    print.purple(`DUMMY TEST: zos.zstat(./testLib/testZos.js)=${JSON.stringify(result)}`);
-    return { errors: 0, total: 0 }
+    const FAILS = [ ...test.CLASSIC_FAILS ];
+    const FINES = [ './testLib/hello.txt', './', './run_test.sh' ];
+    let errs = 0;
+    for (let f in FAILS) {
+        const result = zos.zstat(FAILS[f]);
+        errs += print.conditionally(result[1] == 129, 'zos.zstat', FAILS[f], result);
+    }
+    for (let f in FINES) {
+        const result = zos.zstat(FINES[f]);
+        errs += print.conditionally(result[1] == 0, 'zos.zstat', FINES[f], result);
+    }
+    return { errors: errs, total: FAILS.length }
 }
 
 
 export function test_getZosVersion() {
     const result = zos.getZosVersion();
-    print.conditionally(true, `zos.getZosVersion()=${result}${result > 0 ? `=hex(0x${result.toString(16)}` : ``})`);
+    print.conditionally(true, 'zos.getZosVersion', 'no parameter', result, `${result > 0 ? `in hex 0x${result.toString(16)}` : ``}`);
     return { errors: result ? 0 : 1, total : 1 };
 }
 
@@ -57,19 +80,24 @@ export function test_getEsm() {
     const result = zos.getEsm();
 
     if (result == null || !EXPECTED.includes(result)) {
-        print.conditionally(false, `zos.getEsms()=${result}`);
+        print.conditionally(false, 'zos.getEsms', 'no parameter', result);
         return { errors: 1, total: 1 };
     }
-    print.conditionally(true, `zos.getEsms()=${result}`);
+    print.conditionally(true, 'zos.getEsms', 'no parameter', result);
     return { errors: 0, total: 1 };
 }
 
 
-
 export function test_dslist() {
-    const result = zos.dslist('SYS1.MACLIB');
-    print.purple(`DUMMY TEST: zos.zstat(SYS1.MACLIB)=${JSON.stringify(result)}`);
-    return { errors: 0, total: 0 }
+    const FAILS = [ ...test.CLASSIC_FAILS, 'sys1.maclib' ];
+    const FINES = [ 'SYS1.PARMLIB', 'SYS1.MACLIB' ];
+
+    let errs = test.process(zos.dslist, FAILS, null, 'zos.dslist');
+    for (let f in FINES) {
+        const result = zos.dslist(FINES[f]);
+        errs += print.conditionally(result.datasets[0].dsn == FINES[f], 'zos.dslist', FINES[f], result);
+    }
+    return { errors: errs, total: FAILS.length + FINES.length }
 }
 
 
@@ -79,45 +107,29 @@ export function test_resolveSymbol() {
     const yymmdd = (date.getFullYear() - 2000) * 10000 + (date.getMonth() + 1) * 100 + date.getDate() + '';
     let errs = 0;
 
-    print.conditionally(result == yymmdd, `zos.resolveSymbol('&YYMMDD')=${result} -> ${yymmdd}`);
-    if (result != yymmdd) {
-        errs ++
-    }
+    errs += print.conditionally(result == yymmdd, 'zos.resolveSymbol', '&YYMMDD', result, `javascript date -> ${yymmdd}`);
 
-    const SYMBOLS_ERR = [ undefined, null, '', 'YYMMDD', ' &', ['a', 'b'], '& UNDEFINED SYMBOL !@#$%^&*()' ];
-    for (let s in SYMBOLS_ERR) {
-        const result = zos.resolveSymbol(SYMBOLS_ERR[s]);
-        print.conditionally(result.length == 0, `zos.resolveSymbol(${SYMBOLS_ERR[s]})=${result}`);
-        if (result.length) {
-            errs++
-        }
-    }
-    return { errors: errs, total : SYMBOLS_ERR.length + 1 };;
+    const ERR_SYMBOLS = [ ...test.CLASSIC_FAILS, 'YYMMDD', ' &', ['a', 'b'], '& UNDEFINED SYMBOL !@#$%^&*()' ];
+    errs += test.process(zos.resolveSymbol, ERR_SYMBOLS, '', 'zos.resolveSymbol');
+
+    return { errors: errs, total : ERR_SYMBOLS.length + 1 };;
 }
 
 
 export function test_getStatvfs() {
     const PATHS_OK = [ './', '/', '/bin/' ];
-    const PATHS_ERR = [ '', '/aaaaaaaaaaaaaaaaaaaaaaaaaaaaa', [ 'a', 3.14 ], { path: '/dev/null' }, null, true, false, undefined, 0, -1, 800 ];
+    const PATHS_ERR = [ ...test.CLASSIC_FAILS, '/aaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbb/ccccccccccccccccccccccc' ];
     let errs = 0;
 
     for (let p in PATHS_OK) {
         const result = zos.getStatvfs(PATHS_OK[p]);
-        print.conditionally(result[1] == 0, `zos.getStatvfs(${PATHS_OK[p]})=${result[1]}`);
-        if (result[1] != 0) {
-            errs++;
-        }
-        if (result[0]) {
-            console.log(`Stats=${JSON.stringify(result[0])}`);
-        }
+        errs += print.conditionally(result[1] == 0, 'zos.getStatvfs', PATHS_OK[p], result);
     }
 
     for (let p in PATHS_ERR) {
         const result = zos.getStatvfs(PATHS_ERR[p]);
-        print.conditionally(result[1] != 0, `zos.getStatvfs(${PATHS_ERR[p]})=${result[1]}`);
-        if (result[1] == 0) {
-            errs++;
-        }
+        errs += print.conditionally(result[1] != 0, 'zos.getStatvfs', PATHS_ERR[p], result[1]);
     }
+
     return { errors: errs, total: PATHS_ERR.length + PATHS_OK.length };
 }

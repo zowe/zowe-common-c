@@ -40,8 +40,20 @@ export function cyan(msg) {
     color(CYAN, msg);
 }
 
-export function conditionally(condition, ...msg) {
-    console.log(`${condition ? GREEN : RED}` + msg + RESET);
+export function conditionally(condition, functionTested, parm, result, additionalInfo) {
+    if (typeof parm == 'object') {
+        parm = JSON.stringify(parm);
+    }
+    if (typeof result == 'object') {
+        result = JSON.stringify(result);
+    }
+    if (!additionalInfo) {
+        additionalInfo = '';
+    } else {
+        additionalInfo = `[${additionalInfo}]`;
+    }
+    console.log(`${condition ? GREEN : RED}` + `${functionTested}("${parm}")=${result} ${additionalInfo}` + RESET);
+    return + !condition;
 }
 
 export function lines(clr, msg) {

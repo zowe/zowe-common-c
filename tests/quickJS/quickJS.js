@@ -11,33 +11,22 @@
 
 import * as std from 'cm_std';
 import * as print from './lib/print';
-import * as testZos from './testLib/testZos';
-
-const TEST_ZOS = [
-    testZos.test_changeTag,
-    testZos.test_changeExtAttr,
-    testZos.test_changeStreamCCSID,
-    testZos.test_zstat,
-    testZos.test_getZosVersion,
-    testZos.test_getEsm,
-    testZos.test_dslist,
-    testZos.test_resolveSymbol,
-    testZos.test_getStatvfs,
-]
-
-const TESTS = [
-    ...TEST_ZOS
-]
+import * as testSet from './testSet';
 
 let result = {};
 let errors = 0;
 let total = 0;
 
-for (let testFunction in TESTS) {
-    result = TESTS[testFunction]();
+const loopStart = Date.now();
+for (let testFunction in testSet.TESTS) {
+    result = testSet.TESTS[testFunction]();
     errors += result.errors;
     total += result.total;
 }
+const loopEnd = Date.now();
+
+const timeDiff = loopEnd-loopStart;
+print.cyan(`\nTime elapsed ${timeDiff} ms.`);
 
 if (errors) {
     print.lines(print.RED, `${errors} error${errors == 1 ? '' : 's'} detected in ${total} tests, review the test output.`);
