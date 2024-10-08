@@ -12,7 +12,7 @@
 #######################################################################
 
 if [ `uname` != "OS/390" ]; then
-    echo "This test must run on a z/OS system."
+    echo "Error: this test must run on a z/OS system."
     exit 1
 fi
 
@@ -32,6 +32,6 @@ fi
 if [ -f "${configmgr_path}" ]; then
     "${configmgr_path}" -script ./quickJS.js
 else
-    echo "configmgr not found in '${configmgr_path}'"
+    echo "Error: configmgr not found in '${configmgr_path}'"
     exit 4
 fi

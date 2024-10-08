@@ -20,7 +20,7 @@ import * as test from '../lib/test';
 
 export function test_changeTag() {
     let errs;
-    const FAILS = [ ...test.CLASSIC_FAILS, 
+    const FAILS = [ ...test.CLASSIC_FAILS,
         './file, which does not exit', ['./file, which does not exit', 250000 ],
     ]
     const FINES = [
@@ -36,19 +36,21 @@ export function test_changeTag() {
 }
 
 
-// int status = changeExtendedAttributes(pathname, extattr, onOffInt ? true : false);
 export function test_changeExtAttr() {
-    const result = zos.changeExtAttr('./');
-    print.purple(`DUMMY TEST: zos.changeExtAttr(./)=${result}`);
-    return { errors: 0, total: 0 }
+    const FINES = [
+        ['./testLib/hello.txt', zos.EXTATTR_PROGCTL, true ],
+        ['./testLib/hello.txt', zos.EXTATTR_PROGCTL, false ],
+     ]
+    let errs = test.process(zos.changeExtAttr, test.CLASSIC_FAILS, -1, 'zos.changeExtAttr');
+    errs += test.process(zos.changeExtAttr, FINES, 0, 'zos.changeExtAttr');
+    return { errors: errs, total: test.CLASSIC_FAILS.length + FINES.length }
 }
 
 
-// int status = convertOpenStream(fd, ccsid);
 export function test_changeStreamCCSID() {
-    const result = zos.changeStreamCCSID('./');
-    print.purple(`DUMMY TEST: zos.changeStreamCCSID(./)=${result}`);
-    return { errors: 0, total: 0 }
+    const FAILS = [ -2, -1, 999999999, 1024*1024 ];
+    const errs = test.process(zos.changeStreamCCSID, FAILS, -1, 'zos.changeStreamCCSID');
+    return { errors: errs, total: FAILS.length }
 }
 
 
@@ -64,7 +66,7 @@ export function test_zstat() {
         const result = zos.zstat(FINES[f]);
         errs += print.conditionally(result[1] == 0, 'zos.zstat', FINES[f], result);
     }
-    return { errors: errs, total: FAILS.length }
+    return { errors: errs, total: FAILS.length + FINES.length }
 }
 
 

@@ -168,7 +168,9 @@ rm -rf "${TMP_DIR}"
 
 if [ "${1}" = "--test" ]; then
   if [ -f "${COMMON}/bin/configmgr" ]; then
-    "${COMMON}/bin/configmgr" -script "${COMMON}/tests/quickJS/quickJS.js"
+    cd "${COMMON}/tests/quickJS/"
+    ./run_test.sh
+    cd "${WORKING_DIR}"
     echo
   fi
 fi
