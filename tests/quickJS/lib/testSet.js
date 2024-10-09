@@ -9,7 +9,7 @@
 // Copyright Contributors to the Zowe Project.
 */
 
-import * as testZos from './testLib/testZos'
+import * as testZos from '../testLib/testZos'
 
 export const TEST_ZOS = [
     testZos.test_changeTag,

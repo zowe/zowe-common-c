@@ -11,7 +11,7 @@
 
 import * as std from 'cm_std';
 import * as print from './lib/print';
-import * as testSet from './testSet';
+import * as testSet from './lib/testSet';
 
 let result = {};
 let errors = 0;
