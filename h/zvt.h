@@ -85,7 +85,8 @@ typedef struct ZVT_tag {
   uint16_t asid;
   char reserved22[6];
   PAD_LONG(9, void *cmsLookupRoutine); /* points at another page in 31-common */
-  char reserved3[104];
+  PAD_LONG(10, void *moduleRegistry);  /* points at the module registry */
+  char reserved3[96];
 
   struct {
     PAD_LONG(10, ZVTEntry *zis);
