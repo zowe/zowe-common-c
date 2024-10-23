@@ -2,6 +2,7 @@
 
 ## `3.1.0`
 - Bugfix: removed "ByteOutputStream" debug message, which was part of the `zwe` command output (#491)
+- Bugfix: HEAPPOOLS and HEAPPOOLS64 no longer need to be set to OFF for configmgr (#497)
 
 ## `3.0.0`
 - Feature: added javascript `zos.getStatvfs(path)` function to obtain file system information (#482).
