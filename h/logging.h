@@ -22,6 +22,30 @@
 #include "collections.h"
 #include "le.h"
 
+#define ZOWELOG_SEVERE($id, $fmt, ...) \
+  zowelog2(NULL, $id, ZOWE_LOG_SEVERE, \
+          __FILE__, __FUNCTION__, __LINE__, NULL, $fmt, ##__VA_ARGS__)
+
+#define ZOWELOG_WARNING($id, $fmt, ...) \
+  zowelog2(NULL, $id, ZOWE_LOG_WARNING, \
+          __FILE__, __FUNCTION__, __LINE__, NULL, $fmt, ##__VA_ARGS__)
+
+#define ZOWELOG_INFO($id, $fmt, ...) \
+  zowelog2(NULL, $id, ZOWE_LOG_INFO, \
+          __FILE__, __FUNCTION__, __LINE__, NULL, $fmt, ##__VA_ARGS__)
+
+#define ZOWELOG_DEBUG($id, $fmt, ...) \
+  zowelog2(NULL, $id, ZOWE_LOG_DEBUG, \
+          __FILE__, __FUNCTION__, __LINE__, NULL, $fmt, ##__VA_ARGS__)
+
+#define ZOWELOG_DEBUG2($id, $fmt, ...) \
+  zowelog2(NULL, $id, ZOWE_LOG_DEBUG2, \
+          __FILE__, __FUNCTION__, __LINE__, NULL, $fmt, ##__VA_ARGS__)
+
+#define ZOWELOG_DEBUG3($id, $fmt, ...) \
+  zowelog2(NULL, $id, ZOWE_LOG_DEBUG3, \
+          __FILE__, __FUNCTION__, __LINE__, NULL, $fmt, ##__VA_ARGS__)
+
 /** \file
  *  \brief logging.h defines a platform-independent logging facility that echoes some of Java logging.
  *  
@@ -46,6 +70,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define RC_LOG_ERROR    8
 
 #define ZOWE_LOG_NA      -1
+
 #define ZOWE_LOG_SEVERE   0
 #define ZOWE_LOG_ALWAYS   0
 #define ZOWE_LOG_WARNING  1
@@ -131,11 +156,23 @@ typedef struct LogComponentsMap_tag {
 
 struct LoggingContext_tag;
 
-typedef void (*LogHandler)(struct LoggingContext_tag *context,
+typedef void (*LogHandler2)(struct LoggingContext_tag *context,
                            LoggingComponent *component, 
                            void *data, 
                            char *formatString,
-                           va_list argList);
+                           va_list argList,
+                           int logLevel,
+                           char *fileName,
+                           char *functionName,
+                           unsigned int lineNumber,
+                           const char *serviceName);
+
+typedef void (*LogHandler)(struct LoggingContext_tag *context,
+                            LoggingComponent *component, 
+                            void *data, 
+                            char *formatString,
+                            va_list argList);
+
 typedef char *(*DataDumper)(char *workBuffer, int workBufferSize, void *data, int dataSize, int lineNumber);
 
 ZOWE_PRAGMA_PACK
@@ -148,6 +185,7 @@ typedef struct LoggingDestination_tag{
   void  *data;          /* used by destination to hold internal state */
   LogHandler handler;
   DataDumper dumper;
+  LogHandler2 handler2;
 } LoggingDestination;
 
 #define MAX_LOGGING_COMPONENTS 256
@@ -255,9 +293,12 @@ extern LoggingContext *theLoggingContext;
 #define getLoggingContext GTLOGCTX
 #define setLoggingContext STLOGCTX
 #define zowelog ZOWELOG
+#define zowelog2 ZOWELOG2
 #define zowedump ZOWEDUMP
+#define zowedump2 ZOWEDUM2
 #define logConfigureDestination LGCFGDST
 #define logConfigureDestination2 LGCFGDS2
+#define logConfigureDestination3 LGCFGDS3
 #define logConfigureStandardDestinations LGCFGSTD
 #define logConfigureComponent LGCFGCMP
 #define logSetLevel LGSETLVL
@@ -267,6 +308,8 @@ extern LoggingContext *theLoggingContext;
 #define logSetExternalContext LGSLOGCX
 #define printStdout LGPRSOUT
 #define printStderr LGPRSERR
+#define printStdout2 LGPROUT2
+#define printStderr2 LGPRERR2
 
 #endif 
 
@@ -335,7 +378,9 @@ bool logShouldTraceInternal(LoggingContext *context, uint64 componentID, int lev
  */
 
 void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...);
+void zowelog2(LoggingContext *context, uint64 compID, int level, char *fileName, char *functionName, unsigned int lineNumber, const char *serviceName, char *formatString, ...);
 void zowedump(LoggingContext *context, uint64 compID, int level, void *data, int dataSize);
+void zowedump2(LoggingContext *context, uint64 compID, int level, void *data, int dataSize, char *fileName, char *functionName, unsigned int lineNumber, const char *serviceName);
 
 #define LOGCHECK(context,component,level) \
   ((component > MAX_LOGGING_COMPONENTS) ? \
@@ -355,6 +400,14 @@ LoggingDestination *logConfigureDestination2(LoggingContext *context,
                                              LogHandler handler,
                                              DataDumper dumper);
 
+LoggingDestination *logConfigureDestination3(LoggingContext *context,
+                                             unsigned int id,
+                                             char *name,
+                                             void *data,
+                                             LogHandler handler,
+                                             DataDumper dumper,
+                                             LogHandler2 handler2);
+
 void logConfigureStandardDestinations(LoggingContext *context);
 void logConfigureComponent(LoggingContext *context, 
                            uint64 compID,
@@ -369,7 +422,9 @@ extern int logSetExternalContext(LoggingContext *context);
 extern LoggingContext *logGetExternalContext();
 
 void printStdout(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList);
+void printStdout2(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList, int logLevel, char *fileName, char *functionName, unsigned int lineNumber, const char *serviceName);
 void printStderr(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList);
+void printStderr2(LoggingContext *context, LoggingComponent *component, void *data, char *formatString, va_list argList, int logLevel, char *fileName, char *functionName, unsigned int lineNumber, const char *serviceName);
 
 #endif
 
