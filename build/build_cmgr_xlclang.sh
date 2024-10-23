@@ -166,6 +166,14 @@ xlclang \
 
 rm -rf "${TMP_DIR}"
 
+if [ "${1}" = "--test" ]; then
+  if [ -f "${COMMON}/bin/configmgr" ]; then
+    cd "${COMMON}/tests/quickJS/"
+    ./run_test.sh
+    cd "${WORKING_DIR}"
+    echo
+  fi
+fi
 
 # This program and the accompanying materials are
 # made available under the terms of the Eclipse Public License v2.0 which accompanies
