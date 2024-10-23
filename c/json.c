@@ -48,6 +48,8 @@
 #include "unixfile.h"
 #include "json.h"
 #include "charsets.h"
+#include "logging.h"
+
 
 #ifdef __ZOWE_OS_WINDOWS
 typedef int64_t ssize_t;
@@ -77,19 +79,7 @@ ssize_t write(int fd, const void *buf, size_t count);
 #  define SOURCE_CODE_CHARSET CCSID_UTF_8
 #endif
 
-#define JSON_DEBUG(...) /* fprintf(stderr, __VA_ARGS__) */
 #define DUMPBUF($b, $l) /* dumpBufferToStream($b, $l, stderr) */
-
-/* JOE ERROR() is a defined macro in windows, so it needs a more specific name here */
-
-#ifdef METTLE
-#  define JSONERROR(...) /* TODO */
-#else
-/* TODO Implement good error handling: the caller must have a way to know if
- * an error happened. Most methods currently are void and there's no error
- * flag on the printer structure */
-#  define JSONERROR(...) fprintf(stderr, __VA_ARGS__)
-#endif
 
 static
 void jsonWriteEscapedString(jsonPrinter *p, char *s, int len);
@@ -185,7 +175,7 @@ void jsonWriteBufferInternal(jsonPrinter *p, char *text, int len) {
   if (jsonShouldStopWriting(p)) {
     return;
   }
-  JSON_DEBUG("write buffer internal: text at %p, len %d\n", text, len);
+  zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_DEBUG, "write buffer internal: text at %p, len %d\n", text, len);
   DUMPBUF(text, len);
   if (p->isCustom) {
     p->customWrite(p, text, len);
@@ -198,7 +188,7 @@ void jsonWriteBufferInternal(jsonPrinter *p, char *text, int len) {
       } else if (p->fd == _fileno(stderr)){
         newWriteReturn = fwrite(text, 1, len, stderr);
       } else {
-        JSONERROR("JSON: can only write to stderr or stdout on Windows, not p->fd=%d\n",p->fd);
+        zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_SEVERE, "JSON: can only write to stderr or stdout on Windows, not p->fd=%d\n",p->fd);
         jsonSetIOErrorFlag(p);
       }
 #elif !defined(METTLE)
@@ -209,15 +199,13 @@ void jsonWriteBufferInternal(jsonPrinter *p, char *text, int len) {
 #endif
       loopCount++;
       if (newWriteReturn < 0) {
-        /* TODO: Replace by zowelog(...) */
-        JSONERROR("JSON: write error, rc %d, return code %d, reason code %08X\n",
+        zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_SEVERE, "JSON: write error, rc %d, return code %d, reason code %08X\n",
               newWriteReturn, returnCode, reasonCode);
         jsonSetIOErrorFlag(p);
         break;
       }
       if (loopCount > 10) {
-        /* TODO: Replace by zowelog(...) */
-        JSONERROR("JSON: write error, too many attempts\n");
+        zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_SEVERE, "JSON: write error, too many attempts\n");
         jsonSetIOErrorFlag(p);
         break;
       }
@@ -276,7 +264,7 @@ convertToUtf8(jsonPrinter *p, size_t len, char text[len], int inputCCSID) {
           p->_conversionBufferSize, "JSON conversion buffer");
       if (newBuf == NULL) {
         /* the old buffer will be free'd by freeJsonPrinter() if allocated */
-        JSONERROR("JSON: error, not enough memory to convert\n");
+        zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_SEVERE, "JSON: error, not enough memory to convert\n");
         return -1;
       }
       p->_conversionBufferSize = newSize;
@@ -288,14 +276,14 @@ convertToUtf8(jsonPrinter *p, size_t len, char text[len], int inputCCSID) {
     if (convRc == CHARSET_CONVERSION_SUCCESS) {
       return  convesionOutputLength;
     } else if (convRc != CHARSET_SHORT_BUFFER) {
-      JSONERROR("JSON: conversion error, rc %d, reason %d\n", convRc,
+      zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_SEVERE, "JSON: conversion error, rc %d, reason %d\n", convRc,
               reasonCode);
       return -1;
     }
   } while (reallocLimit-- > 0);
   if (reallocLimit == 0) {
     //the old buffer will be free'd by freeJsonPrinter() if allocated
-    JSONERROR("JSON: error, not enough memory to convert\n");
+    zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_SEVERE, "JSON: error, not enough memory to convert\n");
     return -1;
   }
   return len;
@@ -322,11 +310,11 @@ writeBufferWithEscaping(jsonPrinter *p, size_t len, char text[len]) {
 
     UTF8_GET_NEXT_CHAR(len, text, &i, &utf8Char, &getCharErr);
     if (getCharErr != 0) {
-      JSONERROR("JSON: invalid UTF-8, rc %d\n", getCharErr);
+      zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_SEVERE, "JSON: invalid UTF-8, rc %d\n", getCharErr);
       return -1;
     }
 
-    JSON_DEBUG("character at %p + %d, len %d, char %x\n", text, i, len, utf8Char);
+    zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_DEBUG, "character at %p + %d, len %d, char %x\n", text, i, len, utf8Char);
     if ((utf8Char <= effectiveControlCharBoundary) ||
         (utf8Char == UTF8_BACKSLASH) || 
         (utf8Char == UTF8_QUOTE)) {
@@ -359,7 +347,7 @@ writeBufferWithEscaping(jsonPrinter *p, size_t len, char text[len]) {
               CHARSET_OUTPUT_USE_BUFFER, &ptrToUtf8Buf, sizeof (escapeUtf),
               CCSID_UTF_8, NULL, &convesionOutputLength, &reasonCode);
           if (convRc != CHARSET_CONVERSION_SUCCESS) {
-            JSONERROR("JSON: conversion error, rc %d, reason %d\n",
+            zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_SEVERE, "JSON: conversion error, rc %d, reason %d\n",
                     convRc, reasonCode);
             return -1;
           }
@@ -391,15 +379,15 @@ void jsonConvertAndWriteBuffer(jsonPrinter *p, char *text, size_t len,
     if (inputCCSID != CCSID_UTF_8) {
       ssize_t newLen;
 
-      JSON_DEBUG("before conversion, len %d:\n", len);
+      zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_DEBUG, "before conversion, len %d:\n", len);
       DUMPBUF(text, len);
       newLen = convertToUtf8(p, len, text, inputCCSID);
       if (newLen < 0) {
-        JSONERROR("jsonConvertAndWriteBuffer() error: newLen = %d\n",
+        zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_SEVERE, "jsonConvertAndWriteBuffer() error: newLen = %d\n",
                   (int)newLen);
         return;
       }
-      JSON_DEBUG("utf8, len %d:\n", newLen);
+      zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_DEBUG, "utf8, len %d:\n", newLen);
       text = p->_conversionBuffer;
       len = newLen;
       DUMPBUF(text, len);
@@ -407,7 +395,7 @@ void jsonConvertAndWriteBuffer(jsonPrinter *p, char *text, size_t len,
     if (escape) {
       ssize_t bytesWritten = writeBufferWithEscaping(p, len, text);
       if (bytesWritten < 0){
-        JSONERROR("jsonConvertAndWriteBuffer() error: bytesWritten = %zd\n",
+        zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_SEVERE, "jsonConvertAndWriteBuffer() error: bytesWritten = %zd\n",
                 bytesWritten);
         return;
       }
@@ -1178,13 +1166,18 @@ int jsonTokenizerLookahead(JsonTokenizer *t) {
 
 static 
 void jsonTokenizerSkipWhitespace(JsonTokenizer *t) {
-  while (TRUE) {
+  int loop = 0;
+  while (loop < 1024) {
     char c = jsonTokenizerLookahead(t);
     if (isspace(c)) {
       jsonTokenizerRead(t);
     } else {
       break;
     }
+    loop++;
+  }
+  if (loop>=1024) {
+    zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_SEVERE, "Loop caught in jsonTokenizerSkipWhitespace\n");
   }
 }
 
@@ -1792,6 +1785,9 @@ static Json *jsonGetObject(JsonParser* parser) {
       if (jsonIsTokenUnmatched(colonToken)) {
         return parser->jsonError;
       }
+
+      zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_DEBUG, "json parse object key=%s\n", keyToken->text);
+
       Json *valueJSON = jsonParse(parser);
       if (jsonIsError(valueJSON)) {
         return parser->jsonError;
@@ -2482,10 +2478,7 @@ static Json *jsonParseFileInternal(ShortLivedHeap *slh, const char *filename, ch
   UnixFile *file = NULL;
   int fileLen = 0;
 
-  /* 
-     printf("JOE jsonParseFile\n");
-     fflush(stdout);
-  */
+  zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_DEBUG, "JSON parse file=%s\n",filename);
 
   file = fileOpen(filename, FILE_OPTION_READ_ONLY, 0, 1024, &returnCode, &reasonCode);
   status = fileInfo(filename, &info, &returnCode, &reasonCode);
@@ -2627,7 +2620,7 @@ static void copyJson(JsonBuilder *builder, Json *parent, char *parentKey, Json *
     char *s = jsonAsString(json);
     jsonBuildString(builder,parent,parentKey,s,strlen(s),&errorCode);
   } else {
-    JSONERROR("*** PANIC *** unexpected json type %d\n",json->type);
+    zowelog(NULL, LOG_COMP_JSON, ZOWE_LOG_SEVERE, "*** PANIC *** unexpected json type %d\n",json->type);
     return;
   }
 }
