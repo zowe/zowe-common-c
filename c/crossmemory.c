@@ -42,6 +42,7 @@
 #include "stcbase.h"
 #include "utils.h"
 #include "zvt.h"
+#include "modreg.h"
 
 #define CMS_STATIC_ASSERT($expr) typedef char p[($expr) ? 1 : -1]
 
@@ -367,6 +368,8 @@ void cmsInitializeLogging() {
   logConfigureComponent(NULL, LOG_COMP_STCBASE, "STCBASE", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
   logConfigureComponent(NULL, LOG_COMP_ID_CMS, "CIDB", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
   logConfigureComponent(NULL, LOG_COMP_ID_CMSPC, "CIDB CM", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
+  logConfigureComponent(NULL, LOG_COMP_LPA, "LPA", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
+  logConfigureComponent(NULL, LOG_COMP_MODREG, "MODREG", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
   printf("DATESTAMP              JOBNAME  ASCB    (ASID) TCB       MSGID     MSGTEXT\n");
 
 }
@@ -2442,6 +2445,8 @@ CrossMemoryServer *makeCrossMemoryServer2(
     logSetLevel(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG);
     logSetLevel(NULL, LOG_COMP_ID_CMSPC, ZOWE_LOG_DEBUG);
     logSetLevel(NULL, LOG_COMP_STCBASE, ZOWE_LOG_DEBUG);
+    logSetLevel(NULL, LOG_COMP_LPA, ZOWE_LOG_DEBUG);
+    logSetLevel(NULL, LOG_COMP_MODREG, ZOWE_LOG_DEBUG);
   }
 
   EightCharString cmsModule = {0};
@@ -2481,6 +2486,10 @@ CrossMemoryServer *makeCrossMemoryServer2(
 
   if (flags & CMS_SERVER_FLAG_RESET_LOOKUP) {
     server->flags |= CROSS_MEMORY_SERVER_FLAG_RESET_LOOKUP;
+  }
+
+  if (flags & CMS_SERVER_FLAG_USE_MODREG) {
+    server->flags |= CROSS_MEMORY_SERVER_FLAG_USE_MODREG;
   }
 
   int allocResourcesRC = allocServerResources(server);
@@ -3388,17 +3397,41 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
   globalArea->serverFlags |= server->flags;
   globalArea->serverASID = getMyPASID();
 
-  /* Load the module to LPA if needed, otherwise re-use the existing module. */
+  const char *statusText = "n/a";
+  /* Register the module or load it to LPA if needed, otherwise re-use the
+   * existing module. */
   if (moduleAddressLPA == NULL) {
-
-    int lpaAddRSN = 0;
-    int lpaAddRC = lpaAdd(&server->lpaCodeInfo, &server->ddname, &server->dsname,
-                          &lpaAddRSN);
-    if (lpaAddRC != 0) {
-      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_LPA_LOAD_FAILURE_MSG, lpaAddRC, lpaAddRSN);
-      return RC_CMS_LPA_ADD_FAILED;
+    /* Load to the LPA manually only if the "clean LPA" (dev mode) is enabled
+     * or the "use module registry" option is disabled. */
+    if (server->flags & CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA ||
+        !(server->flags & CROSS_MEMORY_SERVER_FLAG_USE_MODREG)) {
+      int lpaAddRSN = 0;
+      int lpaAddRC = lpaAdd(&server->lpaCodeInfo, &server->ddname,
+                            &server->dsname, &lpaAddRSN);
+      if (lpaAddRC == 0) {
+        statusText = "own instance loaded to LPA";
+      } else {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+                CMS_LOG_LPA_LOAD_FAILURE_MSG, lpaAddRC, lpaAddRSN);
+        return RC_CMS_LPA_ADD_FAILED;
+      }
+    } else {
+      uint64_t modregRSN;
+      int modregRC = modregRegister(server->ddname, server->dsname,
+                                    &server->lpaCodeInfo, &modregRSN);
+      if (modregRC == RC_MODREG_OK) {
+        statusText = "new instance added to registry";
+      } else if (modregRC == RC_MODREG_ALREADY_REGISTERED) {
+        statusText = "instance reused from registry";
+      } else {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+                CMS_LOG_MODREG_ADD_FAILURE_MSG, modregRC, modregRSN);
+        return RC_CMS_MODREG_FAILED;
+      }
     }
     globalArea->lpaModuleInfo = server->lpaCodeInfo;
+    moduleAddressLPA =
+        server->lpaCodeInfo.outputInfo.stuff.successInfo.loadPointAddr;
 
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID
             " module successfully loaded into LPA @ 0x%p, LPMEA:\n",
@@ -3408,6 +3441,7 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
 
   } else {
 
+    statusText = "previously added/loaded instance reused";
     server->lpaCodeInfo = globalArea->lpaModuleInfo;
 
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID
@@ -3417,9 +3451,11 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
 
   }
 
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_MODULE_STATUS_MSG,
+          statusText, moduleAddressLPA);
+
   /* The required module is in LPA, update the corresponding fields. */
   globalArea->lpaModuleTimestamp = getServerBuildTimestamp();
-  moduleAddressLPA = server->lpaCodeInfo.outputInfo.stuff.successInfo.loadPointAddr;
   server->moduleAddressLPA = moduleAddressLPA;
 
   /* Prepare the service table */
@@ -4924,6 +4960,8 @@ static int testEnvironment(const CrossMemoryServer *srv) {
 #define STCBASE_SHUTDOWN_DELAY_IN_SEC       5
 
 int cmsStartMainLoop(CrossMemoryServer *srv) {
+
+  MODREG_MARK_MODULE();
 
   int envStatus = testEnvironment(srv);
   if (envStatus != 0) {
