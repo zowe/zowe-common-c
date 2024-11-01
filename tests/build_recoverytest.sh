@@ -99,6 +99,21 @@ xlc -D_OPEN_THREADS=1 "-Wa,goff" "-Wc,LANGLVL(EXTC99),FLOAT(HEX),agg,exp,list(),
 ../c/zos.c
 
 
+xlc -D_OPEN_THREADS=1 "-Wa,goff" "-Wc,XPLINK,LANGLVL(EXTC99),FLOAT(HEX),agg,exp,list(),so(),goff,xref,gonum,roconst,gonum,ASM,ASMLIB('SYS1.MACLIB'),ASMLIB('CEE.SCEEMAC')" '-Wl,ac=1' \
+-DRCVR_CPOOL_STATES \
+-I ../h -o recoverytest31_xplink recoverytest.c \
+../c/alloc.c \
+../c/cellpool.c \
+../c/collections.c \
+../c/le.c \
+../c/logging.c \
+../c/recovery.c \
+../c/scheduling.c \
+../c/timeutls.c \
+../c/utils.c \
+../c/zos.c
+
+
 xlc -D_OPEN_THREADS=1 "-Wa,goff" "-Wc,LP64,XPLINK,LANGLVL(EXTC99),FLOAT(HEX),agg,exp,list(),so(),goff,xref,gonum,roconst,gonum,ASM,ASMLIB('SYS1.MACLIB'),ASMLIB('CEE.SCEEMAC')" '-Wl,ac=1' \
 -DRCVR_CPOOL_STATES \
 -I ../h -o recoverytest64 recoverytest.c \

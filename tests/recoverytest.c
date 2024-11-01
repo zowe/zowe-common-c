@@ -85,6 +85,11 @@ LE 31-bit:
 xlc -D_OPEN_THREADS=1 "-Wa,goff" "-Wc,LANGLVL(EXTC99),FLOAT(HEX),agg,exp,list(),so(),goff,xref,gonum,roconst,gonum,ASM,ASMLIB('SYS1.MACLIB'),ASMLIB('CEE.SCEEMAC')" '-Wl,ac=1' \
 -I ../h -o recoverytest recoverytest.c ../c/alloc.c ../c/collections.c ../c/le.c ../c/logging.c ../c/recovery.c ../c/scheduling.c ../c/timeutls.c ../c/utils.c ../c/zos.c
 
+LE 31-bit XPLINK:
+
+xlc -D_OPEN_THREADS=1 "-Wa,goff" "-Wc,LANGLVL(EXTC99),FLOAT(HEX),agg,exp,list(),so(),goff,xref,gonum,roconst,gonum,ASM,ASMLIB('SYS1.MACLIB'),ASMLIB('CEE.SCEEMAC')" '-Wl,ac=1' \
+-I ../h -o recoverytest recoverytest.c ../c/alloc.c ../c/collections.c ../c/le.c ../c/logging.c ../c/recovery.c ../c/scheduling.c ../c/timeutls.c ../c/utils.c ../c/zos.c
+
 LE 64-bit:
 
 xlc -D_OPEN_THREADS=1 "-Wa,goff" "-Wc,LP64,XPLINK,LANGLVL(EXTC99),FLOAT(HEX),agg,exp,list(),so(),goff,xref,gonum,roconst,gonum,ASM,ASMLIB('SYS1.MACLIB'),ASMLIB('CEE.SCEEMAC')" '-Wl,ac=1' \
@@ -434,6 +439,15 @@ static void *thread2(void *data) {
   return NULL;
 }
 
+static int testXPLINKStackInterrupt(void) {
+  // this should trigger LE's stack interrupt, so we're making sure our
+  // recovery doesn't interfere with it
+#define STACK_BUFFER_SIZE (32 * 1024 * 1024)
+  int stackBuffer[STACK_BUFFER_SIZE] = {0};
+  stackBuffer[STACK_BUFFER_SIZE - 1] = (int)stackBuffer;
+  stackBuffer[STACK_BUFFER_SIZE - 1]++;
+  return stackBuffer[STACK_BUFFER_SIZE - 1];
+}
 
 int main() {
 #ifdef METTLE
@@ -459,6 +473,10 @@ int main() {
     pushRC = recoveryPush("state01", RCVR_FLAG_RETRY, "Recovery test #1",
                           printMessage, "top level recovery",
                           NULL, NULL);
+
+#ifdef __XPLINK__
+    printf("xplink call result value = %d\n", testXPLINKStackInterrupt());
+#endif
 
     if (pushRC != RC_RCV_OK) {
       printf("warn: something went wrong #1\n");
