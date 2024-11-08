@@ -4,12 +4,13 @@
 - Bugfix: removed "ByteOutputStream" debug message, which was part of the `zwe` command output (#491)
 - Bugfix: HEAPPOOLS and HEAPPOOLS64 no longer need to be set to OFF for configmgr (#497)
 - Enhancement: module registry (#405)
+- Enhancement:  Adding more arguments to httpClientSessionInit to allow passing back internal rc and
+  removing the reference from changelog in `3.0.0`. (#499).
 
 ## `3.0.0`
 - Feature: added javascript `zos.getStatvfs(path)` function to obtain file system information (#482).
 - Add support for LE 64-bit in isgenq.c (#422).
 - Bugfix: IARV64 results must be checked for 0x7FFFF000 (#474)
-- Adding more arguments to httpClientSessionInit to allow passing back rc (#467).
 - Bugfix: SLH should not ABEND when MEMLIMIT is reached (additional NULL check)
 - Bugfix: support cross-memory server parameters longer than 128 characters 
   (zowe/zss#684)
