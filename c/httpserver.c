@@ -3312,6 +3312,10 @@ static int serviceAuthWithJwt(HttpService *service,
                               HttpResponse *response) {
   HttpHeader *const authorizationHeader = getHeader(request, "Authorization");
   char *jwtTokenText = getCookieValue(request,JWT_COOKIE_NAME);
+  char *jwtCookieName = service->server->config->jwtCookieUniqueName;
+  if (jwtCookieName == NULL) {
+    jwtCookieName = JWT_COOKIE_NAME;
+  }
 
   AUTH_TRACE("serviceAuthWithJwt: authenticationHeader 0x%p,"
       " extractFunction 0x%p\n",
@@ -3384,9 +3388,9 @@ static int serviceAuthWithJwt(HttpService *service,
     }
     strcpy(request->username, jwt->subject);
     int jwtLen = strlen(jwtTokenText);
-    int jwtCookieLen = JWT_COOKIE_NAME_LENGTH + jwtLen + 2; //+1 for '=', +1 for null term
+    int jwtCookieLen = strlen(jwtCookieName) + jwtLen + 2; //+1 for '=', +1 for null term
     char jwtCookie[jwtCookieLen];
-    snprintf(jwtCookie, jwtCookieLen, "%s=%s", JWT_COOKIE_NAME, jwtTokenText);
+    snprintf(jwtCookie, jwtCookieLen, "%s=%s", jwtCookieName, jwtTokenText);
     addStringHeader(response, "Set-Cookie", jwtCookie);
     response->sessionCookie = NULL;
     char *sessionToken = generateSessionTokenKeyValue(service,request,request->username);

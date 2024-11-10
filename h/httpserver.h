@@ -225,6 +225,7 @@ typedef struct HTTPServerConfig_tag {
   hashtable *groupTimeouts;
   int defaultTimeout;
   unsigned int httpRequestHeapMaxBlocks;
+  char *jwtCookieUniqueName;
   /* The config manager is optional, but zss and other servers need 
      a near-global way to get configuration data.
      */
