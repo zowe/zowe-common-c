@@ -1675,7 +1675,7 @@ static int simpleMain(int argc, char **argv){
 
   while (argx < argc){
     char *optionValue = NULL;
-    if (getStringOption(argc,argv,&argx,"-h")){
+    if (strcmp(argv[argx], "-h") == 0) {
       showHelp(traceOut);
       return 0;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-s")) != NULL){
