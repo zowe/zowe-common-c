@@ -29,9 +29,7 @@ if [ -z "${configmgr_path}" ]; then
     configmgr_path="../../../bin/configmgr"
 fi
 
-if [ -f "${configmgr_path}" ]; then
-    "${configmgr_path}" -script ./quickJS.js
-else
+if [ ! -f "${configmgr_path}" ]; then
     echo "Error: configmgr not found in '${configmgr_path}'"
     exit 4
 fi
