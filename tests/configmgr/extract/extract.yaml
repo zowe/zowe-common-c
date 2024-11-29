@@ -21,6 +21,8 @@ test:
     - "${{ 1 + 1 }}"
     - "${{ [ 1, 2, 3 ].toString() }}"
     - ~
+  array4: []
+  array5: [ ~, ~, ~ ]
   error_expected1:
     - 'First item'
     - [ 0, 1 ]
