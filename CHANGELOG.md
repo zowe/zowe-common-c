@@ -1,7 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.1.0`
-- Enhancement: `configmgr extract` option supports simple array (#5??)
+- Enhancement: `configmgr extract` option supports simple array (#502)
 - Bugfix: removed "ByteOutputStream" debug message, which was part of the `zwe` command output (#491)
 - Bugfix: HEAPPOOLS and HEAPPOOLS64 no longer need to be set to OFF for configmgr (#497)
 - Enhancement: module registry (#405)
