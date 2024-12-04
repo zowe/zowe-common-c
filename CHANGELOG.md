@@ -6,6 +6,7 @@
 - Enhancement: module registry (#405)
 - Enhancement:  Adding more arguments to httpClientSessionInit to allow passing back internal rc and
   removing the reference from changelog in `3.0.0`. (#499).
+- Bugfix: make sure CEE3ERP is invoked in LE 31-bit XPLINK (#504)
 
 ## `3.0.0`
 - Feature: added javascript `zos.getStatvfs(path)` function to obtain file system information (#482).
