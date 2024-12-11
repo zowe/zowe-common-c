@@ -470,7 +470,7 @@ static void * __ptr32 getRecoveryRouterAddress() {
       "         USING RCVCTX,11                                                \n"
       "         CLC   RCXEYECT,=C'RSRCVCTX' EYECATHER IS VALID?                \n"
       "         BNE   RCVRET              NO, LEAVE                            \n"
-#if !defined(METTLE) && !defined(__XPLINK__)
+#if !defined(METTLE) && !defined(_LP64)
       /* check if the LE ESTAE needs to handle this */
       "         L     12,RCXCAA           LOAD CAA                             \n"
       "         USING CEECAA,12                                                \n"
