@@ -324,6 +324,16 @@ void cmFree(void *data, unsigned int size, int subpool, int key) {
   cmFree2(&data, size, subpool, key);
 }
 
+void *cmAllocExec(unsigned int size, int subpool, int key) {
+  void *data = NULL;
+  cmAlloc2Exec(size, subpool, key, &data);
+  return data;
+}
+
+void cmFreeExec(void *data, unsigned int size, int subpool, int key) {
+  cmFree2Exec(&data, size, subpool, key);
+}
+
 void cmAlloc2(unsigned int size, int subpool, int key, void **resultPtr) {
 
   *resultPtr = NULL;
@@ -377,6 +387,64 @@ void cmFree2(void **dataPtr, unsigned int size, int subpool, int key) {
       : [size]"NR:r0"(size), [storageAddr]"r"(localData),
         [sp]"r"(subpool), [key]"r"(key)
       : "r0", "r1", "r14", "r15"
+  );
+
+}
+
+void cmAlloc2Exec(unsigned int size, int subpool, int key, void **resultPtr) {
+
+  *resultPtr = NULL;
+  key <<= 4;
+
+  // Note: Used ADDR= option so STORAGE macro stores the address (for use by
+  // recovery) a few instructions sooner than the compiler would.
+#ifndef _LP64
+#define ROFF "0"
+#else
+#define ROFF "4"
+#endif
+
+  __asm(
+      ASM_PREFIX
+      "         STORAGE OBTAIN"
+      ",COND=YES"
+      ",LENGTH=(%[size])"
+      ",ADDR="ROFF"(,%[resultPtr])"
+      ",SP=(%[sp])"
+      ",LOC=31"
+      ",OWNER=SYSTEM"
+      ",KEY=(%[key])"
+      ",EXECUTABLE=YES"
+      ",LINKAGE=SYSTEM                                                         \n"
+      : [result]"=m"(*resultPtr)
+      : [size]"NR:r0"(size), [sp]"r"(subpool), [key]"r"(key),
+        [resultPtr]"r"(resultPtr)
+      : "r1", "r14", "r15"
+  );
+
+
+}
+
+void cmFree2Exec(void **dataPtr, unsigned int size, int subpool, int key) {
+
+  void *localData = *dataPtr;
+  *dataPtr = NULL;
+  key <<= 4;
+
+  __asm(
+      ASM_PREFIX
+      "         STORAGE RELEASE"
+      ",COND=NO"
+      ",LENGTH=(%[size])"
+      ",SP=(%[sp])"
+      ",ADDR=(%[storageAddr])"
+      ",KEY=(%[key])"
+      ",EXECUTABLE=YES"
+      ",LINKAGE=SYSTEM                                                         \n"
+      :
+      : [size]"NR:r0"(size), [storageAddr]"r"(localData),
+        [sp]"r"(subpool), [key]"r"(key)
+      : "r1", "r14", "r15"
   );
 
 }
