@@ -142,7 +142,10 @@
 #define RC_CMS_NO_ROOM_FOR_CMS_GETTER       91
 #define RC_CMS_LANC_NOT_LOCKED              92
 #define RC_CMS_LANC_NOT_RELEASED            93
-#define RC_CMS_MAX_RC                       93
+#define RC_CMS_STDSVC_PARM_BAD_VERSION      94
+#define RC_CMS_CONFIG_VALUE_BUF_TOO_SMALL   95
+#define RC_CMS_MODREG_FAILED                96
+#define RC_CMS_MAX_RC                       96
 
 extern const char *CMS_RC_DESCRIPTION[];
 
@@ -335,6 +338,7 @@ typedef struct CrossMemoryServer_tag {
 #define CROSS_MEMORY_SERVER_FLAG_CHECKAUTH    0x00000010
 #define CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA    0x00000020
 #define CROSS_MEMORY_SERVER_FLAG_RESET_LOOKUP 0x00000040
+#define CROSS_MEMORY_SERVER_FLAG_USE_MODREG   0x00000080
   STCBase * __ptr32 base;
   CMSStarCallback * __ptr32 startCallback;
   CMSStopCallback * __ptr32 stopCallback;
@@ -377,9 +381,11 @@ typedef struct CrossMemoryServerParmList_tag {
   PAD_LONG(1, void *callerData);
 } CrossMemoryServerParmList;
 
+#pragma enum(1)
 typedef enum CrossMemoryServerParmType_tag {
   CMS_CONFIG_PARM_TYPE_CHAR
 } CrossMemoryServerParmType;
+#pragma enum(reset)
 
 #define CMS_CONFIG_PARM_MAX_NAME_LENGTH   72
 #define CMS_CONFIG_PARM_MAX_VALUE_SIZE    128
@@ -393,6 +399,19 @@ typedef struct CrossMemoryServerConfigParm_tag {
     char charValueNullTerm[CMS_CONFIG_PARM_MAX_VALUE_SIZE];
   };
 } CrossMemoryServerConfigParm;
+
+typedef struct CrossMemoryServerConfigParmExt_tag {
+  char eyecatcher[8];
+#define CMS_CONFIG_PARM_EXT_EYECATCHER "RSCMSCFX"
+  uint8_t version;
+#define CMS_CONFIG_PARM_EXT_VERSION 1
+  CrossMemoryServerParmType type;
+  char padding0[2];
+#define CMS_CONFIG_PARM_EXT_MAX_NAME_LENGTH   1024
+#define CMS_CONFIG_PARM_EXT_MAX_VALUE_SIZE    INT32_MAX
+  int32_t valueLength;
+  PAD_LONG(0, void *value);
+} CrossMemoryServerConfigParmExt;
 
 typedef struct CrossMemoryServerStatus_tag {
   int cmsRC;
@@ -424,6 +443,8 @@ ZOWE_PRAGMA_PACK_RESET
 #define cmsHexDump CMHEXDMP
 #define cmsGetConfigParm CMGETPRM
 #define cmsGetConfigParmUnchecked CMGETPRU
+#define cmsGetConfigParmExt CMGETPRX
+#define cmsGetConfigParmExtUnchecked CMGETPUX
 #define cmsGetPCLogLevel CMGETLOG
 #define cmsGetStatus CMGETSTS
 #define cmsMakeServerName CMMKSNAM
@@ -441,6 +462,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define CMS_SERVER_FLAG_DEV_MODE              0x00000008
 #define CMS_SERVER_FLAG_DEV_MODE_LPA          0x00000010
 #define CMS_SERVER_FLAG_RESET_LOOKUP          0x00000020
+#define CMS_SERVER_FLAG_USE_MODREG            0x00000040
 
 #define CMS_SERVICE_FLAG_NONE                 0x00000000
 #define CMS_SERVICE_FLAG_SPACE_SWITCH         0x00000001
@@ -559,6 +581,43 @@ int cmsGetConfigParm(const CrossMemoryServerName *serverName, const char *name,
 int cmsGetConfigParmUnchecked(const CrossMemoryServerName *serverName,
                               const char *name,
                               CrossMemoryServerConfigParm *parm);
+/**
+ * @brief Get a parameter from the cross-memory server's PARMLIB
+ * @param[in] serverName Cross-memory server whose parameter is to be read
+ * @param[in] name Name of the parameter
+ * @param[out] valueBuffer Buffer for the result value
+ * @param[out] valueBufferSize Size of the value buffer
+ * @param[out] parm Result parameter entry
+ * @param[out] rsn Reason code provided by the service in case of a failure
+ * @return RC_CMS_OK in case of success, and one of the RC_CMS_nn values in
+ * case of failure
+ */
+int cmsGetConfigParmExt(const CrossMemoryServerName *serverName,
+                        const char *name,
+                        void *valueBuffer,
+                        int valueBufferSize,
+                        CrossMemoryServerConfigParmExt *parm,
+                        int *rsn);
+
+
+/**
+ * @brief Get a parameter from the cross-memory server's PARMLIB without the
+ * authorization check (the caller must be SUP or system key)
+ * @param[in] serverName Cross-memory server whose parameter is to be read
+ * @param[in] name Name of the parameter
+ * @param[out] valueBuffer Buffer for the result value
+ * @param[out] valueBufferSize Size of the value buffer
+ * @param[out] parm Result parameter entry
+ * @param[out] rsn Reason code provided by the service in case of a failure
+ * @return RC_CMS_OK in case of success, and one of the RC_CMS_nn values in
+ * case of failure
+ */
+int cmsGetConfigParmExtUnchecked(const CrossMemoryServerName *serverName,
+                                 const char *name,
+                                 void *valueBuffer,
+                                 int valueBufferSize,
+                                 CrossMemoryServerConfigParmExt *parm,
+                                 int *rsn);
 
 int cmsGetPCLogLevel(const CrossMemoryServerName *serverName);
 CrossMemoryServerStatus cmsGetStatus(const CrossMemoryServerName *serverName);
@@ -1105,6 +1164,18 @@ typedef struct CMSDynlinkEnv_tag {
 #endif
 #define CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG_TEXT  "Look-up routine anchor discard RC = %d"
 #define CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG       CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG_ID" "CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG_TEXT
+
+#ifndef CMS_LOG_MODULE_STATUS_MSG_ID
+#define CMS_LOG_MODULE_STATUS_MSG_ID            CMS_MSG_PRFX"0258I"
+#endif
+#define CMS_LOG_MODULE_STATUS_MSG_TEXT          "Module status: %s (%p)"
+#define CMS_LOG_MODULE_STATUS_MSG               CMS_LOG_MODULE_STATUS_MSG_ID" "CMS_LOG_MODULE_STATUS_MSG_TEXT
+
+#ifndef CMS_LOG_MODREG_ADD_FAILURE_MSG_ID
+#define CMS_LOG_MODREG_ADD_FAILURE_MSG_ID       CMS_MSG_PRFX"0259E"
+#endif
+#define CMS_LOG_MODREG_ADD_FAILURE_MSG_TEXT     "Module not registered, RC = %d, RSN = 0x%016llX"
+#define CMS_LOG_MODREG_ADD_FAILURE_MSG          CMS_LOG_MODREG_ADD_FAILURE_MSG_ID" "CMS_LOG_MODREG_ADD_FAILURE_MSG_TEXT
 
 #endif /* H_CROSSMEMORY_H_ */
 

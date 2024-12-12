@@ -1,10 +1,12 @@
 name: Build getesm
+permissions:
+  id-token: write
+  issues: write
+  pull-requests: write
+  contents: write
 on:
   push:
-    branches:
-      - v2.x/staging 
-      - v2.x/master
-      - v2.x/rc       
+    branches:   
       - v3.x/staging 
       - v3.x/master
       - v3.x/rc 
@@ -74,11 +76,3 @@ jobs:
           publish-target-path-pattern: libs-snapshot-local/org/zowe/getesm/${{ steps.version.outputs.version }}-${{ steps.branch.outputs.branch }}
           publish-target-file-pattern: getesm-${{ steps.version.outputs.version }}-${{ steps.date.outputs.date }}.pax
           perform-release: ${{ github.event.inputs.PERFORM_RELEASE }}
-          
-      - name: '[Prep Release] Bump version'
-        if: ${{ github.event.inputs.PERFORM_RELEASE == 'true' }}
-        uses: zowe-actions/zlux-builds/bump-zis-version@v2.x/main
-        with:
-          version: 'MINOR'
-        env: 
-         GITHUB_TOKEN: ${{ secrets.ZOWE_ROBOT_TOKEN }}

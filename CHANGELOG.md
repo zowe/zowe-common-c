@@ -1,10 +1,30 @@
 # Zowe Common C Changelog
 
+## `3.1.0`
+- Bugfix: removed "ByteOutputStream" debug message, which was part of the `zwe` command output (#491)
+- Bugfix: HEAPPOOLS and HEAPPOOLS64 no longer need to be set to OFF for configmgr (#497)
+- Enhancement: module registry (#405)
+- Enhancement:  Adding more arguments to httpClientSessionInit to allow passing back internal rc and
+  removing the reference from changelog in `3.0.0`. (#499).
+- Bugfix: make sure CEE3ERP is invoked in LE 31-bit XPLINK (#504)
+
+## `3.0.0`
+- Feature: added javascript `zos.getStatvfs(path)` function to obtain file system information (#482).
+- Add support for LE 64-bit in isgenq.c (#422).
+- Bugfix: IARV64 results must be checked for 0x7FFFF000 (#474)
+- Bugfix: SLH should not ABEND when MEMLIMIT is reached (additional NULL check)
+- Bugfix: support cross-memory server parameters longer than 128 characters 
+  (zowe/zss#684)
+
+## `2.18.0`
+- Minor `components.zss.logLevels._zss.httpserver=5` debug messages enhancement (#471)
+
 ## `2.17.0`
 - Fixed `xplatform.loadFileUTF8` when trying to open nonexistent file (#454)
 - Bugfix: fix an incorrect check in the recovery router code which might lead to
   the state cell-pool being released prematurely (#446)
 - Allocating SLH for http server with configurable value 'httpRequestHeapMaxBlocks' in yaml (#447).
+- Return error when last config file is non existent or has some error (#460).
 
 ## `2.16.0`
 - No yaml value converted to null (#442)

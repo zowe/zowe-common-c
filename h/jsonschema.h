@@ -117,6 +117,7 @@ typedef struct JsonValidator_tag {
   int         fileRegexError;
   jmp_buf     recoveryData;
   ShortLivedHeap *evalHeap;
+  bool        allowStringToBeNull;
 } JsonValidator;
 
 #define JSON_SCHEMA_DRAFT_4 400
