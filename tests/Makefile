@@ -67,7 +67,7 @@ libyaml:
 	git clone git@github.com:yaml/libyaml.git
 
 quickjs-portable:	
-	git clone git@github.com:JoeNemo/quickjs-portable.git
+	git clone -b profiling-portable git@github.com:MarkAckert/quickjs-profiling.git
 
 prepare: libyaml quickjs-portable
 	
