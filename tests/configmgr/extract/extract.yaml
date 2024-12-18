@@ -1,0 +1,33 @@
+test:
+  number1: 0
+  number2: "${{ 9 * 13 }}"
+  number3: 123456789
+  boolean1: false
+  boolean2: "${{ 1 === 1 }}"
+  null1: ~
+  null2: null
+  null3:
+  string1: 'Hello, World!'
+  string2: "${{ 'a'.repeat(16) }}"
+  array1:
+    - 'apple'
+    - 'banana'
+    - 'kiwi'
+  array2: [ 3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5 ]
+  array3:
+    - 'string'
+    - 0
+    - true
+    - "${{ 1 + 1 }}"
+    - "${{ [ 1, 2, 3 ].toString() }}"
+    - ~
+  array4: []
+  array5: [ ~, ~, ~ ]
+  error_expected1:
+    - 'First item'
+    - [ 0, 1 ]
+    - [ 0, 1, 2 ]
+  error_expected2:
+    NESTED:
+      OBJECTS:
+        SUPPORTED: false
