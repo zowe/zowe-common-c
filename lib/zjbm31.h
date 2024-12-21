@@ -7,15 +7,13 @@
 
   Copyright Contributors to the Zowe Project.
 */
-#ifndef ZCNM31_H
-#define ZCNM31_H
+#ifndef ZJBM31_H
+#define ZJBM31_H
 
 #include "zmetal.h"
-#include "zcntype.h"
+#include "zssitype.h"
+#include "zjsytype.h"
 
-int zcnm1act(ZCN *, char[8]) ATTRIBUTE(amode31);
-int zcnm1put(ZCN *, const char *) ATTRIBUTE(amode31);
-int zcnm1get(ZCN *, char *) ATTRIBUTE(amode31,armode);
-int zcnm1dea(ZCN *) ATTRIBUTE(amode31);
+int iazsymbl(JSYMPARM *PTR32) ATTRIBUTE(amode31);
 
 #endif

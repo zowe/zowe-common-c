@@ -7,15 +7,12 @@
 
   Copyright Contributors to the Zowe Project.
 */
-#ifndef ZCNM31_H
-#define ZCNM31_H
+#ifndef ZSSI31_H
+#define ZSSI31_H
 
 #include "zmetal.h"
-#include "zcntype.h"
+#include "zssitype.h"
 
-int zcnm1act(ZCN *, char[8]) ATTRIBUTE(amode31);
-int zcnm1put(ZCN *, const char *) ATTRIBUTE(amode31);
-int zcnm1get(ZCN *, char *) ATTRIBUTE(amode31,armode);
-int zcnm1dea(ZCN *) ATTRIBUTE(amode31);
+int iefssreq(SSOB *PTR32*PTR32) ATTRIBUTE(amode31);
 
 #endif
