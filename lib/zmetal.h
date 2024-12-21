@@ -1,21 +1,13 @@
-/*
-  This program and the accompanying materials are
-  made available under the terms of the Eclipse Public License v2.0 which accompanies
-  this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
-
-  SPDX-License-Identifier: EPL-2.0
-
-  Copyright Contributors to the Zowe Project.
-*/
 #ifndef ZMETAL_H
 #define ZMETAL_H
 
 #if defined(__IBM_METAL__)
 
 // on z
-#define ATTRIBUTE(...) __attribute__((__VA_ARGS__)) // e.g. ATTRIBUTE(amode31, armode)
+#define ATTRIBUTE(...) __attribute__((__VA_ARGS__)) // ATTRIBUTE(amode31)
 #define PTR32 __ptr32
 #define PTR64 __ptr64
+#define FAR __far
 #define ASMREG(register) __asm(register)
 
 #else
@@ -24,6 +16,7 @@
 #define ATTRIBUTE(...)
 #define PTR32
 #define PTR64
+#define FAR
 #define ASMREG(register)
 
 #endif
@@ -51,7 +44,7 @@ typedef struct
   __asm(                                                      \
       "*                                                  \n" \
       " LLGF  0,%0      = Value passed by caller          \n" \
-      " EXRL  0,*       Execute                           \n" \
+      " EXRL  0,*       Execute myself                    \n" \
       " DC    C'@S0C3'  Find by '@S0C3'                     " \
       "*                                                    " \
       :                                                       \
@@ -83,7 +76,7 @@ static void s0c3Abend(int n)
 #define TESTAUTH(rc)
 #endif
 
-static int testAuth()
+static int test_auth()
 {
   int rc = 0;
   TESTAUTH(rc);
@@ -91,24 +84,45 @@ static int testAuth()
 }
 
 #if defined(__IBM_METAL__)
-#define MODESET(value)                                         \
+#define MODESET_MODE(value)                                    \
   __asm(                                                       \
       "*                                                   \n" \
       " MODESET MODE="#value##"                            \n" \
       "*                                                    "  \
       :::);
 #else
-#define MODESET(n)
+#define MODESET_MODE(n)
 #endif
 
-static void modesup()
+#if defined(__IBM_METAL__)
+#define MODESET_KEY(value)                                    \
+  __asm(                                                       \
+      "*                                                   \n" \
+      " MODESET KEY="#value##"                            \n" \
+      "*                                                    "  \
+      :::);
+#else
+#define MODESET_KEY(n)
+#endif
+
+static void mode_sup()
 {
-  MODESET(SUP);
+  MODESET_MODE(SUP);
 }
 
-static void modeprob()
+static void mode_prob()
 {
-  MODESET(PROB);
+  MODESET_MODE(PROB);
+}
+
+static void mode_zero()
+{
+  MODESET_KEY(ZERO);
+}
+
+static void mode_nzero()
+{
+  MODESET_KEY(NZERO);
 }
 
 // int reg = 0;
