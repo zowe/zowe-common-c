@@ -42,7 +42,6 @@ int main(int argc, char *argv[])
   ZCLIGroup jobs_group("jobs");
   jobs_group.set_description("z/OS job operations");
 
-
   // jobs verbs
   ZCLIVerb job_list("list");
   job_list.set_description("list jobs");
@@ -73,7 +72,10 @@ int main(int argc, char *argv[])
   ZCLIOption console_name("console-name");
   console_name.set_required(true);
   console_name.set_description("extended console name");
+  ZCLIOption console_data("data");
+  console_data.set_required(true);
   console_issue.get_options().push_back(console_name);
+  console_issue.get_options().push_back(console_data);
   console_group.get_verbs().push_back(console_issue);
 
   // add all groups to the CLI

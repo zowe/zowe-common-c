@@ -17,9 +17,9 @@
 
 using namespace std;
 
-#define PROCESS_NAME_ARG     0
-#define CLI_GROUP_ARG        1
-#define CLI_VERB_ARG         2
+#define PROCESS_NAME_ARG 0
+#define CLI_GROUP_ARG 1
+#define CLI_VERB_ARG 2
 #define CLI_REMAIN_ARG_START 3
 
 #define ZCLI_MENU_WIDTH 15
@@ -30,6 +30,7 @@ class ZCLIName
 {
 protected:
   string name;
+
 public:
   ZCLIName(string n) : name(n) {}
   string get_name() { return name; }
@@ -39,7 +40,13 @@ class ZCLIRequired
 {
 protected:
   bool required;
+  bool found;
+
 public:
+  ZCLIRequired() { required = false;}
+  void set_found(bool f) { found = f; }
+  bool get_found() { return found; }
+
   void set_required(bool r) { required = r; }
   bool get_required() { return required; }
 };
@@ -48,6 +55,7 @@ class ZCLIDescription
 {
 protected:
   string description;
+
 public:
   void set_description(string d) { description = d; }
   string get_description() { return description; }
@@ -61,14 +69,17 @@ public:
 };
 
 class
-ZCLIOption : public ZCLIFlag, public ZCLIRequired, public ZCLIDescription
+    ZCLIOption : public ZCLIFlag,
+                 public ZCLIRequired,
+                 public ZCLIDescription
 {
 private:
-string value;
+  string value;
+
 public:
   ZCLIOption(string n) : ZCLIFlag(n) {}
   void help_line() { cerr << "  " << left << setw(ZCLI_MENU_WIDTH) << get_flag_name() << "   " << get_description() << endl; }
-  void set_value(string v) { value = v;}
+  void set_value(string v) { value = v; }
   string get_value() { return value; }
 };
 
@@ -76,6 +87,7 @@ class ZCLIOptionProvider
 {
 protected:
   vector<ZCLIOption> options;
+
 public:
   vector<ZCLIOption> &get_options() { return options; }
   void set_options(vector<ZCLIOption> &o) { options = o; }
@@ -94,10 +106,11 @@ public:
 class ZCLIResult
 {
 private:
-vector<ZCLIOption> options;
+  vector<ZCLIOption> options;
+
 public:
-vector<ZCLIOption> & get_options() { return options; }
-ZCLIOption &get_option(string option);
+  vector<ZCLIOption> &get_options() { return options; }
+  ZCLIOption &get_option(string option);
 };
 
 typedef ZCLIOption &(*zcli_get_option)(string);
@@ -126,11 +139,11 @@ private:
   vector<ZCLIVerb> verbs;
 
 public:
-  ZCLIGroup(string n): ZCLIName(n) {};
-  ZCLIVerb & get_verb(string);
+  ZCLIGroup(string n) : ZCLIName(n) {};
+  ZCLIVerb &get_verb(string);
   vector<ZCLIVerb> &get_verbs() { return verbs; }
   void help(string);
-  void help_line() {cerr << "  " << left << setw(ZCLI_MENU_WIDTH) << get_name() << " | " << get_description() << endl;}
+  void help_line() { cerr << "  " << left << setw(ZCLI_MENU_WIDTH) << get_name() << " | " << get_description() << endl; }
 };
 
 class ZCLI : public ZCLIName, public ZCLIOptionProvider
@@ -138,12 +151,13 @@ class ZCLI : public ZCLIName, public ZCLIOptionProvider
 private:
   bool validate();
   vector<ZCLIGroup> groups;
+
 public:
   ZCLI(string n) : ZCLIName(n) {}
   int parse(int, char *[]);
   void init();
-  vector<ZCLIGroup> & get_groups() { return groups; };
-  ZCLIGroup & get_group(string);
+  vector<ZCLIGroup> &get_groups() { return groups; };
+  ZCLIGroup &get_group(string);
   ZCLIVerb &get_verb(int, char *[]);
   void help();
 };
@@ -208,7 +222,7 @@ void ZCLI::init()
 
 void ZCLIVerb::help(string cli_name, string group_name)
 {
-  cerr << "Usage is '" << cli_name << " " << group_name << " " << get_name() <<":" << endl;
+  cerr << "Usage is '" << cli_name << " " << group_name << " " << get_name() << ":" << endl;
 
   if (get_options().size() > 0)
   {
@@ -256,41 +270,45 @@ void ZCLI::help()
   }
 }
 
-ZCLIGroup & ZCLI::get_group(string group_name)
+ZCLIGroup &ZCLI::get_group(string group_name)
 {
   for (vector<ZCLIGroup>::iterator it = groups.begin(); it != groups.end(); it++)
   {
-    if (group_name == it->get_name()) return *it;
+    if (group_name == it->get_name())
+      return *it;
   }
   ZCLIGroup *not_found = new ZCLIGroup("not found");
   return *not_found;
 }
 
-ZCLIVerb & ZCLIGroup::get_verb(string verb_name)
+ZCLIVerb &ZCLIGroup::get_verb(string verb_name)
 {
   for (vector<ZCLIVerb>::iterator it = verbs.begin(); it != verbs.end(); it++)
   {
-    if (verb_name == it->get_name()) return *it;
+    if (verb_name == it->get_name())
+      return *it;
   }
   ZCLIVerb *not_found = new ZCLIVerb("not found");
   return *not_found;
 }
 
-ZCLIOption & ZCLIVerb::get_option(string option_name)
+ZCLIOption &ZCLIVerb::get_option(string option_name)
 {
   for (vector<ZCLIOption>::iterator it = options.begin(); it != options.end(); it++)
   {
-    if (option_name == it->get_flag_name()) return *it;
+    if (option_name == it->get_flag_name())
+      return *it;
   }
   ZCLIOption *not_found = new ZCLIOption("not found");
   return *not_found;
 }
 
-ZCLIOption & ZCLIResult::get_option(string option_name)
+ZCLIOption &ZCLIResult::get_option(string option_name)
 {
   for (vector<ZCLIOption>::iterator it = options.begin(); it != options.end(); it++)
   {
-    if (option_name == it->get_flag_name()) return *it;
+    if (option_name == it->get_flag_name())
+      return *it;
   }
   ZCLIOption *not_found = new ZCLIOption("not found");
   return *not_found;
@@ -301,7 +319,8 @@ int ZCLI::parse(int argc, char *argv[])
   init();
   bool valid = validate();
 
-  if (!valid) return -1;
+  if (!valid)
+    return -1;
 
   if (argc <= CLI_GROUP_ARG || string(argv[CLI_GROUP_ARG]) == "--help")
   {
@@ -310,7 +329,7 @@ int ZCLI::parse(int argc, char *argv[])
   }
 
   // attempt to get a group
-  ZCLIGroup group = get_group(argv[CLI_GROUP_ARG]);
+  ZCLIGroup &group = get_group(argv[CLI_GROUP_ARG]);
 
   // show main help if unknown group
   if (0 == group.get_verbs().size())
@@ -329,7 +348,7 @@ int ZCLI::parse(int argc, char *argv[])
   }
 
   // attempt to get a verb
-  ZCLIVerb verb = group.get_verb(argv[CLI_VERB_ARG]);
+  ZCLIVerb &verb = group.get_verb(argv[CLI_VERB_ARG]);
 
   // show group level help if unknwon verb
   if (NULL == verb.get_zcli_verb_handler())
@@ -354,7 +373,7 @@ int ZCLI::parse(int argc, char *argv[])
 
   for (int i = CLI_REMAIN_ARG_START; i < argc; i++)
   {
-    ZCLIOption option = verb.get_option(argv[i]);
+    ZCLIOption &option = verb.get_option(argv[i]);
     if (string::npos != option.get_name().find(" "))
     {
       cerr << "Unknown option on: " << argv[i] << endl;
@@ -369,11 +388,22 @@ int ZCLI::parse(int argc, char *argv[])
       return -1;
     }
 
-    // TOOD(Kelosky): positionals
+    option.set_found(true);
     option.set_value(argv[i + 1]);
     results.get_options().push_back(option);
 
     i++; // advance to next parm
+  }
+
+  for (vector<ZCLIOption>::iterator it = verb.get_options().begin(); it != verb.get_options().end(); it++)
+  {
+
+    if (it->get_required() && !it->get_found())
+    {
+      cerr << "Required option missing: " << it->get_flag_name() << endl;
+      verb.help(name, group.get_name());
+      return -1;
+    }
   }
 
   // set values
