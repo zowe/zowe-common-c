@@ -28,7 +28,7 @@ int function2(ZCLIResult result)
 
 int function3(ZCLIResult result)
 {
-  cout << "Function three called got results " << result.get_option("--console-name").get_value() << endl;
+  cout << "Function three called got results " << result.get_option("--console-name").get_value() << " and " << result.get_positional("command").get_value() << endl;
 
   return 0;
 }
@@ -72,10 +72,10 @@ int main(int argc, char *argv[])
   ZCLIOption console_name("console-name");
   console_name.set_required(true);
   console_name.set_description("extended console name");
-  ZCLIOption console_data("data");
-  console_data.set_required(true);
   console_issue.get_options().push_back(console_name);
-  console_issue.get_options().push_back(console_data);
+  ZCLIPositional console_command("command");
+  console_command.set_required(true);
+  console_issue.get_positionals().push_back(console_command);
   console_group.get_verbs().push_back(console_issue);
 
   // add all groups to the CLI

@@ -14,6 +14,7 @@
 #include <vector>
 #include <string>
 #include <iomanip>
+#include <map>
 
 using namespace std;
 
@@ -25,6 +26,8 @@ using namespace std;
 #define ZCLI_MENU_WIDTH 15
 #define ZCLI_MEDU_INDENT "  " // TODO(Kelosky)
 #define ZCLI_FLAG_PREFIX "--" // TODO(Kelosky)
+
+// TODO(Kelosky): map instead of vectors for result
 
 class ZCLIName
 {
@@ -90,45 +93,58 @@ protected:
 
 public:
   vector<ZCLIOption> &get_options() { return options; }
-  void set_options(vector<ZCLIOption> &o) { options = o; }
+  ZCLIOption &get_option(string);
+
 };
 
-class ZCLIPositional : public ZCLIRequired
+
+class ZCLIPositional : public ZCLIName,
+                 public ZCLIRequired,
+                 public ZCLIDescription
 {
 private:
-  string name;
-
+  string value;
 public:
-  ZCLIPositional(string n) : name(n) {}
-  string get_name() { return name; }
+  ZCLIPositional(string n) : ZCLIName(n) {}
+  void help_line() { cerr << "  " << left << (get_required() ? "<" : "[") << get_name() << (get_required() ? ">" : "]") << "   " << get_description() << endl; }
+  void set_value(string v) { value = v; }
+  string get_value() { return value; }
 };
 
-class ZCLIResult
+
+class ZCLIPositionalProvider
 {
-private:
-  vector<ZCLIOption> options;
+protected:
+  vector<ZCLIPositional> positionals;
 
 public:
-  vector<ZCLIOption> &get_options() { return options; }
-  ZCLIOption &get_option(string option);
+  vector<ZCLIPositional> &get_positionals() { return positionals; }
+  ZCLIPositional &get_positional(string);
+};
+
+class ZCLIResult : public ZCLIOptionProvider, public ZCLIPositionalProvider
+{
+private:
+  // vector<ZCLIOption> options;
+
+public:
+  // vector<ZCLIOption> &get_options() { return options; }
+  // ZCLIOption &get_option(string option);
 };
 
 typedef ZCLIOption &(*zcli_get_option)(string);
 
 typedef int (*zcli_verb_handler)(ZCLIResult);
 
-class ZCLIVerb : public ZCLIName, public ZCLIDescription, public ZCLIOptionProvider
+class ZCLIVerb : public ZCLIName, public ZCLIDescription, public ZCLIOptionProvider, public ZCLIPositionalProvider
 {
 private:
-  vector<ZCLIPositional> positionals;
   zcli_verb_handler cb;
 
 public:
   ZCLIVerb(string n) : ZCLIName(n) {}
-  vector<ZCLIPositional> &get_positionals() { return positionals; }
   void set_zcli_verb_handler(zcli_verb_handler h) { cb = h; }
   zcli_verb_handler get_zcli_verb_handler() { return cb; }
-  ZCLIOption &get_option(string);
   void help_line() { cerr << "  " << left << setw(ZCLI_MENU_WIDTH) << get_name() << " | " << get_description() << endl; }
   void help(string, string);
 };
@@ -162,37 +178,83 @@ public:
   void help();
 };
 
-// TOOD(Kelosky): check for duplicates
-// TOOD(Kelosky): ensure no unused parms
-
 bool ZCLI::validate()
 {
+  // ensure at least one group
   if (0 == groups.size())
   {
     cerr << "ZCLI Error: must define at least one group" << endl;
     return false;
   }
 
+  map<string, int> group_map;
   for (vector<ZCLIGroup>::iterator it = groups.begin(); it != groups.end(); it++)
   {
+    // ensure no duplicate groups
+    if (group_map.find(it->get_name()) != (group_map.end()))
+    {
+      cerr << "ZCLI Error: duplicate group found, '" << it->get_name() << "'" << endl;
+      return false;
+    }
+    group_map.insert(map<string, int>::value_type(it->get_name(), 0));
+
+    // ensure at least one verb
     if (0 == it->get_verbs().size())
     {
       cerr << "ZCLI Error: each group must contain at least one verb, " << it->get_name() << " does not" << endl;
       return false;
     }
 
-    for (vector<ZCLIVerb>::iterator iit = it->get_verbs().begin(); iit != it->get_verbs().begin(); iit++)
+    map<string, int> verb_map;
+    for (vector<ZCLIVerb>::iterator iit = it->get_verbs().begin(); iit != it->get_verbs().end(); iit++)
     {
+      // ensure no duplicate verbs
+      if (verb_map.find(iit->get_name()) != (verb_map.end()))
+      {
+        cerr << "ZCLI Error: duplicate verb found, '" << iit->get_name() << "' on '" << it->get_name() << "'" << endl;
+        return false;
+      }
+      verb_map.insert(map<string, int>::value_type(iit->get_name(), 0));
+
+      // ensure handler provided
       if (NULL == iit->get_zcli_verb_handler())
       {
         cerr << "ZCLI Error: each verb must container a handler, " << iit->get_name() << " does not" << endl;
         return false;
       }
-      for (vector<ZCLIOption>::iterator iiit = iit->get_options().begin(); iiit != iit->get_options().begin(); iiit++)
+
+      map<string, int> option_map;
+      for (vector<ZCLIOption>::iterator iiit = iit->get_options().begin(); iiit != iit->get_options().end(); iiit++)
       {
+        // ensure no duplicate options
+        if (option_map.find(iiit->get_name()) != (option_map.end()))
+        {
+          cerr << "ZCLI Error: duplicate option found, '" << iiit->get_name() << "' on '" << it->get_name() << " " << iit->get_name() << "'" << endl;
+          return false;
+        }
+        option_map.insert(map<string, int>::value_type(iiit->get_name(), 0));
+
         if (string::npos != iiit->get_name().find(" "))
         {
-          cerr << "ZCLI Error: option cannot contain a space, '" << iiit->get_name() << "' does" << endl;
+          cerr << "ZCLI Error: option cannot contain a space, '" << iiit->get_name() << "' does on '" << it->get_name() << " " << iit->get_name() << "'" << endl;
+          return false;
+        }
+      }
+
+      map<string, int> positional_map;
+      for (vector<ZCLIPositional>::iterator iiit = iit->get_positionals().begin(); iiit != iit->get_positionals().end(); iiit++)
+      {
+        // ensure no duplicate positionals
+        if (positional_map.find(iiit->get_name()) != (positional_map.end()))
+        {
+          cerr << "ZCLI Error: duplicate positional found, '" << iiit->get_name() << "' on '" << it->get_name() << " " << iit->get_name() << "'" << endl;
+          return false;
+        }
+        positional_map.insert(map<string, int>::value_type(iiit->get_name(), 0));
+
+        if (string::npos != iiit->get_name().find(" "))
+        {
+          cerr << "ZCLI Error: positional cannot contain a space, '" << iiit->get_name() << "' does on '" << it->get_name() << " " << iit->get_name() << "'" << endl;
           return false;
         }
       }
@@ -201,6 +263,7 @@ bool ZCLI::validate()
   return true;
 }
 
+// add help everywhere
 void ZCLI::init()
 {
   ZCLIOption help("help");
@@ -222,7 +285,16 @@ void ZCLI::init()
 
 void ZCLIVerb::help(string cli_name, string group_name)
 {
-  cerr << "Usage is '" << cli_name << " " << group_name << " " << get_name() << ":" << endl;
+  cerr << "Usage is '" << cli_name << " " << group_name << " " << get_name() << "':" << endl;
+
+  if (get_positionals().size() > 0)
+  {
+    cerr << "Positionals:" << endl;
+    for (vector<ZCLIPositional>::iterator it = positionals.begin(); it != positionals.end(); it++)
+    {
+      it->help_line();
+    }
+  }
 
   if (get_options().size() > 0)
   {
@@ -292,7 +364,7 @@ ZCLIVerb &ZCLIGroup::get_verb(string verb_name)
   return *not_found;
 }
 
-ZCLIOption &ZCLIVerb::get_option(string option_name)
+ZCLIOption &ZCLIOptionProvider::get_option(string option_name)
 {
   for (vector<ZCLIOption>::iterator it = options.begin(); it != options.end(); it++)
   {
@@ -303,16 +375,28 @@ ZCLIOption &ZCLIVerb::get_option(string option_name)
   return *not_found;
 }
 
-ZCLIOption &ZCLIResult::get_option(string option_name)
+
+ZCLIPositional &ZCLIPositionalProvider::get_positional(string positional_name)
 {
-  for (vector<ZCLIOption>::iterator it = options.begin(); it != options.end(); it++)
+  for (vector<ZCLIPositional>::iterator it = positionals.begin(); it != positionals.end(); it++)
   {
-    if (option_name == it->get_flag_name())
+    if (positional_name == it->get_name())
       return *it;
   }
-  ZCLIOption *not_found = new ZCLIOption("not found");
+  ZCLIPositional *not_found = new ZCLIPositional("not found");
   return *not_found;
 }
+
+// ZCLIOption &ZCLIResult::get_option(string option_name)
+// {
+//   for (vector<ZCLIOption>::iterator it = options.begin(); it != options.end(); it++)
+//   {
+//     if (option_name == it->get_flag_name())
+//       return *it;
+//   }
+//   ZCLIOption *not_found = new ZCLIOption("not found");
+//   return *not_found;
+// }
 
 int ZCLI::parse(int argc, char *argv[])
 {
@@ -371,14 +455,42 @@ int ZCLI::parse(int argc, char *argv[])
 
   ZCLIResult results;
 
+  int positional_index = 0;
+
   for (int i = CLI_REMAIN_ARG_START; i < argc; i++)
   {
     ZCLIOption &option = verb.get_option(argv[i]);
+
+    // if not an option, check for positional
     if (string::npos != option.get_name().find(" "))
     {
-      cerr << "Unknown option on: " << argv[i] << endl;
-      verb.help(name, group.get_name());
-      return 1;
+      // ZCLIPositional &positional = verb.get_positional(argv[i]);
+
+      // TODO(Kelosky): after everything, parse what wasn't an option or a positional and throw an error for extraneous options
+      // if (string::npos != positional.get_name().find(" "))
+      // {
+      //   cerr << "Unknown option/positional '" << argv[i] << "' on '" << group.get_name() << " " << verb.get_name() << "'" << endl;
+      //   verb.help(name, group.get_name());
+      //   return 1;
+      // }
+
+      if (positional_index < verb.get_positionals().size())
+      {
+        // found positional
+        verb.get_positionals()[positional_index].set_found(true);
+        verb.get_positionals()[positional_index].set_value(argv[i]);
+        results.get_positionals().push_back(verb.get_positionals()[positional_index]);
+        positional_index++;
+        continue;
+      }
+      else
+      {
+        cerr << "Unexpected positional present '" << argv[i] << "' on '" << group.get_name() << " " << verb.get_name() << "'" << endl;
+        verb.help(name, group.get_name());
+        return 1;
+      }
+
+
     }
 
     if (i + 1 > argc - 1) // index vs count
@@ -397,10 +509,19 @@ int ZCLI::parse(int argc, char *argv[])
 
   for (vector<ZCLIOption>::iterator it = verb.get_options().begin(); it != verb.get_options().end(); it++)
   {
-
     if (it->get_required() && !it->get_found())
     {
-      cerr << "Required option missing: " << it->get_flag_name() << endl;
+      cerr << "Required option missing: '" << it->get_flag_name() << "' on '" << group.get_name() << " " << verb.get_name() << "'" << endl;
+      verb.help(name, group.get_name());
+      return -1;
+    }
+  }
+
+  for (vector<ZCLIPositional>::iterator it = verb.get_positionals().begin(); it != verb.get_positionals().end(); it++)
+  {
+    if (it->get_required() && !it->get_found())
+    {
+      cerr << "Required positional missing: '" << it->get_name() << "' on '" << group.get_name() << " " << verb.get_name() << "'" << endl;
       verb.help(name, group.get_name());
       return -1;
     }

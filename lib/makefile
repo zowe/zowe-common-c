@@ -131,10 +131,10 @@ libzcn.so: zcn.o zcnm.o zcnm31.o
 #
 #
 #
-zowex: zowex.o zcli.o
+zowex: zowex.o
 	$(CXX) $(CPP_BND_FLAGS) -o $@ $^ > $*.bind.lst
 
-zowexx: zowex.o zcli.o
+zowexx: zowex.o
 	$(CXX) $(CPP_BND_FLAGS_AUTH) -o $@ $^ > $*.bind.lst
 
 zowex.o: zowex.cpp
