@@ -464,15 +464,6 @@ int ZCLI::parse(int argc, char *argv[])
     // if not an option, check for positional
     if (string::npos != option.get_name().find(" "))
     {
-      // ZCLIPositional &positional = verb.get_positional(argv[i]);
-
-      // TODO(Kelosky): after everything, parse what wasn't an option or a positional and throw an error for extraneous options
-      // if (string::npos != positional.get_name().find(" "))
-      // {
-      //   cerr << "Unknown option/positional '" << argv[i] << "' on '" << group.get_name() << " " << verb.get_name() << "'" << endl;
-      //   verb.help(name, group.get_name());
-      //   return 1;
-      // }
 
       if (positional_index < verb.get_positionals().size())
       {
@@ -489,8 +480,6 @@ int ZCLI::parse(int argc, char *argv[])
         verb.help(name, group.get_name());
         return 1;
       }
-
-
     }
 
     if (i + 1 > argc - 1) // index vs count
