@@ -1,5 +1,34 @@
 {
   "files.associations": {
-    "string.h": "c"
+    "string.h": "c",
+    "vector": "cpp",
+    "typeinfo": "cpp",
+    "ostream": "cpp",
+    "iosfwd": "cpp",
+    "__bit_reference": "cpp",
+    "__hash_table": "cpp",
+    "__split_buffer": "cpp",
+    "__tree": "cpp",
+    "array": "cpp",
+    "deque": "cpp",
+    "initializer_list": "cpp",
+    "map": "cpp",
+    "regex": "cpp",
+    "set": "cpp",
+    "string": "cpp",
+    "string_view": "cpp",
+    "unordered_map": "cpp",
+    "bitset": "cpp",
+    "iostream": "cpp",
+    "iomanip": "cpp",
+    "ios": "cpp",
+    "queue": "cpp",
+    "__node_handle": "cpp",
+    "__memory": "cpp",
+    "limits": "cpp",
+    "locale": "cpp",
+    "optional": "cpp",
+    "ratio": "cpp",
+    "tuple": "cpp"
   }
 }
