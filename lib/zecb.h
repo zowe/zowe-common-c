@@ -45,6 +45,88 @@ typedef struct ecb ECB;
 #endif // __IBM_METAL__
 
 #if defined(__IBM_METAL__)
+#define STIMERM_MODEL(stimermm)                                 \
+    __asm(                                                      \
+        "*                                                  \n" \
+        " STIMERM SET,"                                         \
+        "MF=L                                               \n" \
+        "*                                                    " \
+        : "DS"(stimermm));
+#else
+#define STIMERM_MODEL(stimermm) void *stimermm;
+#endif
+
+STIMERM_MODEL(stimerm_model); // make this copy in static storage
+
+// NOTE(Keloskly): this may not need to be AMODE31 always; likewise elsewhere
+#if defined(__IBM_METAL__)
+#define STIMERM_SET(time, parm, exit, id, plist)              \
+  __asm(                                                      \
+      "*                                                  \n" \
+      " TAM   ,         AMODE64??                         \n" \
+      " JM    *+4+4+2   No, skip switching                \n" \
+      " OILH  2,X'8000' Set AMODE31 flag                  \n" \
+      " SAM31 ,         Set AMODE31                       \n" \
+      "*                                                  \n" \
+      " SYSSTATE PUSH       Save SYSSTATE                 \n" \
+      " SYSSTATE AMODE64=NO                               \n" \
+      "*                                                  \n" \
+      " STIMERM SET,BINTVL=%2,"                               \
+      "WAIT=NO,"                                              \
+      "ID=%1,"                                                \
+      "PARM=%3,"                                              \
+      "EXIT=%4,"                                              \
+      "MF=(E,%0)                                          \n" \
+      "*                                                  \n" \
+      " TMLH  2,X'8000' Did we switch AMODE??             \n" \
+      " JNO   *+4+2     No, skip restore                  \n" \
+      " SAM64 ,         Set AMODE64                       \n" \
+      "*                                                  \n" \
+      " NILH  2,X'7FFF' Clear flag if set                 \n" \
+      "*                                                  \n" \
+      " SYSSTATE POP    Restore SYSSTATE                  \n" \
+      "*                                                    " \
+      : "+m"(plist),"=m"(id)                                  \
+      : "m"(time),"m"(parm),"m"(exit)                         \
+      : "r0", "r1", "r2", "r14", "r15");
+#else
+#define STIMERM_SET(time, parm, exit, id, plist)
+#endif // __IBM_METAL__
+
+#if defined(__IBM_METAL__)
+#define STIMERM_CANCEL(rc, plist)                             \
+  __asm(                                                      \
+      "*                                                  \n" \
+      " TAM   ,         AMODE64??                         \n" \
+      " JM    *+4+4+2   No, skip switching                \n" \
+      " OILH  2,X'8000' Set AMODE31 flag                  \n" \
+      " SAM31 ,         Set AMODE31                       \n" \
+      "*                                                  \n" \
+      " SYSSTATE PUSH       Save SYSSTATE                 \n" \
+      " SYSSTATE AMODE64=NO                               \n" \
+      "*                                                  \n" \
+      " STIMERM CANCEL,"                                      \
+      "ID=ALL,"                                               \
+      "MF=(E,%0)                                          \n" \
+      "*                                                  \n" \
+      " TMLH  2,X'8000' Did we switch AMODE??             \n" \
+      " JNO   *+4+2     No, skip restore                  \n" \
+      " SAM64 ,         Set AMODE64                       \n" \
+      "*                                                  \n" \
+      " ST 15,%1        Save RC                           \n" \
+      "*                                                  \n" \
+      " NILH  2,X'7FFF' Clear flag if set                 \n" \
+      "*                                                  \n" \
+      " SYSSTATE POP    Restore SYSSTATE                  \n" \
+      "*                                                    " \
+      : "+m"(plist)                                           \
+      : "m"(rc)                                               \
+      : "r0", "r1", "r2", "r14", "r15");
+#else
+#define STIMERM_CANCEL(rc, plist)
+#endif // __IBM_METAL__
+
+#if defined(__IBM_METAL__)
 #define ECB_WAIT(ecb)                                         \
   __asm(                                                      \
       "*                                                  \n" \
@@ -103,8 +185,8 @@ static void ecb_wait(ECB *ecb)
 //   return;
 // }
 
-static void ecbs_waitOnOne(
-    volatile ECB *__ptr32 ecbList[],
+static void ecbs_wait_on_one(
+    volatile ECB * ecbList[],
     int ecbListCount)
 {
 
@@ -113,13 +195,31 @@ static void ecbs_waitOnOne(
   return;
 }
 
-
 // 1 = 0.01 seconds
-static void timeWait(int interval)
+static void time_wait(unsigned int interval)
 {
   STIMER_WAIT(&interval);
 
   return;
+}
+
+typedef void (*zcli_stimer)(void *);
+// NOTE(Kelosky): seems unworkable in LE, should use LE timer equivalent
+static void timer(unsigned int time, zcli_stimer cb, void *parameter)
+{
+  int id = 0; // TODO(Kelosky): return & allow cancel by
+  STIMERM_MODEL(dsa_stimerm_model); // stack var
+  dsa_stimerm_model = stimerm_model; // copy model
+  STIMERM_SET(time, parameter, cb, id, dsa_stimerm_model);
+}
+
+static int cancel_timers()
+{
+  int rc = 0;
+  STIMERM_MODEL(dsa_stimerm_model); // stack var
+  dsa_stimerm_model = stimerm_model; // copy model
+  STIMERM_CANCEL(rc, dsa_stimerm_model);
+  return rc;
 }
 
 #endif //ECBWAIT_H

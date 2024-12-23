@@ -20,18 +20,18 @@
 #pragma prolog(ZUTTEST, "&CCN_MAIN SETB 1 \n MYPROLOG")
 int ZUTTEST()
 {
+  // int rc = 0;
+  // int time = 1 * 100 * 1; // 3 seconds
+  // // rc = cancel_timers();
+  // char *data = "hello world";
 
-  WTO_BUF buf = {0};
-  WTOR_REPLY_BUF reply = {0};
+  // timer(time, TIMEEXIT, data); // set a timer without waiting, that will fire in 3 seconds
+  // // rc = cancel_timers();
 
-  buf.len = sprintf(buf.msg, "reply with a number");
+  // int time2 = 1 * 100 * 2;
+  // time_wait(time2); // set a timer and WAIT for 5 seconds;
 
-  ECB ecb = {0};
-  wtor(&buf, &reply, &ecb);
-
-  ecb_wait(&ecb);
-
-  return 0;
+  return rc;
 }
 
 #pragma prolog(ZUTMGUSR, "&CCN_MAIN SETB 1 \n MYPROLOG")

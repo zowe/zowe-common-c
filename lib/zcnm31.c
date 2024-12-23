@@ -31,7 +31,7 @@ typedef struct mdbt MDBT;
 #define MSOPER_MODEL(mcsoperm) void *mcsoperm;
 #endif
 
-MSOPER_MODEL(mcsoperModel);
+MSOPER_MODEL(mcsoper_model);
 
 #if defined(__IBM_METAL__)
 #define MCSOPER_ACTIVATE(id, name, ecb, alet, mcscsa, rc, rsn, plist)    \
@@ -58,14 +58,14 @@ MSOPER_MODEL(mcsoperModel);
 
 int zcnm1act(ZCN *zcn)
 {
-  MSOPER_MODEL(dsamcsoperModel);
-  dsamcsoperModel = mcsoperModel;
+  MSOPER_MODEL(dsa_mcsoper_model);
+  dsa_mcsoper_model = mcsoper_model;
 
   unsigned int *PTR32 e = (unsigned int *PTR32)zcn->ecb;
   unsigned int *PTR32 a = (unsigned int *PTR32)zcn->area;
 
   mode_sup();
-  MCSOPER_ACTIVATE(zcn->id, zcn->console_name, *e, zcn->alet, a, zcn->service_rc, zcn->service_rsn, dsamcsoperModel);
+  MCSOPER_ACTIVATE(zcn->id, zcn->console_name, *e, zcn->alet, a, zcn->service_rc, zcn->service_rsn, dsa_mcsoper_model);
   mode_prob();
 
   strncpy(zcn->service_name, "MCSOPER_ACTIVATE", sizeof(zcn->service_name) - 1);
@@ -84,7 +84,7 @@ int zcnm1act(ZCN *zcn)
 #define MGCRE_MODEL(mgcrem) void *mgcrem;
 #endif
 
-MGCRE_MODEL(mgcreModel);
+MGCRE_MODEL(mgcre_model);
 
 #if defined(__IBM_METAL__)
 #define MGCRE(id, message, cart, plist)              \
@@ -107,8 +107,8 @@ MGCRE_MODEL(mgcreModel);
 // NOTE(Kelosky): this piece is permitted in AMODE64 - for consistency, it remains here
 int zcnm1put(ZCN *zcn, const char *command)
 {
-  MGCRE_MODEL(dsamgcreModel);
-  dsamgcreModel = mgcreModel;
+  MGCRE_MODEL(dsa_mgcre_model);
+  dsa_mgcre_model = mgcre_model;
 
   struct
   {
@@ -121,7 +121,7 @@ int zcnm1put(ZCN *zcn, const char *command)
 
   mode_sup();
   mode_zero();
-  MGCRE(zcn->id, commandBuffer, cart, dsamgcreModel);
+  MGCRE(zcn->id, commandBuffer, cart, dsa_mgcre_model);
   mode_nzero();
   mode_prob();
 
@@ -144,7 +144,7 @@ int zcnm1put(ZCN *zcn, const char *command)
 #define MCSOPMSG_MODEL(mcsopmsgm) void *mcsopmsgm;
 #endif
 
-MCSOPMSG_MODEL(mcsopmsgModel);
+MCSOPMSG_MODEL(mcsopmsg_model);
 
 #if defined(__IBM_METAL__)
 #define MCSOPMSG_GETMSG(id, area, alet, cart, rc, rsn, plist) \
@@ -269,8 +269,8 @@ int zcnm1get(ZCN *zcn, char *resp)
 {
   CLEAR_ARS();
 
-  MCSOPMSG_MODEL(dsamcsopmsgModel);
-  dsamcsopmsgModel = mcsopmsgModel;
+  MCSOPMSG_MODEL(dsa_mcsopmsg_model);
+  dsa_mcsopmsg_model = mcsopmsg_model;
 
   char cart[8] = "ZOWECART";
   void *area = NULL;
@@ -283,7 +283,7 @@ int zcnm1get(ZCN *zcn, char *resp)
   {
     mode_sup();
     CLEAR_ARS();
-    MCSOPMSG_GETMSG(zcn->id, area, alet, cart, zcn->service_rc, zcn->service_rsn, dsamcsopmsgModel);
+    MCSOPMSG_GETMSG(zcn->id, area, alet, cart, zcn->service_rc, zcn->service_rsn, dsa_mcsopmsg_model);
     CLEAR_ARS();
     mode_prob();
 
@@ -341,7 +341,7 @@ int zcnm1get(ZCN *zcn, char *resp)
   // https://www.ibm.com/docs/en/zos/3.1.0?topic=messages-description
   mode_sup();
   CLEAR_ARS();
-  MCSOPMSG_RESUME(zcn->id, zcn->service_rc, zcn->service_rsn, dsamcsopmsgModel);
+  MCSOPMSG_RESUME(zcn->id, zcn->service_rc, zcn->service_rsn, dsa_mcsopmsg_model);
   CLEAR_ARS();
   mode_prob();
 
@@ -374,11 +374,11 @@ int zcnm1get(ZCN *zcn, char *resp)
 
 int zcnm1dea(ZCN *zcn)
 {
-  MSOPER_MODEL(dsamcsoperModel);
-  dsamcsoperModel = mcsoperModel;
+  MSOPER_MODEL(dsa_mcsoper_model);
+  dsa_mcsoper_model = mcsoper_model;
 
   mode_sup();
-  MCSOPER_DEACTIVATE(zcn->id, zcn->service_rc, zcn->service_rsn, dsamcsoperModel);
+  MCSOPER_DEACTIVATE(zcn->id, zcn->service_rc, zcn->service_rsn, dsa_mcsoper_model);
   mode_prob();
   strncpy(zcn->service_name, "MCSOPER_DEACTIVATE", sizeof(zcn->service_name) - 1);
 

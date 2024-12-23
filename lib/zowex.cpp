@@ -29,7 +29,7 @@ int function2(ZCLIResult result)
 }
 
 int handle_console_issue(ZCLIResult);
-int handle_test_console(ZCLIResult);
+int handle_test_command(ZCLIResult);
 
 int main(int argc, char *argv[])
 {
@@ -41,10 +41,10 @@ int main(int argc, char *argv[])
   test_group.set_description("test other operations");
 
   // test verbs
-  ZCLIVerb test_console("console");
-  test_console.set_description("test console");
-  test_console.set_zcli_verb_handler(handle_test_console);
-  test_group.get_verbs().push_back(test_console);
+  ZCLIVerb test_command("command");
+  test_command.set_description("test command");
+  test_command.set_zcli_verb_handler(handle_test_command);
+  test_group.get_verbs().push_back(test_command);
 
   // jobs group
   ZCLIGroup jobs_group("jobs");
@@ -98,7 +98,14 @@ int main(int argc, char *argv[])
 int handle_test_console(ZCLIResult result)
 {
   cout << "test code called " << endl;
-  zutTest();
+
+  return 0;
+}
+
+int handle_test_command(ZCLIResult result)
+{
+  int rc = zutTest();
+  cout << "test code called " << rc << endl;
 
   return 0;
 }
@@ -114,7 +121,8 @@ int handle_console_issue(ZCLIResult result)
     rc = zcn_activate(&zcn, string(console_name));
     if (0 != rc)
     {
-      cout << "Error: could not activate console: '" << console_name << "' rc: '" << rc << "' rsn: '" << zcn.service_rsn << "'" << endl;
+      cout << "Error: could not activate console: '" << console_name << "' rc: '" << rc << "' service_rc: '" << zcn.service_rc << "'" << endl;
+      cout << "  Details: " << zcn.e_msg << endl;
       return -1;
     }
 
@@ -123,7 +131,8 @@ int handle_console_issue(ZCLIResult result)
     rc = zcn_put(&zcn, command);
     if (0 != rc)
     {
-      cout << "Error: could not write to console: '" << console_name << "' rc: '" << rc << "' rsn: '" << zcn.service_rsn << "'" << endl;
+      cout << "Error: could not write to console: '" << console_name << "' rc: '" << rc << "' service_rc: '" << zcn.service_rc << "'" << endl;
+      cout << "  Details: " << zcn.e_msg << endl;
       return -1;
     }
 
@@ -131,7 +140,8 @@ int handle_console_issue(ZCLIResult result)
     rc = zcn_get(&zcn, response);
     if (0 != rc)
     {
-      cout << "Error: could not get from console: '" << console_name << "' rc: '" << rc << "' rsn: '" << zcn.service_rsn << "'" << endl;
+      cout << "Error: could not get from console: '" << console_name << "' rc: '" << rc << "' service_rc: '" << zcn.service_rc << "'" << endl;
+      cout << "  Details: " << zcn.e_msg << endl;
       return -1;
     }
 

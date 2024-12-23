@@ -31,7 +31,7 @@
 #define WTO_MODEL(wtom) void *wtom;
 #endif
 
-WTO_MODEL(wtoModel); // make this copy in static storage
+WTO_MODEL(wto_model); // make this copy in static storage
 
 #if defined(__IBM_METAL__)
 #define WTOR_MODEL(wtorm)                                       \
@@ -47,7 +47,7 @@ WTO_MODEL(wtoModel); // make this copy in static storage
 #define WTOR_MODEL(wtorm) void *wtorm;
 #endif
 
-WTOR_MODEL(wtorModel); // make this copy in static storage
+WTOR_MODEL(wtor_model); // make this copy in static storage
 
 #define MAX_WTO_TEXT 126
 
@@ -105,9 +105,9 @@ typedef struct
 static int wto(WTO_BUF *buf)
 {
     int rc = 0;
-    WTO_MODEL(dsaWtoModel); // stack var
-    dsaWtoModel = wtoModel; // copy model
-    WTO(buf, dsaWtoModel, rc);
+    WTO_MODEL(dsa_wto_model); // stack var
+    dsa_wto_model = wto_model; // copy model
+    WTO(buf, dsa_wto_model, rc);
     return rc;
 }
 
@@ -121,9 +121,9 @@ static int wtor(WTO_BUF *buf, WTOR_REPLY_BUF *reply, ECB *ecb)
     int rc = 0;
     int replyLen = sizeof(WTOR_REPLY_BUF);
     memset(reply, 0x00, sizeof(WTOR_REPLY_BUF));
-    WTOR_MODEL(dsaWtorModel); // stack var
-    dsaWtorModel = wtorModel; // copy model
-    WTOR(buf, *reply, replyLen, *ecb, rc, dsaWtorModel);
+    WTOR_MODEL(dsawtor_model); // stack var
+    dsawtor_model = wtor_model; // copy model
+    WTOR(buf, *reply, replyLen, *ecb, rc, dsawtor_model);
     return rc;
 }
 

@@ -23,7 +23,7 @@ int zutTest()
 {
   int rc = 0;
 
-  ZUTTEST();
+  rc = ZUTTEST();
 
   return rc;
 }

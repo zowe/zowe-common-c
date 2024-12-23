@@ -21,6 +21,7 @@ int ZCNACT(ZCN *zcn)
   rc = test_auth();
   if (0 != rc)
   {
+    strncpy(zcn->service_name, "TESTAUTH", sizeof(zcn->service_name) - 1);
     zcn->e_msg_len = sprintf(zcn->e_msg, "Not authorized: %d", rc);
     return -1;
   }
@@ -47,6 +48,7 @@ int ZCNPUT(ZCN *zcn, const char *command)
   rc = test_auth();
   if (0 != rc)
   {
+    strncpy(zcn->service_name, "TESTAUTH", sizeof(zcn->service_name) - 1);
     zcn->e_msg_len = sprintf(zcn->e_msg, "Not authorized: %d", rc);
     return -1;
   }
@@ -73,6 +75,7 @@ int ZCNGET(ZCN *zcn, char *response)
   rc = test_auth();
   if (0 != rc)
   {
+    strncpy(zcn->service_name, "TESTAUTH", sizeof(zcn->service_name) - 1);
     zcn->e_msg_len = sprintf(zcn->e_msg, "Not authorized: %d", rc);
     return -1;
   }
@@ -101,6 +104,7 @@ int ZCNDACT(ZCN *zcn)
   rc = test_auth();
   if (0 != rc)
   {
+    strncpy(zcn->service_name, "TESTAUTH", sizeof(zcn->service_name) - 1);
     zcn->e_msg_len = sprintf(zcn->e_msg, "Not authorized: %d", rc);
     return -1;
   }
