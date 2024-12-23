@@ -70,45 +70,45 @@ typedef struct ecb ECB;
 #define ECBS_WAIT(count, list)
 #endif // __IBM_METAL__
 
-static void ecbWait(ECB *PTR32 ecb)
+static void ecb_wait(ECB *ecb)
 {
   ECB_WAIT(ecb);
 }
 
-static void ecbsWait(
-    int events, volatile ECB *PTR32 ecbList[],
-    int ecbListCount)
-{
+// static void ecbs_wait(
+//     int events, volatile ECB *ecbList[],
+//     int ecbListCount)
+// {
 
-  union overEcb {
-    volatile ECB *__ptr32 ecb;
-    unsigned int word;
-  } oEcb = {0};
+//   union overEcb {
+//     volatile ECB *__ptr32 ecb;
+//     unsigned int word;
+//   } oEcb = {0};
 
-  if (ecbListCount >= 1)
-  {
+//   if (ecbListCount >= 1)
+//   {
 
-    oEcb.ecb = ecbList[ecbListCount - 1];
-    oEcb.word |= 0x80000000;
+//     oEcb.ecb = ecbList[ecbListCount - 1];
+//     oEcb.word |= 0x80000000;
 
-    ecbList[ecbListCount - 1] = oEcb.ecb;
+//     ecbList[ecbListCount - 1] = oEcb.ecb;
 
-    ECBS_WAIT(events, ecbList);
+//     ECBS_WAIT(events, ecbList);
 
-    oEcb.word &= ~(0x80000000);
-    ecbList[ecbListCount - 1] = oEcb.ecb;
+//     oEcb.word &= ~(0x80000000);
+//     ecbList[ecbListCount - 1] = oEcb.ecb;
 
-  }
+//   }
 
-  return;
-}
+//   return;
+// }
 
-static void ecbsWaitOnOne(
+static void ecbs_waitOnOne(
     volatile ECB *__ptr32 ecbList[],
     int ecbListCount)
 {
 
-  ecbsWait(1, ecbList, ecbListCount);
+  ecbs_wait(1, ecbList, ecbListCount);
 
   return;
 }

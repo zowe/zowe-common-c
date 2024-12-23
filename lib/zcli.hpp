@@ -24,8 +24,8 @@ using namespace std;
 #define CLI_REMAIN_ARG_START 3
 
 #define ZCLI_MENU_WIDTH 15
-#define ZCLI_MEDU_INDENT "  " // TODO(Kelosky)
-#define ZCLI_FLAG_PREFIX "--" // TODO(Kelosky)
+#define ZCLI_MENU_INDENT "  " // TODO(Kelosky)
+#define ZCLI_FLAG_PREFIX "--"
 
 // TODO(Kelosky): map instead of vectors for result
 
@@ -46,7 +46,7 @@ protected:
   bool found;
 
 public:
-  ZCLIRequired() { required = false;}
+  ZCLIRequired() { required = false; }
   void set_found(bool f) { found = f; }
   bool get_found() { return found; }
 
@@ -68,7 +68,7 @@ class ZCLIFlag : public ZCLIName
 {
 public:
   ZCLIFlag(string n) : ZCLIName(n) {}
-  string get_flag_name() { return "--" + name; };
+  string get_flag_name() { return ZCLI_FLAG_PREFIX + name; };
 };
 
 class
@@ -94,23 +94,21 @@ protected:
 public:
   vector<ZCLIOption> &get_options() { return options; }
   ZCLIOption &get_option(string);
-
 };
 
-
 class ZCLIPositional : public ZCLIName,
-                 public ZCLIRequired,
-                 public ZCLIDescription
+                       public ZCLIRequired,
+                       public ZCLIDescription
 {
 private:
   string value;
+
 public:
   ZCLIPositional(string n) : ZCLIName(n) {}
   void help_line() { cerr << "  " << left << (get_required() ? "<" : "[") << get_name() << (get_required() ? ">" : "]") << "   " << get_description() << endl; }
   void set_value(string v) { value = v; }
   string get_value() { return value; }
 };
-
 
 class ZCLIPositionalProvider
 {
@@ -125,16 +123,11 @@ public:
 class ZCLIResult : public ZCLIOptionProvider, public ZCLIPositionalProvider
 {
 private:
-  // vector<ZCLIOption> options;
-
 public:
-  // vector<ZCLIOption> &get_options() { return options; }
-  // ZCLIOption &get_option(string option);
 };
 
-typedef ZCLIOption &(*zcli_get_option)(string);
-
-typedef int (*zcli_verb_handler)(ZCLIResult);
+typedef ZCLIOption &(*zcli_get_option)(string); // callback
+typedef int (*zcli_verb_handler)(ZCLIResult);   // handler
 
 class ZCLIVerb : public ZCLIName, public ZCLIDescription, public ZCLIOptionProvider, public ZCLIPositionalProvider
 {
@@ -166,12 +159,12 @@ class ZCLI : public ZCLIName, public ZCLIOptionProvider
 {
 private:
   bool validate();
+  void init();
   vector<ZCLIGroup> groups;
 
 public:
   ZCLI(string n) : ZCLIName(n) {}
   int parse(int, char *[]);
-  void init();
   vector<ZCLIGroup> &get_groups() { return groups; };
   ZCLIGroup &get_group(string);
   ZCLIVerb &get_verb(int, char *[]);
@@ -375,7 +368,6 @@ ZCLIOption &ZCLIOptionProvider::get_option(string option_name)
   return *not_found;
 }
 
-
 ZCLIPositional &ZCLIPositionalProvider::get_positional(string positional_name)
 {
   for (vector<ZCLIPositional>::iterator it = positionals.begin(); it != positionals.end(); it++)
@@ -386,17 +378,6 @@ ZCLIPositional &ZCLIPositionalProvider::get_positional(string positional_name)
   ZCLIPositional *not_found = new ZCLIPositional("not found");
   return *not_found;
 }
-
-// ZCLIOption &ZCLIResult::get_option(string option_name)
-// {
-//   for (vector<ZCLIOption>::iterator it = options.begin(); it != options.end(); it++)
-//   {
-//     if (option_name == it->get_flag_name())
-//       return *it;
-//   }
-//   ZCLIOption *not_found = new ZCLIOption("not found");
-//   return *not_found;
-// }
 
 int ZCLI::parse(int argc, char *argv[])
 {

@@ -7,11 +7,17 @@
 
   Copyright Contributors to the Zowe Project.
 */
-#ifndef ZUTILM31_H
-#define ZUTILM31_H
+#ifndef ZUT_HPP
+#define ZUT_HPP
 
-#include "zmetal.h"
+#include <iostream>
+#include <vector>
+#include <string>
 
-int zutm1gur(char[8]) ATTRIBUTE(amode31);
+int zutTest();
+void zutDumpStorage(std::string, const void *, size_t);
+int zutHello(std::string);
+char zutGetHexChar(int);
+int zutGetCurrentUser(std::string &);
 
 #endif

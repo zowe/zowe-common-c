@@ -11,6 +11,7 @@
 #include <iostream>
 #include <vector>
 #include "zcn.hpp"
+#include "zut.hpp"
 #include "zcli.hpp"
 
 using namespace std;
@@ -28,11 +29,22 @@ int function2(ZCLIResult result)
 }
 
 int handle_console_issue(ZCLIResult);
+int handle_test_console(ZCLIResult);
 
 int main(int argc, char *argv[])
 {
   // CLI
   ZCLI zcli(argv[PROCESS_NAME_ARG]);
+
+  // test group
+  ZCLIGroup test_group("test");
+  test_group.set_description("test other operations");
+
+  // test verbs
+  ZCLIVerb test_console("console");
+  test_console.set_description("test console");
+  test_console.set_zcli_verb_handler(handle_test_console);
+  test_group.get_verbs().push_back(test_console);
 
   // jobs group
   ZCLIGroup jobs_group("jobs");
@@ -75,11 +87,20 @@ int main(int argc, char *argv[])
   console_group.get_verbs().push_back(console_issue);
 
   // add all groups to the CLI
+  zcli.get_groups().push_back(test_group);
   zcli.get_groups().push_back(console_group);
   zcli.get_groups().push_back(jobs_group);
 
   // parse
   return zcli.parse(argc, argv);
+}
+
+int handle_test_console(ZCLIResult result)
+{
+  cout << "test code called " << endl;
+  zutTest();
+
+  return 0;
 }
 
 int handle_console_issue(ZCLIResult result)

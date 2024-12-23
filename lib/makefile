@@ -69,22 +69,31 @@ CPP_FLAGS=-W "c,lp64,langlvl(extended),dll,xplink,showinc"\
 
 ASM_FLAGS=-mrent
 
-all: zowex zowexx libzcn.so libzcn.a extattr
+all: zowex zowexx libzcn.so libzcn.a libzut.so libzut.a extattr
 
 #
 # Utilities
 #
-zutilm.s: zutilm.c
+zut.o: zut.cpp
+	$(CXX) $(DLL_CPP_FLAGS) -qlist=$*.cpp.lst -o $@ $^
+
+zutm.s: zutm.c
 	$(CC) $(MTL_FLAGS64) -qlist=$*.mtl.lst $(MTL_HEADERS) -o $@ $^
 
-zutilm.o: zutilm.s
+zutm.o: zutm.s
 	$(ASM) $(ASM_FLAGS) -a=$*.asm.lst $(MACLIBS) -o $@ $^
 
-zutilm31.s: zutilm31.c
+zutm31.s: zutm31.c
 	$(CC) $(MTL_FLAGS) -qlist=$*.mtl.lst $(MTL_HEADERS) -o $@ $^
 
-zutilm31.o: zutilm31.s
+zutm31.o: zutm31.s
 	$(ASM) $(ASM_FLAGS) -a=$*.asm.lst $(MACLIBS) -o $@ $^
+
+libzut.so: zut.o zutm.o zutm31.o
+	$(CXX) $(DLL_BND_FLAGS) -o $@ $^ > $*.bind.lst
+
+libzut.a: zut.o zutm.o zutm31.o
+	ar -rv $@ $^
 
 #
 # Jobs
@@ -132,12 +141,12 @@ libzcn.a: zcn.o zcnm.o zcnm31.o
 	ar -rv $@ $^
 
 #
+# Static link but dll also produced
 #
-#
-zowex: zowex.o libzcn.a
+zowex: zowex.o libzcn.a libzut.a
 	$(CXX) $(CPP_BND_FLAGS) -o $@ $^ > $*.bind.lst
 
-zowexx: zowex.o libzcn.a
+zowexx: zowex.o libzcn.a libzut.a
 	$(CXX) $(CPP_BND_FLAGS_AUTH) -o $@ $^ > $*.bind.lst
 
 zowex.o: zowex.cpp

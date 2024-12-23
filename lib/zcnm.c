@@ -78,7 +78,7 @@ int ZCNGET(ZCN *zcn, char *response)
   }
 
   // TODO(Kelosky): stimer??
-  ecbWait((ECB *PTR32)zcn->ecb);
+  ecb_wait((ECB *PTR32)zcn->ecb);
   ZCN zcn31 = {0};
   memcpy(&zcn31, zcn, sizeof(ZCN));
   rc = zcnm1get(&zcn31, response);

@@ -8,7 +8,7 @@
   Copyright Contributors to the Zowe Project.
 */
 #include "zmetal.h"
-#include "zutilm31.h"
+#include "zutm31.h"
 #include "zwto.h"
 #include <stdio.h>
 #include <stdlib.h>
