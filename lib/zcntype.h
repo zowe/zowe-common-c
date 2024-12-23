@@ -25,6 +25,7 @@ typedef struct {
   int buffer_size;
   int time_out_interval;  // 1 = 0.01 sec, unlimited wait of zero
   int buffer_size_needed; // total ammount of buffer size needed to satisft request
+  char console_name[8]; // console name used, upper cased/padded/truncated
   // standard
   char service_name[24];
   int service_rc;

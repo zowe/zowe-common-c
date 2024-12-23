@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <vector>
+#include "zcn.hpp"
 #include "zcli.hpp"
 
 using namespace std;
@@ -26,12 +27,7 @@ int function2(ZCLIResult result)
   return 0;
 }
 
-int function3(ZCLIResult result)
-{
-  cout << "Function three called got results " << result.get_option("--console-name").get_value() << " and " << result.get_positional("command").get_value() << endl;
-
-  return 0;
-}
+int handle_console_issue(ZCLIResult);
 
 int main(int argc, char *argv[])
 {
@@ -68,7 +64,7 @@ int main(int argc, char *argv[])
   // console verbs
   ZCLIVerb console_issue("issue");
   console_issue.set_description("issue a console command");
-  console_issue.set_zcli_verb_handler(function3);
+  console_issue.set_zcli_verb_handler(handle_console_issue);
   ZCLIOption console_name("console-name");
   console_name.set_required(true);
   console_name.set_description("extended console name");
@@ -84,4 +80,47 @@ int main(int argc, char *argv[])
 
   // parse
   return zcli.parse(argc, argv);
+}
+
+int handle_console_issue(ZCLIResult result)
+{
+    int rc = 0;
+    ZCN zcn = {0};
+
+    string console_name(result.get_option("--console-name").get_value());
+    string command(result.get_positional("command").get_value());
+
+    rc = zcn_activate(&zcn, string(console_name));
+    if (0 != rc)
+    {
+      cout << "Error: could not activate console: '" << console_name << "' rc: '" << rc << "' rsn: '" << zcn.service_rsn << "'" << endl;
+      return -1;
+    }
+
+    printf("%.8s", zcn.console_name);
+
+    rc = zcn_put(&zcn, command);
+    if (0 != rc)
+    {
+      cout << "Error: could not write to console: '" << console_name << "' rc: '" << rc << "' rsn: '" << zcn.service_rsn << "'" << endl;
+      return -1;
+    }
+
+    string response = "";
+    rc = zcn_get(&zcn, response);
+    if (0 != rc)
+    {
+      cout << "Error: could not get from console: '" << console_name << "' rc: '" << rc << "' rsn: '" << zcn.service_rsn << "'" << endl;
+      return -1;
+    }
+
+    cout << response << endl;
+
+    rc = zcn_deactivate(&zcn);
+    if (0 != rc)
+    {
+      cout << "Error: could not deactivate rc: '" << rc << "' rsn: '" << zcn.service_rsn << "'" << endl;
+      return -1;
+    }
+    return rc;
 }

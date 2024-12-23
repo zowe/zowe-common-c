@@ -69,7 +69,7 @@ CPP_FLAGS=-W "c,lp64,langlvl(extended),dll,xplink,showinc"\
 
 ASM_FLAGS=-mrent
 
-all: zowex zowexx extattr
+all: zowex zowexx libzcn.so libzcn.a extattr
 
 #
 # Utilities
@@ -128,32 +128,33 @@ zcnm31.o: zcnm31.s
 libzcn.so: zcn.o zcnm.o zcnm31.o
 	$(CXX) $(DLL_BND_FLAGS) -o $@ $^ > $*.bind.lst
 
+libzcn.a: zcn.o zcnm.o zcnm31.o
+	ar -rv $@ $^
+
 #
 #
 #
-zowex: zowex.o
+zowex: zowex.o libzcn.a
 	$(CXX) $(CPP_BND_FLAGS) -o $@ $^ > $*.bind.lst
 
-zowexx: zowex.o
+zowexx: zowex.o libzcn.a
 	$(CXX) $(CPP_BND_FLAGS_AUTH) -o $@ $^ > $*.bind.lst
 
 zowex.o: zowex.cpp
 	$(CXX) $(CPP_FLAGS) -qlist=$*.cpp.lst -c $^
 
-# zcli.o: zcli.cpp
-# 	$(CXX) $(CPP_FLAGS) -qlist=$*.cpp.lst -c $^
-
 #
 # Misc targets
 #
-# extattr +ap libz.so
 extattr:
 	extattr +ap zowexx
 
-clean: cleanu cleandump
+clean:
 	rm -f *.o
 	rm -f *.dbg
 	rm -f *.so
+	rm -f *.a
+	rm -f *.u
 	rm -f *.x
 	rm -f *.lst
 	rm -f CEEDUMP.*

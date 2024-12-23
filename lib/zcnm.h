@@ -21,7 +21,7 @@ extern "C"
 {
 #endif
 
-int ZCNACT(ZCN *, char [8]);
+int ZCNACT(ZCN *);
 int ZCNPUT(ZCN *, const char *);
 int ZCNGET(ZCN *, char *);
 int ZCNDACT(ZCN *);

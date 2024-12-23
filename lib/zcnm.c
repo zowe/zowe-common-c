@@ -15,7 +15,7 @@
 #include "zecb.h"
 
 #pragma prolog(ZCNACT, "&CCN_MAIN SETB 1 \n MYPROLOG")
-int ZCNACT(ZCN *zcn, char name[8])
+int ZCNACT(ZCN *zcn)
 {
   int rc = 0;
   rc = test_auth();
@@ -25,11 +25,9 @@ int ZCNACT(ZCN *zcn, char name[8])
     return -1;
   }
 
-  char localName[8] = {0};
   ZCN zcn31 = {0};
-  memcpy(localName, name, sizeof(localName));
   memcpy(&zcn31, zcn, sizeof(ZCN));
-  rc = zcnm1act(&zcn31, localName);
+  rc = zcnm1act(&zcn31);
   memcpy(zcn, &zcn31, sizeof(ZCN));
 
   if (0 != rc)

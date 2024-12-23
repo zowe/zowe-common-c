@@ -56,11 +56,8 @@ MSOPER_MODEL(mcsoperModel);
 #define MCSOPER_ACTIVATE(id, name, ecb, alet, mcscsa, rc, rsn, plist)
 #endif
 
-int zcnm1act(ZCN *zcn, char name[8])
+int zcnm1act(ZCN *zcn)
 {
-  char localName[8] = {0}; // TODO(Kelosky): alignment
-  memcpy(localName, name, 8);
-
   MSOPER_MODEL(dsamcsoperModel);
   dsamcsoperModel = mcsoperModel;
 
@@ -68,7 +65,7 @@ int zcnm1act(ZCN *zcn, char name[8])
   unsigned int *PTR32 a = (unsigned int *PTR32)zcn->area;
 
   mode_sup();
-  MCSOPER_ACTIVATE(zcn->id, localName, *e, zcn->alet, a, zcn->service_rc, zcn->service_rsn, dsamcsoperModel);
+  MCSOPER_ACTIVATE(zcn->id, zcn->console_name, *e, zcn->alet, a, zcn->service_rc, zcn->service_rsn, dsamcsoperModel);
   mode_prob();
 
   strncpy(zcn->service_name, "MCSOPER_ACTIVATE", sizeof(zcn->service_name) - 1);

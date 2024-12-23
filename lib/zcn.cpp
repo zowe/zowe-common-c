@@ -13,22 +13,25 @@
 #include <iostream>
 #include <string>
 #include <iomanip>
-#include "zds.hpp"
+#include <algorithm>
 #include "zcnm.h"
 #include "zcn.hpp"
+#include "zcntype.h"
 
 using namespace std;
 
-int zcn_activate(ZCN *zcn, string name)
+int zcn_activate(ZCN *zcn, string console_name)
 {
   int rc = 0;
 
-  char charName[8] = {0};
-  strncpy(charName, name.c_str(), sizeof(charName));
+  memset(zcn->console_name, ' ', sizeof(zcn->console_name)); // pad with spaces
+  transform(console_name.begin(), console_name.end(), console_name.begin(), ::toupper); // upper case
+  int length = console_name.size() > sizeof(zcn->console_name) ? sizeof(zcn->console_name) : console_name.size(); // truncate
+  strncpy(zcn->console_name, console_name.c_str(), length);
 
   zcn->ecb = (unsigned int *)__malloc31(sizeof(unsigned int));
 
-  rc = ZCNACT(zcn, charName);
+  rc = ZCNACT(zcn);
 
   if (0 != rc) free(zcn->ecb);
 
