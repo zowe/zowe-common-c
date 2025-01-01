@@ -68,9 +68,10 @@ int zcnm1act(ZCN *zcn)
   MCSOPER_ACTIVATE(zcn->id, zcn->console_name, *e, zcn->alet, a, zcn->service_rc, zcn->service_rsn, dsa_mcsoper_model);
   mode_prob();
 
-  strncpy(zcn->service_name, "MCSOPER_ACTIVATE", sizeof(zcn->service_name) - 1);
+  strcpy(zcn->service_name, "MCSOPER_ACTIVATE");
 
-  return zcn->service_rc;
+  if (0 != zcn->service_rc) zcn->detail_rc = ZCN_RTNCD_SERVICE_FAILURE; // if the service failed, note in RC
+  return zcn->detail_rc;
 }
 
 #if defined(__IBM_METAL__)
@@ -125,12 +126,12 @@ int zcnm1put(ZCN *zcn, const char *command)
   mode_nzero();
   mode_prob();
 
-  strncpy(zcn->service_name, "MGCRE", sizeof(zcn->service_name) - 1);
+  strcpy(zcn->service_name, "MGCRE");
 
   zcn->service_rc = 0;
   zcn->service_rsn = 0;
 
-  return zcn->service_rc;
+  return ZCN_RTNCD_SUCCESS; // NOTE(Kelosky): no return code for MGCRE
 }
 
 #if defined(__IBM_METAL__)
@@ -248,8 +249,18 @@ MCSOPMSG_MODEL(mcsopmsg_model);
 #define RTNCD_NO_MORE_MESSAGES 8
 #define RSNCD_NO_MORE_MESSAGES 0
 
-static int extract(unsigned int alet, unsigned char *offset, int len, char *resp) ATTRIBUTE(armode);
-static int extract(unsigned int alet, unsigned char *offset, int len, char *resp)
+static void extract_control_info(unsigned int alet, unsigned char *offset, ZCN *zcn) ATTRIBUTE(armode);
+static void extract_control_info(unsigned int alet, unsigned char *offset, ZCN *zcn)
+{
+  MDBSCP *FAR mdbscp = __set_far_ALET_offset(alet, offset);
+  char *FAR reply_id = __set_far_ALET_offset(0, zcn->reply_id);
+
+  zcn->reply_id_len = mdbscp->mdbcrpyl;
+  __far_memcpy(reply_id, mdbscp->mdbcrpyi, zcn->reply_id_len);
+}
+
+static int extract_text(unsigned int alet, unsigned char *offset, int len, char *resp) ATTRIBUTE(armode);
+static int extract_text(unsigned int alet, unsigned char *offset, int len, char *resp)
 {
   char *FAR text = __set_far_ALET_offset(alet, offset + sizeof(MDBT)); // -> text
 
@@ -287,7 +298,7 @@ int zcnm1get(ZCN *zcn, char *resp)
     CLEAR_ARS();
     mode_prob();
 
-    strncpy(zcn->service_name, "MCSOPMSG_GETMSG", sizeof(zcn->service_name) - 1);
+    strcpy(zcn->service_name, "MCSOPMSG_GETMSG");
 
     // break if no more messages
     if (RTNCD_NO_MORE_MESSAGES == zcn->service_rc && RSNCD_NO_MORE_MESSAGES == zcn->service_rsn)
@@ -318,15 +329,24 @@ int zcnm1get(ZCN *zcn, char *resp)
       memcpy(&type, mdb->mdbtype, sizeof(short));
       if (mdbtobj == type)
       {
-        void *offset = __get_far_offset(p); // -> MDB offset
+        void *offset = __get_far_offset(p); // -> MDB
         int text_len = mdb->mdblen - sizeof(MDBT);
 
         if ((zcn->buffer_size - zcn->buffer_size_needed) >= text_len + 1)
         {
-          int bytes_written = extract(alet, offset, text_len, resp);
+          int bytes_written = extract_text(alet, offset, text_len, resp);
           resp += bytes_written;
         }
+        else {
+          zcn->detail_rc = ZCN_RTNCD_INSUFFICIENT_BUFFER;
+        }
         zcn->buffer_size_needed += text_len + 1; // return max number of bytes needed
+      }
+
+      if (mdbcobj == type) // if control type, attempt to copy reply information
+      {
+        void *offset = __get_far_offset(p); // -> MDBSCP
+        extract_control_info(alet, offset, zcn);
       }
 
       total_len -= mdb->mdblen;
@@ -345,14 +365,15 @@ int zcnm1get(ZCN *zcn, char *resp)
   CLEAR_ARS();
   mode_prob();
 
-  strncpy(zcn->service_name, "MCSOPMSG_RESUME", sizeof(zcn->service_name) - 1);
+  strcpy(zcn->service_name, "MCSOPMSG_RESUME");
 
   if (RTNCD_RESUME_OK == zcn->service_rc)
   {
-    return 0;
+    return ZCN_RTNCD_SUCCESS;
   }
 
-  return zcn->service_rc;
+  zcn->detail_rc = ZCN_RTNCD_SERVICE_FAILURE;
+  return zcn->detail_rc;
 }
 
 #if defined(__IBM_METAL__)
@@ -380,7 +401,8 @@ int zcnm1dea(ZCN *zcn)
   mode_sup();
   MCSOPER_DEACTIVATE(zcn->id, zcn->service_rc, zcn->service_rsn, dsa_mcsoper_model);
   mode_prob();
-  strncpy(zcn->service_name, "MCSOPER_DEACTIVATE", sizeof(zcn->service_name) - 1);
+  strcpy(zcn->service_name, "MCSOPER_DEACTIVATE");
 
-  return zcn->service_rc;
+  if (0 != zcn->service_rc) zcn->detail_rc = ZCN_RTNCD_SERVICE_FAILURE; // if the service failed, note in RC
+  return zcn->detail_rc;
 }

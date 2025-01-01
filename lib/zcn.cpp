@@ -23,6 +23,10 @@ using namespace std;
 int zcn_activate(ZCN *zcn, string console_name)
 {
   int rc = 0;
+  zcn->detail_rc = 0;
+
+  strcpy(zcn->eye_beg, "ZCNB");
+  strcpy(zcn->eye_end, "ZCNE");
 
   memset(zcn->console_name, ' ', sizeof(zcn->console_name)); // pad with spaces
   transform(console_name.begin(), console_name.end(), console_name.begin(), ::toupper); // upper case
@@ -30,6 +34,7 @@ int zcn_activate(ZCN *zcn, string console_name)
   strncpy(zcn->console_name, console_name.c_str(), length);
 
   zcn->ecb = (unsigned int *)__malloc31(sizeof(unsigned int));
+  memset(zcn->ecb, 0x00, sizeof(unsigned int));
 
   rc = ZCNACT(zcn);
 
@@ -41,9 +46,12 @@ int zcn_activate(ZCN *zcn, string console_name)
 int zcn_put(ZCN *zcn, string command)
 {
   int rc = 0;
+  zcn->detail_rc = 0;
 
-  char *command31 = (char *)__malloc31(command.length());
-  memcpy(command31, command.c_str(), command.length());
+  char *command31 = (char *)__malloc31(command.length() + 1);
+  memset(command31, 0x00, command.length() + 1);
+  strncpy(command31, command.c_str(), command.length());
+
   rc = ZCNPUT(zcn, command31);
   free(command31);
 
@@ -53,6 +61,7 @@ int zcn_put(ZCN *zcn, string command)
 int zcn_get(ZCN *zcn, string &response)
 {
   int rc = 0;
+  zcn->detail_rc = 0;
 
   // user caller buffer size if provided
   if (0 == zcn->buffer_size) zcn->buffer_size = ZCN_DEFAULT_BUFFER_SIZE;
@@ -71,6 +80,7 @@ int zcn_get(ZCN *zcn, string &response)
 
 int zcn_deactivate(ZCN *zcn)
 {
+  zcn->detail_rc = 0;
   if (zcn->ecb) free(zcn->ecb);
 
   return ZCNDACT(zcn);

@@ -16,10 +16,11 @@
 #include "zut.hpp"
 #include "zutm.h"
 #include "zutm31.h"
+#include <ios>
 
 using namespace std;
 
-int zutTest()
+int zut_test()
 {
   int rc = 0;
 
@@ -50,7 +51,7 @@ int zutGetCurrentUser(string &struser)
   return rc;
 }
 
-int zutHello(string name)
+int zut_hello(string name)
 {
   // #if defined(__IBMC__) || defined(__IBMCPP__)
   // #pragma convert(819)
@@ -69,8 +70,9 @@ int zutHello(string name)
   return 0;
 }
 
-void zutDumpStorage(string title, const void *data, size_t size)
+void zut_dump_storage(string title, const void *data, size_t size)
 {
+  ios_base::fmtflags f(cout.flags());
   printf("--- Dumping storage for '%s' at x'%016llx' ---\n", title.c_str(), data);
 
   unsigned char *ptr = (unsigned char *)data;
@@ -139,13 +141,15 @@ void zutDumpStorage(string title, const void *data, size_t size)
   }
   cout << endl;
   cout << "--- END ---" << endl;
+
+  cout.flags(f);
 }
 
 
 /**
  * Get char value from hex byte, e.g. 0x0E -> 'E'
  */
-char zutGetHexChar(int num)
+char zut_get_hex_char(int num)
 {
     char val = '?';
 

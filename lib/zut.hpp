@@ -14,10 +14,10 @@
 #include <vector>
 #include <string>
 
-int zutTest();
-void zutDumpStorage(std::string, const void *, size_t);
-int zutHello(std::string);
-char zutGetHexChar(int);
+int zut_test();
+void zut_dump_storage(std::string, const void *, size_t);
+int zut_hello(std::string);
+char zut_get_hex_char(int);
 int zutGetCurrentUser(std::string &);
 
 #endif

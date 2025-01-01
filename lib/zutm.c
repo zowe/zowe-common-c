@@ -31,7 +31,7 @@ int ZUTTEST()
   // int time2 = 1 * 100 * 2;
   // time_wait(time2); // set a timer and WAIT for 5 seconds;
 
-  return rc;
+  // return rc;
 }
 
 #pragma prolog(ZUTMGUSR, "&CCN_MAIN SETB 1 \n MYPROLOG")

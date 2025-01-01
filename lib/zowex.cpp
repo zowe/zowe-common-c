@@ -104,7 +104,7 @@ int handle_test_console(ZCLIResult result)
 
 int handle_test_command(ZCLIResult result)
 {
-  int rc = zutTest();
+  int rc = zut_test();
   cout << "test code called " << rc << endl;
 
   return 0;
@@ -147,10 +147,21 @@ int handle_console_issue(ZCLIResult result)
 
     cout << response << endl;
 
+    // example issuing command which requires a reply
+    // e.g. zowexx console issue --console-name DKELOSKX "SL SET,ID=DK00"
+    // rc = zcn_get(&zcn, response);
+    // cout << response << endl;
+    // char reply[24] = {0};
+    // sprintf(reply, "R %.*s,CANCEL", zcn.reply_id_len, zcn.reply_id);
+    // rc = zcn_put(&zcn, reply.c_str());
+    // rc = zcn_get(&zcn, response);
+    // cout << response << endl;
+
     rc = zcn_deactivate(&zcn);
     if (0 != rc)
     {
       cout << "Error: could not deactivate rc: '" << rc << "' rsn: '" << zcn.service_rsn << "'" << endl;
+      cout << "  Details: " << zcn.e_msg << endl;
       return -1;
     }
     return rc;
