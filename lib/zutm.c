@@ -20,6 +20,12 @@
 #pragma prolog(ZUTTEST, "&CCN_MAIN SETB 1 \n MYPROLOG")
 int ZUTTEST()
 {
+  void *pointer = load_module("IEFBR14");
+
+  if (pointer)
+  return 3;
+  else
+  return 5;
   // int rc = 0;
   // int time = 1 * 100 * 1; // 3 seconds
   // // rc = cancel_timers();

@@ -51,6 +51,12 @@ CPP_BND_FLAGS_AUTH=-W "l,lp64,xplink,map,list,ac=1"\
  -qsource \
  -g
 
+C_FLAGS=-W "c,lp64,langlvl(extended),xplink,exportall"\
+ -qsource \
+ -g \
+ -c \
+ -I./chdsect
+
 DLL_CPP_FLAGS=-W "c,lp64,langlvl(extended),dll,xplink,exportall,showinc"\
  -qsource \
  -g \
@@ -94,6 +100,10 @@ libzut.so: zut.o zutm.o zutm31.o
 
 libzut.a: zut.o zutm.o zutm31.o
 	ar -rv $@ $^
+
+#
+# Data sets
+#
 
 #
 # Jobs
@@ -151,6 +161,14 @@ zowexx: zowex.o libzcn.a libzut.a
 
 zowex.o: zowex.cpp
 	$(CXX) $(CPP_FLAGS) -qlist=$*.cpp.lst -c $^
+
+#
+# TODO(Kelosky): makefile for chdsect (must have ADATA in data set)
+#
+# ISPF: tso alloc da('DKELOSKY.TEMP.ADATA') DSORG(PO) SPACE(5,5) CYL LRECL(80) RECFM(F,b) NEW vol(tsu063)
+# z/OS UNIX: tso "alloc da('dkelosky.temp.adata') DSORG(PO) SPACE(5,5) CYL LRECL(80) RECFM(F,b) NEW vol(tsu063)"
+# as -madata --gadata="//'DKELOSKY.TEMP.ADATA(IHAECB)'" ihaecb.s
+#
 
 #
 # Misc targets

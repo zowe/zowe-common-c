@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <vector>
+#include <stdlib.h>
 #include "zcn.hpp"
 #include "zut.hpp"
 #include "zcli.hpp"
@@ -46,9 +47,19 @@ int main(int argc, char *argv[])
   test_command.set_zcli_verb_handler(handle_test_command);
   test_group.get_verbs().push_back(test_command);
 
+  // data set group
+  ZCLIGroup data_set_group("data-set");
+  data_set_group.set_description("z/OS data set operations");
+
+  // data set verbs
+  ZCLIVerb data_set_free("free");
+  data_set_free.set_description("free data set");
+  data_set_free.set_zcli_verb_handler(function1);
+  data_set_group.get_verbs().push_back(data_set_free);
+
   // jobs group
-  ZCLIGroup jobs_group("jobs");
-  jobs_group.set_description("z/OS job operations");
+  ZCLIGroup job_group("job");
+  job_group.set_description("z/OS job operations");
 
   // jobs verbs
   ZCLIVerb job_list("list");
@@ -57,17 +68,17 @@ int main(int argc, char *argv[])
   ZCLIOption job_owner("owner");
   job_owner.set_description("filter by owner");
   job_list.get_options().push_back(job_owner);
-  jobs_group.get_verbs().push_back(job_list);
+  job_group.get_verbs().push_back(job_list);
 
   ZCLIVerb job_view("view");
   job_view.set_description("view a job");
   job_view.set_zcli_verb_handler(function2);
-  jobs_group.get_verbs().push_back(job_view);
+  job_group.get_verbs().push_back(job_view);
 
   ZCLIVerb job_submit("submit");
   job_submit.set_description("submit a job");
   job_submit.set_zcli_verb_handler(function2);
-  jobs_group.get_verbs().push_back(job_submit);
+  job_group.get_verbs().push_back(job_submit);
 
   // console group
   ZCLIGroup console_group("console");
@@ -88,8 +99,9 @@ int main(int argc, char *argv[])
 
   // add all groups to the CLI
   zcli.get_groups().push_back(test_group);
+  zcli.get_groups().push_back(data_set_group);
   zcli.get_groups().push_back(console_group);
-  zcli.get_groups().push_back(jobs_group);
+  zcli.get_groups().push_back(job_group);
 
   // parse
   return zcli.parse(argc, argv);
@@ -102,9 +114,25 @@ int handle_test_console(ZCLIResult result)
   return 0;
 }
 
+// typedef int EXTF(char *);
+// #pragma linkage(EXTF,OS )
+
 int handle_test_command(ZCLIResult result)
 {
-  int rc = zut_test();
+  int rc = 0;
+  rc = zut_test();
+
+  // rc = CFUNC();
+  // system("PGM=NOTFOUD, PARM='FREE DD(NONE)'");
+  // EXTF *bpxwdyn=(EXTF *)fetch("BPXWDYN");
+  // if (bpxwdyn)
+  // {
+  //   cout << "wowowo " << endl;
+  // rc = bpxwdyn("free dd(none)");
+
+  // }
+  // else
+  // cout << "amnit " << endl;
   cout << "test code called " << rc << endl;
 
   return 0;

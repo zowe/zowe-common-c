@@ -98,21 +98,73 @@ static int test_auth()
       "*                                                   \n" \
       " MODESET MODE="#value##"                            \n" \
       "*                                                    "  \
-      :::);
+      :::"r0","r1","r14","r15");
 #else
-#define MODESET_MODE(n)
+#define MODESET_MODE(value)
 #endif
 
 #if defined(__IBM_METAL__)
-#define MODESET_KEY(value)                                    \
+#define MODESET_KEY(value)                                     \
   __asm(                                                       \
       "*                                                   \n" \
-      " MODESET KEY="#value##"                            \n" \
+      " MODESET KEY="#value##"                             \n" \
       "*                                                    "  \
-      :::);
+      :::"r0","r1","r14","r15");
 #else
-#define MODESET_KEY(n)
+#define MODESET_KEY(value)
 #endif
+
+#if defined(__IBM_METAL__)
+#define LOAD(name, ep)                                         \
+  __asm(                                                       \
+      "*                                                   \n" \
+      " LOAD EPLOC=%1                                      \n" \
+      "*                                                   \n" \
+      " STG 0,%0                                           \n" \
+      "*                                                    "  \
+      :"=m"(ep)                                                \
+      :"m"(name)                                               \
+      :"r0","r1","r14","r15");
+#else
+#define LOAD(name, ep)
+#endif
+
+
+#if defined(__IBM_METAL__)
+#define DELETE(name, rc)                                         \
+  __asm(                                                         \
+      "*                                                     \n" \
+      " DELETE EPLOC=%1                                      \n" \
+      "*                                                     \n" \
+      " ST 15,%0                                             \n" \
+      "*                                                      "  \
+      :"=m"(rc)                                                  \
+      :"m"(name)                                                 \
+      :"r0","r1","r14","r15");
+#else
+#define DELETE(name, rc)
+#endif
+
+static void *PTR64 load_module(char name[8])
+{
+  // TODO(Kelosky): ERRET
+  void *PTR64 ep = NULL;
+  char name_truncated[9] = {0};
+  memset(name_truncated, ' ', sizeof(name_truncated - 1)); // pad with spaces
+  memcpy(name_truncated, name, strlen(name) > 8 ? 8 : strlen(name)); // truncate
+  LOAD(name_truncated, ep);
+  return ep;
+}
+
+static int delete_module(char name[8])
+{
+  int rc = 0;
+  char name_truncated[9] = {0};
+  memset(name_truncated, ' ', sizeof(name_truncated - 1));
+  strcpy(name_truncated, name);
+  DELETE(name_truncated, rc);
+  return rc;
+}
 
 static void mode_sup()
 {
