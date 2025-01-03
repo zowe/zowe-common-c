@@ -19,31 +19,33 @@
 
 #pragma prolog(ZUTTEST, "&CCN_MAIN SETB 1 \n MYPROLOG")
 
-typedef int (*func)(char *PTR32) ATTRIBUTE(amode31);
+#define RET_ARG_MAX_LEN 260
+// typedef int (*BPXWDYN)(char *PTR32) ATTRIBUTE(amode31);
+// typedef int (*BPXWDYN)(char *PTR32, void *PTR32, void *PTR32, void *PTR32, void *PTR32, void *PTR32) ATTRIBUTE(amode31);
+typedef struct {
+  short len;
+  char str[RET_ARG_MAX_LEN];
+} BPXWDYN_RET_ARG;
+
+typedef int (*BPXWDYN)(char *PTR32, BPXWDYN_RET_ARG *PTR32) ATTRIBUTE(amode31);
+// typedef int (*BPXWDYN)(char *PTR32, BPXWDYN_RET_ARG *PTR32, BPXWDYN_RET_ARG *PTR32, BPXWDYN_RET_ARG *PTR32, BPXWDYN_RET_ARG *PTR32, BPXWDYN_RET_ARG *PTR32) ATTRIBUTE(amode31);
+
 int ZUTTEST()
 {
   // void *pointer = load_module("IEFBR14"); // amode 24
   // void *pointer = load_module("CCNEDSCT"); // amode 31
   // void *pointer = load_module("CAVDSRV"); // amode 64
   // void *pointer = load_module("BPXWDY2"); //
-  void *pointer = load_module("BPXWDYN"); //
+  void *function = load_module("BPXWDYN"); //
 
-  WTO_BUF buf = {0};
-  buf.len = sprintf(buf.msg, "@test %llx", pointer);
-  wto(&buf);
-
-  if (pointer)
+  if (function)
   {
     int rc = 0;
-    if ((long long int)pointer & 0x0000000080000000) // amode 31
+    if ((long long int)function & 0x0000000080000000) // amode 31
     {
-      long long unsigned int pint = (long long unsigned int)pointer;
-      pint &= 0x000000007FFFFFFF;
-      func bpxwdy2 = (func)pint;
-        WTO_BUF buf = {0};
-      buf.len = sprintf(buf.msg, "@test %llx", bpxwdy2);
-      wto(&buf);
-      rc = 2;
+      long long unsigned int ifunction = (long long unsigned int)function;
+      ifunction &= 0x000000007FFFFFFF; // clear high bit
+      BPXWDYN dynalloc = (BPXWDYN)ifunction;
 
       // keywords
       // https://www.ibm.com/docs/en/zos/2.4.0?topic=output-requesting-dynamic-allocation
@@ -51,12 +53,22 @@ int ZUTTEST()
       // https://www.ibm.com/docs/en/zos/2.4.0?topic=output-bpxwdyn-return-codes
       // detail codes (high 4 hex bytes):
       // https://www.ibm.com/docs/en/zos/2.4.0?topic=codes-interpreting-error-reason-from-dynalloc#erc__mjfig8
+
+      // https://www.ibm.com/docs/en/zos/2.4.0?topic=conventions-conventional-mvs-parameter-list
+      BPXWDYN_RET_ARG msg = {3, "msg"};
+      BPXWDYN_RET_ARG m[4] = {{258, "msg.1"}, {258, "msg.2"}, {258, "msg.3"}, {258, "msg.4"}};
+
       char *PTR32 str = "free dd(none)";
-      str = (char *PTR32)((unsigned int)str | 0x80000000);
-      return bpxwdy2(str);
-      // return bpxwdy2("FREE DD(NONE)");
+      // str = (char *PTR32)((unsigned int)str | 0x80000000);
+      BPXWDYN_RET_ARG *PTR32 last = &msg;
+      last = (BPXWDYN_RET_ARG *PTR32)((unsigned int)last | 0x80000000);
+
+      __asm(" SR 0,0" :::"r0");
+      // return dynalloc(str, last);
+      return dynalloc(str, last); //, &m[0], &m[1], &m[2], last);
+      // return dynalloc(str, &msg, &m[0], &m[1], &m[2], last);
     }
-    else if ((long long int)pointer & 0x0000000000000001) // amode 64
+    else if ((long long int)function & 0x0000000000000001) // amode 64
     {
 
       // func bpx
