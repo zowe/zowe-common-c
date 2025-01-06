@@ -14,10 +14,11 @@
 #include <vector>
 #include <string>
 
+int zut_bpxwdyn(std::string, unsigned int *, std::string &);
 int zut_test();
 void zut_dump_storage(std::string, const void *, size_t);
 int zut_hello(std::string);
 char zut_get_hex_char(int);
-int zutGetCurrentUser(std::string &);
+int zut_get_current_user(std::string &);
 
 #endif

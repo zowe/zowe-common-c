@@ -23,13 +23,32 @@ using namespace std;
 int zut_test()
 {
   int rc = 0;
+  unsigned int code = 0;
 
-  rc = ZUTTEST();
+  string parm = "free dd(minemine)";
+  string resp;
+  rc = zut_bpxwdyn(parm, &code, resp);
+
+  cout << "resp is:\n" << resp << endl;
+  printf("code is x'%x'\n", code);
 
   return rc;
 }
 
-int zutGetCurrentUser(string &struser)
+int zut_bpxwdyn(string parm, unsigned int *code, string &resp)
+{
+  char bpx_response[RET_ARG_MAX_LEN * MSG_ENTRIES + 1] = {0};
+
+  char *cparm = (char *) __malloc31(parm.size());
+  strcpy(cparm, parm.c_str());
+  int rc = ZUTWDYN(cparm, code, bpx_response);
+  free(cparm);
+  resp = string(bpx_response);
+
+  return rc;
+}
+
+int zut_get_current_user(string &struser)
 {
   int rc = 0;
   char user[9] = {0};

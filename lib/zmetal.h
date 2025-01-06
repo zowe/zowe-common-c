@@ -10,6 +10,9 @@
 #ifndef ZMETAL_H
 #define ZMETAL_H
 
+#include <stdio.h>
+#include <string.h>
+
 #if defined(__IBM_METAL__)
 
 // on z

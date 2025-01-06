@@ -10,9 +10,6 @@
 #ifndef ZCN_HPP
 #define ZCN_HPP
 
-#include <iostream>
-#include <vector>
-#include <string>
 #include "zcntype.h"
 
 /**

@@ -17,84 +17,69 @@
 #include "zutm31.h"
 #include "zecb.h"
 
-#pragma prolog(ZUTTEST, "&CCN_MAIN SETB 1 \n MYPROLOG")
+#define ZUT_RTNCD_SUCCESS 0
+#define ZUT_LOAD_FAILURE -1
+#define ZUT_BPXWDYN_SERVICE_FAILURE -2
 
-#define RET_ARG_MAX_LEN 260
-// typedef int (*BPXWDYN)(char *PTR32) ATTRIBUTE(amode31);
-// typedef int (*BPXWDYN)(char *PTR32, void *PTR32, void *PTR32, void *PTR32, void *PTR32, void *PTR32) ATTRIBUTE(amode31);
 typedef struct {
   short len;
   char str[RET_ARG_MAX_LEN];
 } BPXWDYN_RET_ARG;
 
-typedef int (*BPXWDYN)(char *PTR32, BPXWDYN_RET_ARG *PTR32) ATTRIBUTE(amode31);
-// typedef int (*BPXWDYN)(char *PTR32, BPXWDYN_RET_ARG *PTR32, BPXWDYN_RET_ARG *PTR32, BPXWDYN_RET_ARG *PTR32, BPXWDYN_RET_ARG *PTR32, BPXWDYN_RET_ARG *PTR32) ATTRIBUTE(amode31);
+typedef int (*BPXWDYN)(const char *PTR32, BPXWDYN_RET_ARG *PTR32, BPXWDYN_RET_ARG *PTR32, BPXWDYN_RET_ARG *PTR32, BPXWDYN_RET_ARG *PTR32, BPXWDYN_RET_ARG *PTR32) ATTRIBUTE(amode31); // NOTE(Kelosky): this is not dynamic based on MSG_ENTRIES
 
+#pragma prolog(ZUTWDYN, "&CCN_MAIN SETB 1 \n MYPROLOG")
+int ZUTWDYN(const char *parm, unsigned int *code, char response[RET_ARG_MAX_LEN * MSG_ENTRIES + 1])
+{
+  void *function = load_module("BPXWDY2"); // EP which doesn't require R0 == 0
+  if (!function)
+  {
+    return ZUT_LOAD_FAILURE;
+  }
+
+  long long unsigned int ifunction = (long long unsigned int)function;
+  ifunction &= 0x000000007FFFFFFF; // clear high bit
+  BPXWDYN dynalloc = (BPXWDYN)ifunction;
+
+  BPXWDYN_RET_ARG msg = {RET_ARG_MAX_LEN - sizeof(msg.len), "MSG"};
+  BPXWDYN_RET_ARG msg_response[MSG_ENTRIES] = {0};
+
+  // Doc:
+  // * keywords - https://www.ibm.com/docs/en/zos/3.1.0?topic=output-requesting-dynamic-allocation
+  // * return codes - https://www.ibm.com/docs/en/zos/3.1.0?topic=output-bpxwdyn-return-codes
+  // * detail codes (high 4 hex bytes) - https://www.ibm.com/docs/en/zos/2.4.0?topic=codes-interpreting-error-reason-from-dynalloc#erc__mjfig8
+  // * parm list - https://www.ibm.com/docs/en/zos/3.1.0?topic=conventions-conventional-mvs-parameter-list
+
+  for (int i = 0; i < MSG_ENTRIES; i++)
+  {
+    msg_response[i].len = RET_ARG_MAX_LEN - sizeof(msg_response[i].len);
+    sprintf(msg_response[i].str, "MSG.%d", i +1);
+  }
+
+  BPXWDYN_RET_ARG *PTR32 last = &msg_response[MSG_ENTRIES - 1];
+  last = (BPXWDYN_RET_ARG *PTR32)((unsigned int)last | 0x80000000);
+
+  int rc = dynalloc(parm, &msg, &msg_response[0], &msg_response[1], &msg_response[2], last); // NOTE(Kelosky): this is not dynamic based on MSG_ENTRIES
+
+  *code = rc;
+
+  char *respp = response;
+  for (int i = 0, j=atoi(msg.str); i<j && i <MSG_ENTRIES; i++){
+    if (msg_response[i].len == RET_ARG_MAX_LEN - sizeof(msg_response[i].len))
+    {
+      return ZUT_BPXWDYN_SERVICE_FAILURE;
+    }
+    int len = sprintf(respp, "%s\n", msg_response[i].str);
+    respp = respp + len;
+  }
+
+  return (0 != rc) ? ZUT_BPXWDYN_SERVICE_FAILURE : ZUT_RTNCD_SUCCESS;
+}
+
+#pragma prolog(ZUTTEST, "&CCN_MAIN SETB 1 \n MYPROLOG")
 int ZUTTEST()
 {
-  // void *pointer = load_module("IEFBR14"); // amode 24
-  // void *pointer = load_module("CCNEDSCT"); // amode 31
-  // void *pointer = load_module("CAVDSRV"); // amode 64
-  // void *pointer = load_module("BPXWDY2"); //
-  void *function = load_module("BPXWDYN"); //
-
-  if (function)
-  {
-    int rc = 0;
-    if ((long long int)function & 0x0000000080000000) // amode 31
-    {
-      long long unsigned int ifunction = (long long unsigned int)function;
-      ifunction &= 0x000000007FFFFFFF; // clear high bit
-      BPXWDYN dynalloc = (BPXWDYN)ifunction;
-
-      // keywords
-      // https://www.ibm.com/docs/en/zos/2.4.0?topic=output-requesting-dynamic-allocation
-      // return codes s
-      // https://www.ibm.com/docs/en/zos/2.4.0?topic=output-bpxwdyn-return-codes
-      // detail codes (high 4 hex bytes):
-      // https://www.ibm.com/docs/en/zos/2.4.0?topic=codes-interpreting-error-reason-from-dynalloc#erc__mjfig8
-
-      // https://www.ibm.com/docs/en/zos/2.4.0?topic=conventions-conventional-mvs-parameter-list
-      BPXWDYN_RET_ARG msg = {3, "msg"};
-      BPXWDYN_RET_ARG m[4] = {{258, "msg.1"}, {258, "msg.2"}, {258, "msg.3"}, {258, "msg.4"}};
-
-      char *PTR32 str = "free dd(none)";
-      // str = (char *PTR32)((unsigned int)str | 0x80000000);
-      BPXWDYN_RET_ARG *PTR32 last = &msg;
-      last = (BPXWDYN_RET_ARG *PTR32)((unsigned int)last | 0x80000000);
-
-      __asm(" SR 0,0" :::"r0");
-      // return dynalloc(str, last);
-      return dynalloc(str, last); //, &m[0], &m[1], &m[2], last);
-      // return dynalloc(str, &msg, &m[0], &m[1], &m[2], last);
-    }
-    else if ((long long int)function & 0x0000000000000001) // amode 64
-    {
-
-      // func bpx
-      rc = 3;
-    }
-    else
-    {
-      rc = 1; // amode 24
-    }
-    delete_module("IEFBR14");
-    return rc;
-  }
-  else
-  return 5;
-  // int rc = 0;
-  // int time = 1 * 100 * 1; // 3 seconds
-  // // rc = cancel_timers();
-  // char *data = "hello world";
-
-  // timer(time, TIMEEXIT, data); // set a timer without waiting, that will fire in 3 seconds
-  // // rc = cancel_timers();
-
-  // int time2 = 1 * 100 * 2;
-  // time_wait(time2); // set a timer and WAIT for 5 seconds;
-
-  // return rc;
+  return 0;
 }
 
 #pragma prolog(ZUTMGUSR, "&CCN_MAIN SETB 1 \n MYPROLOG")

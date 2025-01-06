@@ -21,6 +21,7 @@ tests/*.lst
 tools
 listings
 dumpds
+artifacts
 
 # emacs
 *~
