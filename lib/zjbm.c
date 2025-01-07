@@ -29,6 +29,30 @@ typedef struct
   unsigned char buffer[SYMBOL_ENTRIES * 16];
 } JSYMBOLO;
 
+static void init_ssib(SSIB *ssib)
+{
+  memcpy(ssib->ssibid, "SSIB", sizeof(ssib->ssibid));
+  ssib->ssiblen = sizeof(SSIB);
+  memcpy(ssib->ssibssnm, "JES2", sizeof(ssib->ssibssnm));
+}
+
+static void init_ssob(SSOB *PTR32 ssob, SSIB *PTR32 ssib, void *PTR32 function_depenent_area, int function)
+{
+  memcpy(ssob->ssobid, "SSOB", sizeof(ssob->ssobid));
+  ssob->ssoblen = sizeof(SSOB);
+  ssob->ssobssib = ssib;
+  ssob->ssobindv = (int)function_depenent_area;
+  ssob->ssobfunc = function;
+}
+
+static void init_stat(STAT *stat)
+{
+  memcpy(stat->stateye, "STAT", sizeof(stat->stateye));
+  stat->statverl = statcvrl;
+  stat->statverm = statcvrm;
+  stat->statlen = statsize;
+}
+
 #pragma prolog(ZJBSYMB, "&CCN_MAIN SETB 1 \n MYPROLOG")
 int ZJBSYMB(ZJB *zjb, const char *symbol, char *value)
 {
@@ -89,16 +113,9 @@ int ZJBMPRG(ZJB *zjb)
   SSJM ssjm = {0};
   SSJF *ssjfp = NULL;
 
-  memcpy(ssob.ssobid, "SSOB", sizeof(ssob.ssobid));
-  ssob.ssoblen = sizeof(ssob);
-  ssob.ssobssib = &ssib;
   // https://www.ibm.com/docs/en/zos/3.1.0?topic=sfcd-modify-job-function-call-ssi-function-code-85
-  ssob.ssobfunc = 85;
-  ssob.ssobindv = (int)(SSJM * PTR32)(&ssjm);
-
-  memcpy(ssib.ssibid, "SSIB", sizeof(ssib.ssibid));
-  ssib.ssiblen = sizeof(ssib);
-  memcpy(ssib.ssibssnm, "JES2", sizeof(ssib.ssibssnm));
+  init_ssob(&ssob, &ssib, &ssjm, 85);
+  init_ssib(&ssib);
 
   memcpy(ssjm.ssjmeye, "SSJMPL  ", sizeof(ssjm.ssjmeye));
   ssjm.ssjmlen = ssjmsize;
@@ -138,7 +155,7 @@ int ZJBMPRG(ZJB *zjb)
     return ZJB_RTNCD_FAILURE;
   }
 
-  return 0;
+  return ZJB_RTNCD_SUCCESS;
 }
 
 // list jobs
@@ -159,21 +176,10 @@ int ZJBMLIST(ZJB *zjb, STATJQTR **PTR64 jobInfo, int *entries)
   STATJQTR *PTR32 statjqtrp = NULL;
   WTO_BUF buf = {0};
 
-  memcpy(ssob.ssobid, "SSOB", sizeof(ssob.ssobid));
-  ssob.ssoblen = sizeof(ssob);
-  ssob.ssobssib = &ssib;
   // https://www.ibm.com/docs/en/zos/3.1.0?topic=sfcd-extended-status-function-call-ssi-function-code-80
-  ssob.ssobfunc = 80;
-  ssob.ssobindv = (int)(STAT * PTR32)(&stat);
-
-  memcpy(ssib.ssibid, "SSIB", sizeof(ssib.ssibid));
-  ssib.ssiblen = sizeof(ssib);
-  memcpy(ssib.ssibssnm, "JES2", sizeof(ssib.ssibssnm));
-
-  memcpy(stat.stateye, "STAT", sizeof(stat.stateye));
-  stat.statverl = statcvrl;
-  stat.statverm = statcvrm;
-  stat.statlen = statsize;
+  init_ssob(&ssob, &ssib, &stat, 80);
+  init_ssib(&ssib);
+  init_stat(&stat);
   stat.statsel1 = statsown;
   stat.stattype = statters;
   memcpy(stat.statownr, zjb->owner_name, sizeof((stat.statownr)));
@@ -266,22 +272,13 @@ int ZJBMLSDS(const char *PTR64 jobid, STATSEVB **PTR64 sysoutInfo, int *entries,
   char jobid_name[9] = "         ";
   strncpy(jobid_name, jobid, sizeof(jobid_name - 1));
 
-  memcpy(ssob.ssobid, "SSOB", sizeof(ssob.ssobid));
-  ssob.ssoblen = sizeof(ssob);
-  ssob.ssobssib = &ssib;
-  ssob.ssobfunc = 80; // Extended status function call
-  ssob.ssobindv = (int)(STAT * PTR32)(&stat);
+  // https://www.ibm.com/docs/en/zos/3.1.0?topic=sfcd-extended-status-function-call-ssi-function-code-80
+  init_ssib(&ssib);
+  init_ssob(&ssob, &ssib, &stat, 80);
+  init_stat(&stat);
 
-  memcpy(ssib.ssibid, "SSIB", sizeof(ssib.ssibid));
-  ssib.ssiblen = sizeof(ssib);
-  memcpy(ssib.ssibssnm, "JES2", sizeof(ssib.ssibssnm));
-
-  memcpy(stat.stateye, "STAT", sizeof(stat.stateye));
-  stat.statverl = statcvrl;
-  stat.statverm = statcvrm;
-  stat.statlen = statsize;
   stat.statsel1 = statsjbi;
-  stat.stattype = statoutv; // STATMEM to free
+  stat.stattype = statoutv;
 
   memcpy(stat.statjbil, jobid_name, sizeof((stat.statjbil)));
   memcpy(stat.statjbih, jobid_name, sizeof((stat.statjbih)));
