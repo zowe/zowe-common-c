@@ -75,61 +75,97 @@ CPP_FLAGS=-W "c,lp64,langlvl(extended),dll,xplink,showinc"\
 
 ASM_FLAGS=-mrent
 
-all: zowex zowexx libzcn.so libzcn.a libzut.so libzut.a extattr
+all: libzut.so libzut.a libzds.so libzds.a libzcn.so libzcn.a libzjb.so libzjb.a zowex zowexx extattr
 
 #
 # Utilities
 #
 zut.o: zut.cpp
+	@echo 'Building zut.o'
 	$(CXX) $(DLL_CPP_FLAGS) -qlist=$*.cpp.lst -o $@ $^
 
 zutm.s: zutm.c
+	@echo 'Building zutm.s'
 	$(CC) $(MTL_FLAGS64) -qlist=$*.mtl.lst $(MTL_HEADERS) -o $@ $^
 
 zutm.o: zutm.s
+	@echo 'Building zutm.s'
 	$(ASM) $(ASM_FLAGS) -a=$*.asm.lst $(MACLIBS) -o $@ $^
 
 zutm31.s: zutm31.c
+	@echo 'Building zutm31.s'
 	$(CC) $(MTL_FLAGS) -qlist=$*.mtl.lst $(MTL_HEADERS) -o $@ $^
 
 zutm31.o: zutm31.s
+	@echo 'Building zutm31.o'
 	$(ASM) $(ASM_FLAGS) -a=$*.asm.lst $(MACLIBS) -o $@ $^
 
 libzut.so: zut.o zutm.o zutm31.o
+	@echo 'Building libzut.so'
 	$(CXX) $(DLL_BND_FLAGS) -o $@ $^ > $*.bind.lst
 
 libzut.a: zut.o zutm.o zutm31.o
+	@echo 'Building libzut.a'
 	ar -rv $@ $^
 
 #
 # Data sets
 #
+zds.o: zds.cpp
+	@echo 'Building zds.o'
+	$(CXX) $(DLL_CPP_FLAGS) -qlist=$*.cpp.lst -o $@ $^
+
+libzds.so: zds.o
+	$(CXX) $(DLL_BND_FLAGS) -o $@ $^ > $*.bind.lst
+	@echo 'Building libzds.so'
+
+libzds.a: zds.o
+	@echo 'Building libzds.a'
+	ar -rv $@ $^
 
 #
 # Jobs
 #
 zjbm.s: zjbm.c
+	@echo 'Building zjbm.s'
 	$(CC) $(MTL_FLAGS64) -qlist=$*.mtl.lst $(MTL_HEADERS) -o $@ $^
 
 zjbm.o: zjbm.s
+	@echo 'Building zjbm.o'
 	$(ASM) $(ASM_FLAGS) -a=$*.asm.lst $(MACLIBS) -o $@ $^
 
 zjb.o: zjb.cpp
+	@echo 'Building zjb.o'
 	$(CXX) $(DLL_CPP_FLAGS) -qlist=$*.cpp.lst -o $@ $^
 
+zjbm31.s: zjbm31.c
+	@echo 'Building zjbm31.s'
+	$(CC) $(MTL_FLAGS) -qlist=$*.mtl.lst $(MTL_HEADERS) -o $@ $^
+
+zjbm31.o: zjbm31.s
+	@echo 'Building zjbm31.o'
+	$(ASM) $(ASM_FLAGS) -a=$*.asm.lst $(MACLIBS) -o $@ $^
+
 zssi31.s: zssi31.c
+	@echo 'Building zssi31.s'
 	$(CC) $(MTL_FLAGS) -qlist=$*.mtl.lst $(MTL_HEADERS) -o $@ $^
 
 zssi31.o: zssi31.s
+	@echo 'Building zssi31.o'
 	$(ASM) $(ASM_FLAGS) -a=$*.asm.lst $(MACLIBS) -o $@ $^
+
+libzjb.so: zjb.o zjbm.o zssi31.o zjbm31.o libzds.a libzut.a
+	@echo 'Building libzjb.so'
+	$(CXX) $(DLL_BND_FLAGS) -o $@ $^ > $*.bind.lst
+
+libzjb.a: zjb.o zjbm.o zssi31.o zjbm31.o libzds.a libzut.a
+	@echo 'Building libzjb.a'
+	ar -rv $@ $^
 
 #
 # Console
 #
 zcn.o: zcn.cpp
-	$(CXX) $(DLL_CPP_FLAGS) -qlist=$*.cpp.lst -o $@ $^
-
-zutil.o: zutil.cpp
 	$(CXX) $(DLL_CPP_FLAGS) -qlist=$*.cpp.lst -o $@ $^
 
 zcnm.s: zcnm.c
@@ -145,21 +181,27 @@ zcnm31.o: zcnm31.s
 	$(ASM) $(ASM_FLAGS) -a=$*.asm.lst $(MACLIBS) -o $@ $^
 
 libzcn.so: zcn.o zcnm.o zcnm31.o
+	@echo 'Building libzcn.so'
 	$(CXX) $(DLL_BND_FLAGS) -o $@ $^ > $*.bind.lst
 
 libzcn.a: zcn.o zcnm.o zcnm31.o
+	@echo 'Building libzcn.a'
 	ar -rv $@ $^
 
 #
-# Static link but dll also produced
+# Test CLI
 #
-zowex: zowex.o libzcn.a libzut.a
+# zowex: zowex.o zcn.o zcnm.o zcnm31.o zut.o zutm.o zutm31.o zjb.o zjbm.o zssi31.o zjbm31.o zds.o
+zowex: zowex.o libzcn.a libzut.a libzjb.a libzds.a
+	@echo 'Building zowex'
 	$(CXX) $(CPP_BND_FLAGS) -o $@ $^ > $*.bind.lst
 
-zowexx: zowex.o libzcn.a libzut.a
+zowexx: zowex.o libzcn.a libzut.a libzjb.a libzds.a
+	@echo 'Building zowexx'
 	$(CXX) $(CPP_BND_FLAGS_AUTH) -o $@ $^ > $*.bind.lst
 
 zowex.o: zowex.cpp
+	@echo 'Building zowex.o'
 	$(CXX) $(CPP_FLAGS) -qlist=$*.cpp.lst -c $^
 
 #

@@ -88,13 +88,10 @@ int ZUTMGUSR(char user[8])
   char user31[8] = {0};
   int rc = zutm1gur(user31);
 
-  if (0 != rc)
-  {
-    return rc;
-  }
+  if (0 != rc) return rc;
 
   memcpy(user, user31, sizeof(user31));
-  return rc;
+  return 0;
 }
 
 #pragma prolog(ZUTMFR64, "&CCN_MAIN SETB 1 \n MYPROLOG")

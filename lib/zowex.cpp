@@ -14,6 +14,7 @@
 #include "zcn.hpp"
 #include "zut.hpp"
 #include "zcli.hpp"
+#include "zjb.hpp"
 
 using namespace std;
 
@@ -29,8 +30,9 @@ int function2(ZCLIResult result)
   return 0;
 }
 
+int handle_jobs_list(ZCLIResult);
 int handle_console_issue(ZCLIResult);
-int handle_test_command(ZCLIResult);
+int handle_test(ZCLIResult);
 
 int main(int argc, char *argv[])
 {
@@ -44,7 +46,7 @@ int main(int argc, char *argv[])
   // test verbs
   ZCLIVerb test_command("command");
   test_command.set_description("test command");
-  test_command.set_zcli_verb_handler(handle_test_command);
+  test_command.set_zcli_verb_handler(handle_test);
   test_group.get_verbs().push_back(test_command);
 
   // data set group
@@ -64,7 +66,7 @@ int main(int argc, char *argv[])
   // jobs verbs
   ZCLIVerb job_list("list");
   job_list.set_description("list jobs");
-  job_list.set_zcli_verb_handler(function1);
+  job_list.set_zcli_verb_handler(handle_jobs_list);
   ZCLIOption job_owner("owner");
   job_owner.set_description("filter by owner");
   job_list.get_options().push_back(job_owner);
@@ -107,32 +109,34 @@ int main(int argc, char *argv[])
   return zcli.parse(argc, argv);
 }
 
-int handle_test_console(ZCLIResult result)
+int handle_jobs_list(ZCLIResult result)
 {
-  cout << "test code called " << endl;
+  int rc = 0;
+  string owner_name(result.get_option("--owner").get_value());
+
+  vector<ZJob> jobs;
+  rc = zjb_list_by_owner(owner_name, jobs);
+
+  if (0 != rc)
+  {
+    cout << "Error: could not list jobs for: '" << owner_name << "' rc: '" << rc << "'" << endl;
+    // cout << "  Details: " << zcn.e_msg << endl;
+    return -1;
+  }
+
+  for (vector<ZJob>::iterator it = jobs.begin(); it != jobs.end(); it++)
+  {
+      cout << it->jobid << " " << left << setw(10) << it->retcode << " " << it->jobname << " " << it->status << endl;
+  }
 
   return 0;
 }
 
-// typedef int EXTF(char *);
-// #pragma linkage(EXTF,OS )
-
-int handle_test_command(ZCLIResult result)
+int handle_test(ZCLIResult result)
 {
   int rc = 0;
   rc = zut_test();
 
-  // rc = CFUNC();
-  // system("PGM=NOTFOUD, PARM='FREE DD(NONE)'");
-  // EXTF *bpxwdyn=(EXTF *)fetch("BPXWDYN");
-  // if (bpxwdyn)
-  // {
-  //   cout << "wowowo " << endl;
-  // rc = bpxwdyn("free dd(none)");
-
-  // }
-  // else
-  // cout << "amnit " << endl;
   cout << "test code called " << rc << endl;
 
   return 0;

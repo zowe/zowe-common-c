@@ -25,8 +25,8 @@ int zcn_activate(ZCN *zcn, string console_name)
   int rc = 0;
   zcn->detail_rc = 0;
 
-  strcpy(zcn->eye_beg, "ZCNB");
-  strcpy(zcn->eye_end, "ZCNE");
+  strcpy(zcn->eye_beg, EYE_BEG);
+  strcpy(zcn->eye_end, EYE_END);
 
   memset(zcn->console_name, ' ', sizeof(zcn->console_name)); // pad with spaces
   transform(console_name.begin(), console_name.end(), console_name.begin(), ::toupper); // upper case
@@ -75,7 +75,7 @@ int zcn_get(ZCN *zcn, string &response)
   if (0 == rc) response += string(resp31);
   free(resp31);
 
-  return 0;
+  return rc;
 }
 
 int zcn_deactivate(ZCN *zcn)

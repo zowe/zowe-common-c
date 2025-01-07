@@ -95,7 +95,7 @@ int ZCNGET(ZCN *zcn, char *response)
     return ZCN_RTNCD_FAILURE;
   }
 
-  return rc;
+  return ZCN_RTNCD_SUCCESS;
 }
 
 #pragma prolog(ZCNDACT, "&CCN_MAIN SETB 1 \n MYPROLOG")
@@ -123,5 +123,5 @@ int ZCNDACT(ZCN *zcn)
     return ZCN_RTNCD_FAILURE;
   }
 
-  return rc;
+  return ZCN_RTNCD_SUCCESS;
 }

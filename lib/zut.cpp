@@ -54,18 +54,14 @@ int zut_get_current_user(string &struser)
   char user[9] = {0};
 
   rc = ZUTMGUSR(user);
-  if (0 != rc)
-  {
-    cout << "Error: could not get user, rc was " << rc << endl;
-    return -1;
-  }
+  if (0 != rc) return rc;
 
-  for (int i = 9 - 1; i >=0; i--)
+  for (int i = sizeof(user) - 1; i >=0; i--)
   {
     if (user[i] == ' ' || user[i] == 0x00) user[i] = 0x00;
     else break;
   }
-  cout << "user was " << user << endl;
+
   struser = string(user);
   return rc;
 }
