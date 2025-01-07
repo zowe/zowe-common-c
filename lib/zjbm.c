@@ -30,7 +30,7 @@ typedef struct
 } JSYMBOLO;
 
 #pragma prolog(ZJBSYMB, "&CCN_MAIN SETB 1 \n MYPROLOG")
-int ZJBSYMB(const char *symbol, char *value)
+int ZJBSYMB(ZJB *zjb, const char *symbol, char *value)
 {
   int rc = 0;
   WTO_BUF buf = {0};
@@ -59,10 +59,11 @@ int ZJBSYMB(const char *symbol, char *value)
 
   if (0 != rc)
   {
-    // TODO(Kelosky): read jsymerad
-    buf.len = sprintf(buf.msg, "Error: IAZSYMBL RC was: '%d', JSYMRETN was: '%d', JSYMREAS: %d", rc, jsym.jsymretn, jsym.jsymreas);
-    wto(&buf);
-    return -1;
+    // TODO(Kelosky): read jsymerad for errors
+    strcpy(zjb->service_name, "iazsymbl");
+    zjb->e_msg_len = sprintf(zjb->e_msg, "Error: IAZSYMBL RC was: '%d', JSYMRETN was: '%d', JSYMREAS: %d", rc, jsym.jsymretn, jsym.jsymreas);
+    zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+    return ZJB_RTNCD_FAILURE;
   }
 
   p = (unsigned char *)&jsymbolOutput.jsymbolTable; // --> table
@@ -71,14 +72,13 @@ int ZJBSYMB(const char *symbol, char *value)
   p = p + jsymbolEntry->jsyevalo;
   memcpy(value, p, jsymbolEntry->jsyevals);
 
-  return 0;
+  return ZJB_RTNCD_SUCCESS;
 }
 
 // purge a job
 #pragma prolog(ZJBMPRG, "&CCN_MAIN SETB 1 \n MYPROLOG")
-int ZJBMPRG(const char *PTR64 jobid)
+int ZJBMPRG(ZJB *zjb)
 {
-  int size = 128000;
   int rc = 0;
   int loopControl = 0;
 
@@ -87,15 +87,13 @@ int ZJBMPRG(const char *PTR64 jobid)
   SSOB ssob = {0};
   SSIB ssib = {0};
   SSJM ssjm = {0};
-
-  WTO_BUF buf = {0};
-  char jobid_name[9] = {0};
-  strncpy(jobid_name, jobid, sizeof(jobid_name - 1));
+  SSJF *ssjfp = NULL;
 
   memcpy(ssob.ssobid, "SSOB", sizeof(ssob.ssobid));
   ssob.ssoblen = sizeof(ssob);
   ssob.ssobssib = &ssib;
-  ssob.ssobfunc = 85; // Extended status function call - Modify job function call
+  // https://www.ibm.com/docs/en/zos/3.1.0?topic=sfcd-modify-job-function-call-ssi-function-code-85
+  ssob.ssobfunc = 85;
   ssob.ssobindv = (int)(SSJM * PTR32)(&ssjm);
 
   memcpy(ssib.ssibid, "SSIB", sizeof(ssib.ssibid));
@@ -115,7 +113,7 @@ int ZJBMPRG(const char *PTR64 jobid)
   ssjm.ssjmsel2 = ssjm.ssjmsel2 | ssjmsjob; // batch jobs
   ssjm.ssjmsel2 = ssjm.ssjmsel2 | ssjmsstc; // stcs
   ssjm.ssjmsel2 = ssjm.ssjmsel2 | ssjmstsu; // time sharing users
-  memcpy(ssjm.ssjmojbi, jobid_name, sizeof(ssjm.ssjmojbi));
+  memcpy(ssjm.ssjmojbi, zjb->jobid, sizeof(ssjm.ssjmojbi));
 
   ssobp = &ssob;
   ssobp = (SSOB * PTR32)((unsigned int)ssobp | 0x80000000);
@@ -123,14 +121,22 @@ int ZJBMPRG(const char *PTR64 jobid)
 
   if (0 != rc || 0 != ssob.ssobretn)
   {
-    // https://www.ibm.com/docs/en/zos/3.1.0?topic=85-output-parameters
-    buf.len = sprintf(buf.msg, "IEFSSREQ rc was: '%d' SSOBRTN was: '%d' SSJMRETN was: '%d', SSJMRET2 was: '%d'", rc, ssob.ssobretn, ssjm.ssjmretn, ssjm.ssjmret2); // STATREAS contains the reason
-    wto(&buf);
-    return -1;
+    strcpy(zjb->service_name, "IEFSSREQ");
+    zjb->service_rc = ssob.ssobretn;
+    zjb->service_rsn = ssjm.ssjmretn;
+    zjb->service_rsn_secondary = ssjm.ssjmret2;
+    zjb->e_msg_len = sprintf(zjb->e_msg, "IEFSSREQ rc was: '%d' SSOBRTN was: '%d', SSJMRETN was: '%d', SSJMRET2 was: '%d'", rc, ssob.ssobretn, ssjm.ssjmretn, ssjm.ssjmret2);
+    return ZJB_RTNCD_FAILURE;
   }
 
-  buf.len = sprintf(buf.msg, "IEFSSREQ rc was: '%d' SSOBRTN was: '%d'", rc, ssob.ssobretn); // STATREAS contains the reason
-  wto(&buf);
+  ssjfp = (SSJF *) ssjm.ssjmsjf8; // NOTE(Kelosky): in the future we can return a list of SSJFs, for now, if non-returned, the job was not found
+
+  if (0 == ssjm.ssjmnsjf)
+  {
+    zjb->e_msg_len = sprintf(zjb->e_msg, "No jobs found matching '%.8s'", zjb->jobid);
+    zjb->detail_rc = ZJB_RTNCD_JOB_NOT_FOUND;
+    return ZJB_RTNCD_FAILURE;
+  }
 
   return 0;
 }
@@ -156,7 +162,8 @@ int ZJBMLIST(ZJB *zjb, STATJQTR **PTR64 jobInfo, int *entries)
   memcpy(ssob.ssobid, "SSOB", sizeof(ssob.ssobid));
   ssob.ssoblen = sizeof(ssob);
   ssob.ssobssib = &ssib;
-  ssob.ssobfunc = 80; // Extended status function call
+  // https://www.ibm.com/docs/en/zos/3.1.0?topic=sfcd-extended-status-function-call-ssi-function-code-80
+  ssob.ssobfunc = 80;
   ssob.ssobindv = (int)(STAT * PTR32)(&stat);
 
   memcpy(ssib.ssibid, "SSIB", sizeof(ssib.ssibid));
@@ -168,7 +175,7 @@ int ZJBMLIST(ZJB *zjb, STATJQTR **PTR64 jobInfo, int *entries)
   stat.statverm = statcvrm;
   stat.statlen = statsize;
   stat.statsel1 = statsown;
-  stat.stattype = statters; // STATMEM to free
+  stat.stattype = statters;
   memcpy(stat.statownr, zjb->owner_name, sizeof((stat.statownr)));
 
   ssobp = &ssob;
@@ -199,7 +206,7 @@ int ZJBMLIST(ZJB *zjb, STATJQTR **PTR64 jobInfo, int *entries)
       break;
     }
 
-    total_size += sizeof(STATJQTR);
+    total_size += (int)sizeof(STATJQTR);
 
     if (total_size <= zjb->buffer_size)
     {

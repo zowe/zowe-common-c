@@ -18,6 +18,7 @@
 #define ZJB_RTNCD_SERVICE_FAILURE -2
 #define ZJB_RTNCD_MAX_JOBS_REACHED -3
 #define ZJB_RTNCD_INSUFFICIENT_BUFFER -4
+#define ZJB_RTNCD_JOB_NOT_FOUND -5
 
 #define ZJB_DEFAULT_BUFFER_SIZE 128000
 #define ZJB_DEFAULT_MAX_JOBS 100
@@ -33,6 +34,7 @@ typedef struct {
   int32_t jobs_max;
   int32_t buffer_size;
   int32_t buffer_size_needed; // total ammount of buffer size needed to satisfy request
+  char jobid[8]; // job id
   char owner_name[8]; // owner name used, upper cased/padded/truncated
 
   char service_name[24];

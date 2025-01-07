@@ -30,7 +30,9 @@ int function2(ZCLIResult result)
   return 0;
 }
 
-int handle_jobs_list(ZCLIResult);
+int handle_job_list(ZCLIResult);
+int handle_job_submit(ZCLIResult);
+int handle_job_delete(ZCLIResult);
 int handle_console_issue(ZCLIResult);
 int handle_test(ZCLIResult);
 
@@ -66,7 +68,7 @@ int main(int argc, char *argv[])
   // jobs verbs
   ZCLIVerb job_list("list");
   job_list.set_description("list jobs");
-  job_list.set_zcli_verb_handler(handle_jobs_list);
+  job_list.set_zcli_verb_handler(handle_job_list);
   ZCLIOption job_owner("owner");
   job_owner.set_description("filter by owner");
   job_list.get_options().push_back(job_owner);
@@ -79,8 +81,19 @@ int main(int argc, char *argv[])
 
   ZCLIVerb job_submit("submit");
   job_submit.set_description("submit a job");
-  job_submit.set_zcli_verb_handler(function2);
+  job_submit.set_zcli_verb_handler(handle_job_submit);
+  ZCLIPositional job_dsn("dsn");
+  job_dsn.set_required(true);
+  job_submit.get_positionals().push_back(job_dsn);
   job_group.get_verbs().push_back(job_submit);
+
+  ZCLIVerb job_delete("delete");
+  job_delete.set_description("submit a job");
+  job_delete.set_zcli_verb_handler(handle_job_delete);
+  ZCLIPositional job_jobid("jobid");
+  job_jobid.set_required(true);
+  job_delete.get_positionals().push_back(job_jobid);
+  job_group.get_verbs().push_back(job_delete);
 
   // console group
   ZCLIGroup console_group("console");
@@ -109,7 +122,7 @@ int main(int argc, char *argv[])
   return zcli.parse(argc, argv);
 }
 
-int handle_jobs_list(ZCLIResult result)
+int handle_job_list(ZCLIResult result)
 {
   int rc = 0;
   ZJB zjb = {0};
@@ -121,7 +134,7 @@ int handle_jobs_list(ZCLIResult result)
   if (0 != rc)
   {
     cout << "Error: could not list jobs for: '" << owner_name << "' rc: '" << rc << "'" << endl;
-    // cout << "  Details: " << zcn.e_msg << endl;
+    cout << "  Details: " << zjb.e_msg << endl;
     return -1;
   }
 
@@ -129,6 +142,48 @@ int handle_jobs_list(ZCLIResult result)
   {
       cout << it->jobid << " " << left << setw(10) << it->retcode << " " << it->jobname << " " << it->status << endl;
   }
+
+  return 0;
+}
+
+int handle_job_submit(ZCLIResult result)
+{
+  int rc = 0;
+  ZJB zjb = {0};
+  string dsn(result.get_positional("dsn").get_value());
+
+  vector<ZJob> jobs;
+  string jobid;
+  rc = zjb_submit(&zjb, dsn, jobid);
+
+  if (0 != rc)
+  {
+    cout << "Error: could not submit JCL: '" << dsn << "' rc: '" << rc << "'" << endl;
+    cout << "  Details: " << zjb.e_msg << endl;
+    return -1;
+  }
+
+  cout << "Submitted " << dsn << ", " << jobid << endl;
+
+  return 0;
+}
+
+int handle_job_delete(ZCLIResult result)
+{
+  int rc = 0;
+  ZJB zjb = {0};
+  string jobid(result.get_positional("jobid").get_value());
+
+  rc = zjb_delete_by_jobid(&zjb, jobid);
+
+  if (0 != rc)
+  {
+    cout << "Error: could not delete job: '" << jobid << "' rc: '" << rc << "'" << endl;
+    cout << "  Details: " << zjb.e_msg << endl;
+    return -1;
+  }
+
+  cout << "Job " << jobid << " deleted " << endl;
 
   return 0;
 }
@@ -154,7 +209,7 @@ int handle_console_issue(ZCLIResult result)
     rc = zcn_activate(&zcn, string(console_name));
     if (0 != rc)
     {
-      cout << "Error: could not activate console: '" << console_name << "' rc: '" << rc << "' service_rc: '" << zcn.service_rc << "'" << endl;
+      cout << "Error: could not activate console: '" << console_name << "' rc: '" << rc << "'" << endl;
       cout << "  Details: " << zcn.e_msg << endl;
       return -1;
     }
@@ -164,7 +219,7 @@ int handle_console_issue(ZCLIResult result)
     rc = zcn_put(&zcn, command);
     if (0 != rc)
     {
-      cout << "Error: could not write to console: '" << console_name << "' rc: '" << rc << "' service_rc: '" << zcn.service_rc << "'" << endl;
+      cout << "Error: could not write to console: '" << console_name << "' rc: '" << rc << "'" << endl;
       cout << "  Details: " << zcn.e_msg << endl;
       return -1;
     }
@@ -173,7 +228,7 @@ int handle_console_issue(ZCLIResult result)
     rc = zcn_get(&zcn, response);
     if (0 != rc)
     {
-      cout << "Error: could not get from console: '" << console_name << "' rc: '" << rc << "' service_rc: '" << zcn.service_rc << "'" << endl;
+      cout << "Error: could not get from console: '" << console_name << "' rc: '" << rc << "'" << endl;
       cout << "  Details: " << zcn.e_msg << endl;
       return -1;
     }
@@ -193,7 +248,7 @@ int handle_console_issue(ZCLIResult result)
     rc = zcn_deactivate(&zcn);
     if (0 != rc)
     {
-      cout << "Error: could not deactivate rc: '" << rc << "' rsn: '" << zcn.service_rsn << "'" << endl;
+      cout << "Error: could not deactivate console: '" << console_name << "' rc: '" << rc << "'" << endl;
       cout << "  Details: " << zcn.e_msg << endl;
       return -1;
     }

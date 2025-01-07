@@ -113,19 +113,19 @@ using namespace std;
 // NOTE(Kelosky): In the future, to allocate the logical SYSLOG concatenation for a system specify the following data set name (in DALDSNAM).
 // NOTE(Kelosky): needed for dynalloc JES spool https://www.ibm.com/docs/en/zos/3.1.0?topic=programming-jes-spool-data-set-browse
 // NOTE(Kelosky): needed for dynalloc https://www.ibm.com/docs/en/zos/2.4.0?topic=list-coding-dynamic-allocation-request
-int zjb_read_jobs_output_by_jobid_and_key(string jobid, int key, string &data)
+int zjb_read_jobs_output_by_jobid_and_key(ZJB *zjb, string jobid, int key, string &data)
 {
   int rc = 0;
   string jobdsn;
 
-  rc = zjb_get_job_dsn_by_jobid_and_key(jobid, key, jobdsn);
+  rc = zjb_get_job_dsn_by_jobid_and_key(zjb, jobid, key, jobdsn);
   if (0 != rc)
   {
     cout << "Error: obtaining joblist failed" << endl; // TODO(Kelosky): better error handling scheme
     return rc;
   }
 
-  rc = zjb_read_job_content_by_dsn(jobdsn, data);
+  rc = zjb_read_job_content_by_dsn(zjb, jobdsn, data);
   if (0 != rc)
   {
     cout << "Error: obtaining job spool info failed for '" << jobdsn << "'" << endl; // TODO(Kelosky): better error handling scheme
@@ -135,13 +135,13 @@ int zjb_read_jobs_output_by_jobid_and_key(string jobid, int key, string &data)
   return 0;
 }
 
-int zjb_get_job_dsn_by_jobid_and_key(string jobid, int key, string &jobdsname)
+int zjb_get_job_dsn_by_jobid_and_key(ZJB *zjb, string jobid, int key, string &jobdsname)
 {
   int rc = 0;
 
   vector<ZJobDD> list;
 
-  rc = zjb_list_dds_by_jobid(jobid, list);
+  rc = zjb_list_dds_by_jobid(zjb, jobid, list);
   if (0 != rc)
   {
     cout << "Error: obtaining joblist failed" << endl; // TODO(Kelosky): better error handling scheme
@@ -169,7 +169,7 @@ int zjb_get_job_dsn_by_jobid_and_key(string jobid, int key, string &jobdsname)
   return 0;
 }
 
-int zjb_read_job_content_by_dsn(string jobdsn, string &response)
+int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
 {
   int rc = 0;
   unsigned char *p = NULL;
@@ -376,36 +376,40 @@ int zjb_read_job_content_by_dsn(string jobdsn, string &response)
   return rc;
 }
 
-int zjb_delete_by_jobid(string jobId)
+int zjb_delete_by_jobid(ZJB *zjb, string jobid)
 {
-  int rc = 0;
-  rc = ZJBMPRG(jobId.c_str());
-  if (rc != 0)
-  {
-    cerr << "Error: could not delete job: '" << jobId << "'" << endl;
-    return -1;
-  }
 
-  return 0;
+  memset(zjb->jobid, ' ', sizeof(jobid)); // pad with spaces
+  transform(jobid.begin(), jobid.end(), jobid.begin(), ::toupper); // upper case
+  int length = jobid.size() > sizeof(zjb->jobid) ? sizeof(zjb->jobid) : jobid.size(); // truncate
+  strncpy(zjb->jobid, jobid.c_str(), length);
+
+  return ZJBMPRG(zjb);
 }
 
-int zjb_submit(string dataSet, string &jobId)
+int zjb_submit(ZJB *zjb, string data_set, string &jobId)
 {
   int rc = 0;
   string content;
-  rc = zdsRead(dataSet, content);
+  rc = zdsRead(data_set, content);
   if (rc != 0)
   {
-    cerr << "Error: could not read data set: '" << dataSet << "'" << endl;
-    return -1;
+    strcpy(zjb->service_name, "zds_read");
+    zjb->service_rc = rc;
+    zjb->e_msg_len = sprintf(zjb->e_msg, "Could not read data set '%s' - %d", data_set.c_str(), rc);
+    zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+    return ZJB_RTNCD_FAILURE;
   }
 
   __dyn_t ip;
   rc = dyninit(&ip);
   if (0 != rc)
   {
-    cerr << "Error: dyninit failed with " << rc << endl; // TODO(Kelosky): better error handling scheme
-    return -1;
+    strcpy(zjb->service_name, "dyninit");
+    zjb->service_rc = rc;
+    zjb->e_msg_len = sprintf(zjb->e_msg, "dyninit failed with %d", rc);
+    zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+    return ZJB_RTNCD_FAILURE;
   }
 
   string ddname = "????????"; // system generated DD name
@@ -413,15 +417,18 @@ int zjb_submit(string dataSet, string &jobId)
   ip.__sysoutname = "INTRDR  "; // https://www.ibm.com/docs/en/zos/3.1.0?topic=control-destination-internal-reader && https://www.ibm.com/docs/en/zos/3.1.0?topic=programming-internal-reader-facility
   ip.__lrecl = 80;
   ip.__blksize = 80;
-  ip.__sysout =  __DEF_CLASS; //
+  ip.__sysout =  __DEF_CLASS;
   ip.__recfm = _FB_;
 
   rc = dynalloc(&ip);
 
   if (0 != rc)
   {
-    cerr << "Error: dynalloc failed with " << rc << endl; // TODO(Kelosky): better error handling scheme
-    return -1;
+    strcpy(zjb->service_name, "dynalloc");
+    zjb->service_rc = rc;
+    zjb->e_msg_len = sprintf(zjb->e_msg, "dynalloc failed with %d", rc);
+    zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+    return ZJB_RTNCD_FAILURE;
   }
 
   string cddname = "DD:" + ddname;
@@ -430,27 +437,27 @@ int zjb_submit(string dataSet, string &jobId)
   in.close();
 
   char cjobid[8 + 1] = {0};
-  rc = ZJBSYMB("SYS_LASTJOBID", cjobid); https://www.ibm.com/docs/en/zos/3.1.0?topic=iazsymbl-jes-system-symbols
+  // https://www.ibm.com/docs/en/zos/3.1.0?topic=iazsymbl-jes-system-symbols
+  rc = ZJBSYMB(zjb, "SYS_LASTJOBID", cjobid);
 
-  if (0 != rc)
-  {
-    cerr << "Error: could not get last job id " << rc << endl; // TODO(Kelosky): better error handling scheme
-    return -1;
-  }
+  if (0 != rc) return rc;
 
   jobId = string(cjobid);
 
   rc = dynfree(&ip);
   if (0 != rc)
   {
-    cerr << "Error: dynfree failed with " << rc << endl; // TODO(Kelosky): better error handling scheme
-    return -1;
+    strcpy(zjb->service_name, "dynfree");
+    zjb->service_rc = rc;
+    zjb->e_msg_len = sprintf(zjb->e_msg, "dynfree failed with %d", rc);
+    zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+    return ZJB_RTNCD_FAILURE;
   }
 
-  return rc;
+  return ZJB_RTNCD_SUCCESS;
 }
 
-int zjb_list_dds_by_jobid(string jobid, vector<ZJobDD> &jobDDs)
+int zjb_list_dds_by_jobid(ZJB *zjb, string jobid, vector<ZJobDD> &jobDDs)
 {
   char tempDDn[9] = {0};
   char tempsn[9] = {0};
@@ -464,7 +471,7 @@ int zjb_list_dds_by_jobid(string jobid, vector<ZJobDD> &jobDDs)
 
   if (0 != rc)
   {
-    cout << "Error: listding data sets failed with " << rc << endl; // TODO(Kelosky): better error handling scheme
+    cout << "Error: listing data sets failed with " << rc << endl; // TODO(Kelosky): better error handling scheme
     return -1;
   }
 
