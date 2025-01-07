@@ -19,8 +19,7 @@
 #include "zstorage.h"
 #include "zjsytype.h"
 #include "zmetal.h"
-
-#define LOOP_MAX 100
+#include "zjbtype.h"
 
 #define SYMBOL_ENTRIES 3
 typedef struct
@@ -138,15 +137,13 @@ int ZJBMPRG(const char *PTR64 jobid)
 
 // list jobs
 #pragma prolog(ZJBMLIST, "&CCN_MAIN SETB 1 \n MYPROLOG")
-int ZJBMLIST(const char owner[8], STATJQTR **PTR64 jobInfo, int *entries)
+int ZJBMLIST(ZJB *zjb, STATJQTR **PTR64 jobInfo, int *entries)
 {
-  int size = 128000;
   int rc = 0;
   int loopControl = 0;
 
-  STATJQTR *statjqtrsp = storageGet64(size); // TODO(Kelosky): dynamic storage based on jobs
+  STATJQTR *statjqtrsp = storageGet64(zjb->buffer_size); // TODO(Kelosky): dynamic storage based on jobs
 
-  // return rc
   SSOB *PTR32 ssobp = NULL;
   SSOB ssob = {0};
   SSIB ssib = {0};
@@ -172,7 +169,7 @@ int ZJBMLIST(const char owner[8], STATJQTR **PTR64 jobInfo, int *entries)
   stat.statlen = statsize;
   stat.statsel1 = statsown;
   stat.stattype = statters; // STATMEM to free
-  memcpy(stat.statownr, owner, sizeof((stat.statownr)));
+  memcpy(stat.statownr, zjb->owner_name, sizeof((stat.statownr)));
 
   ssobp = &ssob;
   ssobp = (SSOB * PTR32)((unsigned int)ssobp | 0x80000000);
@@ -180,41 +177,59 @@ int ZJBMLIST(const char owner[8], STATJQTR **PTR64 jobInfo, int *entries)
 
   if (0 != rc || 0 != ssob.ssobretn)
   {
-    buf.len = sprintf(buf.msg, "IEFSSREQ rc was: '%d' SSOBRTN was: '%d', STATREAS was: '%d', STATREA2 was: '%d'", rc, ssob.ssobretn, stat.statreas, stat.statrea2); // STATREAS contains the reason
-    wto(&buf);
-    // TODO(Kelosky): do we need to call w/statmem here?
+    strcpy(zjb->service_name, "IEFSSREQ");
+    zjb->service_rc = ssob.ssobretn;
+    zjb->service_rsn = stat.statreas;
+    zjb->service_rsn_secondary = stat.statrea2;
+    zjb->e_msg_len = sprintf(zjb->e_msg, "IEFSSREQ rc was: '%d' SSOBRTN was: '%d', STATREAS was: '%d', STATREA2 was: '%d'", rc, ssob.ssobretn, stat.statreas, stat.statrea2); // STATREAS contains the reason
     storageFree64(statjqtrsp);
-    return -1;
+    return ZJB_RTNCD_FAILURE;
   }
 
   statjqp = (STATJQ * PTR32) stat.statjobf;
   *jobInfo = statjqtrsp;
+
+  int total_size = 0;
+
   while (statjqp)
   {
-    if (loopControl > LOOP_MAX)
-      break; // TODO(Kelosky): handle as a condition
+    if (loopControl > zjb->jobs_max)
+    {
+      zjb->detail_rc = ZJB_RTNCD_MAX_JOBS_REACHED;
+      break;
+    }
 
-    *entries = *entries + 1;
+    total_size += sizeof(STATJQTR);
 
-    statjqhdp = (STATJQHD * PTR32)((unsigned char *PTR32)statjqp + statjqp->stjqohdr);
-    statjqtrp = (STATJQTR * PTR32)((unsigned char *PTR32)statjqhdp + sizeof(STATJQHD));
+    if (total_size <= zjb->buffer_size)
+    {
+      *entries = *entries + 1;
 
-    memcpy(statjqtrsp, statjqtrp, sizeof(STATJQTR));
-    statjqtrsp++;
+      statjqhdp = (STATJQHD * PTR32)((unsigned char *PTR32)statjqp + statjqp->stjqohdr);
+      statjqtrp = (STATJQTR * PTR32)((unsigned char *PTR32)statjqhdp + sizeof(STATJQHD));
+
+      memcpy(statjqtrsp, statjqtrp, sizeof(STATJQTR));
+      statjqtrsp++;
+    }
+    else
+    {
+      zjb->detail_rc = ZJB_RTNCD_INSUFFICIENT_BUFFER;
+    }
 
     statjqp = (STATJQ * PTR32) statjqp->stjqnext;
 
     loopControl++;
   }
 
+  zjb->buffer_size_needed = total_size;
+
   stat.stattype = statmem; // free storage
-  rc = iefssreq(&ssobp);   // TODO(Kelosky): recovery
+  rc = iefssreq(&ssobp); // TODO(Kelosky): recovery
 
-  buf.len = sprintf(buf.msg, "IEFSSREQ FREE was: '%d' SSOBRTN was: '%d'", rc, ssob.ssobretn); // STATREAS contains the reason
-  wto(&buf);
-
-  return 0;
+  return ZJB_RTNCD_SUCCESS;
 }
+
+#define LOOP_MAX 100
 
 // list data sets for a job
 #pragma prolog(ZJBMLSDS, "&CCN_MAIN SETB 1 \n MYPROLOG")

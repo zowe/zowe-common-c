@@ -516,6 +516,10 @@ int zjb_list_by_owner(ZJB *zjb, string owner_name, vector<ZJob> &jobs)
     }
   }
 
+  // user caller buffer size if provided
+  if (0 == zjb->buffer_size) zjb->buffer_size = ZJB_DEFAULT_BUFFER_SIZE;
+  if (0 == zjb->jobs_max) zjb->jobs_max = ZJB_DEFAULT_MAX_JOBS;
+
   memset(zjb->owner_name, ' ', sizeof(owner_name)); // pad with spaces
   transform(owner_name.begin(), owner_name.end(), owner_name.begin(), ::toupper); // upper case
   int length = owner_name.size() > sizeof(zjb->owner_name) ? sizeof(zjb->owner_name) : owner_name.size(); // truncate
@@ -523,7 +527,7 @@ int zjb_list_by_owner(ZJB *zjb, string owner_name, vector<ZJob> &jobs)
 
   STATJQTR *PTR64 jobInfo = NULL;
   int entries = 0;
-  rc = ZJBMLIST(zjb->owner_name, &jobInfo, &entries);
+  rc = ZJBMLIST(zjb, &jobInfo, &entries);
   STATJQTR *PTR64 jobInfoNext = jobInfo;
 
   if (0 != rc)

@@ -34,7 +34,7 @@ typedef struct {
 
   unsigned int *PTR64 ecb; // save and set to NULL to prevent waiting
   int32_t buffer_size;
-  int32_t buffer_size_needed; // total ammount of buffer size needed to satisft request
+  int32_t buffer_size_needed; // total ammount of buffer size needed to satisfy request
   char console_name[8]; // console name used, upper cased/padded/truncated
   int16_t unused; // non-zero if reply found in control
   int16_t reply_id_len; // non-zero if reply found in control

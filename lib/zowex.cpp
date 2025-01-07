@@ -112,10 +112,11 @@ int main(int argc, char *argv[])
 int handle_jobs_list(ZCLIResult result)
 {
   int rc = 0;
+  ZJB zjb = {0};
   string owner_name(result.get_option("--owner").get_value());
 
   vector<ZJob> jobs;
-  rc = zjb_list_by_owner(owner_name, jobs);
+  rc = zjb_list_by_owner(&zjb, owner_name, jobs);
 
   if (0 != rc)
   {

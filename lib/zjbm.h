@@ -12,6 +12,7 @@
 
 #include "zmetal.h"
 #include "zssitype.h"
+#include "zjbtype.h"
 
 #if defined(__cplusplus) && (defined(__IBMCPP__) || defined(__IBMC__))
 extern "OS"
@@ -22,7 +23,7 @@ extern "C"
 #endif
 
 int ZJBMFREE(void *PTR64);
-int ZJBMLIST(const char *PTR64, STATJQTR **PTR64, int *PTR64);
+int ZJBMLIST(ZJB *PTR64, STATJQTR **PTR64, int *PTR64);
 int ZJBMLSDS(const char *PTR64, STATSEVB **PTR64, int *PTR64, unsigned char [8]);
 int ZJBSYMB(const char *PTR64, char *PTR64);
 int ZJBMPRG(const char *PTR64);
