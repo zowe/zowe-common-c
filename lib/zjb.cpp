@@ -459,26 +459,33 @@ int zjb_submit(ZJB *zjb, string data_set, string &jobId)
 
 int zjb_list_dds_by_jobid(ZJB *zjb, string jobid, vector<ZJobDD> &jobDDs)
 {
-  char tempDDn[9] = {0};
-  char tempsn[9] = {0};
-  char temppn[9] = {0};
-  char tempDSN[45] = {0};
-
   STATSEVB *PTR64 sysoutInfo = NULL;
   int entries = 0;
 
-  int rc = ZJBMLSDS(jobid.c_str(), &sysoutInfo, &entries, NULL);
+  if (0 == zjb->buffer_size) zjb->buffer_size = ZJB_DEFAULT_BUFFER_SIZE;
+  if (0 == zjb->dds_max) zjb->dds_max = ZJB_DEFAULT_MAX_DDS;
 
+  memset(zjb->jobid, ' ', sizeof(jobid)); // pad with spaces
+  transform(jobid.begin(), jobid.end(), jobid.begin(), ::toupper); // upper case
+  int length = jobid.size() > sizeof(zjb->jobid) ? sizeof(zjb->jobid) : jobid.size(); // truncate
+  strncpy(zjb->jobid, jobid.c_str(), length);
+
+  int rc = ZJBMLSDS(zjb, &sysoutInfo, &entries, NULL);
   if (0 != rc)
   {
-    cout << "Error: listing data sets failed with " << rc << endl; // TODO(Kelosky): better error handling scheme
-    return -1;
+    ZUTMFR64(sysoutInfo);
+    return rc;
   }
 
   STATSEVB *PTR64 sysoutInfoNext = sysoutInfo;
 
   for (int i = 0; i < entries; i++)
   {
+    char tempDDn[9] = {0};
+    char tempsn[9] = {0};
+    char temppn[9] = {0};
+    char tempDSN[45] = {0};
+
     strncpy(tempDDn, (char *)sysoutInfoNext[i].stvsddnd, sizeof(sysoutInfo->stvsddnd));
     strncpy(tempsn, (char *)sysoutInfoNext[i].stvsstpd, sizeof(sysoutInfo->stvsstpd));
     strncpy(temppn, (char *)sysoutInfoNext[i].stvsprcd, sizeof(sysoutInfo->stvsprcd));

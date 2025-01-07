@@ -105,7 +105,12 @@ private:
 
 public:
   ZCLIPositional(string n) : ZCLIName(n) {}
-  void help_line() { cerr << "  " << left << (get_required() ? "<" : "[") << get_name() << (get_required() ? ">" : "]") << "   " << get_description() << endl; }
+  void help_line() {
+    string syntax = get_required() ? "<" : "[";
+    syntax += get_name();
+    syntax += get_required() ? ">" : "]";
+    cerr << "  " << left << setw(ZCLI_MENU_WIDTH) << syntax << "   " << get_description() << endl;
+    }
   void set_value(string v) { value = v; }
   string get_value() { return value; }
 };

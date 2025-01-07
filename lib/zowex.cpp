@@ -31,6 +31,7 @@ int function2(ZCLIResult result)
 }
 
 int handle_job_list(ZCLIResult);
+int handle_job_list_files(ZCLIResult);
 int handle_job_submit(ZCLIResult);
 int handle_job_delete(ZCLIResult);
 int handle_console_issue(ZCLIResult);
@@ -74,24 +75,33 @@ int main(int argc, char *argv[])
   job_list.get_options().push_back(job_owner);
   job_group.get_verbs().push_back(job_list);
 
-  ZCLIVerb job_view("view");
-  job_view.set_description("view a job");
-  job_view.set_zcli_verb_handler(function2);
-  job_group.get_verbs().push_back(job_view);
+  ZCLIVerb job_list_files("list-files");
+  job_list_files.set_description("list spool files");
+  job_list_files.set_zcli_verb_handler(handle_job_list_files);
+  ZCLIPositional job_jobid("jobid");
+  job_owner.set_description("jobid used to list files");
+  job_jobid.set_required(true);
+  job_jobid.set_description("valid jobid");
+  job_list_files.get_positionals().push_back(job_jobid);
+  job_group.get_verbs().push_back(job_list_files);
+
+  // ZCLIVerb job_view("view");
+  // job_view.set_description("view a job");
+  // job_view.set_zcli_verb_handler(function2);
+  // job_group.get_verbs().push_back(job_view);
 
   ZCLIVerb job_submit("submit");
   job_submit.set_description("submit a job");
   job_submit.set_zcli_verb_handler(handle_job_submit);
   ZCLIPositional job_dsn("dsn");
   job_dsn.set_required(true);
+  job_dsn.set_description("dsn containing JCL");
   job_submit.get_positionals().push_back(job_dsn);
   job_group.get_verbs().push_back(job_submit);
 
   ZCLIVerb job_delete("delete");
   job_delete.set_description("submit a job");
   job_delete.set_zcli_verb_handler(handle_job_delete);
-  ZCLIPositional job_jobid("jobid");
-  job_jobid.set_required(true);
   job_delete.get_positionals().push_back(job_jobid);
   job_group.get_verbs().push_back(job_delete);
 
@@ -109,6 +119,7 @@ int main(int argc, char *argv[])
   console_issue.get_options().push_back(console_name);
   ZCLIPositional console_command("command");
   console_command.set_required(true);
+  console_command.set_description("command to run, e.g. 'D IPLINFO'");
   console_issue.get_positionals().push_back(console_command);
   console_group.get_verbs().push_back(console_issue);
 
@@ -141,6 +152,30 @@ int handle_job_list(ZCLIResult result)
   for (vector<ZJob>::iterator it = jobs.begin(); it != jobs.end(); it++)
   {
       cout << it->jobid << " " << left << setw(10) << it->retcode << " " << it->jobname << " " << it->status << endl;
+  }
+
+  return 0;
+}
+
+int handle_job_list_files(ZCLIResult result)
+{
+  int rc = 0;
+  ZJB zjb = {0};
+  string jobid(result.get_positional("jobid").get_value());
+
+  vector<ZJobDD> job_dds;
+  rc = zjb_list_dds_by_jobid(&zjb, jobid, job_dds);
+
+  if (0 != rc)
+  {
+    cout << "Error: could not list jobs for: '" << jobid << "' rc: '" << rc << "'" << endl;
+    cout << "  Details: " << zjb.e_msg << endl;
+    return -1;
+  }
+
+  for (vector<ZJobDD>::iterator it = job_dds.begin(); it != job_dds.end(); ++it)
+  {
+      cout << left << setw(9) << it->ddn << " " << it->dsn << " " << setw(4) << it->key << " " << it->stepname << " " << it->procstep << endl;
   }
 
   return 0;

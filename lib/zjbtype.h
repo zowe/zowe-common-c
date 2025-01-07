@@ -22,6 +22,7 @@
 
 #define ZJB_DEFAULT_BUFFER_SIZE 128000
 #define ZJB_DEFAULT_MAX_JOBS 100
+#define ZJB_DEFAULT_MAX_DDS 100
 
 #if (defined(__IBMCPP__) || defined(__IBMC__))
 #pragma pack(packed)
@@ -32,6 +33,7 @@ typedef struct {
   char eye_beg[4];
 
   int32_t jobs_max;
+  int32_t dds_max;
   int32_t buffer_size;
   int32_t buffer_size_needed; // total ammount of buffer size needed to satisfy request
   char jobid[8]; // job id

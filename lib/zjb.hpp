@@ -62,6 +62,13 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, std::string, std::string &);
  */
 int zjb_submit(ZJB *zjb, std::string dsn, std::string &jobid);
 
+/**
+ * @brief Delete a job using input jobid
+ *
+ * @param zjb job returned attributes and error information
+ * @param jobid jobid to delete, i.e. JOB00123 or J123
+ * @return int 0 for success; non zero otherwise
+ */
 int zjb_delete_by_jobid(ZJB *zjb, std::string jobid);
 
 #endif

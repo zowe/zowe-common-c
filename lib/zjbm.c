@@ -104,7 +104,7 @@ int ZJBSYMB(ZJB *zjb, const char *symbol, char *value)
 int ZJBMPRG(ZJB *zjb)
 {
   int rc = 0;
-  int loopControl = 0;
+  int loop_control = 0;
 
   // return rc
   SSOB *PTR32 ssobp = NULL;
@@ -134,7 +134,7 @@ int ZJBMPRG(ZJB *zjb)
 
   ssobp = &ssob;
   ssobp = (SSOB * PTR32)((unsigned int)ssobp | 0x80000000);
-  rc = iefssreq(&ssobp); // TODO(Kelosky): recovery, abends if jobid doesnt exist for example
+  rc = iefssreq(&ssobp); // TODO(Kelosky): recovery
 
   if (0 != rc || 0 != ssob.ssobretn)
   {
@@ -163,7 +163,7 @@ int ZJBMPRG(ZJB *zjb)
 int ZJBMLIST(ZJB *zjb, STATJQTR **PTR64 jobInfo, int *entries)
 {
   int rc = 0;
-  int loopControl = 0;
+  int loop_control = 0;
 
   STATJQTR *statjqtrsp = storageGet64(zjb->buffer_size); // TODO(Kelosky): dynamic storage based on jobs
 
@@ -206,7 +206,7 @@ int ZJBMLIST(ZJB *zjb, STATJQTR **PTR64 jobInfo, int *entries)
 
   while (statjqp)
   {
-    if (loopControl > zjb->jobs_max)
+    if (loop_control > zjb->jobs_max)
     {
       zjb->detail_rc = ZJB_RTNCD_MAX_JOBS_REACHED;
       break;
@@ -231,7 +231,7 @@ int ZJBMLIST(ZJB *zjb, STATJQTR **PTR64 jobInfo, int *entries)
 
     statjqp = (STATJQ * PTR32) statjqp->stjqnext;
 
-    loopControl++;
+    loop_control++;
   }
 
   zjb->buffer_size_needed = total_size;
@@ -246,13 +246,12 @@ int ZJBMLIST(ZJB *zjb, STATJQTR **PTR64 jobInfo, int *entries)
 
 // list data sets for a job
 #pragma prolog(ZJBMLSDS, "&CCN_MAIN SETB 1 \n MYPROLOG")
-int ZJBMLSDS(const char *PTR64 jobid, STATSEVB **PTR64 sysoutInfo, int *entries, unsigned char token[8])
+int ZJBMLSDS(ZJB *PTR64 zjb, STATSEVB **PTR64 sysoutInfo, int *entries, unsigned char token[8])
 {
-  int size = 128000;
   int rc = 0;
-  int loopControl = 0;
+  int loop_control = 0;
 
-  STATSEVB *statsetrsp = storageGet64(size); // TODO(Kelosky): dynamic storage based on jobs
+  STATSEVB *statsetrsp = storageGet64(zjb->buffer_size); // TODO(Kelosky): dynamic storage based on jobs
 
   // return rc
   SSOB *PTR32 ssobp = NULL;
@@ -268,10 +267,6 @@ int ZJBMLSDS(const char *PTR64 jobid, STATSEVB **PTR64 sysoutInfo, int *entries,
   STATSVHD *PTR32 statsvhdp = NULL;
   STATSEVB *PTR32 statsevbp = NULL;
 
-  WTO_BUF buf = {0};
-  char jobid_name[9] = "         ";
-  strncpy(jobid_name, jobid, sizeof(jobid_name - 1));
-
   // https://www.ibm.com/docs/en/zos/3.1.0?topic=sfcd-extended-status-function-call-ssi-function-code-80
   init_ssib(&ssib);
   init_ssob(&ssob, &ssib, &stat, 80);
@@ -280,8 +275,8 @@ int ZJBMLSDS(const char *PTR64 jobid, STATSEVB **PTR64 sysoutInfo, int *entries,
   stat.statsel1 = statsjbi;
   stat.stattype = statoutv;
 
-  memcpy(stat.statjbil, jobid_name, sizeof((stat.statjbil)));
-  memcpy(stat.statjbih, jobid_name, sizeof((stat.statjbih)));
+  memcpy(stat.statjbil, zjb->jobid, sizeof((stat.statjbil)));
+  memcpy(stat.statjbih, zjb->jobid, sizeof((stat.statjbih)));
 
   ssobp = &ssob;
   ssobp = (SSOB * PTR32)((unsigned int)ssobp | 0x80000000);
@@ -289,51 +284,66 @@ int ZJBMLSDS(const char *PTR64 jobid, STATSEVB **PTR64 sysoutInfo, int *entries,
 
   if (0 != rc || 0 != ssob.ssobretn)
   {
-    buf.len = sprintf(buf.msg, "IEFSSREQ rc was: '%d' SSOBRTN was: '%d', STATREAS was: '%d', STATREA2 was: '%d'", rc, ssob.ssobretn, stat.statreas, stat.statrea2); // STATREAS contains the reason
-    wto(&buf);
-    return -1;
+    strcpy(zjb->service_name, "IEFSSREQ");
+    zjb->service_rc = ssob.ssobretn;
+    zjb->service_rsn = stat.statreas;
+    zjb->service_rsn_secondary = stat.statrea2;
+    zjb->e_msg_len = sprintf(zjb->e_msg, "IEFSSREQ rc was: '%d' SSOBRTN was: '%d', STATREAS was: '%d', STATREA2 was: '%d'", rc, ssob.ssobretn, stat.statreas, stat.statrea2); // STATREAS contains the reason
+    storageFree64(statsetrsp);
+    return ZJB_RTNCD_FAILURE;
   }
 
   statjqp = (STATJQ * PTR32) stat.statjobf;
   statvop = (STATVO * PTR32) statjqp->stjqsvrb;
 
+  int total_size = 0;
+
   while (statjqp)
   {
-    if (loopControl > LOOP_MAX)
-      break; // TODO(Kelosky): handle as a condition
-
     statjqhdp = (STATJQHD * PTR32)((unsigned char *PTR32)statjqp + statjqp->stjqohdr);
     statjqtrp = (STATJQTR * PTR32)((unsigned char *PTR32)statjqhdp + sizeof(STATJQHD));
 
     *sysoutInfo = statsetrsp;
     while (statvop)
     {
-      if (loopControl > LOOP_MAX)
-        break; // TODO(Kelosky): handle as a condition
+      if (loop_control > zjb->dds_max)
+      {
+        zjb->detail_rc = ZJB_RTNCD_MAX_JOBS_REACHED;
+        break;
+      }
 
-      *entries = *entries + 1;
+      total_size += (int)sizeof(STATSEVB);
 
-      statsvhdp = (STATSVHD * PTR32)((unsigned char *PTR32)statvop + statvop->stvoohdr);
-      statsevbp = (STATSEVB * PTR32)((unsigned char *PTR32)statsvhdp + sizeof(STATSVHD));
+      if (total_size <= zjb->buffer_size)
+      {
+        *entries = *entries + 1;
 
-      STATSEO2 *PTR32 statseo2 = (STATSEO2 * PTR32)((unsigned char *PTR32)statsevbp + statsevbp->stvslen);
+        statsvhdp = (STATSVHD * PTR32)((unsigned char *PTR32)statvop + statvop->stvoohdr);
+        statsevbp = (STATSEVB * PTR32)((unsigned char *PTR32)statsvhdp + sizeof(STATSVHD));
 
-      memcpy(statsetrsp, statsevbp, sizeof(STATSEVB));
-      statsetrsp++;
+        STATSEO2 *PTR32 statseo2 = (STATSEO2 * PTR32)((unsigned char *PTR32)statsevbp + statsevbp->stvslen);
+
+        memcpy(statsetrsp, statsevbp, sizeof(STATSEVB));
+        statsetrsp++;
+      }
+      else
+      {
+        zjb->detail_rc = ZJB_RTNCD_INSUFFICIENT_BUFFER;
+      }
 
       statvop = (STATVO * PTR32) statvop->stvojnxt;
+
+      loop_control++;
     }
 
     statjqp = (STATJQ * PTR32) statjqp->stjqnext;
 
-    loopControl++;
   }
+
+  zjb->buffer_size_needed = total_size;
 
   stat.stattype = statmem; // free storage
   rc = iefssreq(&ssobp);   // TODO(Kelosky): recovery
 
-  buf.len = sprintf(buf.msg, "IEFSSREQ FREE was: '%d' SSOBRTN was: '%d'", rc, ssob.ssobretn); // STATREAS contains the reason
-  wto(&buf);
-
-  return 0;
+  return ZJB_RTNCD_SUCCESS;
 }
