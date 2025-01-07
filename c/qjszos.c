@@ -344,7 +344,7 @@ static JSValue zosDatasetInfo(JSContext *ctx, JSValueConst this_val,
   if (trace){
     printf("entrySet=0x%p\n",entrySet);
   }
-  if (!entrySet){
+  if (!entrySet || entrySet->length == 0){
     return JS_NULL;
   }
   char *resumeName = returnParms->resume_name;
