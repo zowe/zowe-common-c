@@ -205,40 +205,11 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
   p = (unsigned char *PTR32) & s99tupl[i].s99tuptr;
   *p = *p | s99tupln;
 
-  // --- set rbx (for error messages on dynalloc)
-
-  //       {
-  //     char           __S99EID[6];/* rbx identifier           */
-  //     unsigned char  __S99EVER;  /* rbx version              */
-  //     unsigned char  __S99EOPTS; /* rbx message process. opts*/
-  //     unsigned char  __S99ESUBP; /* rbx storage subpool      */
-  //     unsigned char  __S99EKEY;  /* rbx storage key          */
-  //     unsigned char  __S99EMGSV; /* rbx min. severity of mess.*/
-  //     unsigned char  __S99ENMSG; /* rbx no. of msg. blks ret. */
-  //     __ptr31(void,__S99ECPPL)   /* @ of comd. proc. para. list*/
-  //     char           __reserved; /* rbx reserved - zero init..*/
-  //     char           __S99ERES;  /* rbx reserved - zero init..*/
-  //     unsigned char  __S99ERCO;  /* rbx rea. code for failure.*/
-  //     unsigned char  __S99ERCF;  /* rbx rea. code of why      */
-  //     int            __S99EWRC;  /* rbx ret code from WTO/PUTL*/
-  //     __ptr31(void,__S99EMSGP)   /* rbx @ of a chain of msg blk*/
-  //     unsigned short __S99EERR;  /* rbx err code              */
-  //     unsigned short __S99EINFO; /* rbx info code             */
-  //     unsigned int   __S99ERSN;  /* rbx SMS rea. code         */
-  //     };
-
-  // TODO(Kelosky): get buffer, for now, try to get dynalloc to issue WTOs
   memcpy(s99parmsx->__S99EID, "S99RBX", sizeof(s99parmsx->__S99EID));
   s99parmsx->__S99EVER = s99rbxvr;
-  // s99parmsx->__S99EOPTS = s99parmsx->__S99EOPTS | s99eimsg;
-  // s99parmsx->__S99EOPTS = s99parmsx->__S99EOPTS | s99ewtp;
   s99parmsx->__S99EOPTS = s99parmsx->__S99EOPTS | s99ermsg; // IEFDB476 can free message blocks
-  // s99parmsx->__S99EOPTS = s99parmsx->__S99EOPTS | s99elsto;
   s99parmsx->__S99ESUBP = 0;
-  // s99parmsx->__S99EKEY = 0;
   s99parmsx->__S99EMGSV = s99parmsx->__S99EMGSV | s99xinfo;
-  // s99parmsx->__S99EMGSV = s99parmsx->__S99EMGSV | s99xwarn;
-  // s99parmsx->__S99EMGSV = s99parmsx->__S99EMGSV | s99xseve;
 
   // --- set rb
 
@@ -248,20 +219,14 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
   s99parms->__S99TXTPP = s99tupl;
   s99parms->__S99S99X = s99parmsx;
 
-  // zutlDumpStorage("s99parms", s99parms, sizeof(__S99parms));
-  // zutlDumpStorage("s99parmsx", s99parmsx, sizeof(__S99rbx_t));
-
   // https://www.ibm.com/docs/en/zos/3.1.0?topic=guide-dynamic-allocation
   rc = svc99(s99parms);
-
-  // zutlDumpStorage("s99parms after", s99parms, sizeof(__S99parms));
-  // zutlDumpStorage("s99parmsx after", s99parmsx, sizeof(__S99rbx_t));
 
   if (0 != rc && 0 != s99parms->__S99ERROR)
   {
     cout << "Error: couldnt allocate job spool file '" << jobdsn << "'" << endl; // TODO(Kelosky): better error handling scheme
     cout << "     : s99error: " << s99parms->__S99ERROR << " s99info " << s99parms->__S99INFO << endl;
-    printf("     : number of error messages %x\n", s99parmsx->__S99ENMSG); //  TODO(Kelosky): parse messsages and free via FREEMAIN
+    printf("      : number of error messages %x\n", s99parmsx->__S99ENMSG); //  TODO(Kelosky): parse messsages and free via FREEMAIN
     return -1;
   }
 
@@ -307,12 +272,7 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
 
 int zjb_delete_by_jobid(ZJB *zjb, string jobid)
 {
-
-  memset(zjb->jobid, ' ', sizeof(jobid)); // pad with spaces
-  transform(jobid.begin(), jobid.end(), jobid.begin(), ::toupper); // upper case
-  int length = jobid.size() > sizeof(zjb->jobid) ? sizeof(zjb->jobid) : jobid.size(); // truncate
-  strncpy(zjb->jobid, jobid.c_str(), length);
-
+  zut_uppercase_pad_truncate(jobid, zjb->jobid, sizeof(zjb->jobid));
   return ZJBMPRG(zjb);
 }
 
@@ -394,10 +354,7 @@ int zjb_list_dds_by_jobid(ZJB *zjb, string jobid, vector<ZJobDD> &jobDDs)
   if (0 == zjb->buffer_size) zjb->buffer_size = ZJB_DEFAULT_BUFFER_SIZE;
   if (0 == zjb->dds_max) zjb->dds_max = ZJB_DEFAULT_MAX_DDS;
 
-  memset(zjb->jobid, ' ', sizeof(jobid)); // pad with spaces
-  transform(jobid.begin(), jobid.end(), jobid.begin(), ::toupper); // upper case
-  int length = jobid.size() > sizeof(zjb->jobid) ? sizeof(zjb->jobid) : jobid.size(); // truncate
-  strncpy(zjb->jobid, jobid.c_str(), length);
+  zut_uppercase_pad_truncate(jobid, zjb->jobid, sizeof(zjb->jobid));
 
   int rc = ZJBMLSDS(zjb, &sysoutInfo, &entries, NULL);
   if (0 != rc)
@@ -463,10 +420,7 @@ int zjb_list_by_owner(ZJB *zjb, string owner_name, vector<ZJob> &jobs)
   if (0 == zjb->buffer_size) zjb->buffer_size = ZJB_DEFAULT_BUFFER_SIZE;
   if (0 == zjb->jobs_max) zjb->jobs_max = ZJB_DEFAULT_MAX_JOBS;
 
-  memset(zjb->owner_name, ' ', sizeof(owner_name)); // pad with spaces
-  transform(owner_name.begin(), owner_name.end(), owner_name.begin(), ::toupper); // upper case
-  int length = owner_name.size() > sizeof(zjb->owner_name) ? sizeof(zjb->owner_name) : owner_name.size(); // truncate
-  strncpy(zjb->owner_name, owner_name.c_str(), length);
+  zut_uppercase_pad_truncate(owner_name, zjb->owner_name, sizeof(zjb->owner_name));
 
   STATJQTR *PTR64 jobInfo = NULL;
   int entries = 0;

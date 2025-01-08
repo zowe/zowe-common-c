@@ -20,5 +20,6 @@ void zut_dump_storage(std::string, const void *, size_t);
 int zut_hello(std::string);
 char zut_get_hex_char(int);
 int zut_get_current_user(std::string &);
+void zut_uppercase_pad_truncate(std::string, char *, int);
 
 #endif

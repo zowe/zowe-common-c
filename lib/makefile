@@ -180,11 +180,11 @@ zcnm31.s: zcnm31.c
 zcnm31.o: zcnm31.s
 	$(ASM) $(ASM_FLAGS) -a=$*.asm.lst $(MACLIBS) -o $@ $^
 
-libzcn.so: zcn.o zcnm.o zcnm31.o
+libzcn.so: zcn.o zcnm.o zcnm31.o libzut.a
 	@echo 'Building libzcn.so'
 	$(CXX) $(DLL_BND_FLAGS) -o $@ $^ > $*.bind.lst
 
-libzcn.a: zcn.o zcnm.o zcnm31.o
+libzcn.a: zcn.o zcnm.o zcnm31.o libzut.a
 	@echo 'Building libzcn.a'
 	ar -rv $@ $^
 

@@ -16,6 +16,7 @@
 #include <algorithm>
 #include "zcnm.h"
 #include "zcn.hpp"
+#include "zut.hpp"
 #include "zcntype.h"
 
 using namespace std;
@@ -28,10 +29,7 @@ int zcn_activate(ZCN *zcn, string console_name)
   strcpy(zcn->eye_beg, EYE_BEG);
   strcpy(zcn->eye_end, EYE_END);
 
-  memset(zcn->console_name, ' ', sizeof(zcn->console_name)); // pad with spaces
-  transform(console_name.begin(), console_name.end(), console_name.begin(), ::toupper); // upper case
-  int length = console_name.size() > sizeof(zcn->console_name) ? sizeof(zcn->console_name) : console_name.size(); // truncate
-  strncpy(zcn->console_name, console_name.c_str(), length);
+  zut_uppercase_pad_truncate(console_name, zcn->console_name, sizeof(zcn->console_name));
 
   zcn->ecb = (unsigned int *)__malloc31(sizeof(unsigned int));
   memset(zcn->ecb, 0x00, sizeof(unsigned int));

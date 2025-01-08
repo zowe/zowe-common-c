@@ -13,6 +13,7 @@
 #include <iostream>
 #include <string>
 #include <iomanip>
+#include <algorithm>
 #include "zut.hpp"
 #include "zutm.h"
 #include "zutm31.h"
@@ -33,6 +34,14 @@ int zut_test()
   printf("code is x'%x'\n", code);
 
   return rc;
+}
+
+void zut_uppercase_pad_truncate(string source, char *target, int len)
+{
+  memset(target, ' ', len); // pad with spaces
+  transform(source.begin(), source.end(), source.begin(), ::toupper); // upper case
+  int length = source.size() > len ? len : source.size(); // truncate
+  strncpy(target, source.c_str(), length);
 }
 
 int zut_bpxwdyn(string parm, unsigned int *code, string &resp)
