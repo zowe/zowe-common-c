@@ -131,7 +131,7 @@ int zcnm1put(ZCN *zcn, const char *command)
   zcn->service_rc = 0;
   zcn->service_rsn = 0;
 
-  return ZCN_RTNCD_SUCCESS; // NOTE(Kelosky): no return code for MGCRE
+  return RTNCD_SUCCESS; // NOTE(Kelosky): no return code for MGCRE
 }
 
 #if defined(__IBM_METAL__)
@@ -369,7 +369,7 @@ int zcnm1get(ZCN *zcn, char *resp)
 
   if (RTNCD_RESUME_OK == zcn->service_rc)
   {
-    return ZCN_RTNCD_SUCCESS;
+    return RTNCD_SUCCESS;
   }
 
   zcn->detail_rc = ZCN_RTNCD_SERVICE_FAILURE;

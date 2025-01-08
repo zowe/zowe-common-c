@@ -29,6 +29,7 @@
 #include "zut.hpp"
 #include "zutm.h"
 #include "zjbtype.h"
+#include "zdstype.h"
 
 typedef struct iazbtokp IAZBTOKP;
 typedef struct s99rb S99RB;
@@ -76,7 +77,7 @@ int zjb_get_job_dsn_by_jobid_and_key(ZJB *zjb, string jobid, int key, string &jo
   rc = zjb_list_dds_by_jobid(zjb, jobid, list);
   if (0 != rc) return rc;
 
-  rc = ZJB_RTNCD_FAILURE; // assume failure
+  rc = RTNCD_FAILURE; // assume failure
 
   for (vector<ZJobDD>::iterator it = list.begin(); it != list.end(); ++it)
   {
@@ -92,10 +93,10 @@ int zjb_get_job_dsn_by_jobid_and_key(ZJB *zjb, string jobid, int key, string &jo
   {
     zjb->e_msg_len = sprintf(zjb->e_msg, "Could not locate data set key '%d' on job '%s'", key, jobid.c_str());
     zjb->detail_rc = ZJB_RTNCD_JOB_NOT_FOUND;
-    return ZJB_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
-  return ZJB_RTNCD_SUCCESS;
+  return RTNCD_SUCCESS;
 }
 
 int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
@@ -229,7 +230,7 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
     zjb->service_rc = rc;
     zjb->e_msg_len = sprintf(zjb->e_msg, "Could not allocate job spool file '%s', s99error: '%d' s99info: '%d'", jobdsn.c_str(), s99parms->__S99ERROR, s99parms->__S99INFO);
     zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
-    return ZJB_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   // TODO(Kelosky): use zds method
@@ -271,7 +272,7 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
     zjb->service_rc = rc;
     zjb->e_msg_len = sprintf(zjb->e_msg, "dynfree failed with %d", rc);
     zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
-    return ZJB_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   return rc;
@@ -287,14 +288,15 @@ int zjb_submit(ZJB *zjb, string data_set, string &jobId)
 {
   int rc = 0;
   string content;
-  rc = zdsRead(data_set, content);
+  ZDS zds = {0};
+  rc = zds_read_dsn(&zds, data_set, content);
   if (rc != 0)
   {
     strcpy(zjb->service_name, "zds_read");
     zjb->service_rc = rc;
     zjb->e_msg_len = sprintf(zjb->e_msg, "Could not read data set '%s' - %d", data_set.c_str(), rc);
     zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
-    return ZJB_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   __dyn_t ip;
@@ -305,7 +307,7 @@ int zjb_submit(ZJB *zjb, string data_set, string &jobId)
     zjb->service_rc = rc;
     zjb->e_msg_len = sprintf(zjb->e_msg, "dyninit failed with %d", rc);
     zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
-    return ZJB_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   string ddname = "????????"; // system generated DD name
@@ -324,7 +326,7 @@ int zjb_submit(ZJB *zjb, string data_set, string &jobId)
     zjb->service_rc = rc;
     zjb->e_msg_len = sprintf(zjb->e_msg, "dynalloc failed with %d", rc);
     zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
-    return ZJB_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   string cddname = "DD:" + ddname;
@@ -347,10 +349,10 @@ int zjb_submit(ZJB *zjb, string data_set, string &jobId)
     zjb->service_rc = rc;
     zjb->e_msg_len = sprintf(zjb->e_msg, "dynfree failed with %d", rc);
     zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
-    return ZJB_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
-  return ZJB_RTNCD_SUCCESS;
+  return RTNCD_SUCCESS;
 }
 
 int zjb_list_dds_by_jobid(ZJB *zjb, string jobid, vector<ZJobDD> &jobDDs)
@@ -372,7 +374,7 @@ int zjb_list_dds_by_jobid(ZJB *zjb, string jobid, vector<ZJobDD> &jobDDs)
     ZUTMFR64(sysoutInfo);
     zjb->e_msg_len = sprintf(zjb->e_msg, "Could not locate job '%s'", jobid.c_str());
     zjb->detail_rc = ZJB_RTNCD_JOB_NOT_FOUND;
-    return ZJB_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   STATSEVB *PTR64 sysoutInfoNext = sysoutInfo;
@@ -426,7 +428,7 @@ int zjb_list_by_owner(ZJB *zjb, string owner_name, vector<ZJob> &jobs)
       zjb->service_rc = rc;
       zjb->e_msg_len = sprintf(zjb->e_msg, "Could not get current user - %d", rc);
       zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
-      return ZJB_RTNCD_FAILURE;
+      return RTNCD_FAILURE;
     }
   }
 
@@ -516,5 +518,5 @@ int zjb_list_by_owner(ZJB *zjb, string owner_name, vector<ZJob> &jobs)
 
   ZUTMFR64(jobInfo);
 
-  return ZJB_RTNCD_SUCCESS;
+  return RTNCD_SUCCESS;
 }

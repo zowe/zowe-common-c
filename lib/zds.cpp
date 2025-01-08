@@ -15,6 +15,7 @@
 #include <iomanip>
 #include "zds.hpp"
 #include <dynit.h>
+#include "zdstype.h"
 
 using namespace std;
 
@@ -22,7 +23,7 @@ using namespace std;
  * E.g. SYS1.MACLIB(ABEND)
  * Returns -1 for file not open
  */
-int zdsRead(string name, string &data)
+int zds_read_dsn(ZDS* zds, string name, string &data)
 {
   name = "//'" + name + "'";
 
@@ -82,21 +83,22 @@ typedef struct
 } IND;
 
 
-int zds_read_dd(char *ddname, string &response)
+int zds_read_dd(string ddname, string &response)
 {
-  FILE *fp = fopen(string("DD:" + ddname).c_str(), "r");
+  // FILE *fp = fopen(string("DD:" + ddname).c_str(), "r");
 
-  if (NULL == fp)
-  {
-    return -1;
-  }
+  // if (NULL == fp)
+  // {
+  //   return -1;
+  // }
 
-  int len = 0;
-  while ((len = fread(buffer, 1, sizeof(buffer), fp)) > 0)
-  {
-    response += string(buffer, readlen);
-  }
-  fclose(fp);
+  // int len = 0;
+  // while ((len = fread(buffer, 1, sizeof(buffer), fp)) > 0)
+  // {
+  //   response += string(buffer, readlen);
+  // }
+  // fclose(fp);
+  return 0;
 }
 
 int zdsListMembers(string name, std::vector<ZDSMem> &list)
@@ -169,14 +171,14 @@ int zdsListMembers(string name, std::vector<ZDSMem> &list)
   return 0;
 }
 
-int zdsList(string name, std::vector<ZDS> &list)
+int zdsList(string name, std::vector<ZDSAttributes> &list)
 {
   // PO
   // PO-E (PDS)
-  ZDS zds = {0};
-  zds.name = name;
-  zds.dsorg = "PO-E";
-  list.push_back(zds);
+  ZDSAttributes zds_attributes = {0};
+  zds_attributes.name = name;
+  zds_attributes.dsorg = "PO-E";
+  list.push_back(zds_attributes);
 
   return 0;
 }

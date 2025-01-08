@@ -16,14 +16,9 @@
 #include "zut.hpp"
 #include "zcli.hpp"
 #include "zjb.hpp"
+#include "zds.hpp"
 
 using namespace std;
-
-int function1(ZCLIResult result)
-{
-  cout << "Function one called" << endl;
-  return 0;
-}
 
 int function2(ZCLIResult result)
 {
@@ -36,7 +31,11 @@ int handle_job_list_files(ZCLIResult);
 int handle_job_view_file(ZCLIResult);
 int handle_job_submit(ZCLIResult);
 int handle_job_delete(ZCLIResult);
+
 int handle_console_issue(ZCLIResult);
+
+int handle_data_set_view_dsn(ZCLIResult);
+
 int handle_test(ZCLIResult);
 
 int main(int argc, char *argv[])
@@ -59,10 +58,14 @@ int main(int argc, char *argv[])
   data_set_group.set_description("z/OS data set operations");
 
   // data set verbs
-  ZCLIVerb data_set_free("free");
-  data_set_free.set_description("free data set");
-  data_set_free.set_zcli_verb_handler(function1);
-  data_set_group.get_verbs().push_back(data_set_free);
+  ZCLIVerb data_set_view("view");
+  data_set_view.set_description("view data set");
+  data_set_view.set_zcli_verb_handler(handle_data_set_view_dsn);
+  ZCLIPositional data_set_dsn("dsn");
+  data_set_dsn.set_description("dsn name, e.g. SYS1.MACLIB(ABEND)");
+  data_set_dsn.set_required(true);
+  data_set_view.get_positionals().push_back(data_set_dsn);
+  data_set_group.get_verbs().push_back(data_set_view);
 
   // jobs group
   ZCLIGroup job_group("job");
@@ -137,7 +140,7 @@ int main(int argc, char *argv[])
 
   // add all groups to the CLI
   // zcli.get_groups().push_back(test_group);
-  // zcli.get_groups().push_back(data_set_group);
+  zcli.get_groups().push_back(data_set_group);
   zcli.get_groups().push_back(console_group);
   zcli.get_groups().push_back(job_group);
 
@@ -257,15 +260,6 @@ int handle_job_delete(ZCLIResult result)
   return 0;
 }
 
-int handle_test(ZCLIResult result)
-{
-  int rc = 0;
-  rc = zut_test();
-
-  cout << "test code called " << rc << endl;
-
-  return 0;
-}
 
 int handle_console_issue(ZCLIResult result)
 {
@@ -322,4 +316,32 @@ int handle_console_issue(ZCLIResult result)
       return -1;
     }
     return rc;
+}
+
+int handle_data_set_view_dsn(ZCLIResult result)
+{
+  int rc = 0;
+  string dsn = result.get_positional("dsn").get_value();
+  ZDS zds = {0};
+  string response;
+  rc = zds_read_dsn(&zds, dsn, response);
+    if (0 != rc)
+    {
+      cout << "Error: could not read data set: '" << dsn << "' rc: '" << rc << "'" << endl;
+      cout << "  Details: " << zds.e_msg << endl;
+      return -1;
+    }
+  cout << response;
+
+  return rc;
+}
+
+int handle_test(ZCLIResult result)
+{
+  int rc = 0;
+  rc = zut_test();
+
+  cout << "test code called " << rc << endl;
+
+  return 0;
 }

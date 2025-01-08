@@ -13,6 +13,8 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include "zds.hpp"
+#include "zdstype.h"
 
 struct ZDSMem
 {
@@ -20,17 +22,17 @@ struct ZDSMem
   // std::string dsorg;
 };
 
-struct ZDS
+struct ZDSAttributes
 {
   std::string name;
   std::string dsorg;
 };
 
+int zds_read_dsn(ZDS *zds, std::string dsn, std::string &response);
 int zds_read_dd(std::string ddname, std::string &response);
-int zdsRead(std::string, std::string &);
 int zdsWrite(std::string, std::string &);
 int zdsListMembers(std::string, std::vector<ZDSMem> &);
-int zdsList(std::string, std::vector<ZDS> &);
+int zdsList(std::string, std::vector<ZDSAttributes> &);
 int zdsReadDynalloc(std::string, std::string, std::string, std::string &); // NOTE(Kelosky): testing only
 
 #endif

@@ -7,20 +7,22 @@
 
   Copyright Contributors to the Zowe Project.
 */
-#ifndef ZJBTYPE_H
-#define ZJBTYPE_H
+#ifndef ZDSTYPE_H
+#define ZDSTYPE_H
 
 #include <stdint.h>
 #include "ztype.h"
 
-#define ZJB_RTNCD_SERVICE_FAILURE -2
-#define ZJB_RTNCD_MAX_JOBS_REACHED -3
-#define ZJB_RTNCD_INSUFFICIENT_BUFFER -4
-#define ZJB_RTNCD_JOB_NOT_FOUND -5
+#define ZDS_RTNCD_SUCCESS 0
+#define ZDS_RTNCD_FAILURE -1
+#define ZDS_RTNCD_SERVICE_FAILURE -2
+#define ZDS_RTNCD_MAX_JOBS_REACHED -3
+#define ZDS_RTNCD_INSUFFICIENT_BUFFER -4
+#define ZDS_RTNCD_JOB_NOT_FOUND -5
 
-#define ZJB_DEFAULT_BUFFER_SIZE 128000
-#define ZJB_DEFAULT_MAX_JOBS 100
-#define ZJB_DEFAULT_MAX_DDS 100
+#define ZDS_DEFAULT_BUFFER_SIZE 128000
+#define ZDS_DEFAULT_MAX_JOBS 100
+#define ZDS_DEFAULT_MAX_DDS 100
 
 #if (defined(__IBMCPP__) || defined(__IBMC__))
 #pragma pack(packed)
@@ -30,23 +32,15 @@
 typedef struct {
   char eye_beg[4];
 
-  int32_t jobs_max;
-  int32_t dds_max;
-  int32_t buffer_size;
-  int32_t buffer_size_needed; // total ammount of buffer size needed to satisfy request
-  char jobid[8]; // job id
-  char owner_name[8]; // owner name used, upper cased/padded/truncated
-
   char service_name[24];
   int32_t detail_rc;
   int32_t service_rc;
   int32_t service_rsn;
-  int32_t service_rsn_secondary;
   int32_t e_msg_len;
   char e_msg[256];
 
   char eye_end[4];
-} ZJB;
+} ZDS;
 
 #if (defined(__IBMCPP__) || defined(__IBMC__))
 #pragma pack(reset)

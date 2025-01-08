@@ -24,7 +24,7 @@ int ZCNACT(ZCN *zcn)
     strcpy(zcn->service_name, "TESTAUTH");
     zcn->e_msg_len = sprintf(zcn->e_msg, "Not authorized - %d", rc);
     zcn->detail_rc = ZCN_RTNCD_NOT_AUTH;
-    return ZCN_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   ZCN zcn31 = {0};
@@ -35,7 +35,7 @@ int ZCNACT(ZCN *zcn)
   if (0 != rc)
   {
     zcn->e_msg_len = sprintf(zcn->e_msg, "Error activating console, service: %s, rc: %d, service_rc: %d, service_rsn: %d", zcn->service_name, rc, zcn->service_rc, zcn->service_rsn);
-    return ZCN_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   return rc;
@@ -52,7 +52,7 @@ int ZCNPUT(ZCN *zcn, const char *command)
     strcpy(zcn->service_name, "TESTAUTH");
     zcn->e_msg_len = sprintf(zcn->e_msg, "Not authorized - %d", rc);
     zcn->detail_rc = ZCN_RTNCD_NOT_AUTH;
-    return ZCN_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   ZCN zcn31 = {0};
@@ -63,7 +63,7 @@ int ZCNPUT(ZCN *zcn, const char *command)
   if (0 != rc)
   {
     zcn->e_msg_len = sprintf(zcn->e_msg, "Error writting data to console, service: %s, rc: %d, service_rc: %d, service_rsn: %d", zcn->service_name, rc, zcn->service_rc, zcn->service_rsn);
-    return ZCN_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   return rc;
@@ -80,7 +80,7 @@ int ZCNGET(ZCN *zcn, char *response)
     strcpy(zcn->service_name, "TESTAUTH");
     zcn->e_msg_len = sprintf(zcn->e_msg, "Not authorized - %d", rc);
     zcn->detail_rc = ZCN_RTNCD_NOT_AUTH;
-    return ZCN_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   if (zcn->ecb) ecb_wait((ECB *PTR32)zcn->ecb);
@@ -92,10 +92,10 @@ int ZCNGET(ZCN *zcn, char *response)
   if (0 != rc)
   {
     zcn->e_msg_len = sprintf(zcn->e_msg, "Error getting data from console, service: %s, rc: %d, service_rc: %d, service_rsn: %d", zcn->service_name, rc, zcn->service_rc, zcn->service_rsn);
-    return ZCN_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
-  return ZCN_RTNCD_SUCCESS;
+  return RTNCD_SUCCESS;
 }
 
 #pragma prolog(ZCNDACT, "&CCN_MAIN SETB 1 \n MYPROLOG")
@@ -109,7 +109,7 @@ int ZCNDACT(ZCN *zcn)
     strcpy(zcn->service_name, "TESTAUTH");
     zcn->e_msg_len = sprintf(zcn->e_msg, "Not authorized - %d", rc);
     zcn->detail_rc = ZCN_RTNCD_NOT_AUTH;
-    return ZCN_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   ZCN zcn31 = {0};
@@ -120,8 +120,8 @@ int ZCNDACT(ZCN *zcn)
   if (0 != rc)
   {
     zcn->e_msg_len = sprintf(zcn->e_msg, "Error deactivating console, service: %s, rc: %d, service_rc: %d, service_rsn: %d", zcn->service_name, rc, zcn->service_rc, zcn->service_rsn);
-    return ZCN_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
-  return ZCN_RTNCD_SUCCESS;
+  return RTNCD_SUCCESS;
 }

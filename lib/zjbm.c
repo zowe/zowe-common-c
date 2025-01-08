@@ -87,7 +87,7 @@ int ZJBSYMB(ZJB *zjb, const char *symbol, char *value)
     strcpy(zjb->service_name, "iazsymbl");
     zjb->e_msg_len = sprintf(zjb->e_msg, "Error: IAZSYMBL RC was: '%d', JSYMRETN was: '%d', JSYMREAS: %d", rc, jsym.jsymretn, jsym.jsymreas);
     zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
-    return ZJB_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   p = (unsigned char *)&jsymbolOutput.jsymbolTable; // --> table
@@ -96,7 +96,7 @@ int ZJBSYMB(ZJB *zjb, const char *symbol, char *value)
   p = p + jsymbolEntry->jsyevalo;
   memcpy(value, p, jsymbolEntry->jsyevals);
 
-  return ZJB_RTNCD_SUCCESS;
+  return RTNCD_SUCCESS;
 }
 
 // purge a job
@@ -143,7 +143,7 @@ int ZJBMPRG(ZJB *zjb)
     zjb->service_rsn = ssjm.ssjmretn;
     zjb->service_rsn_secondary = ssjm.ssjmret2;
     zjb->e_msg_len = sprintf(zjb->e_msg, "IEFSSREQ rc was: '%d' SSOBRTN was: '%d', SSJMRETN was: '%d', SSJMRET2 was: '%d'", rc, ssob.ssobretn, ssjm.ssjmretn, ssjm.ssjmret2);
-    return ZJB_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   ssjfp = (SSJF *) ssjm.ssjmsjf8; // NOTE(Kelosky): in the future we can return a list of SSJFs, for now, if non-returned, the job was not found
@@ -152,10 +152,10 @@ int ZJBMPRG(ZJB *zjb)
   {
     zjb->e_msg_len = sprintf(zjb->e_msg, "No jobs found matching '%.8s'", zjb->jobid);
     zjb->detail_rc = ZJB_RTNCD_JOB_NOT_FOUND;
-    return ZJB_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
-  return ZJB_RTNCD_SUCCESS;
+  return RTNCD_SUCCESS;
 }
 
 // list jobs
@@ -196,7 +196,7 @@ int ZJBMLIST(ZJB *zjb, STATJQTR **PTR64 jobInfo, int *entries)
     zjb->service_rsn_secondary = stat.statrea2;
     zjb->e_msg_len = sprintf(zjb->e_msg, "IEFSSREQ rc was: '%d' SSOBRTN was: '%d', STATREAS was: '%d', STATREA2 was: '%d'", rc, ssob.ssobretn, stat.statreas, stat.statrea2); // STATREAS contains the reason
     storageFree64(statjqtrsp);
-    return ZJB_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   statjqp = (STATJQ * PTR32) stat.statjobf;
@@ -239,7 +239,7 @@ int ZJBMLIST(ZJB *zjb, STATJQTR **PTR64 jobInfo, int *entries)
   stat.stattype = statmem; // free storage
   rc = iefssreq(&ssobp); // TODO(Kelosky): recovery
 
-  return ZJB_RTNCD_SUCCESS;
+  return RTNCD_SUCCESS;
 }
 
 #define LOOP_MAX 100
@@ -290,7 +290,7 @@ int ZJBMLSDS(ZJB *PTR64 zjb, STATSEVB **PTR64 sysoutInfo, int *entries)
     zjb->service_rsn_secondary = stat.statrea2;
     zjb->e_msg_len = sprintf(zjb->e_msg, "IEFSSREQ rc was: '%d' SSOBRTN was: '%d', STATREAS was: '%d', STATREA2 was: '%d'", rc, ssob.ssobretn, stat.statreas, stat.statrea2); // STATREAS contains the reason
     storageFree64(statsetrsp);
-    return ZJB_RTNCD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   statjqp = (STATJQ * PTR32) stat.statjobf;
@@ -345,5 +345,5 @@ int ZJBMLSDS(ZJB *PTR64 zjb, STATSEVB **PTR64 sysoutInfo, int *entries)
   stat.stattype = statmem; // free storage
   rc = iefssreq(&ssobp);   // TODO(Kelosky): recovery
 
-  return ZJB_RTNCD_SUCCESS;
+  return RTNCD_SUCCESS;
 }

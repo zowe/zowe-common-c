@@ -10,11 +10,9 @@
 #ifndef ZCNTYPE_H
 #define ZCNTYPE_H
 
-#include "zmetal.h"
 #include <stdint.h>
+#include "ztype.h"
 
-#define ZCN_RTNCD_SUCCESS 0
-#define ZCN_RTNCD_FAILURE -1
 #define ZCN_RTNCD_SERVICE_FAILURE -2
 #define ZCN_RTNCD_NOT_AUTH -3
 #define ZCN_RTNCD_INSUFFICIENT_BUFFER -4
@@ -40,6 +38,7 @@ typedef struct {
   int16_t reply_id_len; // non-zero if reply found in control
   char reply_id[8]; // if reply_id_len is non-zero
 
+  // TODO(Kelosky): make this common portion in zdiag.h??
   char service_name[24];
   int32_t detail_rc;
   int32_t service_rc;

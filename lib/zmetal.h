@@ -12,6 +12,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "ztype.h"
 
 #if defined(__IBM_METAL__)
 
