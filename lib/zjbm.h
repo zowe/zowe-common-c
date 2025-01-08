@@ -23,7 +23,7 @@ extern "C"
 #endif
 
 int ZJBMLIST(ZJB *PTR64, STATJQTR **PTR64, int *PTR64);
-int ZJBMLSDS(ZJB *PTR64, STATSEVB **PTR64, int *PTR64, unsigned char [8]);
+int ZJBMLSDS(ZJB *PTR64, STATSEVB **PTR64, int *PTR64);
 int ZJBSYMB(ZJB *PTR64, const char *PTR64, char *PTR64);
 int ZJBMPRG(ZJB *PTR64);
 

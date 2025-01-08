@@ -81,6 +81,24 @@ typedef struct
   unsigned char info;
 } IND;
 
+
+int zds_read_dd(char *ddname, string &response)
+{
+  FILE *fp = fopen(string("DD:" + ddname).c_str(), "r");
+
+  if (NULL == fp)
+  {
+    return -1;
+  }
+
+  int len = 0;
+  while ((len = fread(buffer, 1, sizeof(buffer), fp)) > 0)
+  {
+    response += string(buffer, readlen);
+  }
+  fclose(fp);
+}
+
 int zdsListMembers(string name, std::vector<ZDSMem> &list)
 {
   // PO
@@ -188,18 +206,18 @@ int zdsReadDynalloc(string ddname, string dsname, string member, string &data)
     return -1;
   }
 
-    char buffer[80] = {0};
+  char buffer[80] = {0};
 
-    FILE *fp = fopen(string("DD:" + ddname).c_str(), "r");
-    // FILE *fp = fopen("DD:MYDD", "r");
-    int len = 0;
-    // char *data = "this is data from c";
-    while ((len = fread(buffer, 1, sizeof(buffer), fp)) > 0)
-    {
-      printf("read %s", buffer);
-    }
-    // fprintf(fp, data);
-    fclose(fp);
+  FILE *fp = fopen(string("DD:" + ddname).c_str(), "r");
+  // FILE *fp = fopen("DD:MYDD", "r");
+  int len = 0;
+  // char *data = "this is data from c";
+  while ((len = fread(buffer, 1, sizeof(buffer), fp)) > 0)
+  {
+    printf("read %s", buffer);
+  }
+  // fprintf(fp, data);
+  fclose(fp);
 
   rc = dynfree(&ip);
   if (0 != rc)

@@ -26,6 +26,7 @@ struct ZDS
   std::string dsorg;
 };
 
+int zds_read_dd(std::string ddname, std::string &response);
 int zdsRead(std::string, std::string &);
 int zdsWrite(std::string, std::string &);
 int zdsListMembers(std::string, std::vector<ZDSMem> &);

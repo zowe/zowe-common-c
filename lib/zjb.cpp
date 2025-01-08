@@ -90,9 +90,9 @@ int zjb_get_job_dsn_by_jobid_and_key(ZJB *zjb, string jobid, int key, string &jo
 
   if (0 != rc)
   {
-    cout << "Error: could not find data set key '" << key << "'" << endl; // TODO(Kelosky): better error handling scheme
     zjb->e_msg_len = sprintf(zjb->e_msg, "Could not locate data set key '%d' on job '%s'", key, jobid.c_str());
-    return rc;
+    zjb->detail_rc = ZJB_RTNCD_JOB_NOT_FOUND;
+    return ZJB_RTNCD_FAILURE;
   }
 
   return ZJB_RTNCD_SUCCESS;
@@ -195,7 +195,7 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
   memcpy(s99tunit_x[i].s99tunit.s99tunum, &numparms, sizeof(numparms));
   memcpy(s99tunit_x[i].s99tunit.s99tulng, &plen, sizeof(plen));
 
-  // these need to be contiguous and can point to contiguous storage
+  // these need to be contiguous and can point to non contiguous storage
   for (int j = 0; j <= i; j++)
   {
     s99tupl[j].s99tuptr = (void *PTR32) & s99tunit_x[j];
@@ -222,21 +222,25 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
   // https://www.ibm.com/docs/en/zos/3.1.0?topic=guide-dynamic-allocation
   rc = svc99(s99parms);
 
+  // TODO(Kelosky): parse s99parmsx->__S99ENMSG and free
   if (0 != rc && 0 != s99parms->__S99ERROR)
   {
-    cout << "Error: couldnt allocate job spool file '" << jobdsn << "'" << endl; // TODO(Kelosky): better error handling scheme
-    cout << "     : s99error: " << s99parms->__S99ERROR << " s99info " << s99parms->__S99INFO << endl;
-    printf("      : number of error messages %x\n", s99parmsx->__S99ENMSG); //  TODO(Kelosky): parse messsages and free via FREEMAIN
-    return -1;
+    strcpy(zjb->service_name, "svc99");
+    zjb->service_rc = rc;
+    zjb->e_msg_len = sprintf(zjb->e_msg, "Could not allocate job spool file '%s', s99error: '%d' s99info: '%d'", jobdsn.c_str(), s99parms->__S99ERROR, s99parms->__S99INFO);
+    zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+    return ZJB_RTNCD_FAILURE;
   }
 
+  // TODO(Kelosky): use zds method
   short ddnamelen = 0;
   memcpy(&ddnamelen, s99tunit_x[4].s99tunit.s99tulng, sizeof(ddnamelen));
   char *ddprefix = "DD:";
   char ddname[3 + 8 + 1] = {0};
-  char ddnameval[8 + 1] = {0};
   memcpy(ddname, ddprefix, strlen(ddprefix));
   memcpy(ddname + strlen(ddprefix), &s99tunit_x[4].s99tunit.s99tupar, ddnamelen);
+
+  char ddnameval[8 + 1] = {0};
   memcpy(ddnameval, &s99tunit_x[4].s99tunit.s99tupar, ddnamelen);
 
   FILE *fp = fopen(ddname, "r"); // e.g. DD:SYS00001
@@ -263,8 +267,11 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
 
   if (0 != rc)
   {
-    cout << "Error: dynfree failed with " << rc << endl; // TODO(Kelosky): better error handling scheme
-    return -1;
+    strcpy(zjb->service_name, "dynfree");
+    zjb->service_rc = rc;
+    zjb->e_msg_len = sprintf(zjb->e_msg, "dynfree failed with %d", rc);
+    zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+    return ZJB_RTNCD_FAILURE;
   }
 
   return rc;
@@ -348,6 +355,7 @@ int zjb_submit(ZJB *zjb, string data_set, string &jobId)
 
 int zjb_list_dds_by_jobid(ZJB *zjb, string jobid, vector<ZJobDD> &jobDDs)
 {
+  int rc = 0;
   STATSEVB *PTR64 sysoutInfo = NULL;
   int entries = 0;
 
@@ -356,11 +364,15 @@ int zjb_list_dds_by_jobid(ZJB *zjb, string jobid, vector<ZJobDD> &jobDDs)
 
   zut_uppercase_pad_truncate(jobid, zjb->jobid, sizeof(zjb->jobid));
 
-  int rc = ZJBMLSDS(zjb, &sysoutInfo, &entries, NULL);
-  if (0 != rc)
+  rc = ZJBMLSDS(zjb, &sysoutInfo, &entries);
+  if (0 != rc) return rc;
+
+  if (0 == entries)
   {
     ZUTMFR64(sysoutInfo);
-    return rc;
+    zjb->e_msg_len = sprintf(zjb->e_msg, "Could not locate job '%s'", jobid.c_str());
+    zjb->detail_rc = ZJB_RTNCD_JOB_NOT_FOUND;
+    return ZJB_RTNCD_FAILURE;
   }
 
   STATSEVB *PTR64 sysoutInfoNext = sysoutInfo;
@@ -402,6 +414,8 @@ int zjb_list_dds_by_jobid(ZJB *zjb, string jobid, vector<ZJobDD> &jobDDs)
 int zjb_list_by_owner(ZJB *zjb, string owner_name, vector<ZJob> &jobs)
 {
   int rc = 0;
+  STATJQTR *PTR64 jobInfo = NULL;
+  int entries = 0;
 
   if ("" == owner_name)
   {
@@ -416,22 +430,15 @@ int zjb_list_by_owner(ZJB *zjb, string owner_name, vector<ZJob> &jobs)
     }
   }
 
-  // user caller buffer size if provided
   if (0 == zjb->buffer_size) zjb->buffer_size = ZJB_DEFAULT_BUFFER_SIZE;
   if (0 == zjb->jobs_max) zjb->jobs_max = ZJB_DEFAULT_MAX_JOBS;
 
   zut_uppercase_pad_truncate(owner_name, zjb->owner_name, sizeof(zjb->owner_name));
 
-  STATJQTR *PTR64 jobInfo = NULL;
-  int entries = 0;
   rc = ZJBMLIST(zjb, &jobInfo, &entries);
-  STATJQTR *PTR64 jobInfoNext = jobInfo;
+  if (0 != rc) return rc;
 
-  if (0 != rc)
-  {
-    ZUTMFR64(jobInfo);
-    return rc;
-  }
+  STATJQTR *PTR64 jobInfoNext = jobInfo;
 
   for (int i = 0; i < entries; i++)
   {

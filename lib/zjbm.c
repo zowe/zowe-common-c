@@ -246,7 +246,7 @@ int ZJBMLIST(ZJB *zjb, STATJQTR **PTR64 jobInfo, int *entries)
 
 // list data sets for a job
 #pragma prolog(ZJBMLSDS, "&CCN_MAIN SETB 1 \n MYPROLOG")
-int ZJBMLSDS(ZJB *PTR64 zjb, STATSEVB **PTR64 sysoutInfo, int *entries, unsigned char token[8])
+int ZJBMLSDS(ZJB *PTR64 zjb, STATSEVB **PTR64 sysoutInfo, int *entries)
 {
   int rc = 0;
   int loop_control = 0;
@@ -295,6 +295,7 @@ int ZJBMLSDS(ZJB *PTR64 zjb, STATSEVB **PTR64 sysoutInfo, int *entries, unsigned
 
   statjqp = (STATJQ * PTR32) stat.statjobf;
   statvop = (STATVO * PTR32) statjqp->stjqsvrb;
+  *sysoutInfo = statsetrsp;
 
   int total_size = 0;
 
@@ -303,7 +304,6 @@ int ZJBMLSDS(ZJB *PTR64 zjb, STATSEVB **PTR64 sysoutInfo, int *entries, unsigned
     statjqhdp = (STATJQHD * PTR32)((unsigned char *PTR32)statjqp + statjqp->stjqohdr);
     statjqtrp = (STATJQTR * PTR32)((unsigned char *PTR32)statjqhdp + sizeof(STATJQHD));
 
-    *sysoutInfo = statsetrsp;
     while (statvop)
     {
       if (loop_control > zjb->dds_max)
