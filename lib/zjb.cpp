@@ -52,109 +52,37 @@ using namespace std;
 
 #define BTOKLEN (293 - 254) // 293 is the full length, minus the max optional buffer area for logs (less 254)
 
-// from <stdio.h> via showinc compiler option
-// struct __S99struc
-//   {
-//        unsigned char __S99RBLN;   /* length of request block-20*/
-//        unsigned char __S99VERB;   /* verb code                 */
-//        unsigned short __S99FLAG1; /* FLAGS1 field of SVC99 Req
-//                                      Block                     */
-//        unsigned short __S99ERROR; /* error code field          */
-//        unsigned short __S99INFO;  /* information reason code   */
-//        __ptr31(void,__S99TXTPP)   /* address of text unit pointer
-//                                      list                      */
-//        __ptr31(void,__S99S99X)    /* address of Req. Block
-//                                      Extension                 */
-//        unsigned int   __S99FLAG2; /* FLAGS2 field..can only be
-//                                      filled in by APF authorized
-//                                      programs                  */
-//   };
-//
-// typedef struct __S99struc __S99parms;
-
-// struct __S99rbx            /* Request Block Extension  */
-//       {
-//     char           __S99EID[6];/* rbx identifier           */
-//     unsigned char  __S99EVER;  /* rbx version              */
-//     unsigned char  __S99EOPTS; /* rbx message process. opts*/
-//     unsigned char  __S99ESUBP; /* rbx storage subpool      */
-//     unsigned char  __S99EKEY;  /* rbx storage key          */
-//     unsigned char  __S99EMGSV; /* rbx min. severity of mess.*/
-//     unsigned char  __S99ENMSG; /* rbx no. of msg. blks ret. */
-//     __ptr31(void,__S99ECPPL)   /* @ of comd. proc. para. list*/
-//     char           __reserved; /* rbx reserved - zero init..*/
-//     char           __S99ERES;  /* rbx reserved - zero init..*/
-//     unsigned char  __S99ERCO;  /* rbx rea. code for failure.*/
-//     unsigned char  __S99ERCF;  /* rbx rea. code of why      */
-//     int            __S99EWRC;  /* rbx ret code from WTO/PUTL*/
-//     __ptr31(void,__S99EMSGP)   /* rbx @ of a chain of msg blk*/
-//     unsigned short __S99EERR;  /* rbx err code              */
-//     unsigned short __S99EINFO; /* rbx info code             */
-//     unsigned int   __S99ERSN;  /* rbx SMS rea. code         */
-//     };
-//
-//  typedef struct __S99rbx  __S99rbx_t;
-//
-//  struct  __S99emparms {     /* Error Messages Parms     */
-//     unsigned char  __EMFUNCT;  /* functions to be performed*/
-//     unsigned char  __EMIDNUM;  /* identifies caller        */
-//     unsigned char  __EMNMSGBK; /* num. of messages         */
-//     unsigned char  __filler1;  /* reserved                 */
-//     __ptr31(void,__EMS99RBP)   /* @ of failing SVC99/DAIR par */
-//     int            __EMRETCOD; /* svc99 or dair ret. code   */
-//     __ptr31(void,__EMCPPLP)    /* @ of comm. proc. par. list */
-//     __ptr31(void,__EMBUFP)     /* @ of message buffer        */
-//     int            __reserv1;  /* rbx reserved - zero init..*/
-//     int            __reserv2;  /* rbx reserved - zero init..*/
-//     };
-//
-//    typedef struct __S99emparms  __S99emparms_t;
-
+// NOTE(Kelosky): see struct __S99struc via 'showinc' compiler option in <stdio.h>
 // NOTE(Kelosky): In the future, to allocate the logical SYSLOG concatenation for a system specify the following data set name (in DALDSNAM).
 // NOTE(Kelosky): needed for dynalloc JES spool https://www.ibm.com/docs/en/zos/3.1.0?topic=programming-jes-spool-data-set-browse
-// NOTE(Kelosky): needed for dynalloc https://www.ibm.com/docs/en/zos/2.4.0?topic=list-coding-dynamic-allocation-request
-int zjb_read_jobs_output_by_jobid_and_key(ZJB *zjb, string jobid, int key, string &data)
+// NOTE(Kelosky): needed for dynalloc https://www.ibm.com/docs/en/zos/3.1.0?topic=list-coding-dynamic-allocation-request
+int zjb_read_jobs_output_by_jobid_and_key(ZJB *zjb, string jobid, int key, string &response)
 {
   int rc = 0;
-  string jobdsn;
+  string job_dsn;
 
-  rc = zjb_get_job_dsn_by_jobid_and_key(zjb, jobid, key, jobdsn);
-  if (0 != rc)
-  {
-    cout << "Error: obtaining joblist failed" << endl; // TODO(Kelosky): better error handling scheme
-    return rc;
-  }
+  rc = zjb_get_job_dsn_by_jobid_and_key(zjb, jobid, key, job_dsn);
+  if (0 != rc) return rc;
 
-  rc = zjb_read_job_content_by_dsn(zjb, jobdsn, data);
-  if (0 != rc)
-  {
-    cout << "Error: obtaining job spool info failed for '" << jobdsn << "'" << endl; // TODO(Kelosky): better error handling scheme
-    return rc;
-  }
-
-  return 0;
+  return zjb_read_job_content_by_dsn(zjb, job_dsn, response);
 }
 
-int zjb_get_job_dsn_by_jobid_and_key(ZJB *zjb, string jobid, int key, string &jobdsname)
+int zjb_get_job_dsn_by_jobid_and_key(ZJB *zjb, string jobid, int key, string &job_dsn)
 {
   int rc = 0;
 
   vector<ZJobDD> list;
 
   rc = zjb_list_dds_by_jobid(zjb, jobid, list);
-  if (0 != rc)
-  {
-    cout << "Error: obtaining joblist failed" << endl; // TODO(Kelosky): better error handling scheme
-    return rc;
-  }
+  if (0 != rc) return rc;
 
-  rc = -1; // assume failure
+  rc = ZJB_RTNCD_FAILURE; // assume failure
 
   for (vector<ZJobDD>::iterator it = list.begin(); it != list.end(); ++it)
   {
     if (key == it->key)
     {
-      jobdsname = it->dsn;
+      job_dsn = it->dsn;
       rc = 0;
       break;
     }
@@ -163,10 +91,11 @@ int zjb_get_job_dsn_by_jobid_and_key(ZJB *zjb, string jobid, int key, string &jo
   if (0 != rc)
   {
     cout << "Error: could not find data set key '" << key << "'" << endl; // TODO(Kelosky): better error handling scheme
-    return -1;
+    zjb->e_msg_len = sprintf(zjb->e_msg, "Could not locate data set key '%d' on job '%s'", key, jobid.c_str());
+    return rc;
   }
 
-  return 0;
+  return ZJB_RTNCD_SUCCESS;
 }
 
 int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)

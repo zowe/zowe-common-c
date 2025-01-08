@@ -11,6 +11,7 @@
 #include <iostream>
 #include <vector>
 #include <stdlib.h>
+#include <string>
 #include "zcn.hpp"
 #include "zut.hpp"
 #include "zcli.hpp"
@@ -32,6 +33,7 @@ int function2(ZCLIResult result)
 
 int handle_job_list(ZCLIResult);
 int handle_job_list_files(ZCLIResult);
+int handle_job_view_file(ZCLIResult);
 int handle_job_submit(ZCLIResult);
 int handle_job_delete(ZCLIResult);
 int handle_console_issue(ZCLIResult);
@@ -79,12 +81,22 @@ int main(int argc, char *argv[])
   job_list_files.set_description("list spool files");
   job_list_files.set_zcli_verb_handler(handle_job_list_files);
   ZCLIPositional job_jobid("jobid");
-  job_owner.set_description("jobid used to list files");
   job_jobid.set_required(true);
   job_jobid.set_description("valid jobid");
   job_list_files.get_positionals().push_back(job_jobid);
   job_group.get_verbs().push_back(job_list_files);
 
+  ZCLIVerb job_view_file("view-file");
+  job_view_file.set_description("view job file output");
+  job_view_file.set_zcli_verb_handler(handle_job_view_file);
+  job_view_file.get_positionals().push_back(job_jobid);
+
+  ZCLIPositional job_dsn_key("key");
+  job_dsn_key.set_required(true);
+  job_dsn_key.set_description("valid job dsn key via 'job list-files'");
+  job_view_file.get_positionals().push_back(job_dsn_key);
+
+  job_group.get_verbs().push_back(job_view_file);
   // ZCLIVerb job_view("view");
   // job_view.set_description("view a job");
   // job_view.set_zcli_verb_handler(function2);
@@ -124,8 +136,8 @@ int main(int argc, char *argv[])
   console_group.get_verbs().push_back(console_issue);
 
   // add all groups to the CLI
-  zcli.get_groups().push_back(test_group);
-  zcli.get_groups().push_back(data_set_group);
+  // zcli.get_groups().push_back(test_group);
+  // zcli.get_groups().push_back(data_set_group);
   zcli.get_groups().push_back(console_group);
   zcli.get_groups().push_back(job_group);
 
@@ -177,6 +189,28 @@ int handle_job_list_files(ZCLIResult result)
   {
       cout << left << setw(9) << it->ddn << " " << it->dsn << " " << setw(4) << it->key << " " << it->stepname << " " << it->procstep << endl;
   }
+
+  return 0;
+}
+
+int handle_job_view_file(ZCLIResult result)
+{
+  int rc = 0;
+  ZJB zjb = {0};
+  string jobid(result.get_positional("jobid").get_value());
+  string key(result.get_positional("key").get_value());
+
+  string resp;
+  rc = zjb_read_jobs_output_by_jobid_and_key(&zjb, jobid, atoi(key.c_str()), resp);
+
+  if (0 != rc)
+  {
+    cout << "Error: could not view job file for: '" << jobid << "' with key '" << key << "' rc: '" << rc << "'" << endl;
+    cout << "  Details: " << zjb.e_msg << endl;
+    return -1;
+  }
+
+  cout << resp;
 
   return 0;
 }
