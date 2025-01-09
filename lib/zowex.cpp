@@ -313,13 +313,13 @@ int handle_data_set_view_dsn(ZCLIResult result)
   string dsn = result.get_positional("dsn").get_value();
   ZDS zds = {0};
   string response;
-  rc = zds_read_dsn(&zds, dsn, response);
-    if (0 != rc)
-    {
-      cout << "Error: could not read data set: '" << dsn << "' rc: '" << rc << "'" << endl;
-      cout << "  Details: " << zds.diag.e_msg << endl;
-      return -1;
-    }
+  rc = zds_read_from_dsn(&zds, dsn, response);
+  if (0 != rc)
+  {
+    cout << "Error: could not read data set: '" << dsn << "' rc: '" << rc << "'" << endl;
+    cout << "  Details: " << zds.diag.e_msg << endl;
+    return -1;
+  }
   cout << response;
 
   return rc;

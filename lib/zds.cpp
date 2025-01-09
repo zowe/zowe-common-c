@@ -23,16 +23,15 @@ using namespace std;
  * E.g. SYS1.MACLIB(ABEND)
  * Returns -1 for file not open
  */
-int zds_read_dsn(ZDS* zds, string name, string &data)
+int zds_read_from_dsn(ZDS* zds, string name, string &data)
 {
   name = "//'" + name + "'";
 
   ifstream in(name.c_str());
   if (!in.is_open())
   {
-    // TODO(Kelosky): log & errors
-    cout << "Could not open file: '" << name << "'" << endl;
-    return -1;
+    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Could not open file '%s'", name.c_str());
+    return RTNCD_FAILURE;
   }
 
   string line;
@@ -47,20 +46,35 @@ int zds_read_dsn(ZDS* zds, string name, string &data)
   return 0;
 }
 
-int zdsWrite(string name, string &data)
+int zds_write_to_dd(ZDS *zds, string ddname, string &data)
 {
-  name = "//'" + name + "'";
-
-  ofstream out(name.c_str());
+  ddname = "DD:" + ddname;
+  ofstream out(ddname.c_str());
 
   if (!out.is_open())
   {
-    cout << "Could not open file: '" << name << "'.  Is it open elsewhere?" << endl;
-    return -1;
+    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Could not open '%s'", ddname.c_str());
+    return RTNCD_FAILURE;
   }
 
   out << data;
+  out.close();
 
+  return 0;
+}
+
+int zds_write_to_dsn(ZDS *zds, string dsn, string &data)
+{
+  dsn = "//'" + dsn + "'";
+  ofstream out(dsn.c_str());
+
+  if (!out.is_open())
+  {
+    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Could not open '%s'", dsn.c_str());
+    return RTNCD_FAILURE;
+  }
+
+  out << data;
   out.close();
 
   return 0;
@@ -83,21 +97,33 @@ typedef struct
 } IND;
 
 
-int zds_read_dd(string ddname, string &response)
+int zds_read_from_dd(ZDS *zds, string ddname, string &response)
 {
-  // FILE *fp = fopen(string("DD:" + ddname).c_str(), "r");
+  // char *ddprefix = "DD:";
+  // char ddname[3 + 8 + 1] = {0};
+  // memcpy(ddname, ddprefix, strlen(ddprefix));
+  // memcpy(ddname + strlen(ddprefix), &s99tunit_x[4].s99tunit.s99tupar, ddnamelen);
 
-  // if (NULL == fp)
-  // {
-  //   return -1;
-  // }
+  // char ddnameval[8 + 1] = {0};
+  // memcpy(ddnameval, &s99tunit_x[4].s99tunit.s99tupar, ddnamelen);
 
-  // int len = 0;
-  // while ((len = fread(buffer, 1, sizeof(buffer), fp)) > 0)
-  // {
-  //   response += string(buffer, readlen);
-  // }
-  // fclose(fp);
+  string prefix_ddname = "DD:" + ddname;
+
+  FILE *fp = fopen(prefix_ddname.c_str(), "r"); // e.g. DD:SYS00001
+
+  if (NULL == fp)
+  {
+    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Failed to open ddname '%s'", prefix_ddname.c_str());
+    return RTNCD_FAILURE;
+  }
+
+  int readlen = 0;
+  char buffer[256 + 1] = {0};
+  while ((readlen = fread(buffer, 1, sizeof(buffer), fp)) > 0)
+  {
+    response += string(buffer, readlen);
+  }
+  fclose(fp);
 
   return 0;
 }

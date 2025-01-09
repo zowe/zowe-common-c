@@ -103,6 +103,7 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
 {
   int rc = 0;
   unsigned char *p = NULL;
+  ZDS zds = {0};
 
   // FACT(Kelosky): this api is insane
   // TODO(Kelosky): one larger __malloc31 is better
@@ -233,37 +234,24 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
     return RTNCD_FAILURE;
   }
 
-  // TODO(Kelosky): use zds method
   short ddnamelen = 0;
   memcpy(&ddnamelen, s99tunit_x[4].s99tunit.s99tulng, sizeof(ddnamelen));
-  char *ddprefix = "DD:";
-  char ddname[3 + 8 + 1] = {0};
-  memcpy(ddname, ddprefix, strlen(ddprefix));
-  memcpy(ddname + strlen(ddprefix), &s99tunit_x[4].s99tunit.s99tupar, ddnamelen);
 
-  char ddnameval[8 + 1] = {0};
-  memcpy(ddnameval, &s99tunit_x[4].s99tunit.s99tupar, ddnamelen);
+  char cddname[8 + 1] = {0};
+  memcpy(cddname, &s99tunit_x[4].s99tunit.s99tupar, ddnamelen);
+  string ddname = string(cddname);
+  rc = zds_read_from_dd(&zds, ddname, response);
 
-  FILE *fp = fopen(ddname, "r"); // e.g. DD:SYS00001
-
-  if (NULL == fp)
+  if (0 != rc)
   {
-    cout << "Error: failued to open allocate job spoolfile '" << jobdsn << "' with ddname '" << ddname << "'" << endl; // TODO(Kelosky): better error handling scheme
-    return -1;
+    memcpy(&zjb->diag, &zds.diag, sizeof(ZDIAG));
+    return rc;
   }
-
-  int readlen = 0;
-  char buffer[256 + 1] = {0};
-  while ((readlen = fread(buffer, 1, sizeof(buffer), fp)) > 0)
-  {
-    response += string(buffer, readlen);
-  }
-  fclose(fp);
 
   // free DD
   __dyn_t ip;
   dyninit(&ip);
-  ip.__ddname = ddnameval; // e.g. SYS00001
+  ip.__ddname = cddname; // e.g. SYS00001
   rc = dynfree(&ip);
 
   if (0 != rc)
@@ -289,14 +277,11 @@ int zjb_submit(ZJB *zjb, string data_set, string &jobId)
   int rc = 0;
   string content;
   ZDS zds = {0};
-  rc = zds_read_dsn(&zds, data_set, content);
+  rc = zds_read_from_dsn(&zds, data_set, content);
   if (rc != 0)
   {
-    strcpy(zjb->diag.service_name, "zds_read");
-    zjb->diag.service_rc = rc;
-    zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "Could not read data set '%s' - %d", data_set.c_str(), rc);
-    zjb->diag.detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
-    return RTNCD_FAILURE;
+    memcpy(&zjb->diag, &zds.diag, sizeof(ZDIAG));
+    return rc;
   }
 
   __dyn_t ip;
@@ -329,10 +314,12 @@ int zjb_submit(ZJB *zjb, string data_set, string &jobId)
     return RTNCD_FAILURE;
   }
 
-  string cddname = "DD:" + ddname;
-  ofstream in(cddname.c_str());
-  in << content;
-  in.close();
+  rc = zds_write_to_dd(&zds, ddname, content);
+  if (rc != 0)
+  {
+    memcpy(&zjb->diag, &zds.diag, sizeof(ZDIAG));
+    return rc;
+  }
 
   char cjobid[8 + 1] = {0};
   // https://www.ibm.com/docs/en/zos/3.1.0?topic=iazsymbl-jes-system-symbols

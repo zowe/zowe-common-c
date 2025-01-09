@@ -28,9 +28,46 @@ struct ZDSAttributes
   std::string dsorg;
 };
 
-int zds_read_dsn(ZDS *zds, std::string dsn, std::string &response);
-int zds_read_dd(std::string ddname, std::string &response);
-int zdsWrite(std::string, std::string &);
+/**
+ * @brief
+ *
+ * @param zds
+ * @param dsn
+ * @param response
+ * @return int
+ */
+int zds_read_from_dsn(ZDS *zds, std::string dsn, std::string &response);
+
+/**
+ * @brief
+ *
+ * @param zds
+ * @param ddname
+ * @param response
+ * @return int
+ */
+int zds_read_from_dd(ZDS *zds, std::string ddname, std::string &response);
+
+/**
+ * @brief
+ *
+ * @param zds
+ * @param ddname
+ * @param data
+ * @return int
+ */
+int zds_write_to_dd(ZDS *zds, std::string ddname, std::string &data);
+
+/**
+ * @brief
+ *
+ * @param zds
+ * @param dsn
+ * @param data
+ * @return int
+ */
+int zds_write_to_dsn(ZDS *zds, std::string dsn, std::string &data);
+
 int zdsListMembers(std::string, std::vector<ZDSMem> &);
 int zdsList(std::string, std::vector<ZDSAttributes> &);
 int zdsReadDynalloc(std::string, std::string, std::string, std::string &); // NOTE(Kelosky): testing only
