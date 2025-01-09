@@ -24,7 +24,7 @@ using namespace std;
 int zcn_activate(ZCN *zcn, string console_name)
 {
   int rc = 0;
-  zcn->detail_rc = 0;
+  zcn->diag.detail_rc = 0;
 
   strcpy(zcn->eye_beg, EYE_BEG);
   strcpy(zcn->eye_end, EYE_END);
@@ -44,7 +44,7 @@ int zcn_activate(ZCN *zcn, string console_name)
 int zcn_put(ZCN *zcn, string command)
 {
   int rc = 0;
-  zcn->detail_rc = 0;
+  zcn->diag.detail_rc = 0;
 
   char *command31 = (char *)__malloc31(command.length() + 1);
   memset(command31, 0x00, command.length() + 1);
@@ -59,7 +59,7 @@ int zcn_put(ZCN *zcn, string command)
 int zcn_get(ZCN *zcn, string &response)
 {
   int rc = 0;
-  zcn->detail_rc = 0;
+  zcn->diag.detail_rc = 0;
 
   // user caller buffer size if provided
   if (0 == zcn->buffer_size) zcn->buffer_size = ZCN_DEFAULT_BUFFER_SIZE;
@@ -78,7 +78,7 @@ int zcn_get(ZCN *zcn, string &response)
 
 int zcn_deactivate(ZCN *zcn)
 {
-  zcn->detail_rc = 0;
+  zcn->diag.detail_rc = 0;
   if (zcn->ecb) free(zcn->ecb);
 
   return ZCNDACT(zcn);

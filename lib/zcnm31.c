@@ -65,13 +65,13 @@ int zcnm1act(ZCN *zcn)
   unsigned int *PTR32 a = (unsigned int *PTR32)zcn->area;
 
   mode_sup();
-  MCSOPER_ACTIVATE(zcn->id, zcn->console_name, *e, zcn->alet, a, zcn->service_rc, zcn->service_rsn, dsa_mcsoper_model);
+  MCSOPER_ACTIVATE(zcn->id, zcn->console_name, *e, zcn->alet, a, zcn->diag.service_rc, zcn->diag.service_rsn, dsa_mcsoper_model);
   mode_prob();
 
-  strcpy(zcn->service_name, "MCSOPER_ACTIVATE");
+  strcpy(zcn->diag.service_name, "MCSOPER_ACTIVATE");
 
-  if (0 != zcn->service_rc) zcn->detail_rc = ZCN_RTNCD_SERVICE_FAILURE; // if the service failed, note in RC
-  return zcn->detail_rc;
+  if (0 != zcn->diag.service_rc) zcn->diag.detail_rc = ZCN_RTNCD_SERVICE_FAILURE; // if the service failed, note in RC
+  return zcn->diag.detail_rc;
 }
 
 #if defined(__IBM_METAL__)
@@ -126,10 +126,10 @@ int zcnm1put(ZCN *zcn, const char *command)
   mode_nzero();
   mode_prob();
 
-  strcpy(zcn->service_name, "MGCRE");
+  strcpy(zcn->diag.service_name, "MGCRE");
 
-  zcn->service_rc = 0;
-  zcn->service_rsn = 0;
+  zcn->diag.service_rc = 0;
+  zcn->diag.service_rsn = 0;
 
   return RTNCD_SUCCESS; // NOTE(Kelosky): no return code for MGCRE
 }
@@ -287,27 +287,27 @@ int zcnm1get(ZCN *zcn, char *resp)
   void *area = NULL;
   int alet = 0;
 
-  zcn->service_rc = 0;
+  zcn->diag.service_rc = 0;
 
   // while there are records
-  while (0 == zcn->service_rc)
+  while (0 == zcn->diag.service_rc)
   {
     mode_sup();
     CLEAR_ARS();
-    MCSOPMSG_GETMSG(zcn->id, area, alet, cart, zcn->service_rc, zcn->service_rsn, dsa_mcsopmsg_model);
+    MCSOPMSG_GETMSG(zcn->id, area, alet, cart, zcn->diag.service_rc, zcn->diag.service_rsn, dsa_mcsopmsg_model);
     CLEAR_ARS();
     mode_prob();
 
-    strcpy(zcn->service_name, "MCSOPMSG_GETMSG");
+    strcpy(zcn->diag.service_name, "MCSOPMSG_GETMSG");
 
     // break if no more messages
-    if (RTNCD_NO_MORE_MESSAGES == zcn->service_rc && RSNCD_NO_MORE_MESSAGES == zcn->service_rsn)
+    if (RTNCD_NO_MORE_MESSAGES == zcn->diag.service_rc && RSNCD_NO_MORE_MESSAGES == zcn->diag.service_rsn)
       break;
 
     // break if unexpected error
-    if (0 != zcn->service_rc)
+    if (0 != zcn->diag.service_rc)
     {
-      return zcn->service_rc;
+      return zcn->diag.service_rc;
     }
 
     // NOTE(Kelosky): treat everything as MDB since every structure begins with 2 byte len and 2 byte type
@@ -338,7 +338,7 @@ int zcnm1get(ZCN *zcn, char *resp)
           resp += bytes_written;
         }
         else {
-          zcn->detail_rc = ZCN_RTNCD_INSUFFICIENT_BUFFER;
+          zcn->diag.detail_rc = ZCN_RTNCD_INSUFFICIENT_BUFFER;
         }
         zcn->buffer_size_needed += text_len + 1; // return max number of bytes needed
       }
@@ -355,25 +355,25 @@ int zcnm1get(ZCN *zcn, char *resp)
     }
   }
 
-  zcn->service_rc = 0;
-  zcn->service_rsn = 0;
+  zcn->diag.service_rc = 0;
+  zcn->diag.service_rsn = 0;
 
   // https://www.ibm.com/docs/en/zos/3.1.0?topic=messages-description
   mode_sup();
   CLEAR_ARS();
-  MCSOPMSG_RESUME(zcn->id, zcn->service_rc, zcn->service_rsn, dsa_mcsopmsg_model);
+  MCSOPMSG_RESUME(zcn->id, zcn->diag.service_rc, zcn->diag.service_rsn, dsa_mcsopmsg_model);
   CLEAR_ARS();
   mode_prob();
 
-  strcpy(zcn->service_name, "MCSOPMSG_RESUME");
+  strcpy(zcn->diag.service_name, "MCSOPMSG_RESUME");
 
-  if (RTNCD_RESUME_OK == zcn->service_rc)
+  if (RTNCD_RESUME_OK == zcn->diag.service_rc)
   {
     return RTNCD_SUCCESS;
   }
 
-  zcn->detail_rc = ZCN_RTNCD_SERVICE_FAILURE;
-  return zcn->detail_rc;
+  zcn->diag.detail_rc = ZCN_RTNCD_SERVICE_FAILURE;
+  return zcn->diag.detail_rc;
 }
 
 #if defined(__IBM_METAL__)
@@ -399,10 +399,10 @@ int zcnm1dea(ZCN *zcn)
   dsa_mcsoper_model = mcsoper_model;
 
   mode_sup();
-  MCSOPER_DEACTIVATE(zcn->id, zcn->service_rc, zcn->service_rsn, dsa_mcsoper_model);
+  MCSOPER_DEACTIVATE(zcn->id, zcn->diag.service_rc, zcn->diag.service_rsn, dsa_mcsoper_model);
   mode_prob();
-  strcpy(zcn->service_name, "MCSOPER_DEACTIVATE");
+  strcpy(zcn->diag.service_name, "MCSOPER_DEACTIVATE");
 
-  if (0 != zcn->service_rc) zcn->detail_rc = ZCN_RTNCD_SERVICE_FAILURE; // if the service failed, note in RC
-  return zcn->detail_rc;
+  if (0 != zcn->diag.service_rc) zcn->diag.detail_rc = ZCN_RTNCD_SERVICE_FAILURE; // if the service failed, note in RC
+  return zcn->diag.detail_rc;
 }

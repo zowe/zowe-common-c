@@ -262,7 +262,7 @@ int handle_console_issue(ZCLIResult result)
     if (0 != rc)
     {
       cout << "Error: could not activate console: '" << console_name << "' rc: '" << rc << "'" << endl;
-      cout << "  Details: " << zcn.e_msg << endl;
+      cout << "  Details: " << zcn.diag.e_msg << endl;
       return -1;
     }
 
@@ -272,7 +272,7 @@ int handle_console_issue(ZCLIResult result)
     if (0 != rc)
     {
       cout << "Error: could not write to console: '" << console_name << "' rc: '" << rc << "'" << endl;
-      cout << "  Details: " << zcn.e_msg << endl;
+      cout << "  Details: " << zcn.diag.e_msg << endl;
       return -1;
     }
 
@@ -281,7 +281,7 @@ int handle_console_issue(ZCLIResult result)
     if (0 != rc)
     {
       cout << "Error: could not get from console: '" << console_name << "' rc: '" << rc << "'" << endl;
-      cout << "  Details: " << zcn.e_msg << endl;
+      cout << "  Details: " << zcn.diag.e_msg << endl;
       return -1;
     }
 
@@ -301,7 +301,7 @@ int handle_console_issue(ZCLIResult result)
     if (0 != rc)
     {
       cout << "Error: could not deactivate console: '" << console_name << "' rc: '" << rc << "'" << endl;
-      cout << "  Details: " << zcn.e_msg << endl;
+      cout << "  Details: " << zcn.diag.e_msg << endl;
       return -1;
     }
     return rc;
@@ -317,7 +317,7 @@ int handle_data_set_view_dsn(ZCLIResult result)
     if (0 != rc)
     {
       cout << "Error: could not read data set: '" << dsn << "' rc: '" << rc << "'" << endl;
-      cout << "  Details: " << zds.e_msg << endl;
+      cout << "  Details: " << zds.diag.e_msg << endl;
       return -1;
     }
   cout << response;
