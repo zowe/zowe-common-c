@@ -228,7 +228,7 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
     zjb->diag.service_rc = rc;
     zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "Could not allocate job spool file '%s', s99error: '%d' s99info: '%d'", jobdsn.c_str(), s99parms->__S99ERROR, s99parms->__S99INFO);
     zjb->diag.detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
-    // free(parms);
+    free(parms);
     return RTNCD_FAILURE;
   }
 
@@ -240,7 +240,7 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
   string ddname = string(cddname);
   rc = zds_read_from_dd(&zds, ddname, response);
 
-  // free(parms);
+  free(parms);
 
   if (0 != rc)
   {
