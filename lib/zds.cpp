@@ -98,6 +98,7 @@ int zds_read_dd(string ddname, string &response)
   //   response += string(buffer, readlen);
   // }
   // fclose(fp);
+
   return 0;
 }
 

@@ -91,8 +91,8 @@ int zjb_get_job_dsn_by_jobid_and_key(ZJB *zjb, string jobid, int key, string &jo
 
   if (0 != rc)
   {
-    zjb->e_msg_len = sprintf(zjb->e_msg, "Could not locate data set key '%d' on job '%s'", key, jobid.c_str());
-    zjb->detail_rc = ZJB_RTNCD_JOB_NOT_FOUND;
+    zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "Could not locate data set key '%d' on job '%s'", key, jobid.c_str());
+    zjb->diag.detail_rc = ZJB_RTNCD_JOB_NOT_FOUND;
     return RTNCD_FAILURE;
   }
 
@@ -226,10 +226,10 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
   // TODO(Kelosky): parse s99parmsx->__S99ENMSG and free
   if (0 != rc && 0 != s99parms->__S99ERROR)
   {
-    strcpy(zjb->service_name, "svc99");
-    zjb->service_rc = rc;
-    zjb->e_msg_len = sprintf(zjb->e_msg, "Could not allocate job spool file '%s', s99error: '%d' s99info: '%d'", jobdsn.c_str(), s99parms->__S99ERROR, s99parms->__S99INFO);
-    zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+    strcpy(zjb->diag.service_name, "svc99");
+    zjb->diag.service_rc = rc;
+    zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "Could not allocate job spool file '%s', s99error: '%d' s99info: '%d'", jobdsn.c_str(), s99parms->__S99ERROR, s99parms->__S99INFO);
+    zjb->diag.detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
     return RTNCD_FAILURE;
   }
 
@@ -268,10 +268,10 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
 
   if (0 != rc)
   {
-    strcpy(zjb->service_name, "dynfree");
-    zjb->service_rc = rc;
-    zjb->e_msg_len = sprintf(zjb->e_msg, "dynfree failed with %d", rc);
-    zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+    strcpy(zjb->diag.service_name, "dynfree");
+    zjb->diag.service_rc = rc;
+    zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "dynfree failed with %d", rc);
+    zjb->diag.detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
     return RTNCD_FAILURE;
   }
 
@@ -292,10 +292,10 @@ int zjb_submit(ZJB *zjb, string data_set, string &jobId)
   rc = zds_read_dsn(&zds, data_set, content);
   if (rc != 0)
   {
-    strcpy(zjb->service_name, "zds_read");
-    zjb->service_rc = rc;
-    zjb->e_msg_len = sprintf(zjb->e_msg, "Could not read data set '%s' - %d", data_set.c_str(), rc);
-    zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+    strcpy(zjb->diag.service_name, "zds_read");
+    zjb->diag.service_rc = rc;
+    zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "Could not read data set '%s' - %d", data_set.c_str(), rc);
+    zjb->diag.detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
     return RTNCD_FAILURE;
   }
 
@@ -303,10 +303,10 @@ int zjb_submit(ZJB *zjb, string data_set, string &jobId)
   rc = dyninit(&ip);
   if (0 != rc)
   {
-    strcpy(zjb->service_name, "dyninit");
-    zjb->service_rc = rc;
-    zjb->e_msg_len = sprintf(zjb->e_msg, "dyninit failed with %d", rc);
-    zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+    strcpy(zjb->diag.service_name, "dyninit");
+    zjb->diag.service_rc = rc;
+    zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "dyninit failed with %d", rc);
+    zjb->diag.detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
     return RTNCD_FAILURE;
   }
 
@@ -322,10 +322,10 @@ int zjb_submit(ZJB *zjb, string data_set, string &jobId)
 
   if (0 != rc)
   {
-    strcpy(zjb->service_name, "dynalloc");
-    zjb->service_rc = rc;
-    zjb->e_msg_len = sprintf(zjb->e_msg, "dynalloc failed with %d", rc);
-    zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+    strcpy(zjb->diag.service_name, "dynalloc");
+    zjb->diag.service_rc = rc;
+    zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "dynalloc failed with %d", rc);
+    zjb->diag.detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
     return RTNCD_FAILURE;
   }
 
@@ -345,10 +345,10 @@ int zjb_submit(ZJB *zjb, string data_set, string &jobId)
   rc = dynfree(&ip);
   if (0 != rc)
   {
-    strcpy(zjb->service_name, "dynfree");
-    zjb->service_rc = rc;
-    zjb->e_msg_len = sprintf(zjb->e_msg, "dynfree failed with %d", rc);
-    zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+    strcpy(zjb->diag.service_name, "dynfree");
+    zjb->diag.service_rc = rc;
+    zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "dynfree failed with %d", rc);
+    zjb->diag.detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
     return RTNCD_FAILURE;
   }
 
@@ -372,8 +372,8 @@ int zjb_list_dds_by_jobid(ZJB *zjb, string jobid, vector<ZJobDD> &jobDDs)
   if (0 == entries)
   {
     ZUTMFR64(sysoutInfo);
-    zjb->e_msg_len = sprintf(zjb->e_msg, "Could not locate job '%s'", jobid.c_str());
-    zjb->detail_rc = ZJB_RTNCD_JOB_NOT_FOUND;
+    zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "Could not locate job '%s'", jobid.c_str());
+    zjb->diag.detail_rc = ZJB_RTNCD_JOB_NOT_FOUND;
     return RTNCD_FAILURE;
   }
 
@@ -424,10 +424,10 @@ int zjb_list_by_owner(ZJB *zjb, string owner_name, vector<ZJob> &jobs)
     rc = zut_get_current_user(owner_name);
     if (0 != rc)
     {
-      strcpy(zjb->service_name, "IAZXJSAB");
-      zjb->service_rc = rc;
-      zjb->e_msg_len = sprintf(zjb->e_msg, "Could not get current user - %d", rc);
-      zjb->detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+      strcpy(zjb->diag.service_name, "IAZXJSAB");
+      zjb->diag.service_rc = rc;
+      zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "Could not get current user - %d", rc);
+      zjb->diag.detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
       return RTNCD_FAILURE;
     }
   }

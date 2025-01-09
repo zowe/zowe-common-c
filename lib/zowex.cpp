@@ -20,12 +20,6 @@
 
 using namespace std;
 
-int function2(ZCLIResult result)
-{
-  cout << "Function two called" << endl;
-  return 0;
-}
-
 int handle_job_list(ZCLIResult);
 int handle_job_list_files(ZCLIResult);
 int handle_job_view_file(ZCLIResult);
@@ -98,12 +92,7 @@ int main(int argc, char *argv[])
   job_dsn_key.set_required(true);
   job_dsn_key.set_description("valid job dsn key via 'job list-files'");
   job_view_file.get_positionals().push_back(job_dsn_key);
-
   job_group.get_verbs().push_back(job_view_file);
-  // ZCLIVerb job_view("view");
-  // job_view.set_description("view a job");
-  // job_view.set_zcli_verb_handler(function2);
-  // job_group.get_verbs().push_back(job_view);
 
   ZCLIVerb job_submit("submit");
   job_submit.set_description("submit a job");
@@ -115,7 +104,7 @@ int main(int argc, char *argv[])
   job_group.get_verbs().push_back(job_submit);
 
   ZCLIVerb job_delete("delete");
-  job_delete.set_description("submit a job");
+  job_delete.set_description("delete a job");
   job_delete.set_zcli_verb_handler(handle_job_delete);
   job_delete.get_positionals().push_back(job_jobid);
   job_group.get_verbs().push_back(job_delete);
@@ -139,7 +128,7 @@ int main(int argc, char *argv[])
   console_group.get_verbs().push_back(console_issue);
 
   // add all groups to the CLI
-  // zcli.get_groups().push_back(test_group);
+  zcli.get_groups().push_back(test_group);
   zcli.get_groups().push_back(data_set_group);
   zcli.get_groups().push_back(console_group);
   zcli.get_groups().push_back(job_group);
@@ -160,7 +149,7 @@ int handle_job_list(ZCLIResult result)
   if (0 != rc)
   {
     cout << "Error: could not list jobs for: '" << owner_name << "' rc: '" << rc << "'" << endl;
-    cout << "  Details: " << zjb.e_msg << endl;
+    cout << "  Details: " << zjb.diag.e_msg << endl;
     return -1;
   }
 
@@ -184,7 +173,7 @@ int handle_job_list_files(ZCLIResult result)
   if (0 != rc)
   {
     cout << "Error: could not list jobs for: '" << jobid << "' rc: '" << rc << "'" << endl;
-    cout << "  Details: " << zjb.e_msg << endl;
+    cout << "  Details: " << zjb.diag.e_msg << endl;
     return -1;
   }
 
@@ -209,7 +198,7 @@ int handle_job_view_file(ZCLIResult result)
   if (0 != rc)
   {
     cout << "Error: could not view job file for: '" << jobid << "' with key '" << key << "' rc: '" << rc << "'" << endl;
-    cout << "  Details: " << zjb.e_msg << endl;
+    cout << "  Details: " << zjb.diag.e_msg << endl;
     return -1;
   }
 
@@ -231,7 +220,7 @@ int handle_job_submit(ZCLIResult result)
   if (0 != rc)
   {
     cout << "Error: could not submit JCL: '" << dsn << "' rc: '" << rc << "'" << endl;
-    cout << "  Details: " << zjb.e_msg << endl;
+    cout << "  Details: " << zjb.diag.e_msg << endl;
     return -1;
   }
 
@@ -251,7 +240,7 @@ int handle_job_delete(ZCLIResult result)
   if (0 != rc)
   {
     cout << "Error: could not delete job: '" << jobid << "' rc: '" << rc << "'" << endl;
-    cout << "  Details: " << zjb.e_msg << endl;
+    cout << "  Details: " << zjb.diag.e_msg << endl;
     return -1;
   }
 

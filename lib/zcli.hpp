@@ -306,7 +306,7 @@ void ZCLIVerb::help(string cli_name, string group_name)
 
 void ZCLIGroup::help(string cli_name)
 {
-  cerr << "Usage is '" << cli_name << " " << name << " <verb>' where verb is one of:" << endl;
+  cerr << "Usage is '" << cli_name << " " << name << " <verb>' where <verb> is one of:" << endl;
   for (vector<ZCLIVerb>::iterator it = verbs.begin(); it != verbs.end(); it++)
   {
     it->help_line();
@@ -324,7 +324,7 @@ void ZCLIGroup::help(string cli_name)
 
 void ZCLI::help()
 {
-  cerr << "Usage is '" << name << " <group>' where group is one of:" << endl;
+  cerr << "Usage is '" << name << " <group>' where <group> is one of:" << endl;
   for (vector<ZCLIGroup>::iterator it = groups.begin(); it != groups.end(); it++)
   {
     it->help_line();
@@ -450,7 +450,6 @@ int ZCLI::parse(int argc, char *argv[])
     // if not an option, check for positional
     if (string::npos != option.get_name().find(" "))
     {
-
       if (positional_index < verb.get_positionals().size())
       {
         // found positional

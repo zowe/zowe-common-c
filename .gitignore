@@ -20,7 +20,7 @@ tests/*.lst
 # TODO(Kelosky): see if they're useful first
 tools
 listings
-dumpds
+dumps
 artifacts
 
 # emacs

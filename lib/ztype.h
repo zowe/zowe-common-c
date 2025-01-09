@@ -10,6 +10,8 @@
 #ifndef ZTYPE_H
 #define ZTYPE_H
 
+#include <stdint.h>
+
 #define RTNCD_SUCCESS 0
 #define RTNCD_FAILURE -1
 
@@ -29,6 +31,36 @@
 #define FAR
 #define ASMREG(register)
 
+#endif
+
+#if (defined(__IBMCPP__) || defined(__IBMC__))
+#pragma pack(packed)
+#endif
+
+// NOTE(Kelosky): struct is padded to nearest double word boundary; ensure proper alignment for fields
+typedef struct {
+  char service_name[24];
+
+  int32_t detail_rc;
+  int32_t service_rc;
+
+  int32_t service_rsn;
+  int32_t service_rsn_secondary;
+
+  unsigned char reserve_0[4];
+  int32_t e_msg_len;
+
+  char e_msg[256];
+
+  void *PTR64 data;
+
+  unsigned int data_len;
+  unsigned char reserve_1[4];
+
+} ZDIAG;
+
+#if (defined(__IBMCPP__) || defined(__IBMC__))
+#pragma pack(reset)
 #endif
 
 #endif

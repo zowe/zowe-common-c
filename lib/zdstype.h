@@ -13,8 +13,6 @@
 #include <stdint.h>
 #include "ztype.h"
 
-#define ZDS_RTNCD_SUCCESS 0
-#define ZDS_RTNCD_FAILURE -1
 #define ZDS_RTNCD_SERVICE_FAILURE -2
 #define ZDS_RTNCD_MAX_JOBS_REACHED -3
 #define ZDS_RTNCD_INSUFFICIENT_BUFFER -4
@@ -31,14 +29,11 @@
 // NOTE(Kelosky): struct is padded to nearest double word boundary; ensure proper alignment for fields
 typedef struct {
   char eye_beg[4];
+  unsigned char reserve_0[4];
 
-  char service_name[24];
-  int32_t detail_rc;
-  int32_t service_rc;
-  int32_t service_rsn;
-  int32_t e_msg_len;
-  char e_msg[256];
+  ZDIAG diag;
 
+  unsigned char reserve_1[4];
   char eye_end[4];
 } ZDS;
 
