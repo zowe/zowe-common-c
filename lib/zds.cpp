@@ -19,26 +19,68 @@
 
 using namespace std;
 
-/**
- * E.g. SYS1.MACLIB(ABEND)
- * Returns -1 for file not open
- */
-int zds_read_from_dsn(ZDS* zds, string name, string &data)
-{
-  name = "//'" + name + "'";
+// int zds_read_from_dd(ZDS *zds, string ddname, string &response)
+// {
+//   string prefix_ddname = "DD:" + ddname;
 
-  ifstream in(name.c_str());
+//   FILE *fp = fopen(prefix_ddname.c_str(), "r"); // e.g. DD:SYS00001
+
+//   if (NULL == fp)
+//   {
+//     zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Failed to open ddname '%s'", prefix_ddname.c_str());
+//     return RTNCD_FAILURE;
+//   }
+
+//   int readlen = 0;
+//   char buffer[256 + 1] = {0};
+//   while ((readlen = fread(buffer, 1, sizeof(buffer), fp)) > 0)
+//   {
+//     response += string(buffer, readlen);
+//   }
+//   fclose(fp);
+
+//   return 0;
+// }
+
+int zds_read_from_dd(ZDS *zds, string ddname, string &response)
+{
+  ddname = "DD:" + ddname;
+
+  ifstream in(ddname.c_str());
   if (!in.is_open())
   {
-    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Could not open file '%s'", name.c_str());
+    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Could not open file '%s'", ddname.c_str());
     return RTNCD_FAILURE;
   }
 
   string line;
   while (getline(in, line))
   {
-    data += line;
-    data.push_back('\n');
+    response += line;
+    response.push_back('\n');
+  }
+
+  in.close();
+
+  return 0;
+}
+
+int zds_read_from_dsn(ZDS* zds, string dsn, string &response)
+{
+  dsn = "//'" + dsn + "'";
+
+  ifstream in(dsn.c_str());
+  if (!in.is_open())
+  {
+    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Could not open file '%s'", dsn.c_str());
+    return RTNCD_FAILURE;
+  }
+
+  string line;
+  while (getline(in, line))
+  {
+    response += line;
+    response.push_back('\n');
   }
 
   in.close();
@@ -96,37 +138,6 @@ typedef struct
   unsigned char info;
 } IND;
 
-
-int zds_read_from_dd(ZDS *zds, string ddname, string &response)
-{
-  // char *ddprefix = "DD:";
-  // char ddname[3 + 8 + 1] = {0};
-  // memcpy(ddname, ddprefix, strlen(ddprefix));
-  // memcpy(ddname + strlen(ddprefix), &s99tunit_x[4].s99tunit.s99tupar, ddnamelen);
-
-  // char ddnameval[8 + 1] = {0};
-  // memcpy(ddnameval, &s99tunit_x[4].s99tunit.s99tupar, ddnamelen);
-
-  string prefix_ddname = "DD:" + ddname;
-
-  FILE *fp = fopen(prefix_ddname.c_str(), "r"); // e.g. DD:SYS00001
-
-  if (NULL == fp)
-  {
-    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Failed to open ddname '%s'", prefix_ddname.c_str());
-    return RTNCD_FAILURE;
-  }
-
-  int readlen = 0;
-  char buffer[256 + 1] = {0};
-  while ((readlen = fread(buffer, 1, sizeof(buffer), fp)) > 0)
-  {
-    response += string(buffer, readlen);
-  }
-  fclose(fp);
-
-  return 0;
-}
 
 int zdsListMembers(string name, std::vector<ZDSMem> &list)
 {

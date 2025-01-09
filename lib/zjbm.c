@@ -146,7 +146,7 @@ int ZJBMPRG(ZJB *zjb)
     return RTNCD_FAILURE;
   }
 
-  ssjfp = (SSJF *) ssjm.ssjmsjf8; // NOTE(Kelosky): in the future we can return a list of SSJFs, for now, if non-returned, the job was not found
+  ssjfp = (SSJF *) ssjm.ssjmsjf8; // NOTE(Kelosky): in the future we can return a list of SSJFs, for now, if none returned, the job was not found
 
   if (0 == ssjm.ssjmnsjf)
   {
@@ -165,7 +165,7 @@ int ZJBMLIST(ZJB *zjb, STATJQTR **PTR64 jobInfo, int *entries)
   int rc = 0;
   int loop_control = 0;
 
-  STATJQTR *statjqtrsp = storageGet64(zjb->buffer_size); // TODO(Kelosky): dynamic storage based on jobs
+  STATJQTR *statjqtrsp = storageGet64(zjb->buffer_size);
 
   SSOB *PTR32 ssobp = NULL;
   SSOB ssob = {0};
@@ -251,7 +251,7 @@ int ZJBMLSDS(ZJB *PTR64 zjb, STATSEVB **PTR64 sysoutInfo, int *entries)
   int rc = 0;
   int loop_control = 0;
 
-  STATSEVB *statsetrsp = storageGet64(zjb->buffer_size); // TODO(Kelosky): dynamic storage based on jobs
+  STATSEVB *statsetrsp = storageGet64(zjb->buffer_size);
 
   // return rc
   SSOB *PTR32 ssobp = NULL;

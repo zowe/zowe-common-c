@@ -99,26 +99,25 @@ int zjb_get_job_dsn_by_jobid_and_key(ZJB *zjb, string jobid, int key, string &jo
   return RTNCD_SUCCESS;
 }
 
+#define NUM_TEXT_UNITS 5
+
 int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
 {
   int rc = 0;
   unsigned char *p = NULL;
   ZDS zds = {0};
 
-  // FACT(Kelosky): this api is insane
-  // TODO(Kelosky): one larger __malloc31 is better
-  IAZBTOKP *PTR32 iazbtokp = (IAZBTOKP * PTR32) __malloc31(sizeof(IAZBTOKP));
-  S99TUNIT_X *PTR32 s99tunit_x = (S99TUNIT_X * PTR32) __malloc31(sizeof(S99TUNIT_X) * 5);
-  S99TUPL *PTR32 s99tupl = (S99TUPL * PTR32) __malloc31(sizeof(S99TUPL) * 5);
-  __S99parms *PTR32 s99parms = (__S99parms * PTR32) __malloc31(sizeof(__S99parms));
-  __S99rbx_t *PTR32 s99parmsx = (__S99rbx_t * PTR32) __malloc31(sizeof(__S99rbx_t));
+  // calculate total size needed, obtain, & clear
+  int total_size_needed = sizeof(IAZBTOKP) + (sizeof(S99TUNIT_X) * NUM_TEXT_UNITS) + (sizeof(S99TUPL) * NUM_TEXT_UNITS) + sizeof(__S99parms) + sizeof(__S99rbx_t);
+  unsigned char *parms = __malloc31(total_size_needed);
+  memset(parms, 0x00, total_size_needed);
 
-  // TODO(Kelosky): free area of storage
-
-  memset(s99tunit_x, 0x00, sizeof(S99TUNIT_X) * 5);
-  memset(s99tupl, 0x00, sizeof(S99TUPL) * 5);
-  memset(s99parms, 0x00, sizeof(__S99parms));
-  memset(iazbtokp, 0x00, sizeof(IAZBTOKP));
+  // carve up storage to needed structs
+  IAZBTOKP *PTR32 iazbtokp = (IAZBTOKP * PTR32) parms;
+  S99TUNIT_X *PTR32 s99tunit_x = (S99TUNIT_X * PTR32) (parms + sizeof(IAZBTOKP));
+  S99TUPL *PTR32 s99tupl = (S99TUPL * PTR32) (parms + (sizeof(S99TUNIT_X) * NUM_TEXT_UNITS));
+  __S99parms *PTR32 s99parms = (__S99parms * PTR32) (parms + (sizeof(S99TUPL) * NUM_TEXT_UNITS));
+  __S99rbx_t *PTR32 s99parmsx = (__S99rbx_t * PTR32) (parms + sizeof(__S99parms));
 
   // https://www.ibm.com/docs/en/zos/3.1.0?topic=allocation-building-browse-token-dalbrtkn
   short int len = sizeof(iazbtokp->btokid);
@@ -151,8 +150,6 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
 #define DISP_MOD 0x02
 #define DISP_NEW 0x04
 #define DISP_SHR 0x08
-
-  // string fakejobsdsn = "DATA.SET.NO.EXIST";
 
   i++;
   dynkey = daldsnam;
@@ -219,7 +216,7 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
   s99parms->__S99VERB = s99vrbal; // allocation
   s99parms->__S99FLAG1 = 0x4000;  // s99nocnv;
   s99parms->__S99TXTPP = s99tupl;
-  s99parms->__S99S99X = s99parmsx;
+  // s99parms->__S99S99X = s99parmsx; // TODO(Kelosky): reenable when we look at s99parmsx->__S99ENMSG and free
 
   // https://www.ibm.com/docs/en/zos/3.1.0?topic=guide-dynamic-allocation
   rc = svc99(s99parms);
@@ -231,6 +228,7 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
     zjb->diag.service_rc = rc;
     zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "Could not allocate job spool file '%s', s99error: '%d' s99info: '%d'", jobdsn.c_str(), s99parms->__S99ERROR, s99parms->__S99INFO);
     zjb->diag.detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
+    free(parms);
     return RTNCD_FAILURE;
   }
 
@@ -241,6 +239,8 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
   memcpy(cddname, &s99tunit_x[4].s99tunit.s99tupar, ddnamelen);
   string ddname = string(cddname);
   rc = zds_read_from_dd(&zds, ddname, response);
+
+  free(parms);
 
   if (0 != rc)
   {

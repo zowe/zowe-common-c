@@ -42,18 +42,18 @@
 #endif
 
 #if defined(__IBM_METAL__)
-#define IAZXJSAB(user, rc)                                      \
-    __asm(                                                      \
-        "*                                                  \n" \
-        " L 2,%0         -> User                            \n" \
-        "*                                                  \n" \
-        " IAZXJSAB READ,USERID=(2)                          \n" \
-        "*                                                  \n" \
-        " ST 15,%1                                          \n" \
-        "*                                                    " \
-        : "+m"(user),"=m"(rc)                                   \
-        :                                                       \
-        : "r0", "r1", "r2", "r14", "r15");
+#define IAZXJSAB(user, rc)                                    \
+  __asm(                                                      \
+      "*                                                  \n" \
+      " L 2,%0         -> User                            \n" \
+      "*                                                  \n" \
+      " IAZXJSAB READ,USERID=(2)                          \n" \
+      "*                                                  \n" \
+      " ST 15,%1                                          \n" \
+      "*                                                    " \
+      : "+m"(user), "=m"(rc)                                  \
+      :                                                       \
+      : "r0", "r1", "r2", "r14", "r15");
 #else
 #define IAZXJSAB(ssob, rc)
 #endif
