@@ -97,6 +97,9 @@ int main(int argc, char *argv[])
   ZCLIVerb job_submit("submit");
   job_submit.set_description("submit a job");
   job_submit.set_zcli_verb_handler(handle_job_submit);
+  ZCLIOption job_jobid_only("only-jobid");
+  job_jobid_only.set_description("show only job id on success");
+  job_submit.get_options().push_back(job_jobid_only);
   ZCLIPositional job_dsn("dsn");
   job_dsn.set_required(true);
   job_dsn.set_description("dsn containing JCL");
@@ -224,7 +227,9 @@ int handle_job_submit(ZCLIResult result)
     return -1;
   }
 
-  cout << "Submitted " << dsn << ", " << jobid << endl;
+  string only_jobid(result.get_option("--only-jobid").get_value());
+  if ("true" == only_jobid) cout << jobid << endl;
+  else cout << "Submitted " << dsn << ", " << jobid << endl;
 
   return 0;
 }

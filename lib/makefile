@@ -75,7 +75,7 @@ CPP_FLAGS=-W "c,lp64,langlvl(extended),dll,xplink,showinc"\
 
 ASM_FLAGS=-mrent
 
-all: libzut.so libzut.a libzds.so libzds.a libzcn.so libzcn.a libzjb.so libzjb.a zowex zowexx extattr
+all: libzut.so libzut.a libzds.so libzds.a libzcn.so libzcn.a libzjb.so libzjb.a zowex zowexx extattr test
 
 #
 # Utilities
@@ -203,6 +203,9 @@ zowexx: zowex.o libzcn.a libzut.a libzjb.a libzds.a
 zowex.o: zowex.cpp
 	@echo 'Building zowex.o'
 	$(CXX) $(CPP_FLAGS) -qlist=$*.cpp.lst -c $^
+
+test: test.sh
+	chmod +x test.sh
 
 #
 # TODO(Kelosky): makefile for chdsect (must have ADATA in data set)
