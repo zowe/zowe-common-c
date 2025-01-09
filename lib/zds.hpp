@@ -29,42 +29,42 @@ struct ZDSAttributes
 };
 
 /**
- * @brief
+ * @brief Read data from a z/OS data set
  *
- * @param zds
+ * @param zds data set returned attributes and error information
  * @param dsn
  * @param response
- * @return int
+ * @return int 0 for success; non zero otherwise
  */
 int zds_read_from_dsn(ZDS *zds, std::string dsn, std::string &response);
 
 /**
- * @brief
+ * @brief Read data from a DDNAME
  *
- * @param zds
- * @param ddname
+ * @param zds data set returned attributes and error information
+ * @param ddname ddname from which to read
  * @param response
- * @return int
+ * @return int 0 for success; non zero otherwise
  */
 int zds_read_from_dd(ZDS *zds, std::string ddname, std::string &response);
 
 /**
- * @brief
+ * @brief Write data to a DDNAME
  *
- * @param zds
- * @param ddname
- * @param data
- * @return int
+ * @param zds data set returned attributes and error information
+ * @param ddname DDNAME to write to
+ * @param data data to write
+ * @return int 0 for success; non zero otherwise
  */
 int zds_write_to_dd(ZDS *zds, std::string ddname, std::string &data);
 
 /**
- * @brief
+ * @brief Write data to a z/OS data set name
  *
- * @param zds
- * @param dsn
- * @param data
- * @return int
+ * @param zds data set returned attributes and error information
+ * @param dsn data set name to write to
+ * @param data data to write
+ * @return int 0 for success; non zero otherwise
  */
 int zds_write_to_dsn(ZDS *zds, std::string dsn, std::string &data);
 

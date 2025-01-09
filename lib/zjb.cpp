@@ -109,15 +109,15 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
 
   // calculate total size needed, obtain, & clear
   int total_size_needed = sizeof(IAZBTOKP) + (sizeof(S99TUNIT_X) * NUM_TEXT_UNITS) + (sizeof(S99TUPL) * NUM_TEXT_UNITS) + sizeof(__S99parms) + sizeof(__S99rbx_t);
-  unsigned char *parms = __malloc31(total_size_needed);
+  unsigned char *parms = (unsigned char *)__malloc31(total_size_needed);
   memset(parms, 0x00, total_size_needed);
 
   // carve up storage to needed structs
   IAZBTOKP *PTR32 iazbtokp = (IAZBTOKP * PTR32) parms;
   S99TUNIT_X *PTR32 s99tunit_x = (S99TUNIT_X * PTR32) (parms + sizeof(IAZBTOKP));
-  S99TUPL *PTR32 s99tupl = (S99TUPL * PTR32) (parms + (sizeof(S99TUNIT_X) * NUM_TEXT_UNITS));
-  __S99parms *PTR32 s99parms = (__S99parms * PTR32) (parms + (sizeof(S99TUPL) * NUM_TEXT_UNITS));
-  __S99rbx_t *PTR32 s99parmsx = (__S99rbx_t * PTR32) (parms + sizeof(__S99parms));
+  S99TUPL *PTR32 s99tupl = (S99TUPL * PTR32) (parms + sizeof(IAZBTOKP) + (sizeof(S99TUNIT_X) * NUM_TEXT_UNITS));
+  __S99parms *PTR32 s99parms = (__S99parms * PTR32) (parms + sizeof(IAZBTOKP) + (sizeof(S99TUNIT_X) * NUM_TEXT_UNITS) + (sizeof(S99TUPL) * NUM_TEXT_UNITS));
+  __S99rbx_t *PTR32 s99parmsx = (__S99rbx_t * PTR32) (parms + sizeof(IAZBTOKP) + (sizeof(S99TUNIT_X) * NUM_TEXT_UNITS) + (sizeof(S99TUPL) * NUM_TEXT_UNITS) + sizeof(__S99parms));
 
   // https://www.ibm.com/docs/en/zos/3.1.0?topic=allocation-building-browse-token-dalbrtkn
   short int len = sizeof(iazbtokp->btokid);
@@ -228,7 +228,7 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
     zjb->diag.service_rc = rc;
     zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "Could not allocate job spool file '%s', s99error: '%d' s99info: '%d'", jobdsn.c_str(), s99parms->__S99ERROR, s99parms->__S99INFO);
     zjb->diag.detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
-    free(parms);
+    // free(parms);
     return RTNCD_FAILURE;
   }
 
@@ -240,7 +240,7 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
   string ddname = string(cddname);
   rc = zds_read_from_dd(&zds, ddname, response);
 
-  free(parms);
+  // free(parms);
 
   if (0 != rc)
   {
