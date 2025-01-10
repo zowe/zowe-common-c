@@ -22,6 +22,8 @@ tools
 listings
 dumps
 artifacts
+zowe.config.json
+zowe.schema.json
 
 # emacs
 *~

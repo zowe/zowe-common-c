@@ -68,6 +68,24 @@ int zds_write_to_dd(ZDS *zds, std::string ddname, std::string &data);
  */
 int zds_write_to_dsn(ZDS *zds, std::string dsn, std::string &data);
 
+/**
+ * @brief Create a data set
+ *
+ * @param zds data set returned attributes and error information
+ * @param dsn data set name to create
+ * @return int 0 for success; non zero otherwise
+ */
+int zds_create_dsn(ZDS *zds, std::string dsn);
+
+/**
+ * @brief Delete a data set
+ *
+ * @param zds data set returned attributes and error information
+ * @param dsn data set name to delete to
+ * @return int 0 for success; non zero otherwise
+ */
+int zds_delete_dsn(ZDS *zds, std::string dsn);
+
 int zdsListMembers(std::string, std::vector<ZDSMem> &);
 int zdsList(std::string, std::vector<ZDSAttributes> &);
 int zdsReadDynalloc(std::string, std::string, std::string, std::string &); // NOTE(Kelosky): testing only

@@ -28,40 +28,72 @@ int handle_job_delete(ZCLIResult);
 
 int handle_console_issue(ZCLIResult);
 
+int handle_data_set_create_dsn(ZCLIResult);
 int handle_data_set_view_dsn(ZCLIResult);
+int handle_data_set_delete_dsn(ZCLIResult);
 
-int handle_test(ZCLIResult);
+int handle_test_command(ZCLIResult);
+int handle_test_bpxwdyn(ZCLIResult);
 
 int main(int argc, char *argv[])
 {
   // CLI
   ZCLI zcli(argv[PROCESS_NAME_ARG]);
 
+  //
   // test group
+  //
   ZCLIGroup test_group("test");
   test_group.set_description("test other operations");
 
   // test verbs
   ZCLIVerb test_command("command");
   test_command.set_description("test command");
-  test_command.set_zcli_verb_handler(handle_test);
+  test_command.set_zcli_verb_handler(handle_test_command);
   test_group.get_verbs().push_back(test_command);
 
+  ZCLIVerb test_bpxwdyn("bpxwdyn");
+  test_bpxwdyn.set_description("test dynalloc command");
+  test_bpxwdyn.set_zcli_verb_handler(handle_test_bpxwdyn);
+  ZCLIPositional test_parm("parm");
+  test_parm.set_description("dynalloc test parm string");
+  test_parm.set_required(true);
+  test_bpxwdyn.get_positionals().push_back(test_parm);
+  test_group.get_verbs().push_back(test_bpxwdyn);
+
+  //
   // data set group
+  //
   ZCLIGroup data_set_group("data-set");
   data_set_group.set_description("z/OS data set operations");
 
+  ZCLIPositional data_set_dsn("dsn");
+  data_set_dsn.set_description("data set name, optionally with member specified");
+  data_set_dsn.set_required(true);
+
   // data set verbs
+  ZCLIVerb data_set_create("create");
+  data_set_create.set_description("Defaults to DSORG=PO, RECFM=FB, LRECL=80");
+  data_set_create.set_zcli_verb_handler(handle_data_set_create_dsn);
+  data_set_create.get_positionals().push_back(data_set_dsn);
+  data_set_group.get_verbs().push_back(data_set_create);
+
   ZCLIVerb data_set_view("view");
   data_set_view.set_description("view data set");
   data_set_view.set_zcli_verb_handler(handle_data_set_view_dsn);
-  ZCLIPositional data_set_dsn("dsn");
-  data_set_dsn.set_description("dsn name, e.g. SYS1.MACLIB(ABEND)");
-  data_set_dsn.set_required(true);
+
   data_set_view.get_positionals().push_back(data_set_dsn);
   data_set_group.get_verbs().push_back(data_set_view);
 
+  // ZCLIVerb data_set_delete("delete");
+  // data_set_delete.set_description("delete data set");
+  // data_set_delete.set_zcli_verb_handler(handle_data_set_delete_dsn);
+  // data_set_delete.get_positionals().push_back(data_set_dsn);
+  // data_set_group.get_verbs().push_back(data_set_delete);
+
+  //
   // jobs group
+  //
   ZCLIGroup job_group("job");
   job_group.set_description("z/OS job operations");
 
@@ -112,7 +144,9 @@ int main(int argc, char *argv[])
   job_delete.get_positionals().push_back(job_jobid);
   job_group.get_verbs().push_back(job_delete);
 
+  //
   // console group
+  //
   ZCLIGroup console_group("console");
   console_group.set_description("z/OS console operations");
 
@@ -312,6 +346,25 @@ int handle_console_issue(ZCLIResult result)
     return rc;
 }
 
+int handle_data_set_create_dsn(ZCLIResult result)
+{
+  int rc = 0;
+  string dsn = result.get_positional("dsn").get_value();
+  ZDS zds = {0};
+  rc = zds_create_dsn(&zds, dsn);
+
+  if (0 != rc)
+  {
+    cout << "Error: could not create data set: '" << dsn << "' rc: '" << rc << "'" << endl;
+    cout << "  Details: " << zds.diag.e_msg << endl;
+    return -1;
+  }
+
+  cout << "Data set '" << dsn << "' created" << endl;
+
+  return rc;
+}
+
 int handle_data_set_view_dsn(ZCLIResult result)
 {
   int rc = 0;
@@ -330,7 +383,25 @@ int handle_data_set_view_dsn(ZCLIResult result)
   return rc;
 }
 
-int handle_test(ZCLIResult result)
+int handle_data_set_delete_dsn(ZCLIResult result)
+{
+  int rc = 0;
+  string dsn = result.get_positional("dsn").get_value();
+  ZDS zds = {0};
+  rc = zds_delete_dsn(&zds, dsn);
+
+  if (0 != rc)
+  {
+    cout << "Error: could not delete data set: '" << dsn << "' rc: '" << rc << "'" << endl;
+    cout << "  Details: " << zds.diag.e_msg << endl;
+    return -1;
+  }
+  cout << "Data set '" << dsn << "' delete" << endl;
+
+  return rc;
+}
+
+int handle_test_command(ZCLIResult result)
 {
   int rc = 0;
   rc = zut_test();
@@ -338,4 +409,29 @@ int handle_test(ZCLIResult result)
   cout << "test code called " << rc << endl;
 
   return 0;
+}
+
+int handle_test_bpxwdyn(ZCLIResult result)
+{
+  int rc = 0;
+  unsigned int code = 0;
+  string resp;
+
+  string parm(result.get_positional("parm").get_value());
+
+  cout << "parm is '" << parm << "'" << endl;
+
+  // alloc da('DKELOSKY.TEMP.ADATA') DSORG(PO) SPACE(5,5) CYL LRECL(80) RECFM(F,b) NEW DIR(5) vol(USER01)
+  // zowex test bpxwdyn "alloc da('ibmuser.temp') space(5,5) dsorg(po) dir(5) cyl lrecl(80) recfm(f,b) new"
+  rc = zut_bpxwdyn(parm, &code, resp);
+  if (0 != rc)
+  {
+    cout << "Error: bpxwdyn with parm '" << parm << "' rc: '" << rc << "'" << endl;
+    cout << "  Details: " << resp << endl;
+    return -1;
+  }
+
+  cout << resp << endl;
+
+  return rc;
 }

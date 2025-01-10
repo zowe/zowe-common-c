@@ -16,6 +16,7 @@
 #include "zds.hpp"
 #include <dynit.h>
 #include "zdstype.h"
+#include "zut.hpp"
 
 using namespace std;
 
@@ -138,6 +139,49 @@ typedef struct
   unsigned char info;
 } IND;
 
+// TODO(Kelosky): add attributues to ZDS and have other functions populate it
+int zds_create_dsn(ZDS *zds, string dsn)
+{
+  int rc = 0;
+  unsigned int code = 0;
+  string resp;
+  string parm = "ALLOC DA('" + dsn + "') DSORG(PO) SPACE(5,5) CYL LRECL(80) RECFM(F,B) DIR(5) NEW";
+
+  rc = zut_bpxwdyn(parm, &code, resp);
+
+  if (0 != rc)
+  {
+    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Messages:\n%s", resp.c_str());
+    return rc;
+  }
+
+  return 0;
+}
+
+int zds_delete_dsn(ZDS *zds, string dsn)
+{
+  return -1;
+  int rc = 0;
+  unsigned int code = 0;
+  string resp;
+
+  // Not supported
+  // https://www.ibm.com/docs/en/zos/3.1.0?topic=output-request-types
+  string parm = "DELETE '" + dsn + "'";
+
+  // cout << delete_command << endl;
+  // return 0;
+
+  rc = zut_bpxwdyn(parm, &code, resp);
+
+  if (0 != rc)
+  {
+    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Messages:\n%s", resp.c_str());
+    return rc;
+  }
+
+  return 0;
+}
 
 int zdsListMembers(string name, std::vector<ZDSMem> &list)
 {

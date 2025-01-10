@@ -10,5 +10,7 @@ zowex job list-files ${jobid}
 echo " "
 zowex job view-file ${jobid} 2
 echo " "
+zowex job delete ${jobid}
+echo " "
 zowexx console issue "d iplinfo" --console-name zowe
 echo " "

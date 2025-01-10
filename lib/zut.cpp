@@ -18,6 +18,7 @@
 #include "zutm.h"
 #include "zutm31.h"
 #include <ios>
+#include <dynit.h>
 
 using namespace std;
 
@@ -25,13 +26,25 @@ int zut_test()
 {
   int rc = 0;
   unsigned int code = 0;
-
-  string parm = "free dd(minemine)";
   string resp;
-  rc = zut_bpxwdyn(parm, &code, resp);
+  string parm = "free dd(minemine)";
 
-  cout << "resp is:\n" << resp << endl;
-  printf("code is x'%x'\n", code);
+  // rc = zut_bpxwdyn(parm, &code, resp);
+
+  /*
+ This example dynamically deallocates a data set.
+ */
+
+ __dyn_t ip;
+
+ dyninit(&ip);
+ ip.__dsname = "dkelosky.temp.test5";
+
+ rc = dynfree(&ip);
+
+
+  // cout << "resp is:\n" << resp << endl;
+  // printf("code is x'%x'\n", code);
 
   return rc;
 }
@@ -48,11 +61,19 @@ int zut_bpxwdyn(string parm, unsigned int *code, string &resp)
 {
   char bpx_response[RET_ARG_MAX_LEN * MSG_ENTRIES + 1] = {0};
 
-  char *cparm = (char *) __malloc31(parm.size());
-  strcpy(cparm, parm.c_str());
-  int rc = ZUTWDYN(cparm, code, bpx_response);
-  free(cparm);
-  resp = string(bpx_response);
+  unsigned char *p = (unsigned char *)__malloc31(sizeof(BPXWDYN_PARM) + sizeof(BPXWDYN_RESPONSE));
+  memset(p, 0x00, sizeof(BPXWDYN_PARM) + sizeof(BPXWDYN_RESPONSE));
+
+  BPXWDYN_PARM *bparm = (BPXWDYN_PARM *)p;
+  BPXWDYN_RESPONSE *response = (BPXWDYN_RESPONSE *)(p + sizeof(BPXWDYN_PARM));
+
+  bparm->len = sprintf(bparm->parm, "%s", parm.c_str());
+  int rc = ZUTWDYN(bparm, response);
+
+  resp = string(response->response);
+  *code = response->code;
+
+  free(p);
 
   return rc;
 }

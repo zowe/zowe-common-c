@@ -115,11 +115,11 @@ zds.o: zds.cpp
 	@echo 'Building zds.o'
 	$(CXX) $(DLL_CPP_FLAGS) -qlist=$*.cpp.lst -o $@ $^
 
-libzds.so: zds.o
+libzds.so: zds.o libzut.a
 	$(CXX) $(DLL_BND_FLAGS) -o $@ $^ > $*.bind.lst
 	@echo 'Building libzds.so'
 
-libzds.a: zds.o
+libzds.a: zds.o libzut.a
 	@echo 'Building libzds.a'
 	ar -rv $@ $^
 

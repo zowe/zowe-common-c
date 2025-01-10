@@ -30,6 +30,7 @@
 #define PTR64
 #define FAR
 #define ASMREG(register)
+// #define __malloc31(len) malloc(len)
 
 #endif
 
