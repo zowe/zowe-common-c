@@ -139,7 +139,7 @@ typedef struct
   char name[8];
   unsigned char ttr[3];
   unsigned char info;
-} IND;
+} RECORD_ENTRY;
 
 // TODO(Kelosky): add attributues to ZDS and have other functions populate it
 int zds_create_dsn(ZDS *zds, string dsn, string &response)
@@ -172,22 +172,57 @@ int zds_delete_dsn(ZDS *zds, string dsn)
   return 0;
 }
 
-int zdsListMembers(string name, std::vector<ZDSMem> &list)
+
+// int obtain_member_info(ZCLIResult result)
+// {
+//   dsn = "//'" + dsn + "'";
+//   FILE *dir = fopen(dsn.c_str(), "r");
+//   if (dir) {
+//     cout << "got a doir" << endl;
+
+//     int rc = fldata(dir, filename, &fileinfo);
+
+//     zut_dump_storage("wowo", &fileinfo, sizeof(fldata_t));
+//     if (fileinfo.__recfmF) cout << "Fixed\n";
+//     if (fileinfo.__recfmV) cout << "Variable\n";
+//     if (fileinfo.__recfmU) cout << "Undefined\n";
+//     if (fileinfo.__recfmS) cout << "Standard\n";
+//     if (fileinfo.__recfmBlk) cout << "Blocked\n";
+//     if (fileinfo.__recfmASA) cout << "ASA\n";
+//     if (fileinfo.__recfmM) cout << "M\n";
+//     if (fileinfo.__dsorgPO) cout << "Partitioned\n";
+//     if (fileinfo.__dsorgPDSmem) cout << "Member\n";
+//     if (fileinfo.__dsorgPDSdir) cout << "PDS or PDSE directory\n";
+//     if (fileinfo.__dsorgPS) cout << "Sequention\n";
+//     if (fileinfo.__dsorgVSAM) cout << "VSAM\n";
+//     if (fileinfo.__dsorgPDSE) cout << "PDSE\n";
+
+//     printf("dsn %s and macxlrecl %d \n", fileinfo.__dsname, fileinfo.__maxreclen);
+
+//     cout << "rc was " << rc << endl;
+//   }
+// }
+
+int zds_list_members(ZDS *zds, string dsn, std::vector<ZDSMem> &list)
 {
   // PO
   // PO-E (PDS)
-  name = "//'" + name + "'";
+  dsn = "//'" + dsn + "'";
 
   RECORD rec = {0};
-  FILE *fp = fopen(name.c_str(), "rb");
+  // https://www.ibm.com/docs/en/zos/3.1.0?topic=pds-reading-directory-sequentially
+  // https://www.ibm.com/docs/en/zos/3.1.0?topic=pdse-reading-directory - long alias names omitted, use DESERV for those
+  // bldl / deserv
+  // https://www.ibm.com/docs/en/zos/3.1.0?topic=pds-directory
+  FILE *fp = fopen(dsn.c_str(), "rb, blksize=256, recfm=fb");
 
-  const int bufsize = 80;
+  const int bufsize = 256;
   char buffer[bufsize] = {0};
 
   if (!fp)
   {
-    cout << "Failed to open '" << name << "'" << endl;
-    return -1;
+    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Could not open dsn '%s'", dsn.c_str());
+    return RTNCD_FAILURE;
   }
 
   while (fread(&rec, sizeof *buffer, sizeof(RECORD), fp))
@@ -195,23 +230,23 @@ int zdsListMembers(string name, std::vector<ZDSMem> &list)
     unsigned char *data = NULL;
     data = (unsigned char *)&rec;
     data += sizeof(rec.count); // increment past halfword length
-    int len = sizeof(IND);
+    int len = sizeof(RECORD_ENTRY);
     for (int i = 0; i < rec.count; i = i + len)
     {
-      IND ind = {0};
-      memcpy(&ind, data, sizeof(IND));
+      RECORD_ENTRY RECORD_ENTRY = {0};
+      memcpy(&RECORD_ENTRY, data, sizeof(RECORD_ENTRY));
       long long int end = 0xFFFFFFFFFFFFFFFF;
-      if (memcmp(ind.name, &name, sizeof(end)) == 0)
+      if (memcmp(RECORD_ENTRY.name, &end, sizeof(end)) == 0)
       {
         break;
       }
       else
       {
-        unsigned char info = ind.info;
+        unsigned char info = RECORD_ENTRY.info;
         char name[9] = {0};
         info &= 0x1F;
 
-        memcpy(name, ind.name, sizeof(ind.name));
+        memcpy(name, RECORD_ENTRY.name, sizeof(RECORD_ENTRY.name));
 
         for (int j = 8; j >= 0; j--)
         {
@@ -223,19 +258,13 @@ int zdsListMembers(string name, std::vector<ZDSMem> &list)
 
         ZDSMem mem = {0};
         mem.name = string(name);
-        // mem->dsorg = "PO-E";
         list.push_back(mem);
 
-        data = data + sizeof(IND) + (info * 2); // skip number of half workds
+        data = data + sizeof(RECORD_ENTRY) + (info * 2); // skip number of half workds
         len += (info * 2);
       }
     }
-    // break;
-    // dumpStorage("buffer", buffer, bufsize);
-    /* byte swap here */
   }
-
-  // cout << "ending" << endl;
 
   fclose(fp);
 

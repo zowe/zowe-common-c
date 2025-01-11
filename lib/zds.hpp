@@ -87,7 +87,16 @@ int zds_create_dsn(ZDS *zds, std::string dsn, std::string &response);
  */
 int zds_delete_dsn(ZDS *zds, std::string dsn);
 
-int zdsListMembers(std::string, std::vector<ZDSMem> &);
+/**
+ * @brief
+ *
+ * @param zds
+ * @param dsn
+ * @param members
+ * @return int
+ */
+int zds_list_members(ZDS *zds, std::string dsn, std::vector<ZDSMem> &members);
+
 int zdsList(std::string, std::vector<ZDSAttributes> &);
 int zdsReadDynalloc(std::string, std::string, std::string, std::string &); // NOTE(Kelosky): testing only
 

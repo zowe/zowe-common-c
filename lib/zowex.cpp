@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string>
 #include <cstdlib>
+#include <stdio.h>
 #include "zcn.hpp"
 #include "zut.hpp"
 #include "zcli.hpp"
@@ -31,6 +32,7 @@ int handle_console_issue(ZCLIResult);
 
 int handle_data_set_create_dsn(ZCLIResult);
 int handle_data_set_view_dsn(ZCLIResult);
+int handle_data_set_list_members_dsn(ZCLIResult);
 int handle_data_set_write_to_dsn(ZCLIResult);
 int handle_data_set_delete_dsn(ZCLIResult);
 
@@ -85,6 +87,12 @@ int main(int argc, char *argv[])
   data_set_view.set_zcli_verb_handler(handle_data_set_view_dsn);
   data_set_view.get_positionals().push_back(data_set_dsn);
   data_set_group.get_verbs().push_back(data_set_view);
+
+  ZCLIVerb data_set_list("list-members");
+  data_set_list.set_description("list data set members");
+  data_set_list.set_zcli_verb_handler(handle_data_set_list_members_dsn);
+  data_set_list.get_positionals().push_back(data_set_dsn);
+  data_set_group.get_verbs().push_back(data_set_list);
 
   ZCLIVerb data_set_write("write");
   data_set_write.set_description("write to data set");
@@ -386,6 +394,29 @@ int handle_data_set_view_dsn(ZCLIResult result)
     return -1;
   }
   cout << response;
+
+  return rc;
+}
+
+#include <dirent.h>
+
+int handle_data_set_list_members_dsn(ZCLIResult result)
+{
+  int rc = 0;
+  string dsn = result.get_positional("dsn").get_value();
+  ZDS zds = {0};
+  vector<ZDSMem> members;
+  rc = zds_list_members(&zds, dsn, members);
+  if (0 != rc)
+  {
+    cout << "Error: could not read data set: '" << dsn << "' rc: '" << rc << "'" << endl;
+    cout << "  Details: " << zds.diag.e_msg << endl;
+    return -1;
+  }
+  for (vector<ZDSMem>::iterator it = members.begin(); it != members.end(); ++it)
+  {
+    std::cout << left << setw(12) << it->name << endl;
+  }
 
   return rc;
 }
