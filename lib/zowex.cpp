@@ -12,6 +12,7 @@
 #include <vector>
 #include <stdlib.h>
 #include <string>
+#include <cstdlib>
 #include "zcn.hpp"
 #include "zut.hpp"
 #include "zcli.hpp"
@@ -85,11 +86,11 @@ int main(int argc, char *argv[])
   data_set_view.get_positionals().push_back(data_set_dsn);
   data_set_group.get_verbs().push_back(data_set_view);
 
-  // ZCLIVerb data_set_delete("delete");
-  // data_set_delete.set_description("delete data set");
-  // data_set_delete.set_zcli_verb_handler(handle_data_set_delete_dsn);
-  // data_set_delete.get_positionals().push_back(data_set_dsn);
-  // data_set_group.get_verbs().push_back(data_set_delete);
+  ZCLIVerb data_set_delete("delete");
+  data_set_delete.set_description("delete data set");
+  data_set_delete.set_zcli_verb_handler(handle_data_set_delete_dsn);
+  data_set_delete.get_positionals().push_back(data_set_dsn);
+  data_set_group.get_verbs().push_back(data_set_delete);
 
   //
   // jobs group

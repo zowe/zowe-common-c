@@ -17,6 +17,8 @@
 #include <dynit.h>
 #include "zdstype.h"
 #include "zut.hpp"
+#include "zdyn.h"
+#include "iefzb4d2.h"
 
 using namespace std;
 
@@ -149,26 +151,22 @@ int zds_create_dsn(ZDS *zds, string dsn, string &response)
   return zut_bpxwdyn(parm, &code, response);
 }
 
+#define NUM_DELETE_TEXT_UNITS 2
 int zds_delete_dsn(ZDS *zds, string dsn)
 {
-  return -1;
   int rc = 0;
-  unsigned int code = 0;
-  string resp;
 
-  // Not supported
-  // https://www.ibm.com/docs/en/zos/3.1.0?topic=output-request-types
-  string parm = "DELETE '" + dsn + "'";
+  dsn = "//'" + dsn + "'";
 
-  // cout << delete_command << endl;
-  // return 0;
-
-  rc = zut_bpxwdyn(parm, &code, resp);
+  rc = remove(dsn.c_str());
 
   if (0 != rc)
   {
-    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Messages:\n%s", resp.c_str());
-    return rc;
+    strcpy(zds->diag.service_name, "remove");
+    zds->diag.service_rc = rc;
+    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Could not delete data set '%s', rc: '%d'", dsn.c_str());
+    zds->diag.detail_rc = ZDS_RTNCD_SERVICE_FAILURE;
+    return RTNCD_FAILURE;
   }
 
   return 0;

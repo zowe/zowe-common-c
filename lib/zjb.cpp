@@ -30,24 +30,9 @@
 #include "zutm.h"
 #include "zjbtype.h"
 #include "zdstype.h"
+#include "zdyn.h"
 
 typedef struct iazbtokp IAZBTOKP;
-typedef struct s99rb S99RB;
-typedef struct s99tunit S99TUNIT;
-
-struct s99tunit_x
-{
-  S99TUNIT s99tunit;
-  unsigned char overflow[49]; // TOOD(Kelosky): dynamic size
-};
-typedef struct s99tunit_x S99TUNIT_X;
-struct s99tunit_xl
-{
-  S99TUNIT_X s99tunit_x;
-  unsigned char overflow[250];
-};
-typedef struct s99tunit_xl S99TUNIT_XL;
-typedef struct s99tupl S99TUPL;
 
 using namespace std;
 
@@ -146,11 +131,6 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
   short int numparms = 1;
   int i = -1;
 
-#define DISP_OLD 0x01
-#define DISP_MOD 0x02
-#define DISP_NEW 0x04
-#define DISP_SHR 0x08
-
   i++;
   dynkey = daldsnam;
   numparms = 1;
@@ -226,7 +206,7 @@ int zjb_read_job_content_by_dsn(ZJB *zjb, string jobdsn, string &response)
   {
     strcpy(zjb->diag.service_name, "svc99");
     zjb->diag.service_rc = rc;
-    zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "Could not allocate job spool file '%s', s99error: '%d' s99info: '%d'", jobdsn.c_str(), s99parms->__S99ERROR, s99parms->__S99INFO);
+    zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "Could not allocate job spool file '%s', rc: '%d' s99error: '%d' s99info: '%d'", jobdsn.c_str(), rc, s99parms->__S99ERROR, s99parms->__S99INFO);
     zjb->diag.detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
     free(parms);
     return RTNCD_FAILURE;
