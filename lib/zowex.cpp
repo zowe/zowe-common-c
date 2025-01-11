@@ -31,6 +31,7 @@ int handle_console_issue(ZCLIResult);
 
 int handle_data_set_create_dsn(ZCLIResult);
 int handle_data_set_view_dsn(ZCLIResult);
+int handle_data_set_write_to_dsn(ZCLIResult);
 int handle_data_set_delete_dsn(ZCLIResult);
 
 int handle_test_command(ZCLIResult);
@@ -74,7 +75,7 @@ int main(int argc, char *argv[])
 
   // data set verbs
   ZCLIVerb data_set_create("create");
-  data_set_create.set_description("Defaults to DSORG=PO, RECFM=FB, LRECL=80");
+  data_set_create.set_description("create data set using defaults: DSORG=PO, RECFM=FB, LRECL=80");
   data_set_create.set_zcli_verb_handler(handle_data_set_create_dsn);
   data_set_create.get_positionals().push_back(data_set_dsn);
   data_set_group.get_verbs().push_back(data_set_create);
@@ -82,9 +83,14 @@ int main(int argc, char *argv[])
   ZCLIVerb data_set_view("view");
   data_set_view.set_description("view data set");
   data_set_view.set_zcli_verb_handler(handle_data_set_view_dsn);
-
   data_set_view.get_positionals().push_back(data_set_dsn);
   data_set_group.get_verbs().push_back(data_set_view);
+
+  ZCLIVerb data_set_write("write");
+  data_set_write.set_description("write to data set");
+  data_set_write.set_zcli_verb_handler(handle_data_set_write_to_dsn);
+  data_set_write.get_positionals().push_back(data_set_dsn);
+  data_set_group.get_verbs().push_back(data_set_write);
 
   ZCLIVerb data_set_delete("delete");
   data_set_delete.set_description("delete data set");
@@ -384,6 +390,34 @@ int handle_data_set_view_dsn(ZCLIResult result)
   return rc;
 }
 
+int handle_data_set_write_to_dsn(ZCLIResult result)
+{
+  int rc = 0;
+  string dsn = result.get_positional("dsn").get_value();
+  ZDS zds = {0};
+
+  string data;
+  string line;
+
+  while (getline(cin, line))
+  {
+    data += line;
+    data.push_back('\n');
+  }
+
+  rc = zds_write_to_dsn(&zds, dsn, data);
+
+  if (0 != rc)
+  {
+    cout << "Error: could not write to data set: '" << dsn << "' rc: '" << rc << "'" << endl;
+    cout << "  Details: " << zds.diag.e_msg << endl;
+    return -1;
+  }
+  cout << "Wrote data to '" << dsn << "'" << endl;
+
+  return rc;
+}
+
 int handle_data_set_delete_dsn(ZCLIResult result)
 {
   int rc = 0;
@@ -397,7 +431,7 @@ int handle_data_set_delete_dsn(ZCLIResult result)
     cout << "  Details: " << zds.diag.e_msg << endl;
     return -1;
   }
-  cout << "Data set '" << dsn << "' delete" << endl;
+  cout << "Data set '" << dsn << "' deleted" << endl;
 
   return rc;
 }
