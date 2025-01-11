@@ -351,12 +351,12 @@ int handle_data_set_create_dsn(ZCLIResult result)
   int rc = 0;
   string dsn = result.get_positional("dsn").get_value();
   ZDS zds = {0};
-  rc = zds_create_dsn(&zds, dsn);
-
+  string response;
+  rc = zds_create_dsn(&zds, dsn, response);
   if (0 != rc)
   {
     cout << "Error: could not create data set: '" << dsn << "' rc: '" << rc << "'" << endl;
-    cout << "  Details: " << zds.diag.e_msg << endl;
+    cout << "  Details:\n" << response << endl;
     return -1;
   }
 

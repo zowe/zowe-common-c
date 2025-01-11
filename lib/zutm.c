@@ -17,8 +17,6 @@
 #include "zutm31.h"
 #include "zecb.h"
 
-#define ZUT_RTNCD_SUCCESS 0
-#define ZUT_LOAD_FAILURE -1
 #define ZUT_BPXWDYN_SERVICE_FAILURE -2
 
 #if defined(__IBM_METAL__)
@@ -27,76 +25,129 @@
 #define SET_R1_PARM(parm)
 #endif
 
-typedef struct {
-  short len;
-  char str[RET_ARG_MAX_LEN];
-} BPXWDYN_RET_ARG;
 
-typedef int (*BPXWDYN)() ATTRIBUTE(amode31);
+// takes a conventional paramter list
+typedef int (*BPXWDYN)(
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32,
+  BPXWDYN_PARM *PTR32
+) ATTRIBUTE(amode31);
 
+// Doc:
+// * keywords - https://www.ibm.com/docs/en/zos/3.1.0?topic=output-requesting-dynamic-allocation
+// * return codes - https://www.ibm.com/docs/en/zos/3.1.0?topic=output-bpxwdyn-return-codes
+// * detail codes (high 4 hex bytes) - https://www.ibm.com/docs/en/zos/3.1.0?topic=codes-interpreting-error-reason-from-dynalloc#erc__mjfig8
+// * parm list - https://www.ibm.com/docs/en/zos/3.1.0?topic=conventions-conventional-mvs-parameter-list
 #pragma prolog(ZUTWDYN, "&CCN_MAIN SETB 1 \n MYPROLOG")
 int ZUTWDYN(BPXWDYN_PARM *parm, BPXWDYN_RESPONSE *response)
-// int ZUTWDYN(const char *parm, unsigned int *code, char response[RET_ARG_MAX_LEN * MSG_ENTRIES + 1])
 {
   int rc = 0;
+
+  // load our service
   void *function = load_module("BPXWDY2"); // EP which doesn't require R0 == 0
   if (!function)
   {
-    return ZUT_LOAD_FAILURE;
+    return RTNCD_FAILURE;
   }
 
+  // make 31 bit EP pointer valid in 64 bit
   long long unsigned int ifunction = (long long unsigned int)function;
   ifunction &= 0x000000007FFFFFFF; // clear high bit
   BPXWDYN dynalloc = (BPXWDYN)ifunction;
 
-  BPXWDYN_RET_ARG msg = {RET_ARG_MAX_LEN - sizeof(msg.len), "MSG"};
-  BPXWDYN_RET_ARG msg_response[MSG_ENTRIES] = {0};
+  // allow for MSG_ENTRIES response parameters + 2 input parameters
+  BPXWDYN_RET_ARG parameters[MSG_ENTRIES + 2] = {0};
+  memcpy(&parameters[0], parm, sizeof(BPXWDYN_RESPONSE));
+  parameters[1].len = RET_ARG_MAX_LEN - sizeof(parameters[1].len);
+  strcpy(parameters[1].str, "MSG");
 
-  zwto_debug("string len and value was %d '%.*s'",  parm->len, parm->len, parm->parm);
-
-  char *freeparm = parm->parm;
-  // char *freeparm = "free dd(nononono)";
-  // char *freeparm = "alloc da(dkelosky.temp.test5) space(5,5) dsorg(po) dir(5) cyl lrecl(80) recfm(f,b)";
-  // freeparm = "alloc da(dkelosky.temp.test5) space(5,5) dsorg(po) dir(5) cyl lrecl(80) recfm(f,b) new";
-
-  void *PTR32 parms[MSG_ENTRIES + 1 + 1] = {0};
-  parms[0] = (void *PTR32)parm->parm; //freeparm;
-  parms[1] = &msg;
-  for (int i = 2; i <= MSG_ENTRIES + 1 + 1; i++)
+  // assign all response paramter stem values
+  for (int i = 2; i < MSG_ENTRIES + 2; i++)
   {
-    parms[i] = &msg_response[i - 1 - 1];
+    parameters[i].len = RET_ARG_MAX_LEN - sizeof(parameters[i].len);
+    sprintf(parameters[i].str, "MSG.%d", i +1);
   }
 
-  // Doc:
-  // * keywords - https://www.ibm.com/docs/en/zos/3.1.0?topic=output-requesting-dynamic-allocation
-  // * return codes - https://www.ibm.com/docs/en/zos/3.1.0?topic=output-bpxwdyn-return-codes
-  // * detail codes (high 4 hex bytes) - https://www.ibm.com/docs/en/zos/3.1.0?topic=codes-interpreting-error-reason-from-dynalloc#erc__mjfig8
-  // * parm list - https://www.ibm.com/docs/en/zos/3.1.0?topic=conventions-conventional-mvs-parameter-list
-
-  for (int i = 0; i < MSG_ENTRIES; i++)
+  // build a contiguous list of all parameters
+  BPXWDYN_RET_ARG *PTR32 parms[MSG_ENTRIES + 2] = {0};
+  for (int i = 0; i <= MSG_ENTRIES + 2; i++)
   {
-    msg_response[i].len = RET_ARG_MAX_LEN - sizeof(msg_response[i].len);
-    sprintf(msg_response[i].str, "MSG.%d", i +1);
+    parms[i] = &parameters[i];
   }
 
+  // set the high bit on last parm
   parms[MSG_ENTRIES + 1] = (void *PTR32)((unsigned int)parms[MSG_ENTRIES + 1] | 0x80000000);
-  SET_R1_PARM(parms[0]);
-  rc = dynalloc();
-  // parms[MSG_ENTRIES + 1] = (void *PTR32)((unsigned int)parms[MSG_ENTRIES + 1] | 0x7FFFFFFF);
+
+  // NOTE(Kelosky): to prevent the compiler optimizer from discarding any memory assignements,
+  // we need to ensure a reference to all data is passed to this external function
+  rc = dynalloc(
+    parms[0],
+    parms[1],
+    parms[2],
+    parms[3],
+    parms[4],
+    parms[5],
+    parms[6],
+    parms[7],
+    parms[8],
+    parms[9],
+    parms[10],
+    parms[11],
+    parms[12],
+    parms[13],
+    parms[14],
+    parms[15],
+    parms[16],
+    parms[17],
+    parms[18],
+    parms[19],
+    parms[20],
+    parms[21],
+    parms[22],
+    parms[23],
+    parms[24],
+    parms[25],
+    parms[26]
+  );
 
   response->code = rc;
 
+  // obtain any messages returned
   char *respp = response->response;
-  for (int i = 0, j=atoi(msg.str); i<j && i <MSG_ENTRIES; i++){
-    if (msg_response[i].len == RET_ARG_MAX_LEN - sizeof(msg_response[i].len))
+  for (int i = 2, j=atoi(parameters[1].str); i<j && i <MSG_ENTRIES + 2; i++){
+    if (parameters[i].len == RET_ARG_MAX_LEN - sizeof(parameters[i].len))
     {
-      return (0 != rc) ? ZUT_BPXWDYN_SERVICE_FAILURE : ZUT_RTNCD_SUCCESS;
+      return (0 != rc) ? ZUT_BPXWDYN_SERVICE_FAILURE : RTNCD_SUCCESS;
     }
-    int len = sprintf(respp, "%.*s\n", msg_response[i].len, msg_response[i].str);
+    int len = sprintf(respp, "%.*s\n", parameters[i].len, parameters[i].str);
     respp = respp + len;
   }
 
-  return (0 != rc) ? ZUT_BPXWDYN_SERVICE_FAILURE : ZUT_RTNCD_SUCCESS;
+  return (0 != rc) ? ZUT_BPXWDYN_SERVICE_FAILURE : RTNCD_SUCCESS;
 }
 
 #pragma prolog(ZUTTEST, "&CCN_MAIN SETB 1 \n MYPROLOG")

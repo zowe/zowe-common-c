@@ -23,9 +23,11 @@ extern "C"
 #define MSG_ENTRIES 25
 
 typedef struct {
-  short int len;
-  char parm[256];
-} BPXWDYN_PARM;
+  short len;
+  char str[RET_ARG_MAX_LEN];
+} BPXWDYN_RET_ARG;
+
+typedef BPXWDYN_RET_ARG BPXWDYN_PARM;
 
 typedef struct {
   unsigned int code;

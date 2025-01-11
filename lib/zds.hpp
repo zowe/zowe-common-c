@@ -33,7 +33,7 @@ struct ZDSAttributes
  *
  * @param zds data set returned attributes and error information
  * @param dsn
- * @param response
+ * @param response data read
  * @return int 0 for success; non zero otherwise
  */
 int zds_read_from_dsn(ZDS *zds, std::string dsn, std::string &response);
@@ -43,7 +43,7 @@ int zds_read_from_dsn(ZDS *zds, std::string dsn, std::string &response);
  *
  * @param zds data set returned attributes and error information
  * @param ddname ddname from which to read
- * @param response
+ * @param response data read
  * @return int 0 for success; non zero otherwise
  */
 int zds_read_from_dd(ZDS *zds, std::string ddname, std::string &response);
@@ -73,9 +73,10 @@ int zds_write_to_dsn(ZDS *zds, std::string dsn, std::string &data);
  *
  * @param zds data set returned attributes and error information
  * @param dsn data set name to create
+ * @param response messages from dynamic allocation (which may be present even when successful requests are made)
  * @return int 0 for success; non zero otherwise
  */
-int zds_create_dsn(ZDS *zds, std::string dsn);
+int zds_create_dsn(ZDS *zds, std::string dsn, std::string &response);
 
 /**
  * @brief Delete a data set

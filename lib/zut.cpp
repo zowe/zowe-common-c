@@ -67,7 +67,7 @@ int zut_bpxwdyn(string parm, unsigned int *code, string &resp)
   BPXWDYN_PARM *bparm = (BPXWDYN_PARM *)p;
   BPXWDYN_RESPONSE *response = (BPXWDYN_RESPONSE *)(p + sizeof(BPXWDYN_PARM));
 
-  bparm->len = sprintf(bparm->parm, "%s", parm.c_str());
+  bparm->len = sprintf(bparm->str, "%s", parm.c_str());
   int rc = ZUTWDYN(bparm, response);
 
   resp = string(response->response);
