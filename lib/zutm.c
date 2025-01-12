@@ -61,16 +61,13 @@ int ZUTWDYN(BPXWDYN_PARM *parm, BPXWDYN_RESPONSE *response)
   int rc = 0;
 
   // load our service
-  void *function = load_module("BPXWDY2"); // EP which doesn't require R0 == 0
-  if (!function)
+  BPXWDYN dynalloc  = (BPXWDYN)load_module31("BPXWDY2"); // EP which doesn't require R0 == 0
+  if (!dynalloc)
   {
     return RTNCD_FAILURE;
   }
 
-  // make 31 bit EP pointer valid in 64 bit
-  long long unsigned int ifunction = (long long unsigned int)function;
-  ifunction &= 0x000000007FFFFFFF; // clear high bit
-  BPXWDYN dynalloc = (BPXWDYN)ifunction;
+  zwto_debug("parm is %.*s" , parm->len, parm->str);
 
   // allow for MSG_ENTRIES response parameters + 2 input parameters
   BPXWDYN_RET_ARG parameters[MSG_ENTRIES + 2] = {0};
@@ -78,11 +75,13 @@ int ZUTWDYN(BPXWDYN_PARM *parm, BPXWDYN_RESPONSE *response)
   parameters[1].len = RET_ARG_MAX_LEN - sizeof(parameters[1].len);
   strcpy(parameters[1].str, "MSG");
 
+  int index = 0;
+
   // assign all response paramter stem values
   for (int i = 2; i < MSG_ENTRIES + 2; i++)
   {
     parameters[i].len = RET_ARG_MAX_LEN - sizeof(parameters[i].len);
-    sprintf(parameters[i].str, "MSG.%d", i +1);
+    sprintf(parameters[i].str, "MSG.%d", ++index);
   }
 
   // build a contiguous list of all parameters
@@ -131,12 +130,12 @@ int ZUTWDYN(BPXWDYN_PARM *parm, BPXWDYN_RESPONSE *response)
 
   // obtain any messages returned
   char *respp = response->response;
-  for (int i = 2, j=atoi(parameters[1].str); i<j && i <MSG_ENTRIES + 2; i++){
-    if (parameters[i].len == RET_ARG_MAX_LEN - sizeof(parameters[i].len))
+  for (int i = 0, j=atoi(parameters[1].str); i<j && i <MSG_ENTRIES + 2; i++){
+    if (parameters[i + 2].len == RET_ARG_MAX_LEN - sizeof(parameters[i + 2].len))
     {
       return (0 != rc) ? ZUT_BPXWDYN_SERVICE_FAILURE : RTNCD_SUCCESS;
     }
-    int len = sprintf(respp, "%.*s\n", parameters[i].len, parameters[i].str);
+    int len = sprintf(respp, "%.*s\n", parameters[i + 2].len, parameters[i + 2].str);
     respp = respp + len;
   }
 

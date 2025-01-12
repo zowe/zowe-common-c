@@ -140,6 +140,24 @@ static void *PTR64 load_module(char name[8])
   return ep;
 }
 
+typedef void (*Z31FUNC)(void) ATTRIBUTE(amode31);
+static Z31FUNC ATTRIBUTE(amode31) load_module31(char name[8])
+{
+
+  // TODO(Kelosky): test return pointer flags to validate amode??
+  void *PTR64  function = load_module(name);
+  Z31FUNC z31func = NULL;
+  if (function)
+  {
+    // make 31 bit EP pointer valid in 64 bit
+    long long unsigned int ifunction = (long long unsigned int)function;
+    ifunction &= 0x000000007FFFFFFF; // clear high bit
+    z31func = (Z31FUNC)ifunction;
+  }
+
+  return z31func;
+}
+
 static int delete_module(char name[8])
 {
   int rc = 0;

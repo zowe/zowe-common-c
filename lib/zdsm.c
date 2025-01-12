@@ -9,11 +9,21 @@
 */
 
 #include "zdstype.h"
+#include "zmetal.h"
 #include "zdsm.h"
 
 // purge a job
-#pragma prolog(ZJBMPRG, "&CCN_MAIN SETB 1 \n MYPROLOG")
-int ZDSATTRS(ZDS *zds, char *dsn)
+#pragma prolog(ZDSATTRS, "&CCN_MAIN SETB 1 \n MYPROLOG")
+int ZDSATTRS(ZDS *zds, const char *dsn)
 {
+  int rc = 0;
+
+  // load our service
+  void *function = load_module("BPXWDY2"); // EP which doesn't require R0 == 0
+  if (!function)
+  {
+    return RTNCD_FAILURE;
+  }
+
   return 0;
 }

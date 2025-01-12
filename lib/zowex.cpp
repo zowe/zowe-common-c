@@ -32,6 +32,7 @@ int handle_console_issue(ZCLIResult);
 
 int handle_data_set_create_dsn(ZCLIResult);
 int handle_data_set_view_dsn(ZCLIResult);
+int handle_data_set_view_attributes(ZCLIResult);
 int handle_data_set_list_members_dsn(ZCLIResult);
 int handle_data_set_write_to_dsn(ZCLIResult);
 int handle_data_set_delete_dsn(ZCLIResult);
@@ -87,6 +88,12 @@ int main(int argc, char *argv[])
   data_set_view.set_zcli_verb_handler(handle_data_set_view_dsn);
   data_set_view.get_positionals().push_back(data_set_dsn);
   data_set_group.get_verbs().push_back(data_set_view);
+
+  ZCLIVerb data_set_view_attributes("view-attributes");
+  data_set_view_attributes.set_description("view data set attributes");
+  data_set_view_attributes.set_zcli_verb_handler(handle_data_set_view_attributes);
+  data_set_view_attributes.get_positionals().push_back(data_set_dsn);
+  data_set_group.get_verbs().push_back(data_set_view_attributes);
 
   ZCLIVerb data_set_list("list-members");
   data_set_list.set_description("list data set members");
@@ -398,7 +405,24 @@ int handle_data_set_view_dsn(ZCLIResult result)
   return rc;
 }
 
-#include <dirent.h>
+int handle_data_set_view_attributes(ZCLIResult result)
+{
+  int rc = 0;
+  string dsn = result.get_positional("dsn").get_value();
+  ZDS zds = {0};
+  string response;
+  rc = zds_view_attributes(&zds, dsn);
+  if (0 != rc)
+  {
+    cout << "Error: could not read data set: '" << dsn << "' rc: '" << rc << "'" << endl;
+    cout << "  Details: " << zds.diag.e_msg << endl;
+    return -1;
+  }
+  cout << "test\n";
+
+  return rc;
+}
+
 
 int handle_data_set_list_members_dsn(ZCLIResult result)
 {

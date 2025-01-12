@@ -7,8 +7,8 @@
 
   Copyright Contributors to the Zowe Project.
 */
-#ifndef ZDSTYPE_H
-#define ZDSTYPE_H
+#ifndef ZDSM_H
+#define ZDSM_H
 
 #include "ztype.h"
 #include "zdstype.h"
@@ -21,7 +21,7 @@ extern "C"
 {
 #endif
 
-int ZDSATTRS(ZDS *zds, char *dsn);
+int ZDSATTRS(ZDS *zds, const char *dsn);
 
 #if defined(__cplusplus)
 }

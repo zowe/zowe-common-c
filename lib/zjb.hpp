@@ -39,7 +39,7 @@ struct ZJobDD
  *
  * @param zjb job returned attributes and error information
  * @param owner_name owner name of the job to query, defaults to currnet user if == "", may use wild cards, i.e. "IBMUS*"
- * @param jobs populated list return containing job information array
+ * @param jobs populated list returned containing job information array
  * @return int 0 for success; non zero otherwise
  */
 int zjb_list_by_owner(ZJB *zjb, std::string owner_name, std::vector<ZJob> &jobs);

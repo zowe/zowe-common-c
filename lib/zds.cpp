@@ -14,11 +14,11 @@
 #include <string>
 #include <iomanip>
 #include "zds.hpp"
-#include <dynit.h>
+#include "zdyn.h"
 #include "zdstype.h"
 #include "zut.hpp"
-#include "zdyn.h"
 #include "iefzb4d2.h"
+#include "zdsm.h"
 
 using namespace std;
 
@@ -172,7 +172,7 @@ int zds_delete_dsn(ZDS *zds, string dsn)
   return 0;
 }
 
-
+// #include <dirent.h>
 // int obtain_member_info(ZCLIResult result)
 // {
 //   dsn = "//'" + dsn + "'";
@@ -270,6 +270,16 @@ int zds_list_members(ZDS *zds, string dsn, std::vector<ZDSMem> &list)
 
   return 0;
 }
+
+int zds_view_attributes(ZDS *zds, std::string dsn)
+{
+  int rc = 0;
+
+  rc = ZDSATTRS(zds, dsn.c_str());
+
+  return 0;
+}
+
 
 int zdsList(string name, std::vector<ZDSAttributes> &list)
 {

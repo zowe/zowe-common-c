@@ -88,16 +88,27 @@ int zds_create_dsn(ZDS *zds, std::string dsn, std::string &response);
 int zds_delete_dsn(ZDS *zds, std::string dsn);
 
 /**
- * @brief
+ * @brief Obtain list of members in a z/OS data set
  *
- * @param zds
- * @param dsn
- * @param members
- * @return int
+ * @param zds data set returned attributes and error information
+ * @param dsn data set name to obtain attributes for
+ * @param members populated list returned containing member names within a z/OS data set
+ * @return int 0 for success; non zero otherwise
  */
 int zds_list_members(ZDS *zds, std::string dsn, std::vector<ZDSMem> &members);
 
-int zdsList(std::string, std::vector<ZDSAttributes> &);
+int zds_view_attributes(ZDS *zds, std::string dsn);
+
+// /**
+//  * @brief Obtain attributes for a z/OS data set
+//  *
+//  * @param zds data set returned attributes and error information
+//  * @param dsn data set name to obtain attributes for
+//  * @param attributes populated list returned containing member names within a z/OS data set
+//  * @return int 0 for success; non zero otherwise
+//  */
+// int zds_list_data_sets(ZDS *zds, std::string dsn, std::vector<ZDSAttributes> &attributes);
+
 int zdsReadDynalloc(std::string, std::string, std::string, std::string &); // NOTE(Kelosky): testing only
 
 #endif

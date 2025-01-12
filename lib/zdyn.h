@@ -11,7 +11,11 @@
 #define ZDYN_H
 
 #include <stdio.h>
+
+#if defined(__cplusplus) && (defined(__IBMCPP__) || defined(__IBMC__))
 #include <dynit.h>
+#endif
+
 #include "iefzb4d0.h"
 
 #define DISP_OLD 0x01

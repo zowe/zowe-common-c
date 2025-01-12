@@ -111,15 +111,23 @@ libzut.a: zut.o zutm.o zutm31.o
 #
 # Data sets
 #
+zdsm.s: zdsm.c
+	@echo 'Building zdsm.s'
+	$(CC) $(MTL_FLAGS64) -qlist=$*.mtl.lst $(MTL_HEADERS) -o $@ $^
+
+zdsm.o: zdsm.s
+	@echo 'Building zdsm.o'
+	$(ASM) $(ASM_FLAGS) -a=$*.asm.lst $(MACLIBS) -o $@ $^
+
 zds.o: zds.cpp
 	@echo 'Building zds.o'
 	$(CXX) $(DLL_CPP_FLAGS) -qlist=$*.cpp.lst -o $@ $^
 
-libzds.so: zds.o libzut.a
+libzds.so: zds.o zdsm.o libzut.a
 	$(CXX) $(DLL_BND_FLAGS) -o $@ $^ > $*.bind.lst
 	@echo 'Building libzds.so'
 
-libzds.a: zds.o libzut.a
+libzds.a: zds.o zdsm.o libzut.a
 	@echo 'Building libzds.a'
 	ar -rv $@ $^
 
@@ -211,6 +219,7 @@ test: test.sh
 # TODO(Kelosky): makefile for chdsect (must have ADATA in data set)
 #
 # ISPF: tso alloc da('DKELOSKY.TEMP.ADATA') DSORG(PO) SPACE(5,5) CYL LRECL(80) RECFM(F,b) NEW vol(tsu063)
+# zowex: zowex test bpxwdyn "alloc da('DKELOSKY.TEMP.TEST2') DSORG(PO) SPACE(5,5) CYL LRECL(80) RECFM(F,b) NEW keep"
 # z/OS UNIX: tso "alloc da('dkelosky.temp.adata') DSORG(PO) SPACE(5,5) CYL LRECL(80) RECFM(F,b) NEW vol(tsu063)"
 # as -madata --gadata="//'DKELOSKY.TEMP.ADATA(IHAECB)'" ihaecb.s
 #
