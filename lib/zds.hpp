@@ -22,7 +22,7 @@ struct ZDSMem
   // std::string dsorg;
 };
 
-struct ZDSAttributes
+struct ZDSEntry
 {
   std::string name;
   std::string dsorg;
@@ -32,7 +32,7 @@ struct ZDSAttributes
  * @brief Read data from a z/OS data set
  *
  * @param zds data set returned attributes and error information
- * @param dsn
+ * @param dsn data set name from which to read
  * @param response data read
  * @return int 0 for success; non zero otherwise
  */
@@ -97,17 +97,7 @@ int zds_delete_dsn(ZDS *zds, std::string dsn);
  */
 int zds_list_members(ZDS *zds, std::string dsn, std::vector<ZDSMem> &members);
 
-int zds_view_attributes(ZDS *zds, std::string dsn);
-
-// /**
-//  * @brief Obtain attributes for a z/OS data set
-//  *
-//  * @param zds data set returned attributes and error information
-//  * @param dsn data set name to obtain attributes for
-//  * @param attributes populated list returned containing member names within a z/OS data set
-//  * @return int 0 for success; non zero otherwise
-//  */
-// int zds_list_data_sets(ZDS *zds, std::string dsn, std::vector<ZDSAttributes> &attributes);
+int zds_list_data_sets(ZDS *zds, std::string dsn, std::vector<ZDSEntry> &attributes);
 
 int zdsReadDynalloc(std::string, std::string, std::string, std::string &); // NOTE(Kelosky): testing only
 

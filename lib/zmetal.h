@@ -129,6 +129,12 @@ static int test_auth()
 #define DELETE(name, rc)
 #endif
 
+/**
+ * @brief Load a module into a 64-bit pointer
+ *
+ * @param name name of module to load
+ * @return void* address of entry point or NULL if not found
+ */
 static void *PTR64 load_module(char name[8])
 {
   // TODO(Kelosky): ERRET
@@ -141,6 +147,12 @@ static void *PTR64 load_module(char name[8])
 }
 
 typedef void (*Z31FUNC)(void) ATTRIBUTE(amode31);
+/**
+ * @brief
+ *
+ * @param name name of module to load
+ * @return Z31FUNC 31 bit function cleared for use within 64-bit routine or NULL if not found
+ */
 static Z31FUNC ATTRIBUTE(amode31) load_module31(char name[8])
 {
 
@@ -158,6 +170,12 @@ static Z31FUNC ATTRIBUTE(amode31) load_module31(char name[8])
   return z31func;
 }
 
+/**
+ * @brief Delete a module that has been loaded
+ *
+ * @param name name of module to delete after a successful load
+ * @return int 0 for success; non zero otherwise
+ */
 static int delete_module(char name[8])
 {
   int rc = 0;
@@ -168,11 +186,17 @@ static int delete_module(char name[8])
   return rc;
 }
 
+/**
+ * @brief Unconditionally attempt to enter supervisor state
+ */
 static void mode_sup()
 {
   MODESET_MODE(SUP);
 }
 
+/**
+ * @brief Unconditionally attempt to enter problem state
+ */
 static void mode_prob()
 {
   MODESET_MODE(PROB);

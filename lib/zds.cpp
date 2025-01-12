@@ -203,7 +203,7 @@ int zds_delete_dsn(ZDS *zds, string dsn)
 //   }
 // }
 
-int zds_list_members(ZDS *zds, string dsn, std::vector<ZDSMem> &list)
+int zds_list_members(ZDS *zds, string dsn, vector<ZDSMem> &list)
 {
   // PO
   // PO-E (PDS)
@@ -271,72 +271,29 @@ int zds_list_members(ZDS *zds, string dsn, std::vector<ZDSMem> &list)
   return 0;
 }
 
-int zds_view_attributes(ZDS *zds, std::string dsn)
+typedef struct {
+  int size;
+
+} ZDS_CSI_WORK_AREA;
+
+int zds_list_data_sets(ZDS *zds, string dsn, vector<ZDSEntry> &attributes)
 {
   int rc = 0;
+  CSIFIELD selection_criteria = {0};
 
-  rc = ZDSATTRS(zds, dsn.c_str());
+  void *work_area = __malloc31(4096);
+  memset(work_area, 0x00, 4096);
+  rc = ZDSCSI00(zds, &selection_criteria, work_area);
 
-  return 0;
-}
-
-
-int zdsList(string name, std::vector<ZDSAttributes> &list)
-{
-  // PO
-  // PO-E (PDS)
-  ZDSAttributes zds_attributes = {0};
-  zds_attributes.name = name;
-  zds_attributes.dsorg = "PO-E";
-  list.push_back(zds_attributes);
-
-  return 0;
-}
-
-// Example: int rc = zdsReadDynalloc("MYDD", "SYS1.MACLIB", "YREGS", data);
-int zdsReadDynalloc(string ddname, string dsname, string member, string &data)
-{
-  int rc = 0;
-  string content;
-
-  __dyn_t ip;
-  rc = dyninit(&ip);
   if (0 != rc)
   {
-    cerr << "Error: dyninit failed with " << rc << endl; // TODO(Kelosky): better error handling scheme
-    return -1;
-  }
-  ip.__ddname = (char *)ddname.c_str();
-  ip.__dsname = (char *)dsname.c_str();
-  ip.__member = (char *)member.c_str();
-  ip.__status = __DISP_SHR;
-
-  rc = dynalloc(&ip);
-  if (0 != rc)
-  {
-    cerr << "Error: dynalloc failed with " << rc << endl; // TODO(Kelosky): better error handling scheme
-    return -1;
+    free(work_area);
+    return RTNCD_FAILURE;
   }
 
-  char buffer[80] = {0};
+  zut_dump_storage("work area", work_area, 4096);
 
-  FILE *fp = fopen(string("DD:" + ddname).c_str(), "r");
-  // FILE *fp = fopen("DD:MYDD", "r");
-  int len = 0;
-  // char *data = "this is data from c";
-  while ((len = fread(buffer, 1, sizeof(buffer), fp)) > 0)
-  {
-    printf("read %s", buffer);
-  }
-  // fprintf(fp, data);
-  fclose(fp);
-
-  rc = dynfree(&ip);
-  if (0 != rc)
-  {
-    cerr << "Error: dynfree failed with " << rc << endl; // TODO(Kelosky): better error handling scheme
-    return -1;
-  }
+  free(work_area);
 
   return rc;
 }

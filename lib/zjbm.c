@@ -85,7 +85,7 @@ int ZJBSYMB(ZJB *zjb, const char *symbol, char *value)
   {
     // TODO(Kelosky): read jsymerad for errors
     strcpy(zjb->diag.service_name, "iazsymbl");
-    zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "Error: IAZSYMBL RC was: '%d', JSYMRETN was: '%d', JSYMREAS: %d", rc, jsym.jsymretn, jsym.jsymreas);
+    zjb->diag.e_msg_len = sprintf(zjb->diag.e_msg, "IAZSYMBL RC was: '%d', JSYMRETN was: '%d', JSYMREAS: %d", rc, jsym.jsymretn, jsym.jsymreas);
     zjb->diag.detail_rc = ZJB_RTNCD_SERVICE_FAILURE;
     return RTNCD_FAILURE;
   }

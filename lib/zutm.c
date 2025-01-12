@@ -64,10 +64,12 @@ int ZUTWDYN(BPXWDYN_PARM *parm, BPXWDYN_RESPONSE *response)
   BPXWDYN dynalloc  = (BPXWDYN)load_module31("BPXWDY2"); // EP which doesn't require R0 == 0
   if (!dynalloc)
   {
+    // TODO(Kelosky): pass diag information
+    // strcpy(zds->diag.service_name, "LOAD");
+    // zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "Load failure for IGGCSI00");
+    // zds->diag.detail_rc = ZDS_RTNCD_SERVICE_FAILURE;
     return RTNCD_FAILURE;
   }
-
-  zwto_debug("parm is %.*s" , parm->len, parm->str);
 
   // allow for MSG_ENTRIES response parameters + 2 input parameters
   BPXWDYN_RET_ARG parameters[MSG_ENTRIES + 2] = {0};
@@ -127,6 +129,8 @@ int ZUTWDYN(BPXWDYN_PARM *parm, BPXWDYN_RESPONSE *response)
   );
 
   response->code = rc;
+
+  delete_module("BPXWDY2");
 
   // obtain any messages returned
   char *respp = response->response;

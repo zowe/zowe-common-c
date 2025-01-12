@@ -34,6 +34,12 @@
 
 #endif
 
+#if defined(__cplusplus) && (defined(__IBMCPP__) || defined(__IBMC__))
+// nothng
+#else
+
+#endif
+
 #if (defined(__IBMCPP__) || defined(__IBMC__))
 #pragma pack(packed)
 #endif

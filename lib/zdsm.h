@@ -12,6 +12,7 @@
 
 #include "ztype.h"
 #include "zdstype.h"
+#include "iggcsina.h"
 
 #if defined(__cplusplus) && (defined(__IBMCPP__) || defined(__IBMC__))
 extern "OS"
@@ -21,7 +22,10 @@ extern "C"
 {
 #endif
 
-int ZDSATTRS(ZDS *zds, const char *dsn);
+typedef struct csifield CSIFIELD;
+
+int ZDSSMSAT(ZDS *zds, const char *dsn);
+int ZDSCSI00(ZDS *zds, CSIFIELD *selection, void *work_area);
 
 #if defined(__cplusplus)
 }

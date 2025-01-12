@@ -18,7 +18,7 @@
 #include "zutm.h"
 #include "zutm31.h"
 #include <ios>
-#include <dynit.h>
+#include "zdyn.h"
 
 using namespace std;
 

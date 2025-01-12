@@ -4,5 +4,11 @@
 
 ## DLL
 
+copy lib
+asmchdr
+build
+.gitignore
 
+##
 
+asmchdr to dsects
