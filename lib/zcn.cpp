@@ -26,8 +26,7 @@ int zcn_activate(ZCN *zcn, string console_name)
   int rc = 0;
   zcn->diag.detail_rc = 0;
 
-  strcpy(zcn->eye_beg, EYE_BEG);
-  strcpy(zcn->eye_end, EYE_END);
+  strcpy(zcn->eye, ZCN_EYE);
 
   zut_uppercase_pad_truncate(console_name, zcn->console_name, sizeof(zcn->console_name));
 

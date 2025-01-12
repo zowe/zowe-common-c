@@ -40,6 +40,10 @@
 
 // NOTE(Kelosky): struct is padded to nearest double word boundary; ensure proper alignment for fields
 typedef struct {
+  char eye[3]; // future use
+  unsigned char version[1]; // future use
+  int32_t len; // future use
+
   char service_name[24];
 
   int32_t detail_rc;
@@ -48,7 +52,7 @@ typedef struct {
   int32_t service_rsn;
   int32_t service_rsn_secondary;
 
-  unsigned char reserve_0[4];
+  unsigned char reserve_1[4];
   int32_t e_msg_len;
 
   char e_msg[256];
@@ -56,7 +60,7 @@ typedef struct {
   void *PTR64 data;
 
   unsigned int data_len;
-  unsigned char reserve_1[4];
+  unsigned char reserve_2[4];
 
 } ZDIAG;
 

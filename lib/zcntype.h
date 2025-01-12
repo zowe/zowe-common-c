@@ -23,13 +23,13 @@
 #pragma pack(packed)
 #endif
 
-#define EYE_BEG "ZCNB"
-#define EYE_END "ZCNE"
+#define ZCN_EYE "ZCN"
 
 // NOTE(Kelosky): struct is padded to nearest double word boundary; ensure proper alignment for fields
 typedef struct {
-  char eye_beg[4];
-  unsigned char reserve_0[4];
+  char eye[3]; // future use
+  unsigned char version[1]; // future use
+  int32_t len; // future use
 
   unsigned int *PTR64 ecb; // save and set to NULL to prevent waiting
 
@@ -50,9 +50,6 @@ typedef struct {
   void *PTR64 area;
 
   ZDIAG diag;
-
-  unsigned char reserve_2[4];
-  char eye_end[4];
 
 } ZCN;
 

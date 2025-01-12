@@ -28,22 +28,24 @@
 
 // NOTE(Kelosky): struct is padded to nearest double word boundary; ensure proper alignment for fields
 typedef struct {
-  char eye_beg[4];
+  char eye[3]; // future use
+  unsigned char version[1]; // future use
+  int32_t len; // future use
+
+  unsigned char reserve_0[4];
   int32_t jobs_max;
 
   int32_t dds_max;
   int32_t buffer_size;
 
   int32_t buffer_size_needed; // total amount of buffer size needed to satisfy request
-  unsigned char reserve_0[4];
+  unsigned char reserve_1[4];
 
   char jobid[8]; // job id
   char owner_name[8]; // owner name used, upper cased/padded/truncated
 
   ZDIAG diag;
 
-  unsigned char reserve_1[4];
-  char eye_end[4];
 } ZJB;
 
 #if (defined(__IBMCPP__) || defined(__IBMC__))

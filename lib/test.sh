@@ -28,9 +28,12 @@ echo "$testing data set writing..."
 printf "//IEFBR14$ JOB (IZUACCT),TEST,REGION=0m\n//RUN EXEC PGM=IEFBR14" | zowex data-set write "$data_set_jcl"
 printf "$passed\n"
 
-
 echo "$testing view data set..."
 zowex data-set view $data_set_jcl
+printf "$passed\n"
+
+echo "$testing data set list-members..."
+zowex data-set list-members $data_set
 printf "$passed\n"
 
 echo "$testing job list..."

@@ -19,13 +19,6 @@
 
 #define ZUT_BPXWDYN_SERVICE_FAILURE -2
 
-#if defined(__IBM_METAL__)
-#define SET_R1_PARM(parm) __asm(" LA 1,%0\n":"+m"(parm)::"r1");
-#else
-#define SET_R1_PARM(parm)
-#endif
-
-
 // takes a conventional paramter list
 typedef int (*BPXWDYN)(
   BPXWDYN_PARM *PTR32,
