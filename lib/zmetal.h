@@ -14,26 +14,6 @@
 #include <string.h>
 #include "ztype.h"
 
-#if defined(__IBM_METAL__)
-
-// on z
-#define ATTRIBUTE(...) __attribute__((__VA_ARGS__)) // ATTRIBUTE(amode31)
-#define PTR32 __ptr32
-#define PTR64 __ptr64
-#define FAR __far
-#define ASMREG(register) __asm(register)
-
-#else
-
-// off z
-#define ATTRIBUTE(...)
-#define PTR32
-#define PTR64
-#define FAR
-#define ASMREG(register)
-
-#endif
-
 #define MAX_PARM_LENGTH 100 + 1
 
 typedef struct

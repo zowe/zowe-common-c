@@ -10,7 +10,7 @@
 #ifndef ZCNM_H
 #define ZCNM_H
 
-#include "zmetal.h"
+#include "ztype.h"
 #include "zcntype.h"
 
 #if defined(__cplusplus) && (defined(__IBMCPP__) || defined(__IBMC__))

@@ -7,15 +7,24 @@
 
   Copyright Contributors to the Zowe Project.
 */
-#ifndef ZCNM31_H
-#define ZCNM31_H
+#ifndef ZDSTYPE_H
+#define ZDSTYPE_H
 
 #include "ztype.h"
-#include "zcntype.h"
+#include "zdstype.h"
 
-int zcnm1act(ZCN *) ATTRIBUTE(amode31);
-int zcnm1put(ZCN *, const char *) ATTRIBUTE(amode31);
-int zcnm1get(ZCN *, char *) ATTRIBUTE(amode31,armode);
-int zcnm1dea(ZCN *) ATTRIBUTE(amode31);
+#if defined(__cplusplus) && (defined(__IBMCPP__) || defined(__IBMC__))
+extern "OS"
+{
+#elif defined(__cplusplus)
+extern "C"
+{
+#endif
+
+int ZDSATTRS(ZDS *zds, char *dsn);
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif

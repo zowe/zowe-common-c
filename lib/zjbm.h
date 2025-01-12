@@ -10,7 +10,7 @@
 #ifndef ZJBM_H
 #define ZJBM_H
 
-#include "zmetal.h"
+#include "ztype.h"
 #include "zssitype.h"
 #include "zjbtype.h"
 

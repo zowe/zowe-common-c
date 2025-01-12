@@ -9,7 +9,8 @@
 */
 #ifndef ZUTM_H
 #define ZUTM_H
-#include "zmetal.h"
+
+#include "ztype.h"
 
 #if defined(__cplusplus) && (defined(__IBMCPP__) || defined(__IBMC__))
 extern "OS"

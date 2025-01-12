@@ -10,7 +10,7 @@
 #ifndef ZUTM31_H
 #define ZUTM31_H
 
-#include "zmetal.h"
+#include "ztype.h"
 
 int zutm1gur(char[8]) ATTRIBUTE(amode31);
 

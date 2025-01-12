@@ -60,6 +60,7 @@
     "zutc.h": "c",
     "zutm31.h": "c",
     "zutm.h": "c",
-    "iterator": "c"
+    "iterator": "c",
+    "ztype.h": "c"
   }
 }

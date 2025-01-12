@@ -7,15 +7,13 @@
 
   Copyright Contributors to the Zowe Project.
 */
-#ifndef ZCNM31_H
-#define ZCNM31_H
 
-#include "ztype.h"
-#include "zcntype.h"
+#include "zdstype.h"
+#include "zdsm.h"
 
-int zcnm1act(ZCN *) ATTRIBUTE(amode31);
-int zcnm1put(ZCN *, const char *) ATTRIBUTE(amode31);
-int zcnm1get(ZCN *, char *) ATTRIBUTE(amode31,armode);
-int zcnm1dea(ZCN *) ATTRIBUTE(amode31);
-
-#endif
+// purge a job
+#pragma prolog(ZJBMPRG, "&CCN_MAIN SETB 1 \n MYPROLOG")
+int ZDSATTRS(ZDS *zds, char *dsn)
+{
+  return 0;
+}
