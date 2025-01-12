@@ -68,7 +68,7 @@ int zds_read_from_dd(ZDS *zds, string ddname, string &response)
   return 0;
 }
 
-int zds_read_from_dsn(ZDS* zds, string dsn, string &response)
+int zds_read_from_dsn(ZDS *zds, string dsn, string &response)
 {
   dsn = "//'" + dsn + "'";
 
@@ -271,29 +271,68 @@ int zds_list_members(ZDS *zds, string dsn, vector<ZDSMem> &list)
   return 0;
 }
 
-typedef struct {
+typedef struct
+{
   int size;
 
 } ZDS_CSI_WORK_AREA;
 
+#define BUFF_SIZE 1024
+
+// TODO(Kelosky): allow resume for more records
+// TODO(Kelosky): cap number of response
+// TODO(Kelosky): preserve loaded module until complete then delete
 int zds_list_data_sets(ZDS *zds, string dsn, vector<ZDSEntry> &attributes)
 {
   int rc = 0;
-  CSIFIELD selection_criteria = {0};
 
-  void *work_area = __malloc31(4096);
-  memset(work_area, 0x00, 4096);
-  rc = ZDSCSI00(zds, &selection_criteria, work_area);
+  CSIFIELD *selection_criteria = (CSIFIELD *)__malloc31(sizeof(CSIFIELD));
+  memset(selection_criteria, 0x00, sizeof(CSIFIELD));
+
+  ZDS_CSI_WORK_AREA *csi_work_area = (ZDS_CSI_WORK_AREA *)__malloc31(BUFF_SIZE);
+  memset(csi_work_area, 0x00, BUFF_SIZE);
+
+  printf("address one %p and two %p\n", selection_criteria, csi_work_area);
+
+  csi_work_area->size = BUFF_SIZE;
+
+  string blanks = "                                            ";
+
+  // https://www.ibm.com/docs/en/zos/3.1.0?topic=fields-csinumen-number-field-names
+  dsn = "DKELOSKY.JCL                                ";
+  memcpy(selection_criteria->csifiltk, dsn.c_str(), dsn.size());
+  memcpy(&selection_criteria->csicldi, blanks.c_str(), sizeof(selection_criteria->csicldi));
+  memcpy(&selection_criteria->csiresum, blanks.c_str(), sizeof(selection_criteria->csiresum));
+  memcpy(&selection_criteria->csis1cat, blanks.c_str(), sizeof(selection_criteria->csis1cat));
+  memcpy(selection_criteria->csidtyps, blanks.c_str(), sizeof(selection_criteria->csidtyps));
+  memcpy(selection_criteria->csidtyps, blanks.c_str(), sizeof(selection_criteria->csidtyps));
+
+  short int field_count = 0;
+  string field;
+
+  // https://www.ibm.com/docs/en/zos/3.1.0?topic=directory-catalog-field-names
+  field = "VOLSER";
+  memcpy(selection_criteria->csifldnm, blanks.c_str(), sizeof(selection_criteria->csifldnm));
+  memcpy(selection_criteria->csifldnm, field.c_str(), field.size());
+  field_count++;
+
+  selection_criteria->csinumen = field_count;
+
+  // memcpy(selection_criteria->csicatnm, blanks.c_str(), sizeof(selection_criteria->csicatnm));
+
+  rc = ZDSCSI00(zds, selection_criteria, csi_work_area);
 
   if (0 != rc)
   {
-    free(work_area);
+    free(selection_criteria);
+    free(csi_work_area);
     return RTNCD_FAILURE;
   }
 
-  zut_dump_storage("work area", work_area, 4096);
+  zut_dump_storage("work area", csi_work_area, 4096);
 
-  free(work_area);
+  free(selection_criteria);
+  free(csi_work_area);
 
   return rc;
 }

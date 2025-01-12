@@ -45,7 +45,7 @@ int ZDSCSI00(ZDS *zds, CSIFIELD *selection, void *work_area)
   if (0 != rc)
   {
     strcpy(zds->diag.service_name, "IGGCSI00");
-    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "IGGCSI00 rc was: '%d', rsn was: '%d'", rc, rsn);
+    zds->diag.e_msg_len = sprintf(zds->diag.e_msg, "IGGCSI00 rc was: '%d', rsn was: '%04x'", rc, rsn);
     zds->diag.service_rc = rc;
     zds->diag.service_rsn = rsn;
     zds->diag.detail_rc = ZDS_RTNCD_SERVICE_FAILURE;
