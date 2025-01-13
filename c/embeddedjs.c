@@ -111,10 +111,6 @@ struct EmbeddedJS_tag {
   int traceLevel;
 };
 
-#ifdef CONFIG_PROFILE_CALLS
-  FILE *profile_file = fopen("profile_data.json", "w");
-#endif
-
 struct JSValueBox_tag {
   JSValue value;
 };
@@ -2121,10 +2117,11 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
 
 #ifdef CONFIG_PROFILE_CALLS
   /* profiling */
+  FILE *profile_file = fopen("profile_out.json", "w");
   embeddedJS->profile_file = profile_file;
   embeddedJS->profile_sampling = 1;
   JS_EnableProfileCalls(embeddedJS->rt, profile_function_start, profile_function_end, embeddedJS->profile_sampling, embeddedJS->profile_file);
-  fprintf(profile_file, "{\"traceEvents\": [")
+  fprintf(profile_file, "{\"traceEvents\": [");
 #endif
 
   /* loader for ES6 modules */
