@@ -2056,6 +2056,39 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
   return m;
 }
 
+#ifdef CONFIG_PROFILE_CALLS
+void profile_function_start(JSContext *ctx, JSAtom func, JSAtom filename, void *opaque) {
+    const char* func_str = JS_AtomToCString(ctx, func);
+    const char *func_str2 = func_str[0] ? func_str : "<anonymous>";
+    FILE *logfile = (FILE *)opaque;
+    // Format documented here:
+    // https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview?tab=t.0#heading=h.yr4qxyxotyw
+    fprintf(logfile, "{"
+            "\"name\": \"%s\","
+            "\"cat\": \"js\","
+            "\"ph\": \"B\","
+            "\"ts\": %ld,"
+            "\"pid\": 1,"
+            "\"tid\": 1"
+        "},\n", func_str2, clock());
+    JS_FreeCString(ctx, func_str);
+}
+void profile_function_end(JSContext *ctx, JSAtom func, JSAtom filename, void *opaque) {
+    const char* func_str = JS_AtomToCString(ctx, func);
+    const char *func_str2 = func_str[0] ? func_str : "<anonymous>";
+    FILE *logfile = (FILE *)opaque;
+    fprintf(logfile, "{"
+            "\"name\": \"%s\","
+            "\"cat\": \"js\","
+            "\"ph\": \"E\","
+            "\"ts\": %ld,"
+            "\"pid\": 1,"
+            "\"tid\": 1"
+        "},\n", func_str2, clock());
+    JS_FreeCString(ctx, func_str);
+}
+#endif
+
 bool configureEmbeddedJS(EmbeddedJS *embeddedJS, 
                          EJSNativeModule **nativeModules, int nativeModuleCount,
                          int argc, char **argv){
@@ -2086,7 +2119,7 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
   /* profiling */
   embeddedJS->profile_file = fopen("profile_data.json", "w");
   embeddedJS->profile_sampling = 1;
-  JS_EnableProfileCalls(embeddedJS->rt, profile_function_start, profile_function_end, profile_sampling, profile_file);
+  JS_EnableProfileCalls(embeddedJS->rt, profile_function_start, profile_function_end, embeddedJS->profile_sampling, embeddedJS->profile_file);
   fprintf(profile_file, "{\"traceEvents\": [")
 #endif
 
