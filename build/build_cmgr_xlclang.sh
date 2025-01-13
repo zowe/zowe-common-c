@@ -3,9 +3,9 @@
 # This program and the accompanying materials are
 # made available under the terms of the Eclipse Public License v2.0 which accompanies
 # this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
-# 
+#
 # SPDX-License-Identifier: EPL-2.0
-# 
+#
 # Copyright Contributors to the Zowe Project.
 
 WORKING_DIR=$(cd $(dirname "$0") && pwd)
@@ -32,7 +32,6 @@ date_stamp=$(date +%Y%m%d%S)
 TMP_DIR="${WORKING_DIR}/tmp-${date_stamp}"
 
 mkdir -p "${TMP_DIR}" && cd "${TMP_DIR}"
-
 
 # Split version into parts
 OLDIFS=$IFS
@@ -68,6 +67,8 @@ xlclang \
   -D_OPEN_SYS_FILE_EXT=1 \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
+  -DUSE_BF_DEC \
+  -DCONFIG_PROFILE_CALLS \
   -DCONFIG_VERSION=\"2021-03-27\" \
   -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
   -I "${DEPS_DESTINATION}/${QUICKJS}" \
@@ -82,6 +83,7 @@ xlclang \
   ${DEPS_DESTINATION}/${QUICKJS}/cutils.c \
   ${DEPS_DESTINATION}/${QUICKJS}/quickjs.c \
   ${DEPS_DESTINATION}/${QUICKJS}/quickjs-libc.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/libbf.c \
   ${DEPS_DESTINATION}/${QUICKJS}/libunicode.c \
   ${DEPS_DESTINATION}/${QUICKJS}/libregexp.c \
   ${DEPS_DESTINATION}/${QUICKJS}/porting/polyfill.c
@@ -102,6 +104,7 @@ xlclang \
   -DUSE_ZOWE_TLS=1 \
   -DNEW_CAA_LOCATIONS=1 \
   -DCMGRTEST=1 \
+  -DCONFIG_PROFILE_CALLS \
   -I "${COMMON}/h" \
   -I "${COMMON}/platform/posix" \
   -I ${GSKINC} \
@@ -119,6 +122,7 @@ xlclang \
   cutils.o \
   quickjs.o \
   quickjs-libc.o \
+  libbf.o \
   libunicode.o \
   libregexp.o \
   polyfill.o \
@@ -167,11 +171,10 @@ xlclang \
 
 rm -rf "${TMP_DIR}"
 
-
 # This program and the accompanying materials are
 # made available under the terms of the Eclipse Public License v2.0 which accompanies
 # this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
-# 
+#
 # SPDX-License-Identifier: EPL-2.0
-# 
+#
 # Copyright Contributors to the Zowe Project.

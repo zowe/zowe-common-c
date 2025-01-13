@@ -8,6 +8,7 @@
   Copyright Contributors to the Zowe Project.
 */
 
+
 #ifdef METTLE 
 
 #include <metal/metal.h>
@@ -99,6 +100,10 @@ struct EmbeddedJS_tag {
   LongHashtable *nativeClassTable;
 #ifdef CONFIG_BIGNUM
   int load_jscalc;
+#endif
+#ifdef CONFIG_PROFILE_CALLS
+    FILE *profile_file; /* = NULL; */
+    uint32_t profile_sampling; /* = 1; */;
 #endif
   size_t stack_size; /* = 0; */
   void *userPointer;
@@ -2076,6 +2081,14 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
   }
   /* how to do this workers, is still not well explored */
   initContextModules(ctx,nativeModules,nativeModuleCount);
+
+#ifdef CONFIG_PROFILE_CALLS
+  /* profiling */
+  embeddedJS->profile_file = fopen("profile_data.json", "w");
+  embeddedJS->profileSampling = 1;
+  JS_EnableProfileCalls(embeddedJS->rt, profile_function_start, profile_function_end, profile_sampling, profile_file);
+  fprintf(profile_file, "{\"traceEvents\": [")
+#endif
 
   /* loader for ES6 modules */
   JS_SetModuleLoaderFunc(embeddedJS->rt, NULL, ejsModuleLoader, NULL);
