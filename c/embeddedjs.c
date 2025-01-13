@@ -2085,7 +2085,7 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
 #ifdef CONFIG_PROFILE_CALLS
   /* profiling */
   embeddedJS->profile_file = fopen("profile_data.json", "w");
-  embeddedJS->profileSampling = 1;
+  embeddedJS->profile_sampling = 1;
   JS_EnableProfileCalls(embeddedJS->rt, profile_function_start, profile_function_end, profile_sampling, profile_file);
   fprintf(profile_file, "{\"traceEvents\": [")
 #endif
