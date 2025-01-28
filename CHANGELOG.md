@@ -1,5 +1,8 @@
 # Zowe Common C Changelog
 
+## `3.2.0`
+- Bugfix: allocate storage to be executed with EXECUTABLE=YES (#507)
+
 ## `3.1.0`
 - Enhancement: `configmgr extract` option supports simple array (#502)
 - Bugfix: removed "ByteOutputStream" debug message, which was part of the `zwe` command output (#491)

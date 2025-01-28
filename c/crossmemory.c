@@ -2168,6 +2168,14 @@ static void freeECSAStorage(void *data, unsigned int size) {
   cmFree(data, size, CROSS_MEMORY_SERVER_SUBPOOL, CROSS_MEMORY_SERVER_KEY);
 }
 
+static void *allocateECSAStorageExec(unsigned int size) {
+  return cmAllocExec(size, CROSS_MEMORY_SERVER_SUBPOOL, CROSS_MEMORY_SERVER_KEY);
+}
+
+static void freeECSAStorageExec(void *data, unsigned int size) {
+  cmFreeExec(data, size, CROSS_MEMORY_SERVER_SUBPOOL, CROSS_MEMORY_SERVER_KEY);
+}
+
 static void allocateECSAStorage2(unsigned int size,
                                  void **resultPtr) {
 
@@ -3112,11 +3120,10 @@ static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
             anchorLength, sizeof(CMSLookupRoutineAnchor));
     return NULL;
   }
-  // TODO if the cmutils alloc functions are changed to allocate non-executable
-  //  storage, this call will need to change
-  CMSLookupRoutineAnchor *anchor = cmAlloc(sizeof(CMSLookupRoutineAnchor),
-                                           CMS_LOOKUP_ANCHOR_SUBPOOL,
-                                           CMS_LOOKUP_ANCHOR_KEY);
+
+  CMSLookupRoutineAnchor *anchor = cmAllocExec(sizeof(CMSLookupRoutineAnchor),
+                                               CMS_LOOKUP_ANCHOR_SUBPOOL,
+                                               CMS_LOOKUP_ANCHOR_KEY);
   if (anchor == NULL) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
             CMS_LOG_DEBUG_MSG_ID" Alloc failed for look-up anchor\n");
@@ -3156,8 +3163,8 @@ static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
 }
 
 static void deleteLookupRoutineAnchor(CMSLookupRoutineAnchor *anchor) {
-  cmFree(anchor, anchor->size, CMS_LOOKUP_ANCHOR_SUBPOOL,
-         CMS_LOOKUP_ANCHOR_KEY);
+  cmFreeExec(anchor, anchor->size, CMS_LOOKUP_ANCHOR_SUBPOOL,
+             CMS_LOOKUP_ANCHOR_KEY);
 }
 
 static int discardLookupRoutineAnchor(CrossMemoryServer *server) {
@@ -4671,7 +4678,7 @@ static int installResourceManager(CrossMemoryServerGlobalArea *globalArea, Resou
         resmgrRoutine, resmgrRoutineSize);
     zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, resmgrRoutine, resmgrRoutineSize);
 
-    resmgrRoutineInECSA = allocateECSAStorage(resmgrRoutineSize);
+    resmgrRoutineInECSA = allocateECSAStorageExec(resmgrRoutineSize);
     if (resmgrRoutineInECSA == NULL) {
       zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_RESMGR_ECSA_FAILURE_MSG, resmgrRoutineSize);
       status = RC_CMS_ECSA_ALLOC_FAILED;
@@ -4687,7 +4694,7 @@ static int installResourceManager(CrossMemoryServerGlobalArea *globalArea, Resou
       int createTokenRC = nameTokenCreatePersistent(NAME_TOKEN_LEVEL_SYSTEM, &resmgrRoutineNTName, &resmgrRoutineNTToken.token);
       if (createTokenRC != 0) {
         zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_RESMGR_NT_NOT_CREATED_MSG, createTokenRC);
-        freeECSAStorage(resmgrRoutineInECSA, resmgrRoutineSize);
+        freeECSAStorageExec(resmgrRoutineInECSA, resmgrRoutineSize);
         resmgrRoutineInECSA = NULL;
         status = RC_CMS_NAME_TOKEN_CREATE_FAILED;
       }

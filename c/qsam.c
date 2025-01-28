@@ -40,6 +40,16 @@ char *malloc24(int size){
   return data;
 }
 
+static void *malloc24Exec(int size) {
+  char *data;
+  __asm(ASM_PREFIX
+        " STORAGE OBTAIN,LENGTH=(%[length]),LOC=24,EXECUTABLE=YES\n"
+        : [address]"=NR:r1"(data)
+        : [length]"NR:r0"(size)
+        : "r14", "r15");
+  return data;
+}
+
 static char *malloc31(int size){
   char *data;
   __asm(ASM_PREFIX
@@ -59,6 +69,15 @@ char *free24(char *data, int size){
         :"r15");
   /* printf("succeed\n"); */
   return NULL;
+}
+
+static void free24Exec(void *data, int size) {
+  __asm(ASM_PREFIX
+      " STORAGE RELEASE,LENGTH=(%[length]),ADDR=(%[address]),CALLRKY=YES"
+      ",EXECUTABLE=YES\n"
+      :
+      : [length]"NR:r0"(size), [address]"NR:r1"(data)
+      : "r14", "r15");
 }
 
 static void free31(void *data, int size){
@@ -446,7 +465,7 @@ static int openCloseBBQ(char *dcb, int mode, int svc){
        reqDcb->dcb.Common.macroFormat != DCB_MACRF_EXCP &&
        reqDcb->dcb.BBQCommon.blksize_s <= 0) {
 
-      openexitData = (openexitData_t *)malloc24(sizeof(openexitData_t));
+      openexitData = malloc24Exec(sizeof(openexitData_t));
       memset(openexitData,0,sizeof(openexitData_t));
 
    /* If a block size of -2 is specified as the value for the block
@@ -766,7 +785,7 @@ static int openCloseBBQ(char *dcb, int mode, int svc){
 
     if (openexitData){
       reqDcb->dcb.Common.exlst = (unsigned int)NULL;
-      free24((char *)openexitData,sizeof(openexitData_t));
+      free24Exec(openexitData,sizeof(openexitData_t));
     }
   } else{
     __asm(ASM_PREFIX
