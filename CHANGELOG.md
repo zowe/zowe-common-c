@@ -2,6 +2,7 @@
 
 ## `3.2.0`
 - Bugfix: allocate storage to be executed with EXECUTABLE=YES (#507)
+- Bugfix: fix a leak in the rsusermap code (#467)
 
 ## `3.1.0`
 - Enhancement: `configmgr extract` option supports simple array (#502)
