@@ -115,6 +115,7 @@ static int getUseridByExternalInfo(int functionCode,
     } 
     break;
   default:
+    FREE_STRUCT31(STRUCT31_NAME(parms31));
     return RUSERMAP_BAD_FUNCTION_CODE;
   }
 
