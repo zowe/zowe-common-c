@@ -237,6 +237,40 @@ typedef struct MultilineWTOHandle_tag {
   MultilineWTONLine lines[0];
 } MultilineWTOHandle;
 
+typedef struct SinglelineWTOLine_tag {
+#define SINGLELINE_WTO_MAX_LEN 126
+#define SINGLELINE_WTO_VERSION 2
+  unsigned short length;
+  unsigned short flags;
+  char text[SINGLELINE_WTO_MAX_LEN];
+  unsigned char version;
+  unsigned char miscFlags;
+  unsigned char replyLength;
+  unsigned char wpxLength;
+  unsigned short extendedFlags;
+  char reserved2[2];
+  char * __ptr32 replyBuffer;
+  int  * __ptr32 replyECB;
+  unsigned int connectID;
+  unsigned short descriptorCodes;
+  char reserved3[2];
+  char extendedRoutingCodes[16];
+  unsigned short messageType;
+  unsigned short messagePriority;
+  char jobID[8];
+  char jobName[8];
+  char retrievalKey[8];
+  unsigned int tokenForDOM;
+  unsigned int consoleID;
+  char systemName[8];
+  char consoleName[8];
+  void * __ptr32 replyConsoleID;
+  void * __ptr32 cart;
+  void * __ptr32 wsparm;
+} SinglelineWTOLine;
+
+#define WTO_EXT_FLAG_CONSID_SPECIFIED 0x4000
+
 ZOWE_PRAGMA_PACK_RESET
 
 static MultilineWTOHandle *wtoGetMultilineHandle(unsigned int maxLineCount) {
@@ -309,8 +343,6 @@ static void wtoAddLine(MultilineWTOHandle *handle, const char *formatString, ...
 
 static void wtoPrintMultilineMessage(MultilineWTOHandle *handle, int consoleID, CART cart) {
 
-#define WTO_EXT_FLAG_CONSID_SPECIFIED 0x4000
-
   MultilineWTONLine *finalLine = &handle->lines[handle->lineCount];
   handle->firstLine.consoleID = consoleID;
   if (consoleID != 0) {
@@ -339,23 +371,53 @@ static void wtoRemoveMultilineHandle(MultilineWTOHandle *handle) {
   handle = NULL;
 }
 
-void wtoPrintf2(int consoleID, CART cart, char *formatString, ...) {
+static void wtoPrintSinglelineMessage(const char text[], size_t textLen,
+                                      int consoleID, CART cart) {
 
-  MultilineWTOHandle *handle = wtoGetMultilineHandle(4);
-  if (handle == NULL) {
-    return;
+  SinglelineWTOLine line = {
+    .length = sizeof(line.text) + 4,
+    .flags = WTO_EXTENDED_WPL,
+    .version = SINGLELINE_WTO_VERSION,
+  };
+
+  memset(line.text, ' ', sizeof(line.text));
+  memcpy(line.text, text, min(sizeof(line.text), textLen));
+
+  memset(line.jobID, ' ', sizeof(line.jobID));
+  memset(line.jobName, ' ', sizeof(line.jobName));
+  memset(line.retrievalKey, ' ', sizeof(line.retrievalKey));
+  memset(line.systemName, ' ', sizeof(line.systemName));
+  memset(line.consoleName, ' ', sizeof(line.consoleName));
+
+  line.consoleID = consoleID;
+  if (consoleID != 0) {
+    line.extendedFlags = WTO_EXT_FLAG_CONSID_SPECIFIED;
   }
 
-  char text[sizeof(handle->firstLine.text)];
+  line.cart = &cart;
+
+  __asm(
+      "         XGR   0,0                                                      \n"
+      "         WTO   MF=(E,(%[parm]))                                         \n"
+      :
+      : [parm]"r"(&line)
+      : "r0", "r1", "r14", "r15"
+  );
+
+}
+
+void wtoPrintf2(int consoleID, CART cart, char *formatString, ...) {
+
+  char text[SINGLELINE_WTO_MAX_LEN + 1];
   va_list argPointer;
   va_start(argPointer,formatString);
-  vsnprintf(text, sizeof(text), formatString, argPointer);
+  int charsPrinted = vsnprintf(text, sizeof(text), formatString, argPointer);
   va_end(argPointer);
 
-  wtoAddLine(handle, text);
-  wtoPrintMultilineMessage(handle, consoleID, cart);
-  wtoRemoveMultilineHandle(handle);
-  handle = NULL;
+  if (charsPrinted >= 0) {
+    wtoPrintSinglelineMessage(text, min(charsPrinted, SINGLELINE_WTO_MAX_LEN),
+                              consoleID, cart);
+  }
 
 }
 
