@@ -47,6 +47,10 @@
 #define cmFree CMFREE
 #define cmAlloc2 CMALLOC2
 #define cmFree2 CMFREE2
+#define cmAllocExec CMALLCX
+#define cmFreeExec CMFREEX
+#define cmAlloc2Exec CMALLC2X
+#define cmFree2Exec CMFREE2X
 
 #define makeCrossMemoryMap CMUMKMAP
 #define removeCrossMemoryMap CMURMMAP
@@ -209,6 +213,30 @@ void *cmAlloc(unsigned int size, int subpool, int key);
 void cmFree(void *data, unsigned int size, int subpool, int key);
 
 /**
+ * @brief Allocates executable storage. The function can be used in cross-memory
+ * mode.
+ *
+ * @param size Size of the storage.
+ * @param subpool Subpool of the storage.
+ * @param key Key of the storage
+ * @return The address of the storage in case of success, NULL if the request
+ * has failed.
+ */
+void *cmAllocExec(unsigned int size, int subpool, int key);
+
+/**
+ * @brief Releases executable  storage. The call is unconditional, that is, it
+ * will ABEND
+ * if bad storage is passed. The function can be used in cross-memory mode.
+ *
+ * @param data Storage to be released.
+ * @param size Size of the storage.
+ * @param subpool Subpool of the storage.
+ * @param key Key of the storage.
+ */
+void cmFreeExec(void *data, unsigned int size, int subpool, int key);
+
+/**
  * @brief Allocates storage. The function can be used in cross-memory mode.
  *
  * This version should be used in code which uses recovery as the window between
@@ -240,6 +268,41 @@ void cmAlloc2(unsigned int size, int subpool, int key, void **resultPtr);
  * @param key Key of the storage.
  */
 void cmFree2(void **dataPtr, unsigned int size, int subpool, int key);
+
+/**
+ * @brief Allocates executable storage. The function can be used in cross-memory
+ * mode.
+ *
+ * This version should be used in code which uses recovery as the window between
+ * the actual allocation and returning the result is much smaller than in
+ * cmAlloc.
+ *
+ * @param size Size of the storage.
+ * @param subpool Subpool of the storage.
+ * @param key Key of the storage.
+ * @param resultPtr Pointer to the result address of the storage. The pointer is
+ * set to NULL if the request fails.
+ */
+void cmAlloc2Exec(unsigned int size, int subpool, int key, void **resultPtr);
+
+/**
+ * @brief Releases executable storage. The function can be used in cross-memory
+ * mode.
+ *
+ * The call is unconditional, that is, it will ABEND if bad storage is passed.
+ * This version should be used in code which uses recovery as it first sets
+ * the provided address to NULL and then releases the storage, whereby
+ * helping to prevent double-free. If an ABEND happens in between setting
+ * provided address to NULL and releasing the storage, the storage will be
+ * leaked.
+ *
+ * @param dataPtr Pointer to the address of the storage to be released. It will
+ * be set to NULL.
+ * @param size Size of the storage.
+ * @param subpool Subpool of the storage.
+ * @param key Key of the storage.
+ */
+void cmFree2Exec(void **dataPtr, unsigned int size, int subpool, int key);
 
 typedef struct CrossMemoryMap_tag CrossMemoryMap;
 

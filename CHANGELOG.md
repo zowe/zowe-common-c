@@ -7,6 +7,7 @@
 - Bugfix: support cross-memory server parameters longer than 128 characters (zowe/zss#684)
 - Bugfix: HEAPPOOLS and HEAPPOOLS64 no longer need to be set to OFF for configmgr (#498)
 - Bugfix: make sure CEE3ERP is invoked in LE 31-bit XPLINK (#503)
+- Bugfix: allocate storage to be executed with EXECUTABLE=YES (#512)
 
 ## `2.18.0`
 - Minor `components.zss.logLevels._zss.httpserver=5` debug messages enhancement (#471)
