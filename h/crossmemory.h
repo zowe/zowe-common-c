@@ -4,9 +4,9 @@
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
   this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
-  
+
   SPDX-License-Identifier: EPL-2.0
-  
+
   Copyright Contributors to the Zowe Project.
 */
 
@@ -146,6 +146,9 @@
 #define RC_CMS_CONFIG_VALUE_BUF_TOO_SMALL   95
 #define RC_CMS_MODREG_FAILED                96
 #define RC_CMS_MAX_RC                       96
+
+#define CMS_CONFIG_PARM_MAX_NAME_LENGTH   72
+#define CMS_CONFIG_PARM_MAX_VALUE_SIZE    128
 
 extern const char *CMS_RC_DESCRIPTION[];
 
@@ -387,9 +390,6 @@ typedef enum CrossMemoryServerParmType_tag {
 } CrossMemoryServerParmType;
 #pragma enum(reset)
 
-#define CMS_CONFIG_PARM_MAX_NAME_LENGTH   72
-#define CMS_CONFIG_PARM_MAX_VALUE_SIZE    128
-
 typedef struct CrossMemoryServerConfigParm_tag {
   char eyecatcher[8];
 #define CMS_PARM_EYECATCHER "RSCMSCFG"
@@ -538,7 +538,7 @@ int cmsCallService3(CrossMemoryServerGlobalArea *cmsGlobalArea,
  */
 int cmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, ...);
 
-/* 
+/*
    @brief the var-args version of cmsPrintf, see above
  */
 int vcmsPrintf(const CrossMemoryServerName *serverName, const char *formatString, va_list argPointer);
@@ -1184,9 +1184,9 @@ typedef struct CMSDynlinkEnv_tag {
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
   this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
-  
+
   SPDX-License-Identifier: EPL-2.0
-  
+
   Copyright Contributors to the Zowe Project.
 */
 
