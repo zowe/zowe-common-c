@@ -152,7 +152,7 @@ extern const char *CMS_RC_DESCRIPTION[];
 ZOWE_PRAGMA_PACK
 
 typedef struct CrossMemoryServerName_tag {
-  char nameSpacePadded[16];
+  char nameSpacePadded[CMS_CONFIG_PARM_MAX_NAME_LENGTH];
 } CrossMemoryServerName;
 
 #ifndef __LONGNAME__
