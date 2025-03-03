@@ -1042,6 +1042,9 @@ int httpClientSessionReceiveNativeLoop(HttpClientContext *ctx, HttpClientSession
       bytesRead = socketRead(session->socket, buf, sizeof(buf), &bpxrc, &bpxrsn);
       if (bytesRead < 1) {
         HTTP_CLIENT_TRACE_VERBOSE("http client nativeLoop socket read error rc=%d, rsn=0x%x\n", bpxrc, bpxrsn);
+        if (bpxrc == 0x44E){
+          sts = HTTP_CLIENT_EWOULDBLOCK;
+        }
         sts = HTTP_CLIENT_READ_ERROR;
         break;
       }
@@ -1086,6 +1089,9 @@ int httpClientSessionReceiveNative(HttpClientContext *ctx, HttpClientSession *se
     buf = SLHAlloc(session->slh, maxlen);
     buflen = socketRead(session->socket, buf, maxlen, &bpxrc, &bpxrsn);
     if (buflen < 1) {
+      if (bpxrc == 0x44E){
+        sts = HTTP_CLIENT_EWOULDBLOCK;
+      }
       sts = HTTP_CLIENT_READ_ERROR;
       break;
     }
