@@ -219,8 +219,9 @@ int getSocketDebugID(Socket *s){
 /*--5---10---15---20---25---30---35---40---45---50---55---60---65---70---75---*/
 #define SO_ERROR    0x1007
 
-Socket *tcpClient3(SocketAddress *socketAddress,
-         int timeoutInMillis,
+Socket *tcpClient4(SocketAddress *socketAddress,
+         int connectTimeoutInMillis,
+         int readTimeoutInMillis,
          int tlsFlags,
          int *returnCode,
          int *reasonCode) {
@@ -263,7 +264,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
     return NULL;
   } else{
     int socketAddrSize = SOCKET_ADDRESS_SIZE_IPV4;
-    if (timeoutInMillis >= 0){
+    if (connectTimeoutInMillis >= 0){
       Socket tempSocket;
       tempSocket.sd = socketVector[0];
 
@@ -285,7 +286,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
         returnValue = 0;
         *returnCode  = 0;
         *reasonCode  = 0;
-        int status = tcpStatus(&tempSocket, timeoutInMillis, 1, returnCode, reasonCode);
+        int status = tcpStatus(&tempSocket, connectTimeoutInMillis, 1, returnCode, reasonCode);
         if (status == SD_STATUS_TIMEOUT) {
           int sd = socketVector[0];
           if (socketTrace) {
@@ -326,8 +327,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
           returnValue = 0;
         }
       } else{
-	/* all was good on 1st try, but why aren't we setting blocking mode here?
-	   seems inconsistent */
+        /* all was good on 1st try */
       }
     }
     else{
@@ -370,17 +370,37 @@ Socket *tcpClient3(SocketAddress *socketAddress,
       *returnCode = 0;
       *reasonCode = 0;
       socket->protocol = IPPROTO_TCP;
+
+      if (readTimeoutInMillis >= 0) {
+        setSocketBlockingMode(socket, TRUE, returnCode, reasonCode);
+      } else {
+        setSocketBlockingMode(socket, FALSE, returnCode, reasonCode);
+      }
       return socket;
     }
   }                    
 }
 
-Socket *tcpClient2(SocketAddress *socketAddress,
-       int timeoutInMillis,
+Socket *tcpClient3(SocketAddress *socketAddress,
+       int connectTimeoutInMillis,
+       int tlsFlags,
        int *returnCode, /* errnum */
        int *reasonCode) { /* errnum - JR's */
-  return tcpClient3(socketAddress,
-                    timeoutInMillis,
+  return tcpClient4(socketAddress,
+                    connectTimeoutInMillis,
+                    0,
+                    tlsFlags,
+                    returnCode,
+                    reasonCode);
+}
+
+Socket *tcpClient2(SocketAddress *socketAddress,
+       int connectTimeoutInMillis,
+       int *returnCode, /* errnum */
+       int *reasonCode) { /* errnum - JR's */
+  return tcpClient4(socketAddress,
+                    connectTimeoutInMillis,
+                    0,
                     0,
                     returnCode,
                     reasonCode);
@@ -1068,6 +1088,7 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
 #else
   reasonCodePtr = reasonCode;
 #endif
+
   BPXRED(&sd,
           &buffer,
           &zero,
