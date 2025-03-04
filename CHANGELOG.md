@@ -4,6 +4,7 @@
 - Bugfix: allocate storage to be executed with EXECUTABLE=YES (#507)
 - Bugfix: fix a leak in the rsusermap code (#467)
 - Bugfix: use single-line WTOs for single-line messages (#509)
+- Bugfix: make sure modreg-based modules are never deleted (#517, zowe/zss#749)
 
 ## `3.1.0`
 - Enhancement: `configmgr extract` option supports simple array (#502)

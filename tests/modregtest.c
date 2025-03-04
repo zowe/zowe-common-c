@@ -68,5 +68,13 @@ int main() {
     return 8;
   }
 
+  // make sure that the result info cannot be used to delete the module
+  int lpa_rsn;
+  int lpa_rc = lpaDelete(&lpaInfo, &lpa_rsn);
+  printf("lpa delete rc = %d, rsn = %08X\n", lpa_rc, lpa_rsn);
+  if (!(lpa_rc == 4 && lpa_rsn == 0x0401)) {
+    return 8;
+  }
+
   return 0;
 }

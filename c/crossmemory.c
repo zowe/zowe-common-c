@@ -2849,20 +2849,27 @@ static int freeGlobalResources(CrossMemoryServer *server) {
       /* If the "clean LPA" flag is set or in dev mode, force the server to
        * remove the existing LPA module. This will help avoid abandoning too
        * many module in LPA during development. */
-      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
-              " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
-      int lpaDeleteRSN = 0;
-      int lpaDeleteRC = lpaDelete(&globalArea->lpaModuleInfo,
-                                  &lpaDeleteRSN);
-      if (lpaDeleteRC != 0) {
-        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
-                CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
-        return RC_CMS_LPA_DELETE_FAILED;
-      }
+      if (globalArea->flags & CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE) {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
+                " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
+        int lpaDeleteRSN = 0;
+        int lpaDeleteRC = lpaDelete(&globalArea->lpaModuleInfo,
+                                    &lpaDeleteRSN);
+        if (lpaDeleteRC != 0) {
+          zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+                  CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
+          return RC_CMS_LPA_DELETE_FAILED;
+        }
 
-      moduleAddressLPA = NULL;
-      memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
-      memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
+        globalArea->flags &= ~CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE;
+        moduleAddressLPA = NULL;
+        memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
+        memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
+      } else {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
+                " LPA dev mode enabled, skipping CSVDYLPA DELETE because "
+                "module is not private\n");
+      }
 
     }
 
@@ -3432,15 +3439,21 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
          * remove the existing LPA module if the private module doesn't match
          * it. This will help avoid abandoning too many modules in LPA during
          * development. */
-        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
-                " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
-        int lpaDeleteRSN = 0;
-        int lpaDeleteRC = lpaDelete(&globalArea->lpaModuleInfo,
-                                    &lpaDeleteRSN);
-        if (lpaDeleteRC != 0) {
-          zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
-                  CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
-          return RC_CMS_LPA_DELETE_FAILED;
+        if (globalArea->flags & CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE) {
+          zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
+                  " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
+          int lpaDeleteRSN = 0;
+          int lpaDeleteRC = lpaDelete(&globalArea->lpaModuleInfo,
+                                      &lpaDeleteRSN);
+          if (lpaDeleteRC != 0) {
+            zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+                    CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
+            return RC_CMS_LPA_DELETE_FAILED;
+          }
+        } else {
+          zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
+                  " LPA dev mode enabled, skipping CSVDYLPA DELETE because "
+                  "module is not private\n");
         }
 
         lpaDiscarded = true;
@@ -3448,6 +3461,7 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
 
       if (lpaDiscarded) {
         moduleAddressLPA = NULL;
+        globalArea->flags &= ~CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE;
         memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
         memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
       }
@@ -3484,6 +3498,7 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
                 CMS_LOG_LPA_LOAD_FAILURE_MSG, lpaAddRC, lpaAddRSN);
         return RC_CMS_LPA_ADD_FAILED;
       }
+      globalArea->flags |= CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE;
     } else {
       uint64_t modregRSN;
       int modregRC = modregRegister(server->ddname, server->dsname,
