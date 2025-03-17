@@ -7,6 +7,8 @@
 - Bugfix: make sure modreg-based modules are never deleted (#517, zowe/zss#749)
 - Feature: add a modify command for displaying the module registry information
   (#519)
+- Feature: add a flag for resetting the module registry at the cross-memory
+  server start-up (#519)
 
 ## `3.1.0`
 - Enhancement: `configmgr extract` option supports simple array (#502)

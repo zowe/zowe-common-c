@@ -2563,6 +2563,10 @@ CrossMemoryServer *makeCrossMemoryServer2(
     server->flags |= CROSS_MEMORY_SERVER_FLAG_USE_MODREG;
   }
 
+  if (flags & CMS_SERVER_FLAG_RESET_MODREG) {
+    server->flags |= CROSS_MEMORY_SERVER_FLAG_RESET_MODREG;
+  }
+
   int allocResourcesRC = allocServerResources(server);
   if (allocResourcesRC != RC_CMS_OK) {
     safeFree31((char *)server, sizeof(CrossMemoryServer));
@@ -5191,6 +5195,16 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
       if (discardRC != RC_CMS_OK) {
         zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
                 CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG, discardRC);
+      }
+    }
+    if (srv->flags & CROSS_MEMORY_SERVER_FLAG_RESET_MODREG) {
+      int resetRC = modregReset();
+      if (resetRC == RC_MODREG_OK) {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+                CMS_LOG_MODREG_RESET_REQ_MSG);
+      } else {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+                CMS_LOG_MODREG_RESET_WARN_MSG, resetRC);
       }
     }
   }
