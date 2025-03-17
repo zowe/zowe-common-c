@@ -3833,6 +3833,70 @@ static void printDisplayConfigCommandResponse(CrossMemoryServer *server, CMSWTOR
 
 }
 
+static void printDisplayModregCommandResponse(CrossMemoryServer *server,
+                                              CMSWTORouteInfo *routeInfo) {
+
+  CART cart = routeInfo->cart;
+  int consoleID = routeInfo->consoleID;
+  CrossMemoryServerGlobalArea *globalArea = server->globalArea;
+
+  const ZVT *zvt = zvtGet();
+  if (zvt == NULL) {
+    wtoPrintf2(consoleID, cart,
+               CMS_LOG_DISP_CMD_RESULT_MSG
+               "Module registry not found (ZVT address is zero)");
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+            CMS_LOG_DISP_CMD_RESULT_MSG
+            "Module registry not found (ZVT address is zero)\n");
+    return;
+  }
+  const void *modreg = zvt ? zvt->moduleRegistry : NULL;
+  if (modreg == NULL) {
+    wtoPrintf2(consoleID, cart,
+               CMS_LOG_DISP_CMD_RESULT_MSG "Module registry is empty at 0x%p",
+               &zvt->moduleRegistry);
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+            CMS_LOG_DISP_CMD_RESULT_MSG "Module registry is empty at 0x%p\n",
+            &zvt->moduleRegistry);
+    return;
+  }
+
+  wtoPrintf2(consoleID, cart,
+             CMS_LOG_DISP_CMD_RESULT_MSG
+             "Module registry address is 0x%p at 0x%p",
+             modreg, &zvt->moduleRegistry);
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+          CMS_LOG_DISP_CMD_RESULT_MSG
+          "Module registry address is 0x%p at 0x%p\n",
+          modreg, &zvt->moduleRegistry);
+
+  // TODO: the following SYSPRINT only as we don't have hex dump functionality
+  // for WTO yet
+  __packed struct {
+    char filler0[12];
+    uint16_t size;
+    char filler1[26];
+    void *next;
+  } const *modregEntry = modreg;
+
+  // these value are just for protection since we're not using an API and we
+  // can make mistakes, or the registry structure changes
+  // TODO: expose modreg internals in a safe manner
+  const int maxModregEntryCount = 32768;
+  const int maxEntrySize = 1024;
+  for (int i = 0; i < maxModregEntryCount; i++) {
+    if (modregEntry == NULL) {
+      break;
+    }
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+            CMS_LOG_DISP_CMD_RESULT_MSG "Module registry entry #%d at 0x%p:\n",
+            i, modregEntry);
+    zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, (void *)modregEntry,
+             min(maxEntrySize, modregEntry->size));
+    modregEntry = modregEntry->next;
+  }
+}
+
 #define CMS_COMMAND_VERB_DISAPLY_DEFAULT_OPTION "CONFIG"
 
 static CMSModifyCommandStatus handleCommandVerbDisplay(
@@ -3868,6 +3932,8 @@ static CMSModifyCommandStatus handleCommandVerbDisplay(
 
   if (strcmp(option, "CONFIG") == 0) {
     printDisplayConfigCommandResponse(server, routeInfo);
+  } else if (strcmp(option, "MODREG") == 0) {
+    printDisplayModregCommandResponse(server, routeInfo);
   } else {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_BAD_DISPLAY_OPTION_MSG, option);
     wtoPrintf2(consoleID, cart, CMS_LOG_BAD_DISPLAY_OPTION_MSG, option);
@@ -4556,6 +4622,7 @@ static void printServerReadyMessage(CrossMemoryServer *srv) {
       "           DISPLAY [OPTION_NAME]- Print service information\n"
       "             OPTION_NAME:\n"
       "               CONFIG - Print server configuration information (default)\n"
+      "               MODREG - Print module registry informatio\n"
       "           FLUSH - Print all pending log messages\n"
       "           LOG <COMP_ID> <LOG_LEVEL> - Set log level\n"
       "             COMP_ID:\n"
@@ -4581,6 +4648,7 @@ static void printServerReadyMessage(CrossMemoryServer *srv) {
   wtoAddLine(handle, "           DISPLAY [OPTION_NAME] - Print service information");
   wtoAddLine(handle, "             OPTION_NAME:");
   wtoAddLine(handle, "               CONFIG - Print server configuration information (default)");
+  wtoAddLine(handle, "               MODREG - Print module registry information");
   wtoAddLine(handle, "           FLUSH   - Print all pending log messages");
   wtoAddLine(handle, "           LOG <COMP_ID> <LOG_LEVEL> - Set log level");
   wtoAddLine(handle, "             COMP_ID:");
