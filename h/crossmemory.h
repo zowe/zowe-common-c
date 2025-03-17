@@ -234,6 +234,7 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   unsigned char subpool;
   unsigned short size;
   unsigned int flags;
+#define CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE 0x00000001
   char reserved1[56];
 
   void * __ptr32 userServerAnchor;
