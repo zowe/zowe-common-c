@@ -378,6 +378,7 @@ static void wtoPrintSinglelineMessage(const char text[], size_t textLen,
     .length = sizeof(line.text) + 4,
     .flags = WTO_EXTENDED_WPL,
     .version = SINGLELINE_WTO_VERSION,
+    .wpxLength = 104, // from the WTO list form macro
   };
 
   memset(line.text, ' ', sizeof(line.text));
