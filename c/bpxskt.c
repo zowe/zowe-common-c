@@ -388,7 +388,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
        int *reasonCode) { /* errnum - JR's */
   return tcpClient4(socketAddress,
                     connectTimeoutInMillis,
-                    0,
+                    -1,
                     tlsFlags,
                     returnCode,
                     reasonCode);
