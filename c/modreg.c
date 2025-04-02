@@ -578,6 +578,27 @@ out_unlock:
   return rc;
 }
 
+int modregReset(void) {
+
+  ZVT *zvt = zvtGet();
+  LOG_DEBUG("ZVT address = %p", zvt);
+  if (zvt == NULL) {
+    return RC_MODREG_ZVT_NULL;
+  }
+
+  LOG_DEBUG("modreg address = %p", zvt->moduleRegistry);
+  int wasProblemState = supervisorMode(TRUE);
+  int originalKey = setKey(0);
+  {
+    zvt->moduleRegistry = NULL;
+  }
+  setKey(originalKey);
+  if (wasProblemState) {
+    supervisorMode(FALSE);
+  }
+
+  return RC_MODREG_OK;
+}
 
 /*
   This program and the accompanying materials are
