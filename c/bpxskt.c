@@ -400,7 +400,7 @@ Socket *tcpClient2(SocketAddress *socketAddress,
        int *reasonCode) { /* errnum - JR's */
   return tcpClient4(socketAddress,
                     connectTimeoutInMillis,
-                    0,
+                    -1,
                     0,
                     returnCode,
                     reasonCode);
