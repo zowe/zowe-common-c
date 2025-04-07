@@ -369,13 +369,14 @@ Socket *tcpClient4(SocketAddress *socketAddress,
       /* manual says returnCode and value only meaningful if return value = -1 */
       *returnCode = 0;
       *reasonCode = 0;
-      socket->protocol = IPPROTO_TCP;
-
       if (readTimeoutInMillis >= 0) {
+        setSocketOption(socket, SOL_SOCKET, SOCK_SO_RCVTIMEO, sizeof(int), (char*)&readTimeoutInMillis, returnCode, reasonCode);
         setSocketBlockingMode(socket, TRUE, returnCode, reasonCode);
       } else {
         setSocketBlockingMode(socket, FALSE, returnCode, reasonCode);
       }
+      socket->protocol = IPPROTO_TCP;
+
       return socket;
     }
   }                    
