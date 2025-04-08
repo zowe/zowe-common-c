@@ -64,6 +64,7 @@
 
 #ifndef __LONGNAME__
 #define modregRegister MODRRGST
+#define modregReset MODRRSET
 #endif
 
 /**
@@ -87,6 +88,20 @@
  */
 int modregRegister(EightCharString ddname, EightCharString module,
                    LPMEA *lpaInfo, uint64_t *rsn);
+
+
+/**
+ * The function resets the module registry by setting its global address to
+ * zero; no LPA modules or common storage get deleted, so any running user
+ * of the registry should not be affected.
+ *
+ * WARNING: this call will leak the LPA storage used for shared modules and
+ * the 64-bit common storage used for the module registry's structures.
+ *
+ * @return @c RC_MODREG_OK if the registry has been successfully reset,
+ * and any other RC_MODREG_xxx in case of failure.
+ */
+int modregReset(void);
 
 #endif /* H_MODREG_H_ */
 

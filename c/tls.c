@@ -76,7 +76,7 @@ static int isTLSV13Available(TlsSettings *settings) {
 #define TLS_MIN_DEFAULT TLS_V1_2
 #define TLS_MAX_DEFAULT TLS_V1_3
 
-static char *TLS_NAMES[5] = {
+static char *TLS_NAMES[] = {
   "invalid",
   "TLSv1.0",
   "TLSv1.1",
@@ -84,13 +84,11 @@ static char *TLS_NAMES[5] = {
   "TLSv1.3"
 };
 
-#define TLS_NAMES_LENGTH 5
-
 static int getTlsMax(TlsSettings *settings) {
   if (settings->maxTls != NULL) {
-    for (int i = 0; i < TLS_NAMES_LENGTH; i++) {
+    for (int i = 0; i < sizeof(TLS_NAMES)/sizeof(TLS_NAMES[0]); i++) {
       if (!strcmp(settings->maxTls, TLS_NAMES[i])) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Min TLS requested=%d\n",i);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Min TLS requested=%s\n", TLS_NAMES[i]);
         return i;
       }
     }
@@ -101,9 +99,9 @@ static int getTlsMax(TlsSettings *settings) {
 
 static int getTlsMin(TlsSettings *settings) {
   if (settings->minTls != NULL) {
-    for (int i = 0; i < TLS_NAMES_LENGTH; i++) {
+    for (int i = 0; i < sizeof(TLS_NAMES)/sizeof(TLS_NAMES[0]); i++) {
       if (!strcmp(settings->minTls, TLS_NAMES[i])) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Max TLS requested=%d\n",i);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Max TLS requested=%s\n", TLS_NAMES[i]);
         return i;
       }
     }

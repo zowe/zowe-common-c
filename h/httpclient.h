@@ -47,6 +47,7 @@ extern "C" {
 #define HTTP_CLIENT_RESPONSE_ZEROLEN      16
 #define HTTP_CLIENT_TLS_ERROR             17
 #define HTTP_CLIENT_TLS_NOT_CONFIGURED    18
+#define HTTP_CLIENT_EWOULDBLOCK           19
 
 typedef struct HttpClientSettings_tag {
   char *host;
@@ -122,6 +123,8 @@ int httpClientContextInitSecure(HttpClientSettings *settings,
 void httpClientSessionDestroy(HttpClientSession *session);
 
 int httpClientSessionInit(HttpClientContext *ctx, HttpClientSession **outSession);
+
+int httpClientSessionInitv2(HttpClientContext *ctx, HttpClientSession **outSession, int *rc);
 
 int httpClientSessionStageRequest(HttpClientContext *ctx,
                                   HttpClientSession *session,

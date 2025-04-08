@@ -50,6 +50,7 @@ typedef struct ConfigManager_tag{
 #define ZCFG_IO_ERROR 13
 #define ZCFG_VALIDATION_INTERNAL_ERROR 14
 #define ZCFG_JQ_PARSE_ERROR 15
+#define ZCFG_EXTRACT_ERROR 16
 /* Normal way to tell people the program succeded but their config is bad */
 #define ZCFG_CONFIG_FAILED_VALIDATION 99
 

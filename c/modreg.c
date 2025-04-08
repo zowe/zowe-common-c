@@ -78,7 +78,7 @@ typedef struct ModuleRegistryEntry_tag {
   char eyecatcher[8];
 #define MODREG_ENTRY_EYECATCHER   "ZWEMODRE"
   uint8_t version;
-#define MODREG_ENTRY_VERSION      1
+#define MODREG_ENTRY_VERSION      2
   uint8_t key;
 #define MODREG_ENTRY_KEY          0
   char reserved1[2];
@@ -225,7 +225,9 @@ static void freeEntry(ModuleRegistryEntry *entry) {
 static bool isModuleEntryEligible(const ModuleRegistryEntry *entry) {
   LOG_DEBUG("validating module entry @ %p:", entry);
   DUMP_DEBUG(entry, sizeof(*entry));
-  if (entry->version > MODREG_ENTRY_VERSION) {
+  // version 1 is excluded because v1 entries may have been affected by
+  // the dev mode bug; see https://github.com/zowe/zss/issues/749
+  if (entry->version > MODREG_ENTRY_VERSION || entry->version == 1) {
     LOG_DEBUG("module entry has unsupported version %u", entry->version);
     return false;
   }
@@ -568,9 +570,35 @@ out_unlock:
   LOG_DEBUG("unlock rc = %d, rsn = 0x%08X", lockRC, lockRSN);
   rc = rc ? rc : lockRC;
 
+  // Make sure the caller never has the delete token; this is done to prevent
+  // deletion of shared modules.
+  memset(&lpaInfo->outputInfo.stuff.successInfo.deleteToken, 0,
+          sizeof(lpaInfo->outputInfo.stuff.successInfo.deleteToken));
+
   return rc;
 }
 
+int modregReset(void) {
+
+  ZVT *zvt = zvtGet();
+  LOG_DEBUG("ZVT address = %p", zvt);
+  if (zvt == NULL) {
+    return RC_MODREG_ZVT_NULL;
+  }
+
+  LOG_DEBUG("modreg address = %p", zvt->moduleRegistry);
+  int wasProblemState = supervisorMode(TRUE);
+  int originalKey = setKey(0);
+  {
+    zvt->moduleRegistry = NULL;
+  }
+  setKey(originalKey);
+  if (wasProblemState) {
+    supervisorMode(FALSE);
+  }
+
+  return RC_MODREG_OK;
+}
 
 /*
   This program and the accompanying materials are

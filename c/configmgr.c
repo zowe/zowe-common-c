@@ -1161,29 +1161,57 @@ int cfgGetBooleanC(ConfigManager *mgr, const char *configName, bool *result, int
   }
 }
 
-static void extractText(ConfigManager *mgr, const char *configName, JsonPointer *jp, FILE *out){
+static int printPrimitiveDataType(Json *value, FILE *out) {
+  if (jsonIsString(value)){
+    fprintf(out,"%s",jsonAsString(value));
+  } else if (jsonIsInt64(value)){
+    fprintf(out,"%lld",INT64_LL(jsonAsInt64(value)));
+  } else if (jsonIsDouble(value)){
+    fprintf(out,"%f",jsonAsDouble(value));
+  } else if (jsonIsBoolean(value)){
+    fprintf(out,"%s",jsonAsBoolean(value) ? "true" : "false");
+  } else if (jsonIsNull(value)){
+    fprintf(out,"null");
+  } else {
+    fprintf(out,"error: unhandled type");
+    return ZCFG_EXTRACT_ERROR;
+  }
+  return ZCFG_SUCCESS;
+}
+
+static int extractText(ConfigManager *mgr, const char *configName, JsonPointer *jp, FILE *out){
   Json *value = NULL;
   int status = cfgGetAnyJ(mgr,configName,&value,jp);
+  int ret = 0;
   if (status){
     fprintf(out,"error not found, reason=%d",status);
-  } else {
-    if (jsonIsObject(value) ||
-        jsonIsArray(value)){
-      fprintf(out,"error: cannot access whole objects or arrays");
-    } else if (jsonIsString(value)){
-      fprintf(out,"%s",jsonAsString(value));
-    } else if (jsonIsInt64(value)){
-      fprintf(out,"%lld",INT64_LL(jsonAsInt64(value)));
-    } else if (jsonIsDouble(value)){
-      fprintf(out,"%f",jsonAsDouble(value));
-    } else if (jsonIsBoolean(value)){
-      fprintf(out,"%s",jsonAsBoolean(value) ? "true" : "false");
-    } else if (jsonIsNull(value)){
-      fprintf(out,"null");
-    } else {
-      fprintf(out,"error: unhandled type");
-    }
+    return ZCFG_EXTRACT_ERROR;
   }
+
+  if (jsonIsObject(value)) {
+    fprintf(out,"error: cannot access whole objects");
+    return ZCFG_EXTRACT_ERROR;
+  }
+
+  if (jsonIsArray(value)) {
+    JsonArray *array = jsonAsArray(value);
+    for (int i = 0; i < jsonArrayGetCount(array); i++) {
+      Json *arrayItem = jsonArrayGetItem(array, i);
+      if (jsonIsObject(arrayItem) || jsonIsArray(arrayItem)) {
+        fprintf(out,"error: cannot access objects or arrays in arrays");
+        return ZCFG_EXTRACT_ERROR;
+      } else {
+        ret = printPrimitiveDataType(arrayItem, out);
+        fprintf(out, "\n");
+        if (ret) {
+          return ret;
+        }
+      }
+    }
+  } else {
+    ret = printPrimitiveDataType(value, out);
+  }
+  return ret;
 }
 
 #define MAX_PATH_NAME 1024
@@ -1675,7 +1703,7 @@ static int simpleMain(int argc, char **argv){
 
   while (argx < argc){
     char *optionValue = NULL;
-    if (getStringOption(argc,argv,&argx,"-h")){
+    if (strcmp(argv[argx], "-h") == 0) {
       showHelp(traceOut);
       return 0;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-s")) != NULL){
@@ -1831,9 +1859,10 @@ static int simpleMain(int argc, char **argv){
         printJsonPointer(mgr->traceOut,jp);
         fflush(mgr->traceOut);
       }
-      extractText(mgr,configName,jp,stdout);
+      int extractResult = extractText(mgr,configName,jp,stdout);
       printf("\n");
       fflush(stdout);
+      return extractResult;
     }
   } else if (!strcmp(command, "env")) {
     if (argx >= argc){

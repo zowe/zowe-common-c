@@ -647,9 +647,20 @@ void httpClientSessionDestroy(HttpClientSession *session) {
 /**
  * After this call, an stcbase'd caller should 'register' the socket
  */
+
 int httpClientSessionInit(HttpClientContext *ctx, HttpClientSession **outSession) {
+  int rc = 0;
+  int ret = 0;
+
+  rc = httpClientSessionInitv2(ctx, outSession, &ret); // 'ret' is a dummy arugment just to call v2
+
+  return rc;
+}
+
+int httpClientSessionInitv2(HttpClientContext *ctx, HttpClientSession **outSession, int *rc) {
   int sts = 0;
-  int bpxrc = 0, bpxrsn = 0;
+  int bpxrsn = 0;
+  int *bpxrc = rc;
 
   HttpClientSession *session = NULL;
   ShortLivedHeap *slh = NULL;
@@ -660,13 +671,17 @@ int httpClientSessionInit(HttpClientContext *ctx, HttpClientSession **outSession
       break;
     }
 
-    Socket *socket = tcpClient2(ctx->serverAddress, 1000 * ctx->recvTimeoutSeconds, &bpxrc, &bpxrsn);
-    if ((bpxrc != 0) || (NULL == socket)) {
+    int readTimeoutMillis = 1000 * ctx->recvTimeoutSeconds;
+    int connectTimeoutMillis = readTimeoutMillis;
+    int tlsFlags = 0; //no TLS
+
+    Socket *socket = tcpClient4(ctx->serverAddress, connectTimeoutMillis, readTimeoutMillis, tlsFlags, bpxrc, &bpxrsn);
+    if ((*bpxrc != 0) || (NULL == socket)) {
 #ifdef __ZOWE_OS_ZOS
-      HTTP_CLIENT_TRACE_VERBOSE("%s (rc=%d, rsn=0x%x, addr=0x%08x, port=%d)\n", HTTP_CLIENT_MSG_CONNECT_FAILED, bpxrc,
+      HTTP_CLIENT_TRACE_VERBOSE("%s (rc=%d, rsn=0x%x, addr=0x%08x, port=%d)\n", HTTP_CLIENT_MSG_CONNECT_FAILED, *bpxrc,
                                 bpxrsn, ctx->serverAddress->v4Address, ctx->serverAddress->port);
 #else
-      HTTP_CLIENT_TRACE_VERBOSE("%s (rc=%d, rsn=0x%x, addr=0x%08x, port=%d)\n", HTTP_CLIENT_MSG_CONNECT_FAILED, bpxrc,
+      HTTP_CLIENT_TRACE_VERBOSE("%s (rc=%d, rsn=0x%x, addr=0x%08x, port=%d)\n", HTTP_CLIENT_MSG_CONNECT_FAILED, *bpxrc,
                                 bpxrsn, ctx->serverAddress->internalAddress.v4Address, ctx->serverAddress->port);
 #endif
       sts = HTTP_CLIENT_CONNECT_FAILED;
@@ -684,7 +699,7 @@ int httpClientSessionInit(HttpClientContext *ctx, HttpClientSession **outSession
     int rc = tlsSocketInit(ctx->tlsEnvironment, &socket->tlsSocket, socket->sd, false);
     if (rc != 0) {
       HTTP_CLIENT_TRACE_VERBOSE("failed to init tls socket, rc=%d, (%s)", rc, tlsStrError(rc));
-      socketClose(socket, &bpxrc, &bpxrsn);
+      socketClose(socket, bpxrc, &bpxrsn);
       sts = HTTP_CLIENT_TLS_ERROR;
       break;
     }
@@ -1038,6 +1053,9 @@ int httpClientSessionReceiveNativeLoop(HttpClientContext *ctx, HttpClientSession
       bytesRead = socketRead(session->socket, buf, sizeof(buf), &bpxrc, &bpxrsn);
       if (bytesRead < 1) {
         HTTP_CLIENT_TRACE_VERBOSE("http client nativeLoop socket read error rc=%d, rsn=0x%x\n", bpxrc, bpxrsn);
+        if (bpxrc == 0x44E){
+          sts = HTTP_CLIENT_EWOULDBLOCK;
+        }
         sts = HTTP_CLIENT_READ_ERROR;
         break;
       }
@@ -1082,6 +1100,9 @@ int httpClientSessionReceiveNative(HttpClientContext *ctx, HttpClientSession *se
     buf = SLHAlloc(session->slh, maxlen);
     buflen = socketRead(session->socket, buf, maxlen, &bpxrc, &bpxrsn);
     if (buflen < 1) {
+      if (bpxrc == 0x44E){
+        sts = HTTP_CLIENT_EWOULDBLOCK;
+      }
       sts = HTTP_CLIENT_READ_ERROR;
       break;
     }

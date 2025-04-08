@@ -234,6 +234,7 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   unsigned char subpool;
   unsigned short size;
   unsigned int flags;
+#define CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE 0x00000001
   char reserved1[56];
 
   void * __ptr32 userServerAnchor;
@@ -339,6 +340,7 @@ typedef struct CrossMemoryServer_tag {
 #define CROSS_MEMORY_SERVER_FLAG_CLEAN_LPA    0x00000020
 #define CROSS_MEMORY_SERVER_FLAG_RESET_LOOKUP 0x00000040
 #define CROSS_MEMORY_SERVER_FLAG_USE_MODREG   0x00000080
+#define CROSS_MEMORY_SERVER_FLAG_RESET_MODREG 0x00000100
   STCBase * __ptr32 base;
   CMSStarCallback * __ptr32 startCallback;
   CMSStopCallback * __ptr32 stopCallback;
@@ -463,6 +465,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define CMS_SERVER_FLAG_DEV_MODE_LPA          0x00000010
 #define CMS_SERVER_FLAG_RESET_LOOKUP          0x00000020
 #define CMS_SERVER_FLAG_USE_MODREG            0x00000040
+#define CMS_SERVER_FLAG_RESET_MODREG          0x00000080
 
 #define CMS_SERVICE_FLAG_NONE                 0x00000000
 #define CMS_SERVICE_FLAG_SPACE_SWITCH         0x00000001
@@ -1176,6 +1179,19 @@ typedef struct CMSDynlinkEnv_tag {
 #endif
 #define CMS_LOG_MODREG_ADD_FAILURE_MSG_TEXT     "Module not registered, RC = %d, RSN = 0x%016llX"
 #define CMS_LOG_MODREG_ADD_FAILURE_MSG          CMS_LOG_MODREG_ADD_FAILURE_MSG_ID" "CMS_LOG_MODREG_ADD_FAILURE_MSG_TEXT
+
+#ifndef CMS_LOG_MODREG_RESET_REQ_MSG_ID
+#define CMS_LOG_MODREG_RESET_REQ_MSG_ID         CMS_MSG_PRFX"0260I"
+#endif
+#define CMS_LOG_MODREG_RESET_REQ_MSG_TEXT       "Module registry has been reset"
+#define CMS_LOG_MODREG_RESET_REQ_MSG            CMS_LOG_MODREG_RESET_REQ_MSG_ID" "CMS_LOG_MODREG_RESET_REQ_MSG_TEXT
+
+#ifndef CMS_LOG_MODREG_RESET_WARN_MSG_ID
+#define CMS_LOG_MODREG_RESET_WARN_MSG_ID        CMS_MSG_PRFX"0261W"
+#endif
+#define CMS_LOG_MODREG_RESET_WARN_MSG_TEXT      "Module registry reset RC = %d"
+#define CMS_LOG_MODREG_RESET_WARN_MSG           CMS_LOG_MODREG_RESET_WARN_MSG_ID" "CMS_LOG_MODREG_RESET_WARN_MSG_TEXT
+
 
 #endif /* H_CROSSMEMORY_H_ */
 

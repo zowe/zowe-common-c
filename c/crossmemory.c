@@ -237,6 +237,40 @@ typedef struct MultilineWTOHandle_tag {
   MultilineWTONLine lines[0];
 } MultilineWTOHandle;
 
+typedef struct SinglelineWTOLine_tag {
+#define SINGLELINE_WTO_MAX_LEN 126
+#define SINGLELINE_WTO_VERSION 2
+  unsigned short length;
+  unsigned short flags;
+  char text[SINGLELINE_WTO_MAX_LEN];
+  unsigned char version;
+  unsigned char miscFlags;
+  unsigned char replyLength;
+  unsigned char wpxLength;
+  unsigned short extendedFlags;
+  char reserved2[2];
+  char * __ptr32 replyBuffer;
+  int  * __ptr32 replyECB;
+  unsigned int connectID;
+  unsigned short descriptorCodes;
+  char reserved3[2];
+  char extendedRoutingCodes[16];
+  unsigned short messageType;
+  unsigned short messagePriority;
+  char jobID[8];
+  char jobName[8];
+  char retrievalKey[8];
+  unsigned int tokenForDOM;
+  unsigned int consoleID;
+  char systemName[8];
+  char consoleName[8];
+  void * __ptr32 replyConsoleID;
+  void * __ptr32 cart;
+  void * __ptr32 wsparm;
+} SinglelineWTOLine;
+
+#define WTO_EXT_FLAG_CONSID_SPECIFIED 0x4000
+
 ZOWE_PRAGMA_PACK_RESET
 
 static MultilineWTOHandle *wtoGetMultilineHandle(unsigned int maxLineCount) {
@@ -309,8 +343,6 @@ static void wtoAddLine(MultilineWTOHandle *handle, const char *formatString, ...
 
 static void wtoPrintMultilineMessage(MultilineWTOHandle *handle, int consoleID, CART cart) {
 
-#define WTO_EXT_FLAG_CONSID_SPECIFIED 0x4000
-
   MultilineWTONLine *finalLine = &handle->lines[handle->lineCount];
   handle->firstLine.consoleID = consoleID;
   if (consoleID != 0) {
@@ -339,23 +371,54 @@ static void wtoRemoveMultilineHandle(MultilineWTOHandle *handle) {
   handle = NULL;
 }
 
-void wtoPrintf2(int consoleID, CART cart, char *formatString, ...) {
+static void wtoPrintSinglelineMessage(const char text[], size_t textLen,
+                                      int consoleID, CART cart) {
 
-  MultilineWTOHandle *handle = wtoGetMultilineHandle(4);
-  if (handle == NULL) {
-    return;
+  SinglelineWTOLine line = {
+    .length = sizeof(line.text) + 4,
+    .flags = WTO_EXTENDED_WPL,
+    .version = SINGLELINE_WTO_VERSION,
+    .wpxLength = 104, // from the WTO list form macro
+  };
+
+  memset(line.text, ' ', sizeof(line.text));
+  memcpy(line.text, text, min(sizeof(line.text), textLen));
+
+  memset(line.jobID, ' ', sizeof(line.jobID));
+  memset(line.jobName, ' ', sizeof(line.jobName));
+  memset(line.retrievalKey, ' ', sizeof(line.retrievalKey));
+  memset(line.systemName, ' ', sizeof(line.systemName));
+  memset(line.consoleName, ' ', sizeof(line.consoleName));
+
+  line.consoleID = consoleID;
+  if (consoleID != 0) {
+    line.extendedFlags = WTO_EXT_FLAG_CONSID_SPECIFIED;
   }
 
-  char text[sizeof(handle->firstLine.text)];
+  line.cart = &cart;
+
+  __asm(
+      "         XGR   0,0                                                      \n"
+      "         WTO   MF=(E,(%[parm]))                                         \n"
+      :
+      : [parm]"r"(&line)
+      : "r0", "r1", "r14", "r15"
+  );
+
+}
+
+void wtoPrintf2(int consoleID, CART cart, char *formatString, ...) {
+
+  char text[SINGLELINE_WTO_MAX_LEN + 1];
   va_list argPointer;
   va_start(argPointer,formatString);
-  vsnprintf(text, sizeof(text), formatString, argPointer);
+  int charsPrinted = vsnprintf(text, sizeof(text), formatString, argPointer);
   va_end(argPointer);
 
-  wtoAddLine(handle, text);
-  wtoPrintMultilineMessage(handle, consoleID, cart);
-  wtoRemoveMultilineHandle(handle);
-  handle = NULL;
+  if (charsPrinted >= 0) {
+    wtoPrintSinglelineMessage(text, min(charsPrinted, SINGLELINE_WTO_MAX_LEN),
+                              consoleID, cart);
+  }
 
 }
 
@@ -2168,6 +2231,14 @@ static void freeECSAStorage(void *data, unsigned int size) {
   cmFree(data, size, CROSS_MEMORY_SERVER_SUBPOOL, CROSS_MEMORY_SERVER_KEY);
 }
 
+static void *allocateECSAStorageExec(unsigned int size) {
+  return cmAllocExec(size, CROSS_MEMORY_SERVER_SUBPOOL, CROSS_MEMORY_SERVER_KEY);
+}
+
+static void freeECSAStorageExec(void *data, unsigned int size) {
+  cmFreeExec(data, size, CROSS_MEMORY_SERVER_SUBPOOL, CROSS_MEMORY_SERVER_KEY);
+}
+
 static void allocateECSAStorage2(unsigned int size,
                                  void **resultPtr) {
 
@@ -2492,6 +2563,10 @@ CrossMemoryServer *makeCrossMemoryServer2(
     server->flags |= CROSS_MEMORY_SERVER_FLAG_USE_MODREG;
   }
 
+  if (flags & CMS_SERVER_FLAG_RESET_MODREG) {
+    server->flags |= CROSS_MEMORY_SERVER_FLAG_RESET_MODREG;
+  }
+
   int allocResourcesRC = allocServerResources(server);
   if (allocResourcesRC != RC_CMS_OK) {
     safeFree31((char *)server, sizeof(CrossMemoryServer));
@@ -2779,20 +2854,27 @@ static int freeGlobalResources(CrossMemoryServer *server) {
       /* If the "clean LPA" flag is set or in dev mode, force the server to
        * remove the existing LPA module. This will help avoid abandoning too
        * many module in LPA during development. */
-      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
-              " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
-      int lpaDeleteRSN = 0;
-      int lpaDeleteRC = lpaDelete(&globalArea->lpaModuleInfo,
-                                  &lpaDeleteRSN);
-      if (lpaDeleteRC != 0) {
-        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
-                CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
-        return RC_CMS_LPA_DELETE_FAILED;
-      }
+      if (globalArea->flags & CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE) {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
+                " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
+        int lpaDeleteRSN = 0;
+        int lpaDeleteRC = lpaDelete(&globalArea->lpaModuleInfo,
+                                    &lpaDeleteRSN);
+        if (lpaDeleteRC != 0) {
+          zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+                  CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
+          return RC_CMS_LPA_DELETE_FAILED;
+        }
 
-      moduleAddressLPA = NULL;
-      memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
-      memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
+        globalArea->flags &= ~CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE;
+        moduleAddressLPA = NULL;
+        memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
+        memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
+      } else {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
+                " LPA dev mode enabled, skipping CSVDYLPA DELETE because "
+                "module is not private\n");
+      }
 
     }
 
@@ -3112,11 +3194,10 @@ static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
             anchorLength, sizeof(CMSLookupRoutineAnchor));
     return NULL;
   }
-  // TODO if the cmutils alloc functions are changed to allocate non-executable
-  //  storage, this call will need to change
-  CMSLookupRoutineAnchor *anchor = cmAlloc(sizeof(CMSLookupRoutineAnchor),
-                                           CMS_LOOKUP_ANCHOR_SUBPOOL,
-                                           CMS_LOOKUP_ANCHOR_KEY);
+
+  CMSLookupRoutineAnchor *anchor = cmAllocExec(sizeof(CMSLookupRoutineAnchor),
+                                               CMS_LOOKUP_ANCHOR_SUBPOOL,
+                                               CMS_LOOKUP_ANCHOR_KEY);
   if (anchor == NULL) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG,
             CMS_LOG_DEBUG_MSG_ID" Alloc failed for look-up anchor\n");
@@ -3156,8 +3237,8 @@ static CMSLookupRoutineAnchor *makeLookupRoutineAnchor(void) {
 }
 
 static void deleteLookupRoutineAnchor(CMSLookupRoutineAnchor *anchor) {
-  cmFree(anchor, anchor->size, CMS_LOOKUP_ANCHOR_SUBPOOL,
-         CMS_LOOKUP_ANCHOR_KEY);
+  cmFreeExec(anchor, anchor->size, CMS_LOOKUP_ANCHOR_SUBPOOL,
+             CMS_LOOKUP_ANCHOR_KEY);
 }
 
 static int discardLookupRoutineAnchor(CrossMemoryServer *server) {
@@ -3363,15 +3444,21 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
          * remove the existing LPA module if the private module doesn't match
          * it. This will help avoid abandoning too many modules in LPA during
          * development. */
-        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
-                " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
-        int lpaDeleteRSN = 0;
-        int lpaDeleteRC = lpaDelete(&globalArea->lpaModuleInfo,
-                                    &lpaDeleteRSN);
-        if (lpaDeleteRC != 0) {
-          zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
-                  CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
-          return RC_CMS_LPA_DELETE_FAILED;
+        if (globalArea->flags & CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE) {
+          zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
+                  " LPA dev mode enabled, issuing CSVDYLPA DELETE\n");
+          int lpaDeleteRSN = 0;
+          int lpaDeleteRC = lpaDelete(&globalArea->lpaModuleInfo,
+                                      &lpaDeleteRSN);
+          if (lpaDeleteRC != 0) {
+            zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+                    CMS_LOG_LPA_DELETE_FAILURE_MSG, lpaDeleteRC, lpaDeleteRSN);
+            return RC_CMS_LPA_DELETE_FAILED;
+          }
+        } else {
+          zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_DEBUG_MSG_ID
+                  " LPA dev mode enabled, skipping CSVDYLPA DELETE because "
+                  "module is not private\n");
         }
 
         lpaDiscarded = true;
@@ -3379,6 +3466,7 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
 
       if (lpaDiscarded) {
         moduleAddressLPA = NULL;
+        globalArea->flags &= ~CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE;
         memset(&globalArea->lpaModuleTimestamp, 0, sizeof(CMSBuildTimestamp));
         memset(&globalArea->lpaModuleInfo, 0, sizeof(LPMEA));
       }
@@ -3415,6 +3503,7 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
                 CMS_LOG_LPA_LOAD_FAILURE_MSG, lpaAddRC, lpaAddRSN);
         return RC_CMS_LPA_ADD_FAILED;
       }
+      globalArea->flags |= CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE;
     } else {
       uint64_t modregRSN;
       int modregRC = modregRegister(server->ddname, server->dsname,
@@ -3748,6 +3837,70 @@ static void printDisplayConfigCommandResponse(CrossMemoryServer *server, CMSWTOR
 
 }
 
+static void printDisplayModregCommandResponse(CrossMemoryServer *server,
+                                              CMSWTORouteInfo *routeInfo) {
+
+  CART cart = routeInfo->cart;
+  int consoleID = routeInfo->consoleID;
+  CrossMemoryServerGlobalArea *globalArea = server->globalArea;
+
+  const ZVT *zvt = zvtGet();
+  if (zvt == NULL) {
+    wtoPrintf2(consoleID, cart,
+               CMS_LOG_DISP_CMD_RESULT_MSG
+               "Module registry not found (ZVT address is zero)");
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+            CMS_LOG_DISP_CMD_RESULT_MSG
+            "Module registry not found (ZVT address is zero)\n");
+    return;
+  }
+  const void *modreg = zvt ? zvt->moduleRegistry : NULL;
+  if (modreg == NULL) {
+    wtoPrintf2(consoleID, cart,
+               CMS_LOG_DISP_CMD_RESULT_MSG "Module registry is empty at 0x%p",
+               &zvt->moduleRegistry);
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+            CMS_LOG_DISP_CMD_RESULT_MSG "Module registry is empty at 0x%p\n",
+            &zvt->moduleRegistry);
+    return;
+  }
+
+  wtoPrintf2(consoleID, cart,
+             CMS_LOG_DISP_CMD_RESULT_MSG
+             "Module registry address is 0x%p at 0x%p",
+             modreg, &zvt->moduleRegistry);
+  zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+          CMS_LOG_DISP_CMD_RESULT_MSG
+          "Module registry address is 0x%p at 0x%p\n",
+          modreg, &zvt->moduleRegistry);
+
+  // TODO: the following SYSPRINT only as we don't have hex dump functionality
+  // for WTO yet
+  __packed struct {
+    char filler0[12];
+    uint16_t size;
+    char filler1[26];
+    void *next;
+  } const *modregEntry = modreg;
+
+  // these value are just for protection since we're not using an API and we
+  // can make mistakes, or the registry structure changes
+  // TODO: expose modreg internals in a safe manner
+  const int maxModregEntryCount = 32768;
+  const int maxEntrySize = 1024;
+  for (int i = 0; i < maxModregEntryCount; i++) {
+    if (modregEntry == NULL) {
+      break;
+    }
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+            CMS_LOG_DISP_CMD_RESULT_MSG "Module registry entry #%d at 0x%p:\n",
+            i, modregEntry);
+    zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, (void *)modregEntry,
+             min(maxEntrySize, modregEntry->size));
+    modregEntry = modregEntry->next;
+  }
+}
+
 #define CMS_COMMAND_VERB_DISAPLY_DEFAULT_OPTION "CONFIG"
 
 static CMSModifyCommandStatus handleCommandVerbDisplay(
@@ -3783,6 +3936,8 @@ static CMSModifyCommandStatus handleCommandVerbDisplay(
 
   if (strcmp(option, "CONFIG") == 0) {
     printDisplayConfigCommandResponse(server, routeInfo);
+  } else if (strcmp(option, "MODREG") == 0) {
+    printDisplayModregCommandResponse(server, routeInfo);
   } else {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING, CMS_LOG_BAD_DISPLAY_OPTION_MSG, option);
     wtoPrintf2(consoleID, cart, CMS_LOG_BAD_DISPLAY_OPTION_MSG, option);
@@ -4471,6 +4626,7 @@ static void printServerReadyMessage(CrossMemoryServer *srv) {
       "           DISPLAY [OPTION_NAME]- Print service information\n"
       "             OPTION_NAME:\n"
       "               CONFIG - Print server configuration information (default)\n"
+      "               MODREG - Print module registry informatio\n"
       "           FLUSH - Print all pending log messages\n"
       "           LOG <COMP_ID> <LOG_LEVEL> - Set log level\n"
       "             COMP_ID:\n"
@@ -4496,6 +4652,7 @@ static void printServerReadyMessage(CrossMemoryServer *srv) {
   wtoAddLine(handle, "           DISPLAY [OPTION_NAME] - Print service information");
   wtoAddLine(handle, "             OPTION_NAME:");
   wtoAddLine(handle, "               CONFIG - Print server configuration information (default)");
+  wtoAddLine(handle, "               MODREG - Print module registry information");
   wtoAddLine(handle, "           FLUSH   - Print all pending log messages");
   wtoAddLine(handle, "           LOG <COMP_ID> <LOG_LEVEL> - Set log level");
   wtoAddLine(handle, "             COMP_ID:");
@@ -4671,7 +4828,7 @@ static int installResourceManager(CrossMemoryServerGlobalArea *globalArea, Resou
         resmgrRoutine, resmgrRoutineSize);
     zowedump(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, resmgrRoutine, resmgrRoutineSize);
 
-    resmgrRoutineInECSA = allocateECSAStorage(resmgrRoutineSize);
+    resmgrRoutineInECSA = allocateECSAStorageExec(resmgrRoutineSize);
     if (resmgrRoutineInECSA == NULL) {
       zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_RESMGR_ECSA_FAILURE_MSG, resmgrRoutineSize);
       status = RC_CMS_ECSA_ALLOC_FAILED;
@@ -4687,7 +4844,7 @@ static int installResourceManager(CrossMemoryServerGlobalArea *globalArea, Resou
       int createTokenRC = nameTokenCreatePersistent(NAME_TOKEN_LEVEL_SYSTEM, &resmgrRoutineNTName, &resmgrRoutineNTToken.token);
       if (createTokenRC != 0) {
         zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_RESMGR_NT_NOT_CREATED_MSG, createTokenRC);
-        freeECSAStorage(resmgrRoutineInECSA, resmgrRoutineSize);
+        freeECSAStorageExec(resmgrRoutineInECSA, resmgrRoutineSize);
         resmgrRoutineInECSA = NULL;
         status = RC_CMS_NAME_TOKEN_CREATE_FAILED;
       }
@@ -5038,6 +5195,16 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
       if (discardRC != RC_CMS_OK) {
         zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
                 CMS_LOG_LOOKUP_ANC_RESET_WARN_MSG, discardRC);
+      }
+    }
+    if (srv->flags & CROSS_MEMORY_SERVER_FLAG_RESET_MODREG) {
+      int resetRC = modregReset();
+      if (resetRC == RC_MODREG_OK) {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO,
+                CMS_LOG_MODREG_RESET_REQ_MSG);
+      } else {
+        zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+                CMS_LOG_MODREG_RESET_WARN_MSG, resetRC);
       }
     }
   }

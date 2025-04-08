@@ -1,15 +1,28 @@
 # Zowe Common C Changelog
 
+## `3.2.0`
+- Bugfix: allocate storage to be executed with EXECUTABLE=YES (#507)
+- Bugfix: fix a leak in the rsusermap code (#467)
+- Bugfix: use single-line WTOs for single-line messages (#509)
+- Bugfix: make sure modreg-based modules are never deleted (#517, zowe/zss#749)
+- Feature: add a modify command for displaying the module registry information
+  (#519)
+- Feature: add a flag for resetting the module registry at the cross-memory
+  server start-up (#519)
+
 ## `3.1.0`
+- Enhancement: `configmgr extract` option supports simple array (#502)
 - Bugfix: removed "ByteOutputStream" debug message, which was part of the `zwe` command output (#491)
 - Bugfix: HEAPPOOLS and HEAPPOOLS64 no longer need to be set to OFF for configmgr (#497)
 - Enhancement: module registry (#405)
+- Enhancement:  Adding more arguments to httpClientSessionInit to allow passing back internal rc and
+  removing the reference from changelog in `3.0.0`. (#499).
+- Bugfix: make sure CEE3ERP is invoked in LE 31-bit XPLINK (#504)
 
 ## `3.0.0`
 - Feature: added javascript `zos.getStatvfs(path)` function to obtain file system information (#482).
 - Add support for LE 64-bit in isgenq.c (#422).
 - Bugfix: IARV64 results must be checked for 0x7FFFF000 (#474)
-- Adding more arguments to httpClientSessionInit to allow passing back rc (#467).
 - Bugfix: SLH should not ABEND when MEMLIMIT is reached (additional NULL check)
 - Bugfix: support cross-memory server parameters longer than 128 characters 
   (zowe/zss#684)
