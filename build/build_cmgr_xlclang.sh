@@ -100,6 +100,7 @@ xlclang \
   -D_OPEN_THREADS=1 \
   -DNOIBMHTTP=1 \
   -DUSE_ZOWE_TLS=1 \
+  -DNEW_CAA_LOCATIONS=1 \
   -DCMGRTEST=1 \
   -I "${COMMON}/h" \
   -I "${COMMON}/platform/posix" \

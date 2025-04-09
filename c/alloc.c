@@ -181,7 +181,12 @@ static char* __ptr64 getmain64(long long sizeInMegabytes, int *returnCode, int *
 
    if (returnCode) *returnCode = macroRetCode;
    if (reasonCode) *reasonCode = macroResCode;
-  
+
+  // IARV64 returns 0x7FFFF000 when MEMLIMIT is reached
+  if (data == (void *)0x7FFFF000) {
+    data = NULL;
+  }
+
    return data;
 
 }
@@ -202,7 +207,12 @@ static char* __ptr64 getmain64ByToken(long long sizeInMegabytes, long long token
 
   if (returnCode) *returnCode = macroRetCode;
   if (reasonCode) *reasonCode = macroResCode;
-  
+
+  // IARV64 returns 0x7FFFF000 when MEMLIMIT is reached
+  if (data == (void *)0x7FFFF000) {
+    data = NULL;
+  }
+
   return data;
   
 }
