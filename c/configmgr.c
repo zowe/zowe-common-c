@@ -858,6 +858,38 @@ static int overloadConfiguration(ConfigManager *mgr,
   }
 }
 
+int cfgDeleteFromConfiguration(ConfigManager* mgr, 
+         const char *configName,
+         const char *modifiedConfigName,
+         const char *keyToDelete) {
+
+  CFGConfig *config = getConfig(mgr, configName);
+  if (!config) {
+    return ZCFG_UNKNOWN_CONFIG_NAME;
+  }
+  int deleteStatus = 0;
+
+  Json *modifiedData = jsonDelete(mgr->slh, 
+            keyToDelete, 
+            config->configData, 
+            &deleteStatus);
+  
+  if (deleteStatus) {
+    return deleteStatus;
+  }
+
+  CFGConfig *modifiedConfig = cfgAddConfig(mgr,modifiedConfigName);
+  modifiedConfig->schemaPath = config->schemaPath;
+  /* is this path really true anymore?? */
+  modifiedConfig->configPath = config->configPath;
+  modifiedConfig->topSchema = config->topSchema;
+  modifiedConfig->otherSchemas = config->otherSchemas;
+  modifiedConfig->otherSchemasCount = config->otherSchemasCount;
+  modifiedConfig->parmlibMemberName = config->parmlibMemberName;
+  modifiedConfig->configData = modifiedData;
+  return ZCFG_SUCCESS;
+}
+
 int cfgMakeModifiedConfiguration(ConfigManager *mgr, 
 				 const char *configName, 
 				 const char *modifiedConfigName,

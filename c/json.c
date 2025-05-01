@@ -2632,6 +2632,34 @@ static void copyJson(JsonBuilder *builder, Json *parent, char *parentKey, Json *
   }
 }
 
+static int deleteJson(JsonMerger *merger, Json* parent, char *parentKey, char *deleteKey, Json *base) {
+  int errorCode = 0;
+  JsonBuilder *builder = &merger->builder;
+  if (jsonIsObject(base)) {
+    JsonObject *baseObject = jsonAsObject(base);
+    Json *copied = jsonBuildObject(builder,parent,parentKey,&errorCode);
+    JsonProperty *baseProp = jsonObjectGetFirstProperty(baseObject);
+    int status = 0;
+    while (baseProp) {
+      char *baseKey = baseProp->key;
+      Json *baseValue = baseProp->value;
+      printf("deleteJson baseKey=%s deleteKey=%s builder=0x%p\n",baseKey,deleteKey, builder);
+      fflush(stdout);
+      if (!strcmp(baseKey, deleteKey)) {
+        copyJson(builder, copied, baseKey, baseValue);
+      }
+      baseProp = jsonObjectGetNextProperty(baseProp);
+    }
+    if (jsonObjectHasKey(baseObject, deleteKey)) {
+      // remove this after verifying functionality;
+      return 1;
+    }
+  } else {
+    printf("unknown type, shouldn\'t base to delete always be type object? this isn't recursive");
+    printf("type found=%d", base->type);
+  }
+}
+
 static int mergeJson1(JsonMerger *merger, Json *parent, char *parentKey, Json *overrides, Json *base){
   int errorCode = 0;
   JsonBuilder *builder = &merger->builder;
@@ -2754,6 +2782,14 @@ Json *jsonCopy(ShortLivedHeap *slh, Json *value){
   memset(&builder,0,sizeof(JsonBuilder));
   builder.parser.slh = slh;
   copyJson(&builder,NULL,NULL,value);
+  return builder.root;
+}
+
+Json *jsonDelete(ShortLivedHeap *slh, char *keyToDelete, Json *base, int *statusPtr) {
+  JsonBuilder builder;
+  memset(&builder, 0, sizeof(JsonBuilder));
+  builder.parser.slh = slh;
+  deleteJson(&builder, NULL, NULL, keyToDelete, base);
   return builder.root;
 }
 
