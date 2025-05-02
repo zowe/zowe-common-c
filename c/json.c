@@ -1667,6 +1667,44 @@ Json *jsonGetNull(JsonParser* parser) {
   return json;
 }
 
+static
+void jsonObjectRemoveNode(Json* base, Json* remove) {
+
+  JsonObject* baseObj = jsonAsObject(base);
+  // single property case
+  if (baseObj->firstProperty == baseObj->lastProperty) {
+    baseObj->firstProperty = NULL;
+    baseObj->lastProperty = NULL;
+    return;
+  }
+  JsonProperty* prevProp = NULL;
+  JsonProperty* activeProp = baseObj->firstProperty;
+  bool propFound = false;
+  while (activeProp && !propFound) {
+//    printf("on property key=%s\n", activeProp->key); fflush(stdout);   
+    if (activeProp->value == remove) {
+//      printf("found property match activeKey=%s removeVal=%d\n", activeProp->key, remove->type); fflush(stdout);
+      propFound = true;
+    } else {
+      prevProp = activeProp;
+      activeProp = activeProp->next;
+    }
+  }
+  // TODO: silently accept failure?
+  if (!propFound){
+    return;
+  }
+  if (baseObj->lastProperty == activeProp){ 
+    baseObj->lastProperty = prevProp;
+  }
+  if (prevProp) {
+    prevProp->next = activeProp->next;
+  } else {
+    baseObj->firstProperty = activeProp->next;
+  }
+  // free now orphaned activeProp?
+}
+
 static 
 void jsonObjectAddProperty(JsonParser *parser, JsonObject *obj, char *key, Json *value) {
   JsonProperty *property = (JsonProperty*) jsonParserAlloc(parser, sizeof (JsonProperty));
@@ -2126,6 +2164,13 @@ int jsonIsObject(Json *json) {
 
 int jsonIsArray(Json *json) {
   return json->type == JSON_TYPE_ARRAY;
+}
+
+int jsonIsPrimitive(Json *json) {
+  return jsonIsString(json) || 
+         jsonIsBoolean(json) ||
+         jsonIsNumber(json) ||
+         jsonIsNull(json);
 }
 
 int jsonIsString(Json *json) {
@@ -2632,31 +2677,34 @@ static void copyJson(JsonBuilder *builder, Json *parent, char *parentKey, Json *
   }
 }
 
-static int deleteJson(JsonMerger *merger, Json* parent, char *parentKey, char *deleteKey, Json *base) {
-  int errorCode = 0;
-  JsonBuilder *builder = &merger->builder;
-  if (jsonIsObject(base)) {
-    JsonObject *baseObject = jsonAsObject(base);
-    Json *copied = jsonBuildObject(builder,parent,parentKey,&errorCode);
-    JsonProperty *baseProp = jsonObjectGetFirstProperty(baseObject);
-    int status = 0;
-    while (baseProp) {
-      char *baseKey = baseProp->key;
-      Json *baseValue = baseProp->value;
-      printf("deleteJson baseKey=%s deleteKey=%s builder=0x%p\n",baseKey,deleteKey, builder);
-      fflush(stdout);
-      if (!strcmp(baseKey, deleteKey)) {
-        copyJson(builder, copied, baseKey, baseValue);
+static void deleteJson(Json *base, const char *deleteKey) {
+  if (deleteKey) {
+    char* jsonTok = strtok(strdup(deleteKey), ".");
+    Json *parentNode = NULL;
+    Json *activeNode = base;
+    bool matchFound = true;
+    while (jsonTok && matchFound) {
+//      printf("deleteJson jsonTok=%s nodeType=%d\n", jsonTok, activeNode->type); fflush(stdout);
+      matchFound = false;
+      if (jsonIsObject(activeNode)) {
+        JsonProperty *baseProp = jsonObjectGetFirstProperty(jsonAsObject(activeNode));
+        while (baseProp && !matchFound) {
+//          printf("deleteJson traverseObject baseProp=%s\n", baseProp->key); fflush(stdout);
+          if (strcmp(baseProp->key, jsonTok) == 0) {
+            matchFound = true;
+            parentNode = activeNode;
+            activeNode = baseProp->value;
+          } else {
+            baseProp = jsonObjectGetNextProperty(baseProp);
+          }
+        }
       }
-      baseProp = jsonObjectGetNextProperty(baseProp);
+      jsonTok = strtok(NULL, ".");
     }
-    if (jsonObjectHasKey(baseObject, deleteKey)) {
-      // remove this after verifying functionality;
-      return 1;
+    if (matchFound) {
+      jsonObjectRemoveNode(parentNode, activeNode);
     }
-  } else {
-    printf("unknown type, shouldn\'t base to delete always be type object? this isn't recursive");
-    printf("type found=%d", base->type);
+//   printf("deleteJson afterloop jsonTok=%s matchFound=%d nodeType=%d\n", jsonTok, matchFound, activeNode->type);
   }
 }
 
@@ -2785,11 +2833,12 @@ Json *jsonCopy(ShortLivedHeap *slh, Json *value){
   return builder.root;
 }
 
-Json *jsonDelete(ShortLivedHeap *slh, char *keyToDelete, Json *base, int *statusPtr) {
+Json *jsonDelete(ShortLivedHeap *slh, const char *keyToDelete, Json *base, int *statusPtr) {
   JsonBuilder builder;
   memset(&builder, 0, sizeof(JsonBuilder));
   builder.parser.slh = slh;
-  deleteJson(&builder, NULL, NULL, keyToDelete, base);
+  copyJson(&builder,NULL,NULL,base);
+  deleteJson(builder.root, keyToDelete);
   return builder.root;
 }
 
