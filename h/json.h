@@ -668,7 +668,7 @@ char* jsonBuildKey(JsonBuilder *b, const char *key, int len);
 #define JSON_MERGE_FLAG_TAKE_BASE          0x0003   /* len(merge) = len(b) */
 #define JSON_MERGE_FLAG_TAKE_OVERRIDES     0x0004   /* len(merge) = len(a) */
 
-Json *jsonDelete(ShortLivedHeap *slh, char *keyToDelete, Json *base, int *statusPtr);
+Json *jsonDelete(ShortLivedHeap *slh, const char *keyToDelete, Json *base, int *statusPtr);
 Json *jsonMerge(ShortLivedHeap *slh, Json *overrides, Json *base, int flags, int *statusPtr);
 Json *jsonCopy(ShortLivedHeap *slh, Json *value);
 

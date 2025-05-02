@@ -97,6 +97,29 @@ var loadAndExtract = function(){
             if (yamlStatus2 == 0){
               console.log(""+modText);
             }
+
+            const delCases = [
+                "A",
+                "colors",
+                "D.A",
+                "D",
+                "E.A",
+                "F.A",
+                "F.C",
+                "G.A.B.C.D",
+                "G"
+            ]
+            for (const delCase of delCases) {
+                const delCfgName = "delConfig_"+delCase;
+                status = cmgr.deleteFromConfiguration(configName, delCfgName, delCase);
+                console.log(status);
+                let [yamlStatus3, delText ] = cmgr.writeYAML(delCfgName);
+                console.log('------')
+                if (yamlStatus3 == 0) {
+                    console.log(""+delText)
+                } 
+            }
+            
         }
     } else {
         console.log("validation failed, contact Zowe support");

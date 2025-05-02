@@ -3,5 +3,34 @@
   "listenerPort": 3444,
   "BB": "FOO",
   "Z": "60609",
-  "colors": [ "blue", "green"]
+  "colors": [ "blue", "green"],
+  "D" : {
+    "A": "apsle",
+    "B": "bad"
+  },
+  "E": {
+    "A": "aeple"
+  },
+  "F": {
+    "A": "afple",
+    "B": "bfd",
+    "C": "car"
+  }, 
+  "G": {
+    "A": {
+      "B": {
+        "C": {
+          "D": "daffodil",
+          "E": "evergreen",
+          "F": "flora"
+        }, 
+        "D": [
+          {
+          "A": "another",
+          "B":"bad",
+          "D":"day"
+          }]
+      }
+    }
+  }
 }
