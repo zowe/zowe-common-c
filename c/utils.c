@@ -88,6 +88,21 @@ int nullTerminate(char *str, int len){
   return 0;
 }
 
+int isUnsignedInt(const char *str) {
+  if (str == NULL || *str == '\0') {
+    return FALSE;
+  }
+
+  const char *p = str;
+  while (*p != '\0') {
+    if (!isdigit(*p)) {
+      return FALSE;
+    }
+    p++;
+  }
+  return TRUE;
+}
+
 int isZeros(char *data, int offset, int length){
   int i;
   for (i=0; i<length; i++){
