@@ -55,6 +55,8 @@ rm -f "${COMMON}/bin/configmgr"
 GSKDIR=/usr/lpp/gskssl
 GSKINC="${GSKDIR}/include"
 
+echo "Compiling libraries"
+
 xlclang \
   -c \
   -q64 \
@@ -85,12 +87,16 @@ xlclang \
   ${DEPS_DESTINATION}/${QUICKJS}/libunicode.c \
   ${DEPS_DESTINATION}/${QUICKJS}/libregexp.c \
   ${DEPS_DESTINATION}/${QUICKJS}/porting/polyfill.c
-#then
-#  echo "Done with qascii-compiled open-source parts"
-#else
-#  echo "Build failed"
-#  exit 8
-#fi
+rc=$?
+
+if [ "${rc}" -eq 0 ]; then
+  echo "Libraries compiled successfully"
+else
+  echo "Library compilation failed"
+  exit $rc
+fi
+
+echo "Building configmgr"
 
 xlclang \
   -q64 \
@@ -154,18 +160,16 @@ xlclang \
   ${COMMON}/c/zosfile.c \
   ${GSKDIR}/lib/GSKSSL64.x \
   ${GSKDIR}/lib/GSKCMS64.x
-#then
-#  echo "Build successful"
-#  ls -l "${COMMON}/bin"
-#  exit 0
-#else
-#  # remove configmgr in case the linker had RC=4 and produced the binary
-#  rm -f "${COMMON}/bin/configmgr"
-#  echo "Build failed"
-#  exit 8
-#fi
+rc=$?
+
+if [ "${rc}" -eq 0 ]; then
+  echo "Build successful"
+else
+  echo "Build failed"
+fi
 
 rm -rf "${TMP_DIR}"
+exit $rc
 
 
 # This program and the accompanying materials are
