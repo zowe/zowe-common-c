@@ -3,7 +3,7 @@
   "listenerPort": 3444,
   "BB": "FOO",
   "Z": "60609",
-  "colors": [ "blue", "green"],
+  "colors": [ "blue", "green", "red", "yellow"],
   "D" : {
     "A": "apsle",
     "B": "bad"
@@ -29,6 +29,10 @@
           "A": "another",
           "B":"bad",
           "D":"day"
+          }, {
+            "C": "car",
+            "E": "evergreen",
+            "F": "flora"
           }]
       }
     }

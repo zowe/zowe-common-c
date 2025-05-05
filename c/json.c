@@ -1667,6 +1667,21 @@ Json *jsonGetNull(JsonParser* parser) {
   return json;
 }
 
+static void jsonArrayRemoveNode(Json* base, Json* remove) {
+  JsonArray *baseArray = jsonAsArray(base);
+  Json **baseElements = baseArray->elements;
+  Json **iter = baseElements;
+  int idx = 0;
+  while (idx < baseArray->count) {
+    if (iter[idx] == remove) {
+      memmove(&iter[idx], &iter[idx+1], (baseArray->capacity - idx) * sizeof(Json *));
+      baseArray->count -= 1;
+      return;
+    }
+    idx++;
+  }
+}
+
 static
 void jsonObjectRemoveNode(Json* base, Json* remove) {
 
@@ -1702,7 +1717,14 @@ void jsonObjectRemoveNode(Json* base, Json* remove) {
   } else {
     baseObj->firstProperty = activeProp->next;
   }
-  // free now orphaned activeProp?
+}
+
+static void jsonRemoveNode(Json* base, Json* remove) {
+  if (jsonIsObject(base)) {
+    jsonObjectRemoveNode(base, remove);
+  } else if (jsonIsArray(base)) {
+    jsonArrayRemoveNode(base, remove);
+  }
 }
 
 static 
@@ -2679,32 +2701,45 @@ static void copyJson(JsonBuilder *builder, Json *parent, char *parentKey, Json *
 
 static void deleteJson(Json *base, const char *deleteKey) {
   if (deleteKey) {
-    char* jsonTok = strtok(strdup(deleteKey), ".");
     Json *parentNode = NULL;
     Json *activeNode = base;
-    bool matchFound = true;
-    while (jsonTok && matchFound) {
+    char* copiedKey = strdup(deleteKey);
+    char* jsonTok = strtok(copiedKey, ".");
+    bool tokenMatchFound = true;
+    while (jsonTok && tokenMatchFound) {
 //      printf("deleteJson jsonTok=%s nodeType=%d\n", jsonTok, activeNode->type); fflush(stdout);
-      matchFound = false;
+      tokenMatchFound = false;
       if (jsonIsObject(activeNode)) {
         JsonProperty *baseProp = jsonObjectGetFirstProperty(jsonAsObject(activeNode));
-        while (baseProp && !matchFound) {
+        while (baseProp && !tokenMatchFound) {
 //          printf("deleteJson traverseObject baseProp=%s\n", baseProp->key); fflush(stdout);
           if (strcmp(baseProp->key, jsonTok) == 0) {
-            matchFound = true;
+            tokenMatchFound = true;
             parentNode = activeNode;
             activeNode = baseProp->value;
           } else {
             baseProp = jsonObjectGetNextProperty(baseProp);
           }
+        } 
+      } else if (jsonIsArray(activeNode)) {
+//        printf("deleteJson isArray nodeType=%d, token=%s, isUInt=%d\n", activeNode->type, jsonTok, isUInt); fflush(stdout);
+        if (isUnsignedInt(jsonTok)) {
+          int tokIdx = parseInt(jsonTok, 0, strlen(jsonTok));
+          JsonArray *nodeArray = jsonAsArray(activeNode);
+//          printf("deleteJson noText tokIdx=%d, count=%d, capacity=%d\n", tokIdx, nodeArray->count, nodeArray->capacity); fflush(stdout);
+          if (tokIdx < nodeArray->count) {
+            tokenMatchFound = true;
+            parentNode = activeNode;
+            activeNode = nodeArray->elements[tokIdx];
+          }
         }
       }
       jsonTok = strtok(NULL, ".");
     }
-    if (matchFound) {
-      jsonObjectRemoveNode(parentNode, activeNode);
+    if (tokenMatchFound) { // jsonTok must be NULL (no more tokens), so we matched everything
+      jsonRemoveNode(parentNode, activeNode);
     }
-//   printf("deleteJson afterloop jsonTok=%s matchFound=%d nodeType=%d\n", jsonTok, matchFound, activeNode->type);
+    free(copiedKey);
   }
 }
 

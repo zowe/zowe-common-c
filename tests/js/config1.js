@@ -98,7 +98,10 @@ var loadAndExtract = function(){
               console.log(""+modText);
             }
 
+
             const delCases = [
+                "",
+                "      ",
                 "A",
                 "colors",
                 "D.A",
@@ -107,7 +110,11 @@ var loadAndExtract = function(){
                 "F.A",
                 "F.C",
                 "G.A.B.C.D",
-                "G"
+                "G",
+                "colors.0",
+                "colors.1ab",
+                "G.A.B.D.1",
+                "G.A.B.D.1.C"
             ]
             for (const delCase of delCases) {
                 const delCfgName = "delConfig_"+delCase;
