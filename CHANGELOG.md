@@ -1,5 +1,8 @@
 # Zowe Common C Changelog
 
+## `3.3.0`
+- Feature: add a `deleteFromConfiguration` API to configmgr (#524)
+
 ## `3.2.0`
 - Bugfix: allocate storage to be executed with EXECUTABLE=YES (#507)
 - Bugfix: fix a leak in the rsusermap code (#467)

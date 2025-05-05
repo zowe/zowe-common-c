@@ -1684,37 +1684,31 @@ static void jsonArrayRemoveNode(Json* base, Json* remove) {
 
 static
 void jsonObjectRemoveNode(Json* base, Json* remove) {
-
   JsonObject* baseObj = jsonAsObject(base);
-  // single property case
-  if (baseObj->firstProperty == baseObj->lastProperty) {
-    baseObj->firstProperty = NULL;
-    baseObj->lastProperty = NULL;
-    return;
-  }
   JsonProperty* prevProp = NULL;
   JsonProperty* activeProp = baseObj->firstProperty;
   bool propFound = false;
   while (activeProp && !propFound) {
-//    printf("on property key=%s\n", activeProp->key); fflush(stdout);   
     if (activeProp->value == remove) {
-//      printf("found property match activeKey=%s removeVal=%d\n", activeProp->key, remove->type); fflush(stdout);
       propFound = true;
     } else {
       prevProp = activeProp;
       activeProp = activeProp->next;
     }
   }
-  // TODO: silently accept failure?
+  // if someone calls us and we can't find the prop, return without modification
   if (!propFound){
     return;
   }
+
   if (baseObj->lastProperty == activeProp){ 
     baseObj->lastProperty = prevProp;
   }
+
   if (prevProp) {
     prevProp->next = activeProp->next;
   } else {
+    // prevprop = null occurs when our target prop was the object's firstProperty
     baseObj->firstProperty = activeProp->next;
   }
 }
