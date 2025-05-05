@@ -405,9 +405,12 @@ static ConfigPathElement *addExpandedParmlibs(ConfigManager *mgr, CFGConfig *con
       char *volser = NULL;
       char *dsn = getParmlib(outBuffer,i,&volser);
       if (volser == NULL){ /* means it's a catalogued data set */
-	int dsnLen = 44;
-	while (dsnLen > 0 && (dsn[dsnLen-1] <= 0x40)) dsnLen--;
-	element = makePathElement(mgr,
+        int dsnLen = indexOf(dsn, strlen(dsn), ')', 0)+1; //already contains PDS member
+        if (dsnLen == 0) {
+          dsnLen = 44; //no PDS member
+          while (dsnLen > 0 && (dsn[dsnLen-1] <= 0x40)) dsnLen--;
+        }
+        element = makePathElement(mgr,
 				  config,
 				  CONFIG_PATH_MVS_PARMLIB | CONFIG_PATH_WAS_EXPANDED, 
 				  substring(mgr,"PARMLIB",0,7),
@@ -429,7 +432,7 @@ static bool addPathElement(ConfigManager *mgr, CFGConfig *config, char *pathElem
   regmatch_t matches[10];
   regex_t *argPattern = regexAlloc();
   /* Nice Regex test site */
-  char *pat = "^(LIBRARY|DIR|FILE|PARMLIBS|PARMLIB)\\(([^)]+)\\)$";
+  char *pat = "^(LIBRARY|DIR|FILE|PARMLIBS|PARMLIB)\\((.+)\\)$";
   int compStatus = regexComp(argPattern,pat,REG_EXTENDED);
   if (compStatus != 0){
     
@@ -735,8 +738,14 @@ static Json *readJson(ConfigManager *mgr, CFGConfig *config, ConfigPathElement *
   } else if (pathElement->flags & CONFIG_PATH_MVS_PARMLIB){
     char pdsMemberSpec[MAX_PDS_NAME];
     trace(mgr,DEBUG,"pathElement=0x%p config=0x%p\n",pathElement,config);
-    int charsWritten = snprintf(pdsMemberSpec,MAX_PDS_NAME,"//'%s(%s)'",
+    int hasParen = indexOf(pathElement->data, strlen(pathElement->data), '(', 0) > -1;
+    if (!hasParen) {
+      snprintf(pdsMemberSpec,MAX_PDS_NAME,"//'%s(%s)'",
 				pathElement->data,config->parmlibMemberName);
+    } else {
+      snprintf(pdsMemberSpec,MAX_PDS_NAME,"//'%s'",
+				pathElement->data);
+    }
     trace(mgr,DEBUG,"PDS name = '%s'\n",pdsMemberSpec);
     bool nullAllowed = (pathElement->flags & CONFIG_PATH_WAS_EXPANDED);
     *nullAllowedPtr = nullAllowed;
@@ -1322,7 +1331,8 @@ static void showHelp(FILE *out){
   fprintf(out,"      validate            : just loads and validates merged configuration\n");
   fprintf(out,"      env <outEnvPath>    : prints merged configuration to a file as a list of environment vars\n");
   fprintf(out,"    configPathElement: \n");
-  fprintf(out,"      PARMLIB(datasetName) - a library that can contain config data\n");
+  fprintf(out,"      PARMLIB(datasetName(memberName)) - a library that can contain config data\n");
+  fprintf(out,"      PARMLIB(datasetName) - a library that can contain config data. Member name comes from the -m parameter\n");
   fprintf(out,"      FILE(filename)   - the name of a file containing Yaml\n");
   fprintf(out,"      PARMLIBS         - all PARMLIBS that are defined to this running Program in ZOS, nothing if not on ZOS\n");
 }
