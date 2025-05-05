@@ -51,7 +51,7 @@ typedef int bool;
 
   
 __HHW_AS400__
-    Indicates that the host hardware is an IBM� i processor.
+    Indicates that the host hardware is an IBM i processor.
 __HOS_OS400__
     Indicates that the host OS is ibm I
 __ILEC400__
