@@ -337,6 +337,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
 Socket *tcpClient4(SocketAddress *socketAddress,
        int connectTimeoutInMillis,
        int readTimeoutInMillis,
+       int writeTimeoutInMillis,
        int tlsFlags,
        int *returnCode,
        int *reasonCode);

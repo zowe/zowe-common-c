@@ -672,10 +672,11 @@ int httpClientSessionInitv2(HttpClientContext *ctx, HttpClientSession **outSessi
     }
 
     int readTimeoutMillis = 1000 * ctx->recvTimeoutSeconds;
+    int writeTimeoutMillis = 1000 * ctx->sendTimeoutSeconds;
     int connectTimeoutMillis = readTimeoutMillis;
     int tlsFlags = 0; //no TLS
 
-    Socket *socket = tcpClient4(ctx->serverAddress, connectTimeoutMillis, readTimeoutMillis, tlsFlags, bpxrc, &bpxrsn);
+    Socket *socket = tcpClient4(ctx->serverAddress, connectTimeoutMillis, readTimeoutMillis, writeTimeoutMillis, tlsFlags, bpxrc, &bpxrsn);
     if ((*bpxrc != 0) || (NULL == socket)) {
 #ifdef __ZOWE_OS_ZOS
       HTTP_CLIENT_TRACE_VERBOSE("%s (rc=%d, rsn=0x%x, addr=0x%08x, port=%d)\n", HTTP_CLIENT_MSG_CONNECT_FAILED, *bpxrc,

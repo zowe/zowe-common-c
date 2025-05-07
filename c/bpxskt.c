@@ -14,10 +14,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/time.h>
 #include "zowetypes.h"
 #include "alloc.h"
 #include "utils.h"
 #include "bpxnet.h"
+
 
 #ifdef USE_RS_SSL
 #include "rs_ssl.h"
@@ -222,6 +224,7 @@ int getSocketDebugID(Socket *s){
 Socket *tcpClient4(SocketAddress *socketAddress,
          int connectTimeoutInMillis,
          int readTimeoutInMillis,
+         int writeTimeoutInMillis,
          int tlsFlags,
          int *returnCode,
          int *reasonCode) {
@@ -369,8 +372,32 @@ Socket *tcpClient4(SocketAddress *socketAddress,
       /* manual says returnCode and value only meaningful if return value = -1 */
       *returnCode = 0;
       *reasonCode = 0;
+
+      if (readTimeoutInMillis > 0 && writeTimeoutInMillis <= 0) {
+        writeTimeoutInMillis = readTimeoutInMillis;
+        if (socketTrace){
+          printf("Cannot set write timeout without read timeout. Read timeout value set to write timeout value\n");
+        }
+      }
+      if (writeTimeoutInMillis > 0 && readTimeoutInMillis <= 0) {
+        readTimeoutInMillis = writeTimeoutInMillis;
+        if (socketTrace){
+          printf("Cannot set read timeout without write timeout. Write timeout value set to read timeout value\n");
+        }
+      }
+
       if (readTimeoutInMillis >= 0) {
-        setSocketOption(socket, SOL_SOCKET, SOCK_SO_RCVTIMEO, sizeof(int), (char*)&readTimeoutInMillis, returnCode, reasonCode);
+        struct timeval readTimeout;
+        struct timeval writeTimeout;
+
+        readTimeout.tv_sec = (long)(readTimeoutInMillis / 1000UL);
+        readTimeout.tv_usec = (long)((readTimeoutInMillis % 1000UL)*1000UL);
+
+        writeTimeout.tv_sec = (long)(writeTimeoutInMillis / 1000UL);
+        writeTimeout.tv_usec = (long)((writeTimeoutInMillis % 1000UL)*1000UL);
+
+        setSocketOption(socket, SOL_SOCKET, SOCK_SO_RCVTIMEO, sizeof(struct timeval), (char*)&readTimeout, returnCode, reasonCode);
+        setSocketOption(socket, SOL_SOCKET, SOCK_SO_SNDTIMEO, sizeof(struct timeval), (char*)&writeTimeout, returnCode, reasonCode);
         setSocketBlockingMode(socket, TRUE, returnCode, reasonCode);
       } else {
         setSocketBlockingMode(socket, FALSE, returnCode, reasonCode);
@@ -390,6 +417,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
   return tcpClient4(socketAddress,
                     connectTimeoutInMillis,
                     -1,
+                    -1,
                     tlsFlags,
                     returnCode,
                     reasonCode);
@@ -401,6 +429,7 @@ Socket *tcpClient2(SocketAddress *socketAddress,
        int *reasonCode) { /* errnum - JR's */
   return tcpClient4(socketAddress,
                     connectTimeoutInMillis,
+                    -1,
                     -1,
                     0,
                     returnCode,

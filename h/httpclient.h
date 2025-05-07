@@ -61,6 +61,7 @@ typedef struct HttpClientContext_tag {
   LoggingContext *logContext;
   SocketAddress *serverAddress;
   int recvTimeoutSeconds; /* try next server on timeout */
+  int sendTimeoutSeconds;
 #ifdef USE_ZOWE_TLS
   TlsEnvironment *tlsEnvironment;
 #endif
