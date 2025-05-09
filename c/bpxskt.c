@@ -397,7 +397,19 @@ Socket *tcpClient4(SocketAddress *socketAddress,
         writeTimeout.tv_usec = (long)((writeTimeoutInMillis % 1000UL)*1000UL);
 
         setSocketOption(socket, SOL_SOCKET, SOCK_SO_RCVTIMEO, sizeof(struct timeval), (char*)&readTimeout, returnCode, reasonCode);
+        if (returnCode) {
+          if (socketTrace) {
+            printf("Failed to set read timeout for socket. rc=0x%x, rsn=0x%x\n", returnCode, reasonCode);
+          }
+          return NULL;
+        }
         setSocketOption(socket, SOL_SOCKET, SOCK_SO_SNDTIMEO, sizeof(struct timeval), (char*)&writeTimeout, returnCode, reasonCode);
+        if (returnCode) {
+          if (socketTrace) {
+            printf("Failed to set write timeout for socket. rc=0x%x, rsn=0x%x\n", returnCode, reasonCode);
+          }
+          return NULL;
+        }
         setSocketBlockingMode(socket, TRUE, returnCode, reasonCode);
       } else {
         setSocketBlockingMode(socket, FALSE, returnCode, reasonCode);
