@@ -2737,9 +2737,11 @@ static void deleteJson(Json *base, const char *deleteKey) {
             strcat(workStr, ".");
             strcat(workStr, nextTok);
           }
-          // strip the first and last brackets
-          memmove(workStr, workStr + 1, strlen(workStr) - 1);
-          workStr[strlen(workStr) - 2] = '\0';
+          // strip the first and last brackets if they're present
+          if (workStr[0]== '[' && workStr[strlen(workStr)-1]== ']') {
+            memmove(workStr, workStr + 1, strlen(workStr) - 1);
+            workStr[strlen(workStr) - 2] = '\0';
+          }
           jsonTok = workStr;
         }
         //printf("jsonTokPostGroup: %s\n", jsonTok); fflush(stdout);
