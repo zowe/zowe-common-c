@@ -2712,6 +2712,7 @@ static void deleteJson(Json *base, const char *deleteKey) {
     // This loop walks down the JSON tree one key/node at a time, except for arrays, where one key represents 2 nodes (array + index). e.g: a[0] 
     //      The array "saves" the second step as arrayIdx, so each loop iteration still crawls one node at a time.
     while ((jsonTok || arrayIdx>=0) && tokenMatchFound) {
+      tokenMatchFound = false;
       // if we're a known array index, set it as the active node
       if (arrayIdx >= 0) {
         if (jsonIsArray(activeNode)) {
@@ -2761,8 +2762,6 @@ static void deleteJson(Json *base, const char *deleteKey) {
             }
           }
         }
-        //printf("deleteJson jsonTok=%s nodeType=%d\n", jsonTok, activeNode->type); fflush(stdout);
-        tokenMatchFound = false;
         if (jsonIsObject(activeNode)) {
           JsonProperty *baseProp = jsonObjectGetFirstProperty(jsonAsObject(activeNode));
           while (baseProp && !tokenMatchFound) {
