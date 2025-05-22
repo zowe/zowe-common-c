@@ -3,7 +3,19 @@
   "listenerPort": 3444,
   "BB": "FOO",
   "Z": "60609",
-  "colors": [ "blue", "green", "red", "yellow"],
+  "_zsf.debugging.level": "TRACE",
+  "_test.array": [
+    "apple",
+    "banana",
+    "cherry",
+    { "_test.nested": ["dragonfruit", "eggplant"] }
+  ],
+  "_zsf": {
+    "debugging": {
+      "level": "TRACE"
+    }
+  },
+  "colors": [ "blue", "green", "red", "yellow", "0", {"1" : "not_a_color" }],
   "D" : {
     "A": "apsle",
     "B": "bad"
@@ -15,8 +27,8 @@
     "A": "afple",
     "B": "bfd",
     "C": "car"
-  }, 
-  "G": {
+  },
+  "G[": {
     "A": {
       "B": {
         "C": {

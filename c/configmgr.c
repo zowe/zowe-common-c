@@ -1702,7 +1702,7 @@ int cfgDeleteFromConfiguration(ConfigManager* mgr,
          const char *modifiedConfigName,
          const char *keyToDelete) {
    */
-  EJSNativeMethod *deleteFromConfiguration = ejsMakeNativeMethod(ejs,configmgr,"deleteFromConfiguration",
+  EJSNativeMethod *deleteFromConfiguration = ejsMakeNativeMethod(ejs,configmgr,"copyConfigurationAndDeleteKey",
     EJS_NATIVE_TYPE_INT32,
     (EJSForeignFunction*)deleteFromConfigurationWrapper);
   ejsAddMethodArg(ejs,deleteFromConfiguration,"configName",EJS_NATIVE_TYPE_CONST_STRING);

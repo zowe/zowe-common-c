@@ -1,7 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.3.0`
-- Feature: add a `deleteFromConfiguration` API to configmgr (#524)
+- Feature: add a `copyConfigurationAndDeleteKey` API to configmgr (#524)
 - Enhancement: configmgr path elements of type PARMLIB can now contain a member name, in the format of "PARMLIB(DATA.SET(member))", as an alternative to the older format of "PARMLIB(DATA.SET)" with the member name being specified in a separate argument. This enhancement allows use of multiple members with different names within the same PARMLIB dataset. The older format can still be used as desired. (??)
 
 ## `3.2.0`
