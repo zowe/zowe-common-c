@@ -51,6 +51,9 @@
 
 #ifdef __ZOWE_OS_WINDOWS
 typedef int64_t ssize_t;
+#include "winregex.h"
+#else
+#include "psxregex.h"  /* works on ZOS and Linux */
 #endif
 
 /* Having lots of problems including unistd, so here's a hack */
@@ -2698,41 +2701,87 @@ static void deleteJson(Json *base, const char *deleteKey) {
     Json *parentNode = NULL;
     Json *activeNode = base;
     char* copiedKey = strdup(deleteKey);
+    char workStr[500]; // huge working buffer on the stack for potential keys, all should realistically be <50 chars
     char* jsonTok = strtok(copiedKey, ".");
     bool tokenMatchFound = true;
-    while (jsonTok && tokenMatchFound) {
-//      printf("deleteJson jsonTok=%s nodeType=%d\n", jsonTok, activeNode->type); fflush(stdout);
-      tokenMatchFound = false;
-      if (jsonIsObject(activeNode)) {
-        JsonProperty *baseProp = jsonObjectGetFirstProperty(jsonAsObject(activeNode));
-        while (baseProp && !tokenMatchFound) {
-//          printf("deleteJson traverseObject baseProp=%s\n", baseProp->key); fflush(stdout);
-          if (strcmp(baseProp->key, jsonTok) == 0) {
-            tokenMatchFound = true;
-            parentNode = activeNode;
-            activeNode = baseProp->value;
-          } else {
-            baseProp = jsonObjectGetNextProperty(baseProp);
-          }
-        } 
-      } else if (jsonIsArray(activeNode)) {
-//        printf("deleteJson isArray nodeType=%d, token=%s, isUInt=%d\n", activeNode->type, jsonTok, isUInt); fflush(stdout);
-        if (isUnsignedInt(jsonTok)) {
-          int tokIdx = parseInt(jsonTok, 0, strlen(jsonTok));
+    // used to parse arrays like a[0]
+    regex_t *argPattern = regexAlloc();
+    char *pat = "(.*)(\\[([0-9]+)\\]).*";
+    int arrayIdx = -1; // helps track composite nodes like a[0], where 'a' and '0' are both nodes in the JSON tree
+
+    // This loop walks down the JSON tree one key/node at a time, except for arrays, where one key represents 2 nodes (array + index). e.g: a[0] 
+    //      The array "saves" the second step as arrayIdx, so each loop iteration is still crawls one node at a time.
+    while ((jsonTok || arrayIdx>=0) && tokenMatchFound) {
+      // if we're a known array index, set it as the active node
+      if (arrayIdx >= 0) {
+        if (jsonIsArray(activeNode)) {
           JsonArray *nodeArray = jsonAsArray(activeNode);
-//          printf("deleteJson noText tokIdx=%d, count=%d, capacity=%d\n", tokIdx, nodeArray->count, nodeArray->capacity); fflush(stdout);
-          if (tokIdx < nodeArray->count) {
+          if (arrayIdx < nodeArray->count) {
             tokenMatchFound = true;
             parentNode = activeNode;
-            activeNode = nodeArray->elements[tokIdx];
+            activeNode = nodeArray->elements[arrayIdx];
+            arrayIdx=-1; // reset
           }
         }
+      } else {
+        // If we have format like [a.b.c], ensure the jsonTok is [a.b.c], and not [a.b.c
+        memset(workStr, 0x00, sizeof(char)*500);
+        if (jsonTok && jsonTok[0] == '[') {
+          strncpy(workStr, jsonTok, strlen(jsonTok));
+          while (workStr[strlen(workStr)-1] != ']') {
+            char* nextTok = strtok(NULL, ".");
+            if (!nextTok) {
+              // end of string, unmatched '['
+              break;
+            }
+            strcat(workStr, ".");
+            strcat(workStr, nextTok);
+          }
+          // strip the first and last brackets
+          memmove(workStr, workStr + 1, strlen(workStr) - 1);
+          workStr[strlen(workStr) - 2] = '\0';
+          jsonTok = workStr;
+        }
+        //printf("jsonTokPostGroup: %s\n", jsonTok); fflush(stdout);
+
+        // use regexp to parse jsonToks of formats: "a[0]", "a.b.c[213132]". Invalid arrays like "abc]", "abc[a2]" are left untouched.
+        if (jsonTok[strlen(jsonTok)-1] == ']') {
+          int rrc = 0;
+          regmatch_t matches[4];
+          regexComp(argPattern,pat,REG_EXTENDED);
+          regexExec(argPattern,jsonTok,4,matches,0);
+          // if we have a matched array index, set the arrayIdx, otherwise, leave jsonTok as-is
+          if (matches[3].rm_so!= -1) {
+            arrayIdx = parseInt(jsonTok + matches[3].rm_so, 0, matches[3].rm_eo - matches[3].rm_so);
+            // set the jsonTok array `[nnn]` to end-of-string, e.g. a[0] -> a
+            if (matches[1].rm_so != -1) {
+              memset(jsonTok + matches[2].rm_so, '\0', matches[2].rm_eo - matches[2].rm_so); // sets effective memory in either workStr or copiedKey, both safe to mutate
+            }
+          }
+        }
+        //printf("deleteJson jsonTok=%s nodeType=%d\n", jsonTok, activeNode->type); fflush(stdout);
+        tokenMatchFound = false;
+        if (jsonIsObject(activeNode)) {
+          JsonProperty *baseProp = jsonObjectGetFirstProperty(jsonAsObject(activeNode));
+          while (baseProp && !tokenMatchFound) {
+            // printf("deleteJson traverseObject baseProp=%s\n", baseProp->key); fflush(stdout);
+            if (strcmp(baseProp->key, jsonTok) == 0) {
+              tokenMatchFound = true;
+              parentNode = activeNode;
+              activeNode = baseProp->value;
+            } else {
+              baseProp = jsonObjectGetNextProperty(baseProp);
+            }
+          } 
+        }
+        jsonTok = strtok(NULL, ".");
       }
-      jsonTok = strtok(NULL, ".");
     }
     if (tokenMatchFound) { // jsonTok must be NULL (no more tokens), so we matched everything
+      //printf("deleteJson deleting node 0x%p\n", activeNode); fflush(stdout);
       jsonRemoveNode(parentNode, activeNode);
     }
+    regexFree(argPattern);
     free(copiedKey);
   }
 }

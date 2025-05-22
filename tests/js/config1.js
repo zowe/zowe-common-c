@@ -98,7 +98,6 @@ var loadAndExtract = function(){
               console.log(""+modText);
             }
 
-
             const delCases = [
                 "",
                 "      ",
@@ -109,22 +108,32 @@ var loadAndExtract = function(){
                 "E.A",
                 "F.A",
                 "F.C",
-                "G.A.B.C.D",
-                "G",
-                "colors.0",
-                "colors.1ab",
-                "G.A.B.D.1",
-                "G.A.B.D.1.C"
+                "G[.A.B.C.D",
+                "G[",
+                "colors[0]",
+                "colors.1a",
+                "colors[5]",
+                "colors[5].1",
+                "G[.A.B.D[1]",
+                "G[.A.B.D[1].C",
+                "[_zsf.debugging.level]",
+                "_zsf.debugging.level",
+                "[_test.array[0]]",
+                "[_test.array[2]]",
+                "[_test.array[3]].[_test.nested[0]]"
             ]
+            console.log(`----Delete Cases----`)
             for (const delCase of delCases) {
                 const delCfgName = "delConfig_"+delCase;
-                status = cmgr.deleteFromConfiguration(configName, delCfgName, delCase);
-                console.log(status);
+                status = cmgr.copyConfigurationAndDeleteKey(configName, delCfgName, delCase);
                 let [yamlStatus3, delText ] = cmgr.writeYAML(delCfgName);
-                console.log('------')
                 if (yamlStatus3 == 0) {
+                    console.log(`Deleting ${delCase}`);
                     console.log(""+delText)
-                } 
+                }
+                if (yamlStatus3 != 0 || status != 0) {
+                    throw new Error(`${delCase} test failed`);
+                }
             }
             
         }
