@@ -655,6 +655,9 @@ Json *jsonBuildNull(JsonBuilder *b,
 
 char* jsonBuildKey(JsonBuilder *b, const char *key, int len);
 
+#define MAX_JSON_KEY 256
+#define MAX_JSON_STRING 65536
+
 #define JSON_MERGE_STATUS_SUCCESS 0
 #define JSON_MERGE_STATUS_UNMERGEABLE_TYPES 1
 #define JSON_MERGE_STATUS_UNIMPLEMENTED 2
