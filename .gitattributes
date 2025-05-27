@@ -54,6 +54,7 @@
 *.woff  git-encoding=BINARY    zos-working-tree-encoding=BINARY binary
 *.woff2 git-encoding=BINARY    zos-working-tree-encoding=BINARY binary
 *.zip   git-encoding=BINARY    zos-working-tree-encoding=BINARY binary
+*.p12   git-encoding=BINARY    zos-working-tree-encoding=BINARY binary
 # Always use LF for npm package files because npm cli likes to change line endings.
 package*.json text eol=lf
 # sonar scanning

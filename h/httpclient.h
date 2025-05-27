@@ -123,6 +123,8 @@ void httpClientSessionDestroy(HttpClientSession *session);
 
 int httpClientSessionInit(HttpClientContext *ctx, HttpClientSession **outSession);
 
+int httpClientSessionInitv2(HttpClientContext *ctx, HttpClientSession **outSession, int *rc);
+
 int httpClientSessionStageRequest(HttpClientContext *ctx,
                                   HttpClientSession *session,
                                   char *method,   /* required, e.g. GET, PUT, POST */

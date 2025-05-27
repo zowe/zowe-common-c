@@ -405,9 +405,12 @@ static ConfigPathElement *addExpandedParmlibs(ConfigManager *mgr, CFGConfig *con
       char *volser = NULL;
       char *dsn = getParmlib(outBuffer,i,&volser);
       if (volser == NULL){ /* means it's a catalogued data set */
-	int dsnLen = 44;
-	while (dsnLen > 0 && (dsn[dsnLen-1] <= 0x40)) dsnLen--;
-	element = makePathElement(mgr,
+        int dsnLen = indexOf(dsn, strlen(dsn), ')', 0)+1; //already contains PDS member
+        if (dsnLen == 0) {
+          dsnLen = 44; //no PDS member
+          while (dsnLen > 0 && (dsn[dsnLen-1] <= 0x40)) dsnLen--;
+        }
+        element = makePathElement(mgr,
 				  config,
 				  CONFIG_PATH_MVS_PARMLIB | CONFIG_PATH_WAS_EXPANDED, 
 				  substring(mgr,"PARMLIB",0,7),
@@ -429,7 +432,7 @@ static bool addPathElement(ConfigManager *mgr, CFGConfig *config, char *pathElem
   regmatch_t matches[10];
   regex_t *argPattern = regexAlloc();
   /* Nice Regex test site */
-  char *pat = "^(LIBRARY|DIR|FILE|PARMLIBS|PARMLIB)\\(([^)]+)\\)$";
+  char *pat = "^(LIBRARY|DIR|FILE|PARMLIBS|PARMLIB)\\((.+)\\)$";
   int compStatus = regexComp(argPattern,pat,REG_EXTENDED);
   if (compStatus != 0){
     
@@ -735,8 +738,14 @@ static Json *readJson(ConfigManager *mgr, CFGConfig *config, ConfigPathElement *
   } else if (pathElement->flags & CONFIG_PATH_MVS_PARMLIB){
     char pdsMemberSpec[MAX_PDS_NAME];
     trace(mgr,DEBUG,"pathElement=0x%p config=0x%p\n",pathElement,config);
-    int charsWritten = snprintf(pdsMemberSpec,MAX_PDS_NAME,"//'%s(%s)'",
+    int hasParen = indexOf(pathElement->data, strlen(pathElement->data), '(', 0) > -1;
+    if (!hasParen) {
+      snprintf(pdsMemberSpec,MAX_PDS_NAME,"//'%s(%s)'",
 				pathElement->data,config->parmlibMemberName);
+    } else {
+      snprintf(pdsMemberSpec,MAX_PDS_NAME,"//'%s'",
+				pathElement->data);
+    }
     trace(mgr,DEBUG,"PDS name = '%s'\n",pdsMemberSpec);
     bool nullAllowed = (pathElement->flags & CONFIG_PATH_WAS_EXPANDED);
     *nullAllowedPtr = nullAllowed;
@@ -1161,29 +1170,57 @@ int cfgGetBooleanC(ConfigManager *mgr, const char *configName, bool *result, int
   }
 }
 
-static void extractText(ConfigManager *mgr, const char *configName, JsonPointer *jp, FILE *out){
+static int printPrimitiveDataType(Json *value, FILE *out) {
+  if (jsonIsString(value)){
+    fprintf(out,"%s",jsonAsString(value));
+  } else if (jsonIsInt64(value)){
+    fprintf(out,"%lld",INT64_LL(jsonAsInt64(value)));
+  } else if (jsonIsDouble(value)){
+    fprintf(out,"%f",jsonAsDouble(value));
+  } else if (jsonIsBoolean(value)){
+    fprintf(out,"%s",jsonAsBoolean(value) ? "true" : "false");
+  } else if (jsonIsNull(value)){
+    fprintf(out,"null");
+  } else {
+    fprintf(out,"error: unhandled type");
+    return ZCFG_EXTRACT_ERROR;
+  }
+  return ZCFG_SUCCESS;
+}
+
+static int extractText(ConfigManager *mgr, const char *configName, JsonPointer *jp, FILE *out){
   Json *value = NULL;
   int status = cfgGetAnyJ(mgr,configName,&value,jp);
+  int ret = 0;
   if (status){
     fprintf(out,"error not found, reason=%d",status);
-  } else {
-    if (jsonIsObject(value) ||
-        jsonIsArray(value)){
-      fprintf(out,"error: cannot access whole objects or arrays");
-    } else if (jsonIsString(value)){
-      fprintf(out,"%s",jsonAsString(value));
-    } else if (jsonIsInt64(value)){
-      fprintf(out,"%lld",INT64_LL(jsonAsInt64(value)));
-    } else if (jsonIsDouble(value)){
-      fprintf(out,"%f",jsonAsDouble(value));
-    } else if (jsonIsBoolean(value)){
-      fprintf(out,"%s",jsonAsBoolean(value) ? "true" : "false");
-    } else if (jsonIsNull(value)){
-      fprintf(out,"null");
-    } else {
-      fprintf(out,"error: unhandled type");
-    }
+    return ZCFG_EXTRACT_ERROR;
   }
+
+  if (jsonIsObject(value)) {
+    fprintf(out,"error: cannot access whole objects");
+    return ZCFG_EXTRACT_ERROR;
+  }
+
+  if (jsonIsArray(value)) {
+    JsonArray *array = jsonAsArray(value);
+    for (int i = 0; i < jsonArrayGetCount(array); i++) {
+      Json *arrayItem = jsonArrayGetItem(array, i);
+      if (jsonIsObject(arrayItem) || jsonIsArray(arrayItem)) {
+        fprintf(out,"error: cannot access objects or arrays in arrays");
+        return ZCFG_EXTRACT_ERROR;
+      } else {
+        ret = printPrimitiveDataType(arrayItem, out);
+        fprintf(out, "\n");
+        if (ret) {
+          return ret;
+        }
+      }
+    }
+  } else {
+    ret = printPrimitiveDataType(value, out);
+  }
+  return ret;
 }
 
 #define MAX_PATH_NAME 1024
@@ -1262,7 +1299,8 @@ static void showHelp(FILE *out){
   fprintf(out,"      validate            : just loads and validates merged configuration\n");
   fprintf(out,"      env <outEnvPath>    : prints merged configuration to a file as a list of environment vars\n");
   fprintf(out,"    configPathElement: \n");
-  fprintf(out,"      PARMLIB(datasetName) - a library that can contain config data\n");
+  fprintf(out,"      PARMLIB(datasetName(memberName)) - a library that can contain config data\n");
+  fprintf(out,"      PARMLIB(datasetName) - a library that can contain config data. Member name comes from the -m parameter\n");
   fprintf(out,"      FILE(filename)   - the name of a file containing Yaml\n");
   fprintf(out,"      PARMLIBS         - all PARMLIBS that are defined to this running Program in ZOS, nothing if not on ZOS\n");
 }
@@ -1675,7 +1713,7 @@ static int simpleMain(int argc, char **argv){
 
   while (argx < argc){
     char *optionValue = NULL;
-    if (getStringOption(argc,argv,&argx,"-h")){
+    if (strcmp(argv[argx], "-h") == 0) {
       showHelp(traceOut);
       return 0;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-s")) != NULL){
@@ -1831,9 +1869,10 @@ static int simpleMain(int argc, char **argv){
         printJsonPointer(mgr->traceOut,jp);
         fflush(mgr->traceOut);
       }
-      extractText(mgr,configName,jp,stdout);
+      int extractResult = extractText(mgr,configName,jp,stdout);
       printf("\n");
       fflush(stdout);
+      return extractResult;
     }
   } else if (!strcmp(command, "env")) {
     if (argx >= argc){
