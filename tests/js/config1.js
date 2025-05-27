@@ -81,7 +81,7 @@ var loadAndExtract = function(){
         } else {
             console.log("no exceptions seen");
             let theConfig = cmgr.getConfigData(configName);
-            console.log("configData is loaded \n"+JSON.stringify(theConfig,null,"\n"));
+            console.log("configData is loaded \n"+JSON.stringify(theConfig,null,2));
             console.log("listenerPort is "+theConfig.listenerPort)
             status = cmgr.makeModifiedConfiguration(configName, /* name of existing config */
                                                     "modConfig", /* name of new config with mods */
@@ -134,11 +134,11 @@ var loadAndExtract = function(){
                 status = cmgr.copyConfigurationAndDeleteKey(configName, delCfgName, delCase);
                 let [yamlStatus3, delText ] = cmgr.writeYAML(delCfgName);
                 if (yamlStatus3 == 0) {
-                    console.log(`Deleting ${delCase}`);
+                    console.log(`Deleting "${delCase}"`);
                     console.log(""+delText)
                 }
                 if (yamlStatus3 != 0 || status != 0) {
-                    throw new Error(`${delCase} test failed`);
+                    throw new Error(`"${delCase}" test failed`);
                 }
             }
 
