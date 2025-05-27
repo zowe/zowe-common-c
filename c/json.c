@@ -2701,7 +2701,7 @@ static void deleteJson(Json *base, const char *deleteKey) {
     Json *parentNode = NULL;
     Json *activeNode = base;
     char* copiedKey = strdup(deleteKey);
-    char workStr[500]; // huge working buffer on the stack for potential keys, all should realistically be <50 chars
+    char workStr[MAX_JSON_KEY]; // large working buffer
     char* jsonTok = strtok(copiedKey, ".");
     bool tokenMatchFound = true;
     // used to parse arrays like a[0]
@@ -2726,7 +2726,7 @@ static void deleteJson(Json *base, const char *deleteKey) {
         }
       } else {
         // If we have format like [a.b.c], ensure the jsonTok is [a.b.c], and not [a.b.c
-        memset(workStr, 0x00, sizeof(char)*500);
+        memset(workStr, 0x00, sizeof(char)*MAX_JSON_KEY);
         if (jsonTok && jsonTok[0] == '[') {
           strncpy(workStr, jsonTok, strlen(jsonTok));
           while (workStr[strlen(workStr)-1] != ']') {
