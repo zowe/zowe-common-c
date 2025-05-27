@@ -2912,7 +2912,7 @@ Json *jsonCopy(ShortLivedHeap *slh, Json *value){
   return builder.root;
 }
 
-Json *jsonDelete(ShortLivedHeap *slh, const char *keyToDelete, Json *base, int *statusPtr) {
+Json *jsonDelete(ShortLivedHeap *slh, const char *keyToDelete, Json *base) {
   JsonBuilder builder;
   memset(&builder, 0, sizeof(JsonBuilder));
   builder.parser.slh = slh;

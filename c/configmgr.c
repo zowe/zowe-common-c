@@ -867,6 +867,7 @@ static int overloadConfiguration(ConfigManager *mgr,
   }
 }
 
+// This method always succeeds. If the keyToDelete is not found, configuration is returned with modification.
 int cfgDeleteFromConfiguration(ConfigManager* mgr, 
          const char *configName,
          const char *modifiedConfigName,
@@ -876,20 +877,13 @@ int cfgDeleteFromConfiguration(ConfigManager* mgr,
   if (!config) {
     return ZCFG_UNKNOWN_CONFIG_NAME;
   }
-  int deleteStatus = 0;
 
   Json *modifiedData = jsonDelete(mgr->slh, 
             keyToDelete, 
-            config->configData, 
-            &deleteStatus);
+            config->configData);
   
-  if (deleteStatus) {
-    return deleteStatus;
-  }
-
   CFGConfig *modifiedConfig = cfgAddConfig(mgr,modifiedConfigName);
   modifiedConfig->schemaPath = config->schemaPath;
-  /* is this path really true anymore?? */
   modifiedConfig->configPath = config->configPath;
   modifiedConfig->topSchema = config->topSchema;
   modifiedConfig->otherSchemas = config->otherSchemas;
