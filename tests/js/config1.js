@@ -7,7 +7,7 @@ console.log("hello ConfigMgr, args were ["+scriptArgs+"]");
 
   From zowe-common-c/c
 
-  configmgr -script ../tests/js/config1.js -s "../tests/schemadata/zoweappserver.json:../tests/schemadata/zowebase.json:../tests/schemadata/zowecommon.json" -p "FILE(../tests/schemadata/bundle1.json)" 
+  configmgr -script ../tests/js/config1.js -s "../tests/schemadata/zoweappserver.json:../tests/schemadata/zowebase.json:../tests/schemadata/zowecommon.json" -p "FILE(../tests/schemadata/bundle1.json)"
 
   Testing ZSS schemas
 
@@ -120,7 +120,13 @@ var loadAndExtract = function(){
                 "_zsf.debugging.level",
                 "[_test.array[0]]",
                 "[_test.array[2]]",
-                "[_test.array[3]].[_test.nested[0]]"
+                "[_test.array[3]].[_test.nested[0]]",
+                "key256aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "key which is defined",
+                "key which is not defined",
+                "ugly\nkey",
+                " ",
+                "  "
             ]
             console.log(`----Delete Cases----`)
             for (const delCase of delCases) {
@@ -135,7 +141,7 @@ var loadAndExtract = function(){
                     throw new Error(`${delCase} test failed`);
                 }
             }
-            
+
         }
     } else {
         console.log("validation failed, contact Zowe support");
