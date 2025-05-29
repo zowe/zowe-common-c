@@ -2757,9 +2757,7 @@ static void deleteJson(Json *base, const char *deleteKey) {
           if (rrc == 0 && matches[3].rm_eo < strlen(jsonTok) && matches[3].rm_so < matches[3].rm_eo) {
             arrayIdx = parseInt(jsonTok + matches[3].rm_so, 0, matches[3].rm_eo - matches[3].rm_so);
             // set the jsonTok array `[nnn]` to end-of-string, e.g. a[0] -> a
-            if (matches[1].rm_so != -1) {
-              memset(jsonTok + matches[2].rm_so, '\0', matches[2].rm_eo - matches[2].rm_so); // sets effective memory in either workStr or copiedKey, both safe to mutate
-            }
+            memset(jsonTok + matches[2].rm_so, '\0', matches[2].rm_eo - matches[2].rm_so); // sets effective memory in either workStr or copiedKey, both safe to mutate
           }
         }
         if (jsonIsObject(activeNode)) {
