@@ -2752,9 +2752,9 @@ static void deleteJson(Json *base, const char *deleteKey) {
           regmatch_t matches[4];
           regexComp(argPattern,pat,REG_EXTENDED);
           int rrc = regexExec(argPattern,jsonTok,4,matches,0);
-          printf("match indexes: %d %d \n", matches[3].rm_so, matches[3].rm_eo); fflush(stdout);
+          // printf("match indexes: %d %d \n", matches[3].rm_so, matches[3].rm_eo); fflush(stdout);
           // if we have a matched array index, set the arrayIdx, otherwise, leave jsonTok as-is
-          if (rrc == 0 && matches[3].rm_so < matches[3].rm_eo) {
+          if (rrc == 0 && matches[3].rm_eo < strlen(jsonTok) && matches[3].rm_so < matches[3].rm_eo) {
             arrayIdx = parseInt(jsonTok + matches[3].rm_so, 0, matches[3].rm_eo - matches[3].rm_so);
             // set the jsonTok array `[nnn]` to end-of-string, e.g. a[0] -> a
             if (matches[1].rm_so != -1) {
