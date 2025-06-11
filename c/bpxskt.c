@@ -390,11 +390,11 @@ Socket *tcpClient4(SocketAddress *socketAddress,
         struct timeval readTimeout;
         struct timeval writeTimeout;
 
-        readTimeout.tv_sec = (long)(readTimeoutInMillis / 1000UL);
-        readTimeout.tv_usec = (long)((readTimeoutInMillis % 1000UL)*1000UL);
+        readTimeout.tv_sec = readTimeoutInMillis / 1000;
+        readTimeout.tv_usec = ((readTimeoutInMillis % 1000)*1000);
 
-        writeTimeout.tv_sec = (long)(writeTimeoutInMillis / 1000UL);
-        writeTimeout.tv_usec = (long)((writeTimeoutInMillis % 1000UL)*1000UL);
+        writeTimeout.tv_sec = writeTimeoutInMillis / 1000;
+        writeTimeout.tv_usec = ((writeTimeoutInMillis % 1000)*1000);
 
         setSocketOption(socket, SOL_SOCKET, SOCK_SO_RCVTIMEO, sizeof(struct timeval), (char*)&readTimeout, returnCode, reasonCode);
         if (returnCode) {
