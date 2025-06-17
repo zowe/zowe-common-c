@@ -51,6 +51,9 @@
 
 #ifdef __ZOWE_OS_WINDOWS
 typedef int64_t ssize_t;
+#include "winregex.h"
+#else
+#include "psxregex.h"  /* works on ZOS and Linux */
 #endif
 
 /* Having lots of problems including unistd, so here's a hack */
@@ -1667,6 +1670,60 @@ Json *jsonGetNull(JsonParser* parser) {
   return json;
 }
 
+static void jsonArrayRemoveNode(Json* base, Json* remove) {
+  JsonArray *baseArray = jsonAsArray(base);
+  Json **baseElements = baseArray->elements;
+  Json **iter = baseElements;
+  int idx = 0;
+  while (idx < baseArray->count) {
+    if (iter[idx] == remove) {
+      memmove(&iter[idx], &iter[idx+1], (baseArray->capacity - idx) * sizeof(Json *));
+      baseArray->count -= 1;
+      return;
+    }
+    idx++;
+  }
+}
+
+static
+void jsonObjectRemoveNode(Json* base, Json* remove) {
+  JsonObject* baseObj = jsonAsObject(base);
+  JsonProperty* prevProp = NULL;
+  JsonProperty* activeProp = baseObj->firstProperty;
+  bool propFound = false;
+  while (activeProp && !propFound) {
+    if (activeProp->value == remove) {
+      propFound = true;
+    } else {
+      prevProp = activeProp;
+      activeProp = activeProp->next;
+    }
+  }
+  // if someone calls us and we can't find the prop, return without modification
+  if (!propFound){
+    return;
+  }
+
+  if (baseObj->lastProperty == activeProp){ 
+    baseObj->lastProperty = prevProp;
+  }
+
+  if (prevProp) {
+    prevProp->next = activeProp->next;
+  } else {
+    // prevprop = null occurs when our target prop was the object's firstProperty
+    baseObj->firstProperty = activeProp->next;
+  }
+}
+
+static void jsonRemoveNode(Json* base, Json* remove) {
+  if (jsonIsObject(base)) {
+    jsonObjectRemoveNode(base, remove);
+  } else if (jsonIsArray(base)) {
+    jsonArrayRemoveNode(base, remove);
+  }
+}
+
 static 
 void jsonObjectAddProperty(JsonParser *parser, JsonObject *obj, char *key, Json *value) {
   JsonProperty *property = (JsonProperty*) jsonParserAlloc(parser, sizeof (JsonProperty));
@@ -2126,6 +2183,13 @@ int jsonIsObject(Json *json) {
 
 int jsonIsArray(Json *json) {
   return json->type == JSON_TYPE_ARRAY;
+}
+
+int jsonIsPrimitive(Json *json) {
+  return jsonIsString(json) || 
+         jsonIsBoolean(json) ||
+         jsonIsNumber(json) ||
+         jsonIsNull(json);
 }
 
 int jsonIsString(Json *json) {
@@ -2632,6 +2696,95 @@ static void copyJson(JsonBuilder *builder, Json *parent, char *parentKey, Json *
   }
 }
 
+static void deleteJson(Json *base, const char *deleteKey) {
+  if (deleteKey) {
+    Json *parentNode = NULL;
+    Json *activeNode = base;
+    char* copiedKey = strdup(deleteKey);
+    char workStr[MAX_JSON_KEY]; // large working buffer
+    char* jsonTok = strtok(copiedKey, ".");
+    bool tokenMatchFound = true;
+    // used to parse arrays like a[0]
+    regex_t *argPattern = regexAlloc();
+    char *pat = "(.*)(\\[([0-9]+)\\]).*";
+    int arrayIdx = -1; // helps track composite nodes like a[0], where 'a' and '0' are both nodes in the JSON tree
+
+    // This loop walks down the JSON tree one key/node at a time, except for arrays, where one key represents 2 nodes (array + index). e.g: a[0] 
+    //      The array "saves" the second step as arrayIdx, so each loop iteration still crawls one node at a time.
+    while ((jsonTok || arrayIdx>=0) && tokenMatchFound) {
+      tokenMatchFound = false;
+      // if we're a known array index, set it as the active node
+      if (arrayIdx >= 0) {
+        if (jsonIsArray(activeNode)) {
+          JsonArray *nodeArray = jsonAsArray(activeNode);
+          if (arrayIdx < nodeArray->count) {
+            tokenMatchFound = true;
+            parentNode = activeNode;
+            activeNode = nodeArray->elements[arrayIdx];
+            arrayIdx=-1; // reset
+          }
+        }
+      } else {
+        // If we have format like [a.b.c], ensure the jsonTok is [a.b.c], and not [a.b.c
+        memset(workStr, 0x00, sizeof(char)*MAX_JSON_KEY);
+        if (jsonTok && jsonTok[0] == '[') {
+          strncpy(workStr, jsonTok, strlen(jsonTok));
+          while (workStr[strlen(workStr)-1] != ']') {
+            char* nextTok = strtok(NULL, ".");
+            if (!nextTok) {
+              // end of string, unmatched '['
+              break;
+            }
+            strcat(workStr, ".");
+            strcat(workStr, nextTok);
+          }
+          // strip the first and last brackets if they're present
+          if (workStr[0]== '[' && workStr[strlen(workStr)-1]== ']') {
+            memmove(workStr, workStr + 1, strlen(workStr) - 1);
+            workStr[strlen(workStr) - 2] = '\0';
+          }
+          jsonTok = workStr;
+        }
+        //printf("jsonTokPostGroup: %s\n", jsonTok); fflush(stdout);
+
+        // use regexp to parse jsonToks of formats: "a[0]", "a.b.c[213132]". Invalid arrays like "abc]", "abc[a2]" are left untouched.
+        if (jsonTok[strlen(jsonTok)-1] == ']') {
+          regmatch_t matches[4];
+          regexComp(argPattern,pat,REG_EXTENDED);
+          int rrc = regexExec(argPattern,jsonTok,4,matches,0);
+          // printf("match indexes: %d %d \n", matches[3].rm_so, matches[3].rm_eo); fflush(stdout);
+          // if we have a matched array index, set the arrayIdx, otherwise, leave jsonTok as-is
+          if (rrc == 0 && matches[3].rm_eo < strlen(jsonTok) && matches[3].rm_so < matches[3].rm_eo) {
+            arrayIdx = parseInt(jsonTok + matches[3].rm_so, 0, matches[3].rm_eo - matches[3].rm_so);
+            // set the jsonTok array `[nnn]` to end-of-string, e.g. a[0] -> a
+            memset(jsonTok + matches[2].rm_so, '\0', matches[2].rm_eo - matches[2].rm_so); // sets effective memory in either workStr or copiedKey, both safe to mutate
+          }
+        }
+        if (jsonIsObject(activeNode)) {
+          JsonProperty *baseProp = jsonObjectGetFirstProperty(jsonAsObject(activeNode));
+          while (baseProp && !tokenMatchFound) {
+            // printf("deleteJson traverseObject baseProp=%s\n", baseProp->key); fflush(stdout);
+            if (strcmp(baseProp->key, jsonTok) == 0) {
+              tokenMatchFound = true;
+              parentNode = activeNode;
+              activeNode = baseProp->value;
+            } else {
+              baseProp = jsonObjectGetNextProperty(baseProp);
+            }
+          } 
+        }
+        jsonTok = strtok(NULL, ".");
+      }
+    }
+    if (tokenMatchFound) { // jsonTok must be NULL (no more tokens), so we matched everything
+      //printf("deleteJson deleting node 0x%p\n", activeNode); fflush(stdout);
+      jsonRemoveNode(parentNode, activeNode);
+    }
+    regexFree(argPattern);
+    free(copiedKey);
+  }
+}
+
 static int mergeJson1(JsonMerger *merger, Json *parent, char *parentKey, Json *overrides, Json *base){
   int errorCode = 0;
   JsonBuilder *builder = &merger->builder;
@@ -2754,6 +2907,15 @@ Json *jsonCopy(ShortLivedHeap *slh, Json *value){
   memset(&builder,0,sizeof(JsonBuilder));
   builder.parser.slh = slh;
   copyJson(&builder,NULL,NULL,value);
+  return builder.root;
+}
+
+Json *jsonDelete(ShortLivedHeap *slh, const char *keyToDelete, Json *base) {
+  JsonBuilder builder;
+  memset(&builder, 0, sizeof(JsonBuilder));
+  builder.parser.slh = slh;
+  copyJson(&builder,NULL,NULL,base);
+  deleteJson(builder.root, keyToDelete);
   return builder.root;
 }
 
