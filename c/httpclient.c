@@ -1038,7 +1038,17 @@ int httpClientSessionReceiveNativeLoop(HttpClientContext *ctx, HttpClientSession
       bytesRead = socketRead(session->socket, buf, sizeof(buf), &bpxrc, &bpxrsn);
       if (bytesRead < 1) {
         HTTP_CLIENT_TRACE_VERBOSE("http client nativeLoop socket read error rc=%d, rsn=0x%x\n", bpxrc, bpxrsn);
-        sts = HTTP_CLIENT_READ_ERROR;
+        if (bpxrc == 0x44E) { // EWOULDBLOCK
+          if (bpxrsn == 0x0211) { // JRTimeOut
+            sts = HTTP_CLIENT_SOCKET_TIMEOUT;
+          } else {
+            sts = HTTP_CLIENT_UNBLOCKED_TRY_AGAIN;
+          }
+        } else if (bpxrc == 0x70) { // EAGAIN
+          sts = HTTP_CLIENT_UNBLOCKED_TRY_AGAIN;
+        } else {
+          sts = HTTP_CLIENT_READ_ERROR;
+        }
         break;
       }
       ansiStatus = processHttpResponseFragment(session->responseParser, buf, bytesRead, &(session->response));
@@ -1082,7 +1092,17 @@ int httpClientSessionReceiveNative(HttpClientContext *ctx, HttpClientSession *se
     buf = SLHAlloc(session->slh, maxlen);
     buflen = socketRead(session->socket, buf, maxlen, &bpxrc, &bpxrsn);
     if (buflen < 1) {
-      sts = HTTP_CLIENT_READ_ERROR;
+      if (bpxrc == 0x44E) { // EWOULDBLOCK
+        if (bpxrsn == 0x0211) { // JRTimeOut
+          sts = HTTP_CLIENT_SOCKET_TIMEOUT;
+        } else {
+          sts = HTTP_CLIENT_UNBLOCKED_TRY_AGAIN;
+        }
+      } else if (bpxrc == 0x70) { // EAGAIN
+        sts = HTTP_CLIENT_UNBLOCKED_TRY_AGAIN;
+      } else {
+        sts = HTTP_CLIENT_READ_ERROR;
+      }
       break;
     }
 
