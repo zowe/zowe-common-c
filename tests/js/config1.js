@@ -7,7 +7,7 @@ console.log("hello ConfigMgr, args were ["+scriptArgs+"]");
 
   From zowe-common-c/c
 
-  configmgr -script ../tests/js/config1.js -s "../tests/schemadata/zoweappserver.json:../tests/schemadata/zowebase.json:../tests/schemadata/zowecommon.json" -p "FILE(../tests/schemadata/bundle1.json)" 
+  configmgr -script ../tests/js/config1.js -s "../tests/schemadata/zoweappserver.json:../tests/schemadata/zowebase.json:../tests/schemadata/zowecommon.json" -p "FILE(../tests/schemadata/bundle1.json)"
 
   Testing ZSS schemas
 
@@ -81,7 +81,7 @@ var loadAndExtract = function(){
         } else {
             console.log("no exceptions seen");
             let theConfig = cmgr.getConfigData(configName);
-            console.log("configData is loaded \n"+JSON.stringify(theConfig,null,"\n"));
+            console.log("configData is loaded \n"+JSON.stringify(theConfig,null,2));
             console.log("listenerPort is "+theConfig.listenerPort)
             status = cmgr.makeModifiedConfiguration(configName, /* name of existing config */
                                                     "modConfig", /* name of new config with mods */
@@ -97,6 +97,51 @@ var loadAndExtract = function(){
             if (yamlStatus2 == 0){
               console.log(""+modText);
             }
+
+            const delCases = [
+                "",
+                "      ",
+                "A",
+                "colors",
+                "D.A",
+                "D",
+                "E.A",
+                "F.A",
+                "F.C",
+                "G[.A.B.C.D",
+                "G[",
+                "colors[0]",
+                "colors.1a",
+                "colors[5]",
+                "colors[5].1",
+                "G[.A.B.D[1]",
+                "G[.A.B.D[1].C",
+                "[_zsf.debugging.level]",
+                "_zsf.debugging.level",
+                "[_test.array[0]]",
+                "[_test.array[2]]",
+                "[_test.array[3]].[_test.nested[0]]",
+                "key256aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "key which is defined",
+                "key which is not defined",
+                "ugly\nkey",
+                " ",
+                "  "
+            ]
+            console.log(`----Delete Cases----`)
+            for (const delCase of delCases) {
+                const delCfgName = "delConfig_"+delCase;
+                status = cmgr.copyConfigurationAndDeleteKey(configName, delCfgName, delCase);
+                let [yamlStatus3, delText ] = cmgr.writeYAML(delCfgName);
+                if (yamlStatus3 == 0) {
+                    console.log(`Deleting "${delCase}"`);
+                    console.log(""+delText)
+                }
+                if (yamlStatus3 != 0 || status != 0) {
+                    throw new Error(`"${delCase}" test failed`);
+                }
+            }
+
         }
     } else {
         console.log("validation failed, contact Zowe support");
