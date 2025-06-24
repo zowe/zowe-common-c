@@ -867,6 +867,32 @@ static int overloadConfiguration(ConfigManager *mgr,
   }
 }
 
+// This method always succeeds. If the keyToDelete is not found, configuration is returned with modification.
+int cfgDeleteFromConfiguration(ConfigManager* mgr, 
+         const char *configName,
+         const char *modifiedConfigName,
+         const char *keyToDelete) {
+
+  CFGConfig *config = getConfig(mgr, configName);
+  if (!config) {
+    return ZCFG_UNKNOWN_CONFIG_NAME;
+  }
+
+  Json *modifiedData = jsonDelete(mgr->slh, 
+            keyToDelete, 
+            config->configData);
+  
+  CFGConfig *modifiedConfig = cfgAddConfig(mgr,modifiedConfigName);
+  modifiedConfig->schemaPath = config->schemaPath;
+  modifiedConfig->configPath = config->configPath;
+  modifiedConfig->topSchema = config->topSchema;
+  modifiedConfig->otherSchemas = config->otherSchemas;
+  modifiedConfig->otherSchemasCount = config->otherSchemasCount;
+  modifiedConfig->parmlibMemberName = config->parmlibMemberName;
+  modifiedConfig->configData = modifiedData;
+  return ZCFG_SUCCESS;
+}
+
 int cfgMakeModifiedConfiguration(ConfigManager *mgr, 
 				 const char *configName, 
 				 const char *modifiedConfigName,
@@ -1497,6 +1523,19 @@ static int loadConfigurationWrapper(ConfigManager *mgr, EJSNativeInvocation *inv
   return EJS_OK;
 }
 
+static int deleteFromConfigurationWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  const char *configName = NULL;
+  ejsStringArg(invocation,0,&configName);
+  const char *modifiedConfigName = NULL;
+  ejsStringArg(invocation,1,&modifiedConfigName);
+  const char *keyToDelete = NULL;
+  ejsStringArg(invocation,2,&keyToDelete);
+  
+  int status = cfgDeleteFromConfiguration(mgr,configName,modifiedConfigName,keyToDelete);
+  ejsReturnInt(invocation,status);
+  return EJS_OK;
+}
+
 static int makeModifiedConfigurationWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
   const char *configName = NULL;
   ejsStringArg(invocation,0,&configName);
@@ -1652,6 +1691,20 @@ static EJSNativeModule *exportConfigManagerToEJS(EmbeddedJS *ejs){
                                                           EJS_NATIVE_TYPE_INT32,
                                                           (EJSForeignFunction*)loadConfigurationWrapper);
   ejsAddMethodArg(ejs,loadConfiguration,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+
+  /**
+   * 
+int cfgDeleteFromConfiguration(ConfigManager* mgr, 
+         const char *configName,
+         const char *modifiedConfigName,
+         const char *keyToDelete) {
+   */
+  EJSNativeMethod *deleteFromConfiguration = ejsMakeNativeMethod(ejs,configmgr,"copyConfigurationAndDeleteKey",
+    EJS_NATIVE_TYPE_INT32,
+    (EJSForeignFunction*)deleteFromConfigurationWrapper);
+  ejsAddMethodArg(ejs,deleteFromConfiguration,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+  ejsAddMethodArg(ejs,deleteFromConfiguration,"modifiedConfigName",EJS_NATIVE_TYPE_CONST_STRING);
+  ejsAddMethodArg(ejs,deleteFromConfiguration,"keyToDelete",EJS_NATIVE_TYPE_CONST_STRING);
 
   EJSNativeMethod *makeModifiedConfiguration = ejsMakeNativeMethod(ejs,configmgr,"makeModifiedConfiguration",
 								   EJS_NATIVE_TYPE_INT32,
