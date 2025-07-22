@@ -111,7 +111,7 @@ char *getCAA(void){
 }
 
 #ifndef LE_MAX_SUPPORTED_ZOS
-#define LE_MAX_SUPPORTED_ZOS 0x01030100u
+#define LE_MAX_SUPPORTED_ZOS 0x01030200u
 #endif
 
 void abortIfUnsupportedCAA() {
@@ -122,8 +122,13 @@ void abortIfUnsupportedCAA() {
   if (zosVersion > LE_MAX_SUPPORTED_ZOS) {
     const char *continueWithWarning = getenv("ZWE_zowe_launcher_unsafeDisableZosVersionCheck");
     if (!strcmp(continueWithWarning, "true")) {
+      /*
+       * This code is context-free and sometimes the callers are expecting silent output on STDOUT
+       * So, regrettably, if we want such a warning, we need to kick it up to calling code to manage.
+       *
       printf("warning: z/OS version = 0x%08X, max supported version = 0x%08X - "
              "CAA fields require verification\n", zosVersion, LE_MAX_SUPPORTED_ZOS);
+      */
     } else {
       printf("error: z/OS version = 0x%08X, max supported version = 0x%08X - "
              "CAA fields require verification\n", zosVersion, LE_MAX_SUPPORTED_ZOS);
