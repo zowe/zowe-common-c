@@ -136,6 +136,41 @@ typedef struct TlsSettings_tag {
   */
   char *maxTls;
   char *minTls;
+#define TLS_CURVE_RESERVED_DEFAULT "0000"
+#define TLS_CURVE_SECT163K1 "0001"
+#define TLS_CURVE_SECT163R1 "0002"
+#define TLS_CURVE_SECT163R2 "0003"
+#define TLS_CURVE_SECT193R1 "0004"
+#define TLS_CURVE_SECT193R2 "0005"
+#define TLS_CURVE_SECT233K1 "0006"
+#define TLS_CURVE_SECT233R1 "0007"
+#define TLS_CURVE_SECT239K1 "0008"
+#define TLS_CURVE_SECT283K1 "0009"
+#define TLS_CURVE_SECT283R1 "0010"
+#define TLS_CURVE_SECT409K1 "0011"
+#define TLS_CURVE_SECT409R1 "0012"
+#define TLS_CURVE_SECT571K1 "0013"
+#define TLS_CURVE_SECT571R1 "0014"
+#define TLS_CURVE_SECP160K1 "0015"
+#define TLS_CURVE_SECP160R1 "0016"
+#define TLS_CURVE_SECP160R2 "0017"
+#define TLS_CURVE_SECP192K1 "0018"
+#define TLS_CURVE_PRIME192V "0019"
+#define TLS_CURVE_SECP224K1 "0020"
+#define TLS_CURVE_SECP224R1 "0021"
+#define TLS_CURVE_SECP256K1 "0022"
+#define TLS_CURVE_SECP384R1 "0024"
+#define TLS_CURVE_PRIME256V1 "0023"
+#define TLS_CURVE_SECP521R1 "0025"
+#define TLS_CURVE_BRAINPOOLP256R1 "0026"
+#define TLS_CURVE_BRAINPOOLP384R1 "0027"
+#define TLS_CURVE_BRAINPOOLP512R1 "0028"
+#define TLS_CURVE_X25519 "0029"
+#define TLS_CURVE_X448 "0030"
+#define TLS_CURVE_BRAINPOOLP256R1TLS13 "0031"
+#define TLS_CURVE_BRAINPOOLP384R1TLS13 "0032"
+#define TLS_CURVE_BRAINPOOLP512R1TLS13 "0033"
+  char *curves;
 } TlsSettings;
 
 typedef struct TlsEnvironment_tag {
@@ -243,6 +278,75 @@ typedef struct CipherMap_tag {
     {"TLS_CHACHA20_POLY1305_SHA256", TLS_CHACHA20_POLY1305_SHA256},\
     {0, NULL}\
 };
+
+  typedef struct CurveMap_tag {
+  const char* name;
+  const char* groupId;  //number string
+} CurveMap;
+
+#define TLS_IANA_CURVE_MAP(ianaCurveMap)\
+  static const CurveMap ianaCurveMap[] = {\
+    {"secp192r1",TLS_CURVE_PRIME192V},\
+    {"NIST P-192",TLS_CURVE_PRIME192V},\
+    {"prime192v",TLS_CURVE_PRIME192V},\
+    {"secp224r1", TLS_CURVE_SECP224R1},\
+    {"NIST P-224", TLS_CURVE_SECP224R1},\
+    {"NIST P-256",TLS_CURVE_PRIME256V1},\
+    {"secp256r1",TLS_CURVE_PRIME256V1},\
+    {"prime256v1",TLS_CURVE_PRIME256V1},\
+    {"NIST P-384", TLS_CURVE_SECP384R1},\
+    {"secp384r1", TLS_CURVE_SECP384R1},\
+    {"NIST P-521", TLS_CURVE_SECP521R1},\
+    {"secp521r1", TLS_CURVE_SECP521R1},\
+    {"x25519", TLS_CURVE_X25519},\
+    {"x448", TLS_CURVE_X448},\
+    {0, NULL}\
+};
+
+/*
+  Currently, only the curves mentioned https://www.ibm.com/docs/en/zos/3.1.0?topic=programming-cipher-suite-definitions#csdcwh__tttcsd
+  are supported, if any curves are added in the future they should be added to the above array.
+
+    {"NIST K-163", TLS_CURVE_SECT163K1},\
+    {"NIST K-283", TLS_CURVE_SECT283K1},\
+    {"brainpoolP256r1", TLS_CURVE_BRAINPOOLP256R1},\
+    {"sect163k1", TLS_CURVE_SECT163K1},\
+    {"NIST K-163", TLS_CURVE_SECT163K1},\
+    {"sect163r2", TLS_CURVE_SECT163R2},\
+    {"NIST B-163", TLS_CURVE_SECT163R2},\
+    {"sect233k1", TLS_CURVE_SECT233K1},\
+    {"NIST K-233", TLS_CURVE_SECT233K1},\
+    {"sect233r1", TLS_CURVE_SECT233R1},\
+    {"NIST K-233", TLS_CURVE_SECT233R1},\
+    {"sect283k1", TLS_CURVE_SECT283K1},\
+    {"NIST K-283", TLS_CURVE_SECT283K1},\
+    {"sect283r1", TLS_CURVE_SECT283R1},\
+    {"NIST B-283", TLS_CURVE_SECT283R1},\
+    {"sect409k1", TLS_CURVE_SECT409K1},\
+    {"NIST K-409", TLS_CURVE_SECT409K1},\
+    {"sect409r1", TLS_CURVE_SECT409R1},\
+    {"NIST B-409", TLS_CURVE_SECT409R1},\
+    {"sect571k1", TLS_CURVE_SECT571K1},\
+    {"NIST K-571", TLS_CURVE_SECT571K1},\
+    {"sect571r1", TLS_CURVE_SECT571R1},\
+    {"NIST B-571", TLS_CURVE_SECT571R1},\
+    {"sect163r1", TLS_CURVE_SECT163R1},\
+    {"sect193r1", TLS_CURVE_SECT193R1},\
+    {"sect193r2", TLS_CURVE_SECT193R2},\
+    {"sect239k1", TLS_CURVE_SECT239K1},\
+    {"secp160k1", TLS_CURVE_SECP160K1},\
+    {"secp160r1", TLS_CURVE_SECP160R1},\
+    {"secp160r2", TLS_CURVE_SECP160R2},\
+    {"secp192k1", TLS_CURVE_SECP192K1},\
+    {"secp224k1", TLS_CURVE_SECP224K1},\
+    {"secp256k1", TLS_CURVE_SECP256K1},\
+    {"brainpoolP256r1", TLS_CURVE_BRAINPOOLP256R1},\
+    {"brainpoolP384r1", TLS_CURVE_BRAINPOOLP384R1},\
+    {"brainpoolP512r1", TLS_CURVE_BRAINPOOLP512R1},\
+    {"brainpoolP256r1tls13", TLS_CURVE_BRAINPOOLP256R1TLS13},\
+    {"brainpoolP384r1tls13", TLS_CURVE_BRAINPOOLP384R1TLS13},\
+    {"brainpoolP512r1tls13", TLS_CURVE_BRAINPOOLP512R1TLS13},\
+*/
 
 int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings);
 int tlsDestroy(TlsEnvironment *env);

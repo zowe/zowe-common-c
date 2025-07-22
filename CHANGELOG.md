@@ -1,5 +1,8 @@
 # Zowe Common C Changelog
 
+## `3.4.0`
+- Enhancement: As a part of curve customization support, supported curves and their mapping to iana numbers are defined in tls.h. They are set using 'gsk_attribute_set_buffer' in tls.c. Currently, the list of supported curves can be seen here https://www.ibm.com/docs/en/zos/3.1.0?topic=programming-cipher-suite-definitions#csdcwh__tttcsd (#466).
+
 ## `3.3.0`
 - Enhancement: add a `copyConfigurationAndDeleteKey` API to configmgr (#524)
 - Enhancement: configmgr path elements of type PARMLIB can now contain a member name, in the format of "PARMLIB(DATA.SET(member))", as an alternative to the older format of "PARMLIB(DATA.SET)" with the member name being specified in a separate argument. This enhancement allows use of multiple members with different names within the same PARMLIB dataset. The older format can still be used as desired. (#522)
