@@ -1,5 +1,8 @@
 # Zowe Common C Changelog
 
+## `2.18.2`
+- Bugfix: Improve httpclient non-blocking error codes for use by clients ([#534](https://github.com/zowe/zowe-common-c/pull/534))
+
 ## `2.18.1`
 - Bugfix: IARV64 results must be checked for 0x7FFFF000 (#474)
 - Bugfix: SLH should not ABEND when MEMLIMIT is reached (additional NULL check)
@@ -7,6 +10,7 @@
 - Bugfix: support cross-memory server parameters longer than 128 characters (zowe/zss#684)
 - Bugfix: HEAPPOOLS and HEAPPOOLS64 no longer need to be set to OFF for configmgr (#498)
 - Bugfix: make sure CEE3ERP is invoked in LE 31-bit XPLINK (#503)
+- Bugfix: allocate storage to be executed with EXECUTABLE=YES (#512)
 
 ## `2.18.0`
 - Minor `components.zss.logLevels._zss.httpserver=5` debug messages enhancement (#471)
