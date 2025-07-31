@@ -601,7 +601,7 @@ static void safeFree64Internal(char *data, int size, long long token){
 #if defined(METTLE) && defined(_LP64)
   freemain64(data,NULL,NULL);
 #else
-  /* do nothing - because 64 bit allocation in LE is not ready */
+  free(data);
 #endif
 }
 
