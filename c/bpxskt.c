@@ -219,9 +219,8 @@ int getSocketDebugID(Socket *s){
 /*--5---10---15---20---25---30---35---40---45---50---55---60---65---70---75---*/
 #define SO_ERROR    0x1007
 
-Socket *tcpClient4(SocketAddress *socketAddress,
+Socket *tcpClient3(SocketAddress *socketAddress,
          int connectTimeoutInMillis,
-         int readTimeoutInMillis,
          int tlsFlags,
          int *returnCode,
          int *reasonCode) {
@@ -327,7 +326,8 @@ Socket *tcpClient4(SocketAddress *socketAddress,
           returnValue = 0;
         }
       } else{
-        /* all was good on 1st try */
+        /* all was good on 1st try, but why aren't we setting blocking mode here?
+           seems inconsistent */
       }
     }
     else{
@@ -369,39 +369,18 @@ Socket *tcpClient4(SocketAddress *socketAddress,
       /* manual says returnCode and value only meaningful if return value = -1 */
       *returnCode = 0;
       *reasonCode = 0;
-      if (readTimeoutInMillis >= 0) {
-        setSocketOption(socket, SOL_SOCKET, SOCK_SO_RCVTIMEO, sizeof(int), (char*)&readTimeoutInMillis, returnCode, reasonCode);
-        setSocketBlockingMode(socket, TRUE, returnCode, reasonCode);
-      } else {
-        setSocketBlockingMode(socket, FALSE, returnCode, reasonCode);
-      }
       socket->protocol = IPPROTO_TCP;
-
       return socket;
     }
   }                    
-}
-
-Socket *tcpClient3(SocketAddress *socketAddress,
-       int connectTimeoutInMillis,
-       int tlsFlags,
-       int *returnCode, /* errnum */
-       int *reasonCode) { /* errnum - JR's */
-  return tcpClient4(socketAddress,
-                    connectTimeoutInMillis,
-                    -1,
-                    tlsFlags,
-                    returnCode,
-                    reasonCode);
 }
 
 Socket *tcpClient2(SocketAddress *socketAddress,
        int connectTimeoutInMillis,
        int *returnCode, /* errnum */
        int *reasonCode) { /* errnum - JR's */
-  return tcpClient4(socketAddress,
+  return tcpClient3(socketAddress,
                     connectTimeoutInMillis,
-                    -1,
                     0,
                     returnCode,
                     reasonCode);
@@ -1089,7 +1068,6 @@ int socketRead(Socket *socket, char *buffer, int desiredBytes,
 #else
   reasonCodePtr = reasonCode;
 #endif
-
   BPXRED(&sd,
           &buffer,
           &zero,

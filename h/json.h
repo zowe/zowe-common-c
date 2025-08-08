@@ -655,6 +655,9 @@ Json *jsonBuildNull(JsonBuilder *b,
 
 char* jsonBuildKey(JsonBuilder *b, const char *key, int len);
 
+#define MAX_JSON_KEY 256
+#define MAX_JSON_STRING 65536
+
 #define JSON_MERGE_STATUS_SUCCESS 0
 #define JSON_MERGE_STATUS_UNMERGEABLE_TYPES 1
 #define JSON_MERGE_STATUS_UNIMPLEMENTED 2
@@ -668,6 +671,7 @@ char* jsonBuildKey(JsonBuilder *b, const char *key, int len);
 #define JSON_MERGE_FLAG_TAKE_BASE          0x0003   /* len(merge) = len(b) */
 #define JSON_MERGE_FLAG_TAKE_OVERRIDES     0x0004   /* len(merge) = len(a) */
 
+Json *jsonDelete(ShortLivedHeap *slh, const char *keyToDelete, Json *base);
 Json *jsonMerge(ShortLivedHeap *slh, Json *overrides, Json *base, int flags, int *statusPtr);
 Json *jsonCopy(ShortLivedHeap *slh, Json *value);
 

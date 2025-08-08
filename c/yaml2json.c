@@ -354,9 +354,6 @@ void pprintYAML(yaml_document_t *document){
   pprintYAML1(document,yaml_document_get_root_node(document),0);
 }
 
-#define MAX_JSON_KEY 256
-#define MAX_JSON_STRING 65536
-
 /* this needs to be smarter some day
    Refer to Yaml spec http://yaml.org/spec/1.2-old/spec.html#id2805071
  */

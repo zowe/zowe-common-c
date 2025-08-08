@@ -671,11 +671,7 @@ int httpClientSessionInitv2(HttpClientContext *ctx, HttpClientSession **outSessi
       break;
     }
 
-    int readTimeoutMillis = 1000 * ctx->recvTimeoutSeconds;
-    int connectTimeoutMillis = readTimeoutMillis;
-    int tlsFlags = 0; //no TLS
-
-    Socket *socket = tcpClient4(ctx->serverAddress, connectTimeoutMillis, readTimeoutMillis, tlsFlags, bpxrc, &bpxrsn);
+    Socket *socket = tcpClient2(ctx->serverAddress, 1000 * ctx->recvTimeoutSeconds, bpxrc, &bpxrsn);
     if ((*bpxrc != 0) || (NULL == socket)) {
 #ifdef __ZOWE_OS_ZOS
       HTTP_CLIENT_TRACE_VERBOSE("%s (rc=%d, rsn=0x%x, addr=0x%08x, port=%d)\n", HTTP_CLIENT_MSG_CONNECT_FAILED, *bpxrc,
@@ -1053,10 +1049,17 @@ int httpClientSessionReceiveNativeLoop(HttpClientContext *ctx, HttpClientSession
       bytesRead = socketRead(session->socket, buf, sizeof(buf), &bpxrc, &bpxrsn);
       if (bytesRead < 1) {
         HTTP_CLIENT_TRACE_VERBOSE("http client nativeLoop socket read error rc=%d, rsn=0x%x\n", bpxrc, bpxrsn);
-        if (bpxrc == 0x44E){
-          sts = HTTP_CLIENT_EWOULDBLOCK;
+        if (bpxrc == 0x44E) { // EWOULDBLOCK
+          if (bpxrsn == 0x0211) { // JRTimeOut
+            sts = HTTP_CLIENT_SOCKET_TIMEOUT;
+          } else {
+            sts = HTTP_CLIENT_UNBLOCKED_TRY_AGAIN;
+          }
+        } else if (bpxrc == 0x70) { // EAGAIN
+          sts = HTTP_CLIENT_UNBLOCKED_TRY_AGAIN;
+        } else {
+          sts = HTTP_CLIENT_READ_ERROR;
         }
-        sts = HTTP_CLIENT_READ_ERROR;
         break;
       }
       ansiStatus = processHttpResponseFragment(session->responseParser, buf, bytesRead, &(session->response));
@@ -1100,10 +1103,17 @@ int httpClientSessionReceiveNative(HttpClientContext *ctx, HttpClientSession *se
     buf = SLHAlloc(session->slh, maxlen);
     buflen = socketRead(session->socket, buf, maxlen, &bpxrc, &bpxrsn);
     if (buflen < 1) {
-      if (bpxrc == 0x44E){
-        sts = HTTP_CLIENT_EWOULDBLOCK;
+      if (bpxrc == 0x44E) { // EWOULDBLOCK
+        if (bpxrsn == 0x0211) { // JRTimeOut
+          sts = HTTP_CLIENT_SOCKET_TIMEOUT;
+        } else {
+          sts = HTTP_CLIENT_UNBLOCKED_TRY_AGAIN;
+        }
+      } else if (bpxrc == 0x70) { // EAGAIN
+        sts = HTTP_CLIENT_UNBLOCKED_TRY_AGAIN;
+      } else {
+        sts = HTTP_CLIENT_READ_ERROR;
       }
-      sts = HTTP_CLIENT_READ_ERROR;
       break;
     }
 
