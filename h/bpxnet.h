@@ -332,14 +332,6 @@ Socket *tcpClient3(SocketAddress *socketAddress,
        int *returnCode,
        int *reasonCode);
 
-#define tcpClient4 tcpclie4
-
-Socket *tcpClient4(SocketAddress *socketAddress,
-       int connectTimeoutInMillis,
-       int readTimeoutInMillis,
-       int tlsFlags,
-       int *returnCode,
-       int *reasonCode);
 
 
 /* 
