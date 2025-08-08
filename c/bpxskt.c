@@ -220,7 +220,7 @@ int getSocketDebugID(Socket *s){
 #define SO_ERROR    0x1007
 
 Socket *tcpClient3(SocketAddress *socketAddress,
-         int timeoutInMillis,
+         int connectTimeoutInMillis,
          int tlsFlags,
          int *returnCode,
          int *reasonCode) {
@@ -263,7 +263,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
     return NULL;
   } else{
     int socketAddrSize = SOCKET_ADDRESS_SIZE_IPV4;
-    if (timeoutInMillis >= 0){
+    if (connectTimeoutInMillis >= 0){
       Socket tempSocket;
       tempSocket.sd = socketVector[0];
 
@@ -285,7 +285,7 @@ Socket *tcpClient3(SocketAddress *socketAddress,
         returnValue = 0;
         *returnCode  = 0;
         *reasonCode  = 0;
-        int status = tcpStatus(&tempSocket, timeoutInMillis, 1, returnCode, reasonCode);
+        int status = tcpStatus(&tempSocket, connectTimeoutInMillis, 1, returnCode, reasonCode);
         if (status == SD_STATUS_TIMEOUT) {
           int sd = socketVector[0];
           if (socketTrace) {
@@ -326,8 +326,8 @@ Socket *tcpClient3(SocketAddress *socketAddress,
           returnValue = 0;
         }
       } else{
-	/* all was good on 1st try, but why aren't we setting blocking mode here?
-	   seems inconsistent */
+        /* all was good on 1st try, but why aren't we setting blocking mode here?
+           seems inconsistent */
       }
     }
     else{
@@ -376,11 +376,11 @@ Socket *tcpClient3(SocketAddress *socketAddress,
 }
 
 Socket *tcpClient2(SocketAddress *socketAddress,
-       int timeoutInMillis,
+       int connectTimeoutInMillis,
        int *returnCode, /* errnum */
        int *reasonCode) { /* errnum - JR's */
   return tcpClient3(socketAddress,
-                    timeoutInMillis,
+                    connectTimeoutInMillis,
                     0,
                     returnCode,
                     reasonCode);
