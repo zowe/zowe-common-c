@@ -1,5 +1,8 @@
 # Zowe Common C Changelog
 
+## `2.18.3`
+- Bugfix: Fix a leak in the safeFree64Internal by adding free().
+
 ## `2.18.2`
 - Bugfix: Improve httpclient non-blocking error codes for use by clients ([#534](https://github.com/zowe/zowe-common-c/pull/534))
 
