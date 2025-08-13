@@ -780,26 +780,38 @@ int getV4HostByName(char *string){
          &returnValue,
          &returnCode,
          reasonCodePtr);
-  /* TBD: Check return codes */
+  /* TODO: handle significant return codes */
+  /*
+    rc possible values:
+    HOST_NOT_FOUND
+    TRY_AGAIN
+    NO_RECOVERY
+    NO_DATA
+   */
   if (socketTrace){
     printf("hostent addr = %x\n",*((int*)hostEntPtr));
+    printf("BPXGHN rc=0x%x, rsn=0x%x\n", returnCode, *reasonCodePtr);
   }
-  if (hostEntPtr){
-    Hostent *hostent = (Hostent*)hostEntPtr;
-    int i;
-    int numericAddress = 0;
-    /* dumpbuffer((char*)hostent,20); */
-    for (i=0; i<hostent->length; i++){
-      if (socketTrace){
-        printf("  addr[%d] = 0x%p\n",i,hostent->addrList[i]);
+  if (returnValue == 0) {
+    if (hostEntPtr){
+      Hostent *hostent = (Hostent*)hostEntPtr;
+      int i;
+      int numericAddress = 0;
+      /* dumpbuffer((char*)hostent,20); */
+      for (i=0; i<hostent->length; i++){
+        if (socketTrace){
+          printf("  addr[%d] = 0x%p\n",i,hostent->addrList[i]);
+        }
+        if (hostent->addrList[i]){
+          numericAddress = *(hostent->addrList[i]);
+          break;
+        }
       }
-      if (hostent->addrList[i]){
-        numericAddress = *(hostent->addrList[i]);
-        break;
-      }
+      return numericAddress;
+    } else{
+      return 0;
     }
-    return numericAddress;
-  } else{
+  } else {
     return 0;
   }
 }
