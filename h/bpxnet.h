@@ -467,7 +467,7 @@ int getSocketOption(Socket *socket, int optionName, int *optionDataLength, char 
 #define tcpClient2 tcpclie2
 
 Socket *tcpClient2(SocketAddress *socketAddress,
-		   int timeoutInMillis,
+		   int connectTimeoutInMillis,
 		   int *returnCode, /* errnum */
 		   int *reasonCode); /* errnum - JR's */
 
@@ -479,10 +479,12 @@ Socket *tcpServer(InetAddr *addr, /* usually NULL/0 */
 #define tcpClient3 tcpclie3
 
 Socket *tcpClient3(SocketAddress *socketAddress,
-       int timeoutInMillis,
+       int connectTimeoutInMillis,
        int tlsFlags,
        int *returnCode,
        int *reasonCode);
+
+
 
 /* 
    * Create a TCP socket
