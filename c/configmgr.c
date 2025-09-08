@@ -474,6 +474,10 @@ static bool addPathElement(ConfigManager *mgr, CFGConfig *config, char *pathElem
 static int buildConfigPath(ConfigManager *mgr, CFGConfig *config, char *configPathArg){
   int pos = 0;
   int len = strlen(configPathArg);
+  if (len == 0) {
+    trace(mgr, INFO, "empty config path\n");
+    return 8;
+  }
   while (pos < len){
     int nextColon = indexOf(configPathArg,len,':',pos);
     int nextPos;
@@ -606,6 +610,11 @@ int cfgLoadSchemas(ConfigManager *mgr, const char *configName, char *schemaList)
 
   int pos = 0;
   int len = strlen(schemaList);
+  if (len == 0) {
+    fprintf(mgr->traceOut, "empty schema list\n");
+    fflush(mgr->traceOut);
+    return ZCFG_BAD_JSON_SCHEMA;
+  }
   int schemaCount = 0;
   while (pos < len){
     int nextColon = indexOf(schemaList,len,':',pos);

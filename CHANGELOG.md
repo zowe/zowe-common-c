@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `3.4.0`
+- Enhancement: move debug message to proper trace level (#553)
+- Bugfix: improved check of schema and configuration path for `configmgr` commands (#553)
+
 ## `3.3.0`
 - Enhancement: add a `copyConfigurationAndDeleteKey` API to configmgr (#524)
 - Enhancement: configmgr path elements of type PARMLIB can now contain a member name, in the format of "PARMLIB(DATA.SET(member))", as an alternative to the older format of "PARMLIB(DATA.SET)" with the member name being specified in a separate argument. This enhancement allows use of multiple members with different names within the same PARMLIB dataset. The older format can still be used as desired. (#522)
@@ -45,7 +49,7 @@
 ## `2.16.0`
 - No yaml value converted to null (#442)
 - Added `zos.getZosVersion()` and `zos.getEsm()` calls for configmgr QJS (#429)
-- For correct base64 encoding scheme the buffer size is made to be divisble by 3 (#431). 
+- For correct base64 encoding scheme the buffer size is made to be divisible by 3 (#431).
 - Take into account leap seconds in xmem log messages' timestamps (#432, #433)
 - Using a temporary buffer pointer to avoid pointer corruption during file write (#437).
 
@@ -90,7 +94,7 @@
 
 ## `2.2.0`
 
-- Added a script 'dependencies.sh' which assists in managing external depedencies needed for project compilation
+- Added a script 'dependencies.sh' which assists in managing external dependencies needed for project compilation
 - Added a new build target, 'configmgr', which builds a tool that can be called to either load, validate, and print the zowe configuration, or load, validate, and run a JS script that is given the configuration.
 - Added an automated build for configmgr which is consumed by the zowe packaging
 
