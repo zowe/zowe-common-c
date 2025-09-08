@@ -1292,13 +1292,16 @@ static void showDirectory(const char *dirname){
   }
 }
 
-char *getStringOption(int argc, char **argv, int *argxPtr, char *key){
+static char *getStringOption(int argc, char **argv, int *argxPtr, char *key){
   int argx = *argxPtr;
   if (argx+1 < argc){
     char *option = argv[argx];
     if (!strcmp(option,key)){
       char *value = argv[argx+1];
       *argxPtr = argx+2;
+      if (strlen(value) == 0) {
+        return NULL;
+      }
       return value;
     } else {
       return NULL;
@@ -1306,6 +1309,17 @@ char *getStringOption(int argc, char **argv, int *argxPtr, char *key){
   } else {
     return NULL;
   }
+}
+
+static bool getSwitch(int argc, char **argv, int *argxPtr, char *key) {
+  int argx = *argxPtr;
+  if (strcmp(argv[argx], key) == 0) {
+    if (argx < argc) {
+      *argxPtr = argx + 1;
+    }
+    return true;
+  }
+  return false;
 }
 
 static void showHelp(FILE *out){
@@ -1770,7 +1784,7 @@ static int simpleMain(int argc, char **argv){
     char *optionValue = NULL;
     if (strcmp(argv[argx], "-h") == 0) {
       showHelp(traceOut);
-      return 0;
+      return ZCFG_SUCCESS;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-s")) != NULL){
       schemaList = optionValue;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-t")) != NULL){
@@ -1785,9 +1799,9 @@ static int simpleMain(int argc, char **argv){
       parmlibMemberName = optionValue;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-p")) != NULL){
       configPath = optionValue;
-    } else if ((optionValue = getStringOption(argc,argv,&argx,"-c")) != NULL){
+    } else if (getSwitch(argc, argv, &argx, "-c")) {
       jqCompact = true;
-    } else if ((optionValue = getStringOption(argc,argv,&argx,"-r")) != NULL){
+    } else if (getSwitch(argc, argv, &argx, "-r")) {
       jqRaw = true;
     } else {
       char *nextArg = argv[argx];
@@ -1809,12 +1823,12 @@ static int simpleMain(int argc, char **argv){
   }
 
   if (schemaList == NULL){
-    fprintf(traceOut,"Must specify schema list with at least one schema");
+    fprintf(traceOut, "Must specify schema list with at least one schema.\n");
     showHelp(traceOut);
     return ZCFG_BAD_JSON_SCHEMA;
   }
   if (configPath == NULL){
-    fprintf(traceOut,"Must specify config path\n");
+    fprintf(traceOut, "Must specify config path.\n");
     showHelp(traceOut);
     return ZCFG_BAD_CONFIG_PATH;
   }
@@ -1859,8 +1873,10 @@ static int simpleMain(int argc, char **argv){
   }
   trace(mgr,DEBUG,"configuration parms are loaded\n");
   if (!strcmp(command,"validate")){ /* just a testing mode */
-    trace(mgr,INFO,"about to validate merged yamls as\n");
-    jsonPrettyPrint(mgr,cfgGetConfigData(mgr,configName));
+    trace(mgr, DEBUG, "about to validate merged yamls as\n");
+    if (mgr->traceLevel > 0) {
+      jsonPrettyPrint(mgr, cfgGetConfigData(mgr,configName));
+    }
     JsonValidator *validator = makeJsonValidator();
     validator->traceLevel = mgr->traceLevel;
     trace(mgr,DEBUG,"Before Validate\n");

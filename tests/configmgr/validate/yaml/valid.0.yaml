@@ -1,0 +1,6 @@
+---
+zowe:
+  setup:
+    dataset:
+      prefix: VALID.DATASET.NAME
+...
