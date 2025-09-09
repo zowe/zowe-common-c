@@ -665,12 +665,23 @@ int httpClientSessionInitv2(HttpClientContext *ctx, HttpClientSession **outSessi
   HttpClientSession *session = NULL;
   ShortLivedHeap *slh = NULL;
 
+  char addrString[64] = {0};
+  int addrStringLen = sizeof(addrString);
+
+  
   do {
     if ((NULL == ctx) || (NULL == outSession)) {
       sts = HTTP_CLIENT_INVALID_ARGUMENT;
       break;
     }
 
+    int ansiStatus = SocketAddress_toString(ctx->serverAddress, addrString, &addrStringLen);
+    if (ANSI_FAILED == ansiStatus) {
+      HTTP_CLIENT_TRACE_VERBOSE("Error creating string from host socket address\n");
+      sts = HTTP_CLIENT_CONNECT_FAILED;
+      break;
+    }
+    
     Socket *socket = tcpClient2(ctx->serverAddress, 1000 * ctx->recvTimeoutSeconds, bpxrc, &bpxrsn);
     if ((*bpxrc != 0) || (NULL == socket)) {
 #ifdef __ZOWE_OS_ZOS

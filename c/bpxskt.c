@@ -928,7 +928,6 @@ Socket *tcpClient3(SocketAddress *socketAddress,
     }
     return NULL;
   } else{
-    int socketAddrSize = SOCKET_ADDRESS_SIZE_IPV4;
     if (connectTimeoutInMillis >= 0){
       Socket tempSocket;
       tempSocket.sd = socketVector[0];
@@ -1846,7 +1845,9 @@ int udpSendTo(Socket *socket,
   int flags = 0;  /* some exotic stuff in doc
                      http://publibz.boulder.ibm.com/cgi-bin/bookmgr_OS390/BOOKS/bpxzb1c0/B.30?SHELF=all13be9&DT=20110609191818#HDRYMSGF
                    */
-  int socketAddressSize = SOCKET_ADDRESS_SIZE_IPV4;
+
+  int family = (int) destinationAddress->family;
+  int socketAddressSize = (AF_INET6 == family) ? SOCKET_ADDRESS_SIZE_IPV6 : SOCKET_ADDRESS_SIZE_IPV4;
 
   if (socketTrace > 2){
     printf("sendTo desired=%d retVal=%d retCode=%d reasonCode=%d\n",
@@ -1997,7 +1998,8 @@ int udpReceiveFrom(Socket *socket,
   int flags = 0;  /* some exotic stuff in doc
                      http://publibz.boulder.ibm.com/cgi-bin/bookmgr_OS390/BOOKS/bpxzb1c0/B.30?SHELF=all13be9&DT=20110609191818#HDRYMSGF
                    */
-  int socketAddressSize = SOCKET_ADDRESS_SIZE_IPV4;
+
+  int socketAddressSize = sizeof(SocketAddress);
 
   if (socketTrace > 2){
     printf("receiveFrom into buffer=0x%p bufLen=%d retVal=%d retCode=%d reasonCode=%d\n",
