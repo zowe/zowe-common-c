@@ -1,5 +1,8 @@
 # Zowe Common C Changelog
 
+## `3.4.0`
+- Enhancement: The tcpServer, tcpClient, httpServer and httpClient family of functions now detect and allow use of IPv6 addresses [(#554)](https://github.com/zowe/zowe-common-c/pull/554) [(#539)](https://github.com/zowe/zowe-common-c/pull/539)
+
 ## `3.3.0`
 - Enhancement: add a `copyConfigurationAndDeleteKey` API to configmgr (#524)
 - Enhancement: configmgr path elements of type PARMLIB can now contain a member name, in the format of "PARMLIB(DATA.SET(member))", as an alternative to the older format of "PARMLIB(DATA.SET)" with the member name being specified in a separate argument. This enhancement allows use of multiple members with different names within the same PARMLIB dataset. The older format can still be used as desired. (#522)

@@ -905,7 +905,11 @@ Socket *tcpClient3(SocketAddress *socketAddress,
 #else
   reasonCodePtr = reasonCode;
 #endif
-  BPXSOC(AF_INET,
+
+  int family = (int) socketAddress->family;
+  int socketAddrSize = (AF_INET6 == family) ? SOCKET_ADDRESS_SIZE_IPV6 : SOCKET_ADDRESS_SIZE_IPV4;
+
+  BPXSOC(family,
          SOCTYPE_STREAM,
          IPPROTO_TCP,
          1,
@@ -1083,7 +1087,10 @@ Socket *udpPeer(SocketAddress *socketAddress,
 #else
   reasonCodePtr = reasonCode;
 #endif
-  BPXSOC(AF_INET,
+  
+  int family = (int) socketAddress->family;
+
+  BPXSOC(family,
          SOCTYPE_DATAGRAM,
          IPPROTO_UDP,
          1,
@@ -1103,7 +1110,8 @@ Socket *udpPeer(SocketAddress *socketAddress,
     return NULL;
   } else{
     int sd = socketVector[0];
-    int socketAddressSize = SOCKET_ADDRESS_SIZE_IPV4;
+    int socketAddressSize = (AF_INET6 == family) ? SOCKET_ADDRESS_SIZE_IPV6 : SOCKET_ADDRESS_SIZE_IPV4;
+
     BPXBND(&sd,
            &socketAddressSize,
            socketAddress,

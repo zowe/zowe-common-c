@@ -577,7 +577,7 @@ int httpClientContextInit(HttpClientSettings *settings, LoggingContext *logConte
       sts = HTTP_CLIENT_REQDSETTING_MISSING;
       break;
     }
-    serverAddr = getAddressByName(settings->host);
+    serverAddr = getAddressByName2(settings->host, ANSI_FALSE);  /* not IPv4 only; allow AF_INET6 addresses */
     if (NULL == serverAddr) {
       HTTP_CLIENT_TRACE_VERBOSE("%s (host lookup error)\n", HTTP_CLIENT_MSG_SESSION_ERR);
       sts = HTTP_CLIENT_LOOKUP_FAILED;
