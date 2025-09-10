@@ -46,14 +46,13 @@ printResults() {
     echo ""
     echo "*** configmgr -s(${schema}) -p(${configPath}) validate"
     if [ "${expectedRC}" = "${realRC}" ]; then
-        echo "  OK, got and expected ${expectedRC}\n"
+        echo "  OK, got and expected ${expectedRC}"
         if [ -n "${TRACE}" ]; then
             echo "${result}" | sed "s/^/  /"
         fi
     else
         echo "  Error, got ${realRC}, expected ${expectedRC}"
         echo "${result}" | sed "s/^/  /"
-        echo "\n"
         errors=`expr $errors + 1`
     fi
 }

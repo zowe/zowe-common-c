@@ -24,7 +24,7 @@
 - Bugfix: removed "ByteOutputStream" debug message, which was part of the `zwe` command output (#491)
 - Bugfix: HEAPPOOLS and HEAPPOOLS64 no longer need to be set to OFF for configmgr (#497)
 - Enhancement: module registry (#405)
-- Enhancement:  Adding more arguments to httpClientSessionInit to allow passing back internal rc and
+- Enhancement: Adding more arguments to httpClientSessionInit to allow passing back internal rc and
   removing the reference from changelog in `3.0.0`. (#499).
 - Bugfix: make sure CEE3ERP is invoked in LE 31-bit XPLINK (#504)
 
