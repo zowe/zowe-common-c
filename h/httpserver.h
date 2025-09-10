@@ -68,6 +68,8 @@
 #define HTTP_REQUEST_HEAP_MIN_BLOCKS 100
 #define HTTP_REQUEST_HEAP_MAX_BLOCKS 4096
 
+#define HTTP_MAX_UPLOAD_CHUNK_CONTENT_LENGTH 6291456 // 6mb - randomnly chosen
+
 typedef struct BigBuffer_tag{
   ShortLivedHeap *slh;  /* can be null */
   char *data;

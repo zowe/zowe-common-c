@@ -2327,7 +2327,15 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
         } else{
           zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "_____ END OF MESSAGE HEADER _________\n");
           parser->state = HTTP_STATE_READING_FIXED_BODY;
-          parser->content = SLHAlloc(parser->slh,parser->specifiedContentLength);
+          // To keep the working memory same for all of the 'upload' chunks
+          if (parser->specifiedContentLength <= HTTP_MAX_UPLOAD_CHUNK_CONTENT_LENGTH) {
+            parser->content = SLHAlloc(parser->slh, HTTP_MAX_UPLOAD_CHUNK_CONTENT_LENGTH);
+          }
+          else {
+            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "MAX UPLOAD CHUNK SIZE OF 6MB EXCEEDED\n");
+            parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
+            return 0;
+          }
           parser->remainingContentLength = parser->specifiedContentLength;
         }
       } else{
