@@ -686,17 +686,16 @@ int httpClientSessionInitv2(HttpClientContext *ctx, HttpClientSession **outSessi
     if ((*bpxrc != 0) || (NULL == socket)) {
 #ifdef __ZOWE_OS_ZOS
       HTTP_CLIENT_TRACE_VERBOSE("%s (rc=%d, rsn=0x%x, addr=0x%08x, port=%d)\n", HTTP_CLIENT_MSG_CONNECT_FAILED, *bpxrc,
-                                bpxrsn, ctx->serverAddress->v4Address, ctx->serverAddress->port);
+                                bpxrsn, addrString, ctx->serverAddress->port);
 #else
       HTTP_CLIENT_TRACE_VERBOSE("%s (rc=%d, rsn=0x%x, addr=0x%08x, port=%d)\n", HTTP_CLIENT_MSG_CONNECT_FAILED, *bpxrc,
-                                bpxrsn, ctx->serverAddress->internalAddress.v4Address, ctx->serverAddress->port);
+                                bpxrsn, addrString, ctx->serverAddress->port);
 #endif
       sts = HTTP_CLIENT_CONNECT_FAILED;
       break;
     } else {
 #ifdef __ZOWE_OS_ZOS
-      HTTP_CLIENT_TRACE_VERBOSE("Connected to peer addr=0x%08x, port=%d)\n", ctx->serverAddress->v4Address,
-                                ctx->serverAddress->port);
+      HTTP_CLIENT_TRACE_VERBOSE("Connected to peer addr=0x%08x, port=%d)\n", addrString, ctx->serverAddress->port);
 #else
       HTTP_CLIENT_TRACE_VERBOSE("Connected to peer port=%d)\n", ctx->serverAddress->port);
 #endif
@@ -751,7 +750,21 @@ int httpClientSessionStageRequest(HttpClientContext *ctx,
     req->slh = slh;
     req->method = slhDuplicateString(slh, method);
     req->uri = slhDuplicateString(slh, urlQuery);
-    requestStringHeader(req, TRUE, "Host", slhDuplicateString(slh, ctx->settings->host));
+    int ipv6ColonIndex = indexOf(ctx->settings->host, strlen(ctx->settings->host), ':', 0);
+    if (ctx->settings->port==80 || ctx->settings->port==443) {
+      int fullHostNameLen = strlen(ctx->settings->host) + 32;  /* buffer for "host:port" string */
+      char *fullHostName = (char*) SLHAlloc(slh, fullHostNameLen);
+      snprintf(fullHostName, fullHostNameLen, ipv6ColonIndex != -1 ? "[%s]:%d" : "%s:%d", 
+                                              ctx->settings->host, ctx->settings->port);
+      requestStringHeader(req, TRUE, "Host", fullHostName);
+    } else if (ipv6ColonIndex != -1){
+      int fullHostNameLen = strlen(ctx->settings->host) + 8;  /* buffer for "[ipv6]" string */
+      char *fullHostName = (char*) SLHAlloc(slh, fullHostNameLen);
+      snprintf(fullHostName, fullHostNameLen, "[%s]", ctx->settings->host);
+      requestStringHeader(req, TRUE, "Host", fullHostName);
+    } else {
+      requestStringHeader(req, TRUE, "Host", slhDuplicateString(slh, ctx->settings->host));
+    }
 
     /* compose basic auth header if userid and password are specified */
     if ((NULL != userid) && (NULL != password)) {
