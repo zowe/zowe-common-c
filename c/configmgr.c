@@ -754,7 +754,9 @@ CFGConfig *cfgAddConfig(ConfigManager *mgr, const char *configName){
   }
   CFGConfig *newConfig = (CFGConfig*)safeMalloc(sizeof(CFGConfig),"CFGConfig");
   memset(newConfig,0,sizeof(CFGConfig));
-  newConfig->name = configName;
+  char *copyName = safeMalloc(strlen(configName)+1, "configName");
+  strcpy(copyName, configName);
+  newConfig->name = copyName;
   if (mgr->firstConfig){
     mgr->lastConfig->next = newConfig;
     mgr->lastConfig = newConfig;
