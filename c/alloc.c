@@ -600,8 +600,12 @@ static void safeFree64Internal(char *data, int size, long long token){
 
 #if defined(METTLE) && defined(_LP64)
   freemain64(data,NULL,NULL);
+#elif defined(_LP64) /* LE case */
+  free(data);
+#elif defined(_MSC_VER) && defined(_M_X64) /* Windows 64 case */
+  free(data);
 #else
-  /* do nothing - because 64 bit allocation in LE is not ready */
+  /* Do nothing - because safeMalloc64Internal returns NULL for 31-bit */
 #endif
 }
 
