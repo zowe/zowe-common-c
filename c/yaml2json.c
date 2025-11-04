@@ -1026,7 +1026,7 @@ static int writeJsonAsYaml1(yaml_emitter_t *emitter, Json *json){
     return emitScalar(emitter,scalarBuffer,YAML_INT_TAG_ASCII, YAML_PLAIN_SCALAR_STYLE);
   } else if (jsonIsString(json)){
     sprintf(scalarBuffer,"%s",jsonAsString(json));
-    return emitScalar(emitter,scalarBuffer,YAML_STR_TAG_ASCII, YAML_DOUBLE_QUOTED_SCALAR_STYLE);
+    return emitScalar(emitter,scalarBuffer,YAML_STR_TAG_ASCII, YAML_SINGLE_QUOTED_SCALAR_STYLE);
   } else if (jsonIsBoolean(json)){
     return emitScalar(emitter,(jsonAsBoolean(json) ? "true" : "false"),YAML_BOOL_TAG_ASCII, YAML_PLAIN_SCALAR_STYLE);
   } else if (jsonIsNull(json)){
@@ -1088,7 +1088,7 @@ int json2Yaml2Buffer(Json *json, char **buffer, int *bufferLen){
   yaml_emitter_t emitter;
   yaml_emitter_initialize(&emitter);
   yaml_emitter_set_output(&emitter,yamlHandlerCallback,baos);
-
+  
   int emitStatus = emitYaml(&emitter,json);
   if (emitStatus){
     bosFree(baos,true);
