@@ -1344,10 +1344,9 @@ static VResult validateJSON(JsonValidator *validator,
       }
     }
 
-    unsigned int validValuesMaxSize = (valueSpec->enumeratedValuesCount * (sizeof(Json*) + 3)) + 1;
-    char *validValues = SLHAlloc(validator->evalHeap, validValuesMaxSize);
+	char *validValues = SLHAlloc(validator->evalHeap, MAX_VALIDITY_EXCEPTION_MSG);
     if (validValues) {
-      memset(validValues, 0, validValuesMaxSize);
+      memset(validValues, 0, MAX_VALIDITY_EXCEPTION_MSG);
     }
 
     Json *whichValue = nullToString == true ? emptyStringJson : value;
