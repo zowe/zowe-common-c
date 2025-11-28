@@ -4626,7 +4626,7 @@ static void printServerReadyMessage(CrossMemoryServer *srv) {
       "           DISPLAY [OPTION_NAME]- Print service information\n"
       "             OPTION_NAME:\n"
       "               CONFIG - Print server configuration information (default)\n"
-      "               MODREG - Print module registry informatio\n"
+      "               MODREG - Print module registry information\n"
       "           FLUSH - Print all pending log messages\n"
       "           LOG <COMP_ID> <LOG_LEVEL> - Set log level\n"
       "             COMP_ID:\n"
