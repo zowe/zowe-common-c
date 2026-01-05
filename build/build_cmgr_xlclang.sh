@@ -100,7 +100,7 @@ echo "Building configmgr"
 
 xlclang \
   -q64 \
-  "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN')" \
+  "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'),agg,list,so(),off,xref" \
   -D_OPEN_SYS_FILE_EXT=1 \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
@@ -168,7 +168,7 @@ else
   echo "Build failed"
 fi
 
-rm -rf "${TMP_DIR}"
+# rm -rf "${TMP_DIR}"
 exit $rc
 
 
