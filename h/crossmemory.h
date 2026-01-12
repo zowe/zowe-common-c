@@ -235,7 +235,8 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   unsigned short size;
   unsigned int flags;
 #define CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE 0x00000001
-  char reserved1[56];
+  int callerCount;
+  char reserved1[52];
 
   void * __ptr32 userServerAnchor;
 
@@ -819,6 +820,18 @@ typedef struct CMSDynlinkEnv_tag {
 #endif
 #define CMS_LOG_BAD_SERVER_KEY_MSG_TEXT         "Core server started in wrong key %d"
 #define CMS_LOG_BAD_SERVER_KEY_MSG              CMS_LOG_BAD_SERVER_KEY_MSG_ID" "CMS_LOG_BAD_SERVER_KEY_MSG_TEXT
+
+#ifndef CMS_LOG_CALLER_ACTIVE_MSG_ID
+#define CMS_LOG_CALLER_ACTIVE_MSG_ID            CMS_MSG_PRFX"0119I"
+#endif
+#define CMS_LOG_CALLER_ACTIVE_MSG_TEXT          "%d active callers detected; waiting for %d seconds (attempt %d/%d)"
+#define CMS_LOG_CALLER_ACTIVE_MSG               CMS_LOG_CALLER_ACTIVE_MSG_ID" "CMS_LOG_CALLER_ACTIVE_MSG_TEXT
+
+#ifndef CMS_LOG_TERM_CALLER_ACTIVE_MSG_ID
+#define CMS_LOG_TERM_CALLER_ACTIVE_MSG_ID       CMS_MSG_PRFX"0120W"
+#endif
+#define CMS_LOG_TERM_CALLER_ACTIVE_MSG_TEXT     "Terminating with active callers"
+#define CMS_LOG_TERM_CALLER_ACTIVE_MSG          CMS_LOG_TERM_CALLER_ACTIVE_MSG_ID" "CMS_LOG_TERM_CALLER_ACTIVE_MSG_TEXT
 
 #ifndef CMS_LOG_MODIFY_CMD_INFO_MSG_ID
 #define CMS_LOG_MODIFY_CMD_INFO_MSG_ID          CMS_MSG_PRFX"0200I"

@@ -1453,19 +1453,36 @@ LSSPRLG  LARL  10,LSSPRLG          establish addressability using r10   \n\
          USING LSSPRLG,10                                               \n\
          LGR   5,4                 save latent parm as CPOOL uses r4    \n\
          USING PCLPARM,5                                                \n\
-         LLGT  2,PCLPPRM1          load global area from latent parm    \n\
-         USING GLA,2                                                    \n\
+         LLGT  6,PCLPPRM1          load global area from latent parm    \n\
+         USING GLA,6                                                    \n\
+         LLGF  3,GLACCNT           current caller count                 \n\
+LSSINCR  LGR   4,3                 save caller counter for incrementing \n\
+         AGHI  4,1                 increment caller counter             \n\
+         CS    3,4,GLACCNT         compare and swap                     \n\
+         JNZ   LSSINCR             counter has changed already, retry   \n\
+         LLGF  3,GLASFLG           load server flags                    \n\
+         TMLL  3,GLASRDY           server ready?                        \n\
+         JNZ   LSSSTACK            yes, go allocate stack storage       \n\
+         LA    15,30               set the 'not ready' RC               \n\
+         J     LSSABORT            abort the call                       \n\
+LSSSTACK DS    0H                                                       \n\
          SAM31                                                          \n\
          SYSSTATE AMODE64=NO                                            \n\
          CPOOL GET,C,CPID=GLASTCP,REGS=USE   allocate a stack cell      \n\
          SAM64                                                          \n\
          SYSSTATE AMODE64=YES                                           \n\
-         DROP  2                   drop, r2 is changed by CPOOL         \n\
          LTGFR 1,1                 check if we have a cell              \n\
          BNZ   LSSINIT             go init, if we have it               \n\
          LA    15,52               if not, leave with a bad RC (52)     \n\
+LSSABORT DS    0H                                                       \n\
+         LLGF  3,GLACCNT           current caller count                 \n\
+LSSDECR1 LGR   4,3                 save caller counter for decrementing \n\
+         AGHI  4,-1                decrement caller counter             \n\
+         CS    3,4,GLACCNT         compare and swap                     \n\
+         JNZ   LSSDECR1            counter has changed already, retry   \n\
          EREGG 0,1                 restore r0 and r1 before leaving     \n\
          PR                        return to caller                     \n\
+         DROP  6                   drop, global area is not needed      \n\
 LSSINIT  DS    0H                                                       \n\
          LGR   13,1                use new storage as stack in r13      \n\
          USING PCHSTACK,13                                              \n\
@@ -1494,8 +1511,8 @@ LSSRET   DS    0H                                                       \n\
          USING PCHSTACK,13                                              \n\
          LG    5,PCHPLLPL          load latent parm from PC parm        \n\
          USING PCLPARM,5                                                \n\
-         LLGT  2,PCLPPRM1          load global area from latent parm    \n\
-         USING GLA,2                                                    \n\
+         LLGT  6,PCLPPRM1          load global area from latent parm    \n\
+         USING GLA,6                                                    \n\
          SAM31                                                          \n\
          SYSSTATE AMODE64=NO                                            \n\
          CPOOL FREE,CPID=GLASTCP,CELL=(3),REGS=USE  free stack cell     \n\
@@ -1503,6 +1520,12 @@ LSSRET   DS    0H                                                       \n\
          SYSSTATE AMODE64=YES                                           \n\
          DROP  13                  drop, it's no longer valid           \n\
 LSSTERM  DS    0H                                                       \n\
+         LLGF  2,GLACCNT           current caller count                 \n\
+LSSDECR2 LGR   3,2                 save caller counter for decrementing \n\
+         AGHI  3,-1                decrement caller counter             \n\
+         CS    2,3,GLACCNT         compare and swap                     \n\
+         JNZ   LSSDECR2            counter has changed already, retry   \n\
+         DROP  6                   drop, global area is not needed      \n\
          DROP  5,10                drop, not needed any more            \n\
          LGR   15,4                restore RC for caller                \n\
          EREGG 0,1                 restore r0 and r1 for caller         \n\
@@ -1576,27 +1599,49 @@ LSSTERM  DS    0H                                                       \n\
 "        PUSH  USING                                                    \n\
 LCPPRLG  LARL  10,LCPPRLG          establish addressability using r10   \n\
          USING LCPPRLG,10                                               \n\
+         LGR   5,4                 latent parm to r4 for consistency    \n\
+         USING PCLPARM,5                                                \n\
+         LLGT  6,PCLPPRM1          load global area from latent parm    \n\
+         USING GLA,6                                                    \n\
+         LLGF  3,GLACCNT           current caller count                 \n\
+LCPINCR  LGR   4,3                 save caller counter for incrementing \n\
+         AGHI  4,1                 increment caller counter             \n\
+         CS    3,4,GLACCNT         compare and swap                     \n\
+         JNZ   LCPINCR             counter has changed already, retry   \n\
+         LLGF  3,GLASFLG           load server flags                    \n\
+         TMLL  3,GLASRDY           server ready?                        \n\
+         JNZ   LCPSTACK            yes, go allocate stack storage       \n\
+         LA    15,30               set the 'not ready' RC               \n\
+         J     LCPABORT            abort the call                       \n\
+LCPSTACK DS    0H                                                       \n\
 * allocate stack storage                                                \n\
          STORAGE OBTAIN,COND=YES,LENGTH=65536,CALLRKY=YES,SP=132,LOC=31,BNDRY=PAGE \n\
          LTR   15,15               check RC                             \n\
          BZ    LCPINIT             go init if RC=0                      \n\
          LA    15,52               if not, leave with a bad RC (52)     \n\
+LCPABORT DS    0H                                                       \n\
+         LLGF  3,GLACCNT           current caller count                 \n\
+LCPDECR1 LGR   4,3                 save caller counter for decrementing \n\
+         AGHI  4,-1                decrement caller counter             \n\
+         CS    3,4,GLACCNT         compare and swap                     \n\
+         JNZ   LCPDECR1            counter has changed already, retry   \n\
          EREGG 0,1                 restore r0 and r1 before leaving     \n\
          PR                        return to caller                     \n\
+         DROP  6                   drop, global area is not needed      \n\
 LCPINIT  DS    0H                                                       \n\
          LGR   13,1                use new storage as stack in r13      \n\
          USING PCHSTACK,13                                              \n\
          EREGG 1,1                 restore r1 (CMS parm) for PC routine \n\
          MVC   PCHSAEYE,=C'F1SA'   init stack eyecatcher                \n\
          MVC   PCHPLEYE,=C'RSPCHEYE'  init PC parm eyecatcher           \n\
-         STG   4,PCHPLLPL          save latent parm in PC parm          \n\
+         STG   5,PCHPLLPL          save latent parm in PC parm          \n\
          STG   1,PCHPLUPL          save CMS parm in PC parm             \n\
          LA    1,PCHPARM           make PC parm available to PC routine \n\
          LA    13,PCHSA            adjust stack to start after PC parm  \n\
          DROP  13                  drop, it's no longer PCHSTACK        \n\
          J     LCPRET              go to metal PC routine               \n\
          LTORG                                                          \n\
-         DROP  10                  drop, not needed any more            \n\
+         DROP  5,10                drop, not needed any more            \n\
 LCPRET   DS    0H                                                       \n\
          DROP                                                           \n\
          POP   USING                               ")
@@ -1604,10 +1649,15 @@ LCPRET   DS    0H                                                       \n\
 #pragma epilog(handlePCCP,\
 "        PUSH  USING                                                    \n\
          SLGFI 13,PCHPARML         restore original stack address       \n\
-         LGR   1,13                put stack to r3 for CPOOL            \n\
+         LGR   1,13                put stack to r1 for STORAGE RELEASE  \n\
          LGR   2,15                save RC as STORAGE RELEASE uses r15  \n\
          LARL  10,&CCN_BEGIN       establish addressability             \n\
          USING &CCN_BEGIN,10                                            \n\
+         USING PCHSTACK,13                                              \n\
+         LG    5,PCHPLLPL          load latent parm from PC parm        \n\
+         USING PCLPARM,5                                                \n\
+         LLGT  6,PCLPPRM1          load global area from latent parm    \n\
+         USING GLA,6                                                    \n\
 * free stack storage                                                    \n\
          STORAGE RELEASE,COND=YES,LENGTH=65536,CALLRKY=YES,SP=132,ADDR=(1) \n\
          LTR   15,15               check RC                             \n\
@@ -1616,7 +1666,13 @@ LCPRET   DS    0H                                                       \n\
          BNZ   LCPTERM             yes, continue normal termination     \n\
          LA    2,53                if not, indicate release failure (53)\n\
 LCPTERM  DS    0H                                                       \n\
-         DROP  10                  drop, not needed any more            \n\
+         LLGF  3,GLACCNT           current caller count                 \n\
+LCPDECR2 LGR   4,3                 save caller counter for decrementing \n\
+         AGHI  4,-1                decrement caller counter             \n\
+         CS    3,4,GLACCNT         compare and swap                     \n\
+         JNZ   LCPDECR2            counter has changed already, retry   \n\
+         DROP  6                   drop, global area is not needed      \n\
+         DROP  5,10                drop, not needed any more            \n\
          LGR   15,2                restore RC for caller                \n\
          EREGG 0,1                 restore r0 and r1 for caller         \n\
          PR                        return to caller                     \n\
@@ -2696,6 +2752,16 @@ static int loadServer(CrossMemoryServer *server) {
   return RC_CMS_OK;
 }
 
+static void setServerReady(CrossMemoryServer *server, bool ready) {
+  if (ready) {
+    server->globalArea->serverFlags |= CROSS_MEMORY_SERVER_FLAG_READY;
+    server->flags |= CROSS_MEMORY_SERVER_FLAG_READY;
+  } else {
+    server->flags &= ~CROSS_MEMORY_SERVER_FLAG_READY;
+    server->globalArea->serverFlags &= ~CROSS_MEMORY_SERVER_FLAG_READY;
+  }
+}
+
 static int startServer(CrossMemoryServer *server) {
 
   CrossMemoryServerGlobalArea *globalArea = server->globalArea;
@@ -2706,8 +2772,7 @@ static int startServer(CrossMemoryServer *server) {
   }
 
   globalArea->pcLogLevel = logGetLevel(NULL, LOG_COMP_ID_CMSPC);
-  globalArea->serverFlags |= CROSS_MEMORY_SERVER_FLAG_READY;
-  server->flags |= CROSS_MEMORY_SERVER_FLAG_READY;
+  setServerReady(server, true);
 
   return RC_CMS_OK;
 }
@@ -2721,8 +2786,7 @@ static int stopServer(CrossMemoryServer *server) {
     return RC_CMS_GLOBAL_AREA_NULL;
   }
 
-  server->flags &= ~CROSS_MEMORY_SERVER_FLAG_READY;
-  globalArea->serverFlags &= ~CROSS_MEMORY_SERVER_FLAG_READY;
+  setServerReady(server, false);
   globalArea->localServerAddress = NULL;
   globalArea->serverASID = 0;
 
@@ -2740,6 +2804,35 @@ static int stopServer(CrossMemoryServer *server) {
   globalArea->serverFlags |= CROSS_MEMORY_SERVER_FLAG_TERM_ENDED;
 
   return RC_CMS_OK;
+}
+
+static void cmsSleep(int seconds){
+  int waitValue = seconds * 100;
+  __asm(" STIMER WAIT,BINTVL=%0\n" : : "m"(waitValue));
+}
+
+static void waitForCallersToExit(CrossMemoryServer *srv) {
+  // first, unset the ready to prevent new callers from using the PC routine
+  setServerReady(srv, false);
+  // wait for all the PC callers to exit and print a warning message if we
+  // have to proceed with active callers
+  const int MAX_CHECK_NUM = 10;
+  const int CHECK_TIMEOUT_SEC = 3;
+  int checkCount;
+  for (checkCount = 0; checkCount < MAX_CHECK_NUM; checkCount++) {
+    int callerCount = srv->globalArea->callerCount;
+    if (callerCount > 0) {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_INFO, CMS_LOG_CALLER_ACTIVE_MSG,
+              callerCount, CHECK_TIMEOUT_SEC, checkCount + 1, MAX_CHECK_NUM);
+      cmsSleep(CHECK_TIMEOUT_SEC);
+    } else {
+      break;
+    }
+  }
+  if (checkCount >= MAX_CHECK_NUM) {
+    zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_WARNING,
+            CMS_LOG_TERM_CALLER_ACTIVE_MSG);
+  }
 }
 
 static void initializeServiceTable(CrossMemoryServer *server) {
@@ -3484,6 +3577,7 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
   globalArea->localServerAddress = server;
   globalArea->serverFlags |= server->flags;
   globalArea->serverASID = getMyPASID();
+  globalArea->callerCount = 0;
 
   const char *statusText = "n/a";
   /* Register the module or load it to LPA if needed, otherwise re-use the
@@ -3786,7 +3880,8 @@ static void printDisplayConfigCommandResponse(CrossMemoryServer *server, CMSWTOR
       "           PC-ss seq number = 0x%08X\n"
       "           PC-cp PC number  = 0x%08X\n"
       "           PC-cp seq number = 0x%08X\n"
-      "           PC log level     = %d\n",
+      "           PC log level     = %d\n"
+      "           Caller count     = %d\n",
       server->name.nameSpacePadded,
       globalArea,
       globalArea->version,
@@ -3802,7 +3897,8 @@ static void printDisplayConfigCommandResponse(CrossMemoryServer *server, CMSWTOR
       globalArea->pcInfo.pcssSequenceNumber,
       globalArea->pcInfo.pccpPCNumber,
       globalArea->pcInfo.pccpSequenceNumber,
-      globalArea->pcLogLevel
+      globalArea->pcLogLevel,
+      globalArea->callerCount
   );
 
   MultilineWTOHandle *handle = wtoGetMultilineHandle(32);
@@ -3826,6 +3922,7 @@ static void printDisplayConfigCommandResponse(CrossMemoryServer *server, CMSWTOR
   wtoAddLine(handle, "           PC-cp PC number  = 0x%08X",  globalArea->pcInfo.pccpPCNumber);
   wtoAddLine(handle, "           PC-cp seq number = 0x%08X",  globalArea->pcInfo.pccpSequenceNumber);
   wtoAddLine(handle, "           PC log level     = %d",      globalArea->pcLogLevel);
+  wtoAddLine(handle, "           Caller count     = %d",      globalArea->callerCount);
   wtoPrintMultilineMessage(handle, consoleID, cart);
   wtoRemoveMultilineHandle(handle);
   handle = NULL;
@@ -4563,10 +4660,6 @@ static int handleModifyCommand(STCBase *base, CIB *cib, STCConsoleCommandType co
   return 0;
 }
 
-static void cmsSleep(int seconds){
-  int waitValue = seconds * 100;
-  __asm(" STIMER WAIT,BINTVL=%0\n" : : "m"(waitValue));
-}
 
 static int isEnvironmentReady() {
 
@@ -5311,6 +5404,7 @@ int cmsStartMainLoop(CrossMemoryServer *srv) {
 
   }
 
+  waitForCallersToExit(srv);
   stcBaseShutdown(srv->base);
   cmsSleep(STCBASE_SHUTDOWN_DELAY_IN_SEC);
 
@@ -5858,14 +5952,18 @@ void crossmemoryServerDESCTs(){
       "GLASBP   DS    X                                                        \n"
       "GLASIZE  DS    H                                                        \n"
       "GLAFLAG  DS    F                                                        \n"
-      "GLARSV1  DS    CL60                                                     \n"
+      "GLACCNT  DS    F                                                        \n"
+      "GLARSV1  DS    CL52                                                     \n"
+      "GLAUANC  DS    A                                                        \n"
       "GLASNAM  DS    CL16                                                     \n"
       "GLALSAD  DS    A                                                        \n"
       "GLAASID  DS    H                                                        \n"
       "GLAPAD1  DS    2X                                                       \n"
       "GLASFLG  DS    F                                                        \n"
+      "GLASRDY  EQU   X'02'                                                    \n"
       "GLAECSN  DS    F                                                        \n"
-      "GLARSV2  DS    CL48                                                     \n"
+      "GLAMTSP  DS    CL32                                                     \n"
+      "GLARSV2  DS    CL16                                                     \n"
       "GLAPCCP  DS    A                                                        \n"
       "GLALPAM  DS    CL40                                                     \n"
       "GLAPCINF DS    0F                                                       \n"
@@ -5877,7 +5975,8 @@ void crossmemoryServerDESCTs(){
       "GLAPCLOG DS    F                                                        \n"
       "GLARCVP  DS    AD                                                       \n"
       "GLASTCP  DS    F                                                        \n"
-      "GLARSV3  DS    CL484                                                    \n"
+      "GLADYNL  DS    A                                                        \n"
+      "GLARSV3  DS    CL480                                                    \n"
       "GLASRVT  DS    CL2048                                                   \n"
       "GLARSV4  DS    CL1320                                                   \n"
       "GLALEN   EQU   *-GLA                                                    \n"

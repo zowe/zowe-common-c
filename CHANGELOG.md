@@ -3,6 +3,7 @@
 ## `3.5.0`
 - Bugfix: Schema validation error is not properly formatted for enumerate type. [(#562)](https://github.com/zowe/zowe-common-c/pull/562)
 - Bugfix: fix a typo in the cross-memory server's help text (#565)
+- Enhancement: take into account active PC callers during termination (#569)
 
 ## `3.4.0`
 - Enhancement: The tcpServer, tcpClient, httpServer and httpClient family of functions now detect and allow use of IPv6 addresses [(#554)](https://github.com/zowe/zowe-common-c/pull/554) [(#539)](https://github.com/zowe/zowe-common-c/pull/539)
