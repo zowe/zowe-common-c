@@ -9,6 +9,7 @@
 - Enhancement: file API now returns the boolean "symlink" to state if a file is a symbolic link or not. [(#579)](https://github.com/zowe/zowe-common-c/pull/579)
 - Enhancement: file API now includes the target path of a symlink in the field "symlinkTarget". [(#580)](https://github.com/zowe/zowe-common-c/pull/580)
 - Enhancement: file API's "directory" value for symlinks now corresponds to whether the target is a directory or not. [(#580)](https://github.com/zowe/zowe-common-c/pull/580)
+- Enhancement: take into account active PC callers during termination (#569)
 
 ## `3.4.0`
 - Enhancement: The tcpServer, tcpClient, httpServer and httpClient family of functions now detect and allow use of IPv6 addresses [(#554)](https://github.com/zowe/zowe-common-c/pull/554) [(#539)](https://github.com/zowe/zowe-common-c/pull/539)
