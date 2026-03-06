@@ -1384,10 +1384,8 @@ static int initSessionTokenKey(SessionTokenKey *key) {
 
   int icsfRSN = 0;
   int icsfRC = icsfGenerateRandomNumber(key, sizeof(SessionTokenKey), &icsfRSN);
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_ALWAYS, "Error: ICSF generation of random number failed. Session token key not generated, RC = %d, RSN = %d\n", icsfRC, icsfRSN);
   if (icsfRC != 0) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
-            "Error: ICSF generation of random number failed. Session token key not generated, RC = %d, RSN = %d\n",
-            icsfRC, icsfRSN);
     return -1;
   }
 
