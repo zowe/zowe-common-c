@@ -1863,14 +1863,14 @@ int fileSetLock(UnixFile *file, int *returnCode, int *reasonCode) {
 #endif
 
   int action = F_SET_LOCK;
-  F_LOCK flockdata;
+  FLock flockdata;
   flockdata.l_type = F_WRITE_LOCK;
   flockdata.l_whence = F_SEEK_SET;
   flockdata.l_start = 0;
   flockdata.l_len = F_WHENCE_TO_END;
   flockdata.l_pid = 0;
 
-  F_LOCK *fnctl_ptr = &flockdata;
+  FLock *fnctl_ptr = &flockdata;
 
   BPXFCT(&file->fd,
          &action,
@@ -1898,14 +1898,14 @@ int fileGetLock(UnixFile *file, int *returnCode, int *reasonCode, int *isLocked)
 #endif
 
   int action = F_GET_LOCK;
-  F_LOCK flockdata;
+  FLock flockdata;
   flockdata.l_type = F_WRITE_LOCK;
   flockdata.l_whence = F_SEEK_SET;
   flockdata.l_start = 0;
   flockdata.l_len = F_WHENCE_TO_END;
   flockdata.l_pid = 0;
 
-  F_LOCK *fnctl_ptr = &flockdata;
+  FLock *fnctl_ptr = &flockdata;
 
   BPXFCT(&file->fd,
          &action,
@@ -1937,14 +1937,14 @@ int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode) {
 #endif
 
   int action = F_SET_LOCK;
-  F_LOCK flockdata;
+  FLock flockdata;
   flockdata.l_type = F_UNLOCK;
   flockdata.l_whence = F_SEEK_SET;
   flockdata.l_start = 0;
   flockdata.l_len = F_WHENCE_TO_END;
   flockdata.l_pid = 0;
 
-  F_LOCK *fnctl_ptr = &flockdata;
+  FLock *fnctl_ptr = &flockdata;
 
   BPXFCT(&file->fd,
          &action,
