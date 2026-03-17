@@ -198,6 +198,10 @@ typedef struct AccessPathUnion_tag {
   int dummy;
 } AccessPathUnion;
 
+
+//forward declaration
+static int appendPathSegment(char *buf, int pos, bool isName, char *name, int index);
+
 static void printAccessPath(FILE *out, AccessPath *path){
   for (int i=0; i<path->currentSize; i++){
     if (path->elements[i].isName){
@@ -241,8 +245,6 @@ static void accessPathPop(AccessPath *accessPath){
     accessPath->currentSize--;
   }
 }
-
-
 
 #define ERROR_MAX 1024
 
@@ -644,8 +646,8 @@ static char *makePeerHint(JsonValidator *validator,
         cpos = appendPathSegment(correctPath, cpos, true, propertyName, 0);
 
         return validityMessage(validator,
-                               "; did you mean '%s' instead of '%s'?",
-                               correctPath, incorrectPath);
+                               "; did you mean '%s' instead?",
+                               correctPath);
       }
     }
   }
