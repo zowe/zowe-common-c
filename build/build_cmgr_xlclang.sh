@@ -163,6 +163,7 @@ xlclang \
   ${COMMON}/c/yaml2json.c \
   ${COMMON}/c/zos.c \
   ${COMMON}/c/zosfile.c \
+  ${COMMON}/c/zosaccounts.c \
   ${GSKDIR}/lib/GSKSSL64.x \
   ${GSKDIR}/lib/GSKCMS64.x
 rc=$?

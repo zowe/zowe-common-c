@@ -189,6 +189,8 @@ typedef struct JSValueSpec_tag {
   char *pattern;
   regex_t *compiledPattern;
   int      regexCompilationError;
+  /* Zowe semantic validation keyword, e.g. "fileExists" */
+  char *zoweValidate;
 
   /* back/up pointer */
   struct JSValueSpec_tag *parent;
@@ -824,6 +826,49 @@ static VResult validateJSONString(JsonValidator *validator,
                                                validityMessage(validator,
                                                                "string pattern match fail s='%s', pat='%s', at %s",
                                                                s,valueSpec->pattern,validatorAccessPath(validator))));
+      }
+    }
+  }
+  if (valueSpec->zoweValidate != NULL){
+    if (strcmp(valueSpec->zoweValidate,"fileExists") == 0){
+      if (validator->fileExistsValidator != NULL){
+        if (!validator->fileExistsValidator(s)){
+          addValidityChild(pendingException,
+                           makeValidityException(validator,
+                                                 validityMessage(validator,
+                                                                 "file does not exist: '%s' at %s",
+                                                                 s,validatorAccessPath(validator))));
+        }
+      }
+    } else if (strcmp(valueSpec->zoweValidate,"directoryExists") == 0){
+      if (validator->directoryExistsValidator != NULL){
+        if (!validator->directoryExistsValidator(s)){
+          addValidityChild(pendingException,
+                           makeValidityException(validator,
+                                                 validityMessage(validator,
+                                                                 "directory does not exist: '%s' at %s",
+                                                                 s,validatorAccessPath(validator))));
+        }
+      }
+    } else if (strcmp(valueSpec->zoweValidate,"userExists") == 0){
+      if (validator->userExistsValidator != NULL){
+        if (!validator->userExistsValidator(s)){
+          addValidityChild(pendingException,
+                           makeValidityException(validator,
+                                                 validityMessage(validator,
+                                                                 "user does not exist: '%s' at %s",
+                                                                 s,validatorAccessPath(validator))));
+        }
+      }
+    } else if (strcmp(valueSpec->zoweValidate,"groupExists") == 0){
+      if (validator->groupExistsValidator != NULL){
+        if (!validator->groupExistsValidator(s)){
+          addValidityChild(pendingException,
+                           makeValidityException(validator,
+                                                 validityMessage(validator,
+                                                                 "group does not exist: '%s' at %s",
+                                                                 s,validatorAccessPath(validator))));
+        }
       }
     }
   }
@@ -2027,6 +2072,7 @@ static JSValueSpec *build(JsonSchemaBuilder *builder, JSValueSpec *parent, Json 
               stringSpec->validatorFlags |= JS_VALIDATOR_MIN_LENGTH;
             }
             stringSpec->pattern = getString(builder,object,"pattern",NULL); // hard to support on ANSI C
+            stringSpec->zoweValidate = getString(builder,object,"zoweValidate",NULL);
           }
           break;
         case JSTYPE_NULL:
