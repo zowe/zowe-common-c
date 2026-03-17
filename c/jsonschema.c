@@ -583,6 +583,34 @@ static bool hasBeenEvaluated(EvalSet *evalSet, JsonObject *object, char *propert
 static VResult validateJSON(JsonValidator *validator, Json *value, JSValueSpec *valueSpec, int depth,
                             EvalSet *evalSetList);
 
+/*
+  Checks whether a property that was not found in the current schema spec exists
+  as a property in the *parent* spec (i.e., is a peer of the current container).
+  When such a peer is found, returns a hint string reminding the user that the
+  property might have been misindented.  Returns an empty string otherwise so
+  callers can always use "%s" without a NULL check.
+*/
+static char *makePeerHint(JsonValidator *validator,
+                          JSValueSpec *valueSpec,
+                          char *propertyName,
+                          AccessPath *accessPath){
+  if (valueSpec->parent != NULL && valueSpec->parent->properties != NULL){
+    JSValueSpec *peerSpec = (JSValueSpec*)htGet(valueSpec->parent->properties, propertyName);
+    if (peerSpec != NULL){
+      int pathSize = accessPath->currentSize;
+      /* accessPath->elements[pathSize-1] is the just-pushed propertyName;
+         elements[pathSize-2] is the name of the container object we are inside. */
+      if (pathSize >= 2 && accessPath->elements[pathSize-2].isName){
+        char *containerName = accessPath->elements[pathSize-2].key.name;
+        return validityMessage(validator,
+                               "; did you mean to place '%s' as a peer of '%s' rather than inside it?",
+                               propertyName, containerName);
+      }
+    }
+  }
+  return "";
+}
+
 static VResult validateJSONObject(JsonValidator *validator,
                                   JsonObject *object,
                                   JSValueSpec *valueSpec,
@@ -638,11 +666,13 @@ static VResult validateJSONObject(JsonValidator *validator,
       }
     } else {
       if (valueSpec->additionalProperties == false){
+        char *peerHint = makePeerHint(validator, valueSpec, propertyName, accessPath);
         addValidityChild(pendingException,
                          makeValidityException(validator,
                                                validityMessage(validator,
-                                                               "unspecified additional property not allowed: '%s' at '%s'",
-                                                               propertyName,validatorAccessPath(validator))));
+                                                               "unspecified additional property not allowed: '%s' at '%s'%s",
+                                                               propertyName,validatorAccessPath(validator),
+                                                               peerHint)));
       } else if (valueSpec->unevaluatedProperties == false){
         if (validator->traceLevel >= 1){
           trace(validator,depth,"Is '%s' in the following eval sets for obj=0x%p myEvalSet=0x%p\n",propertyName,object,evalSetList);
@@ -655,11 +685,13 @@ static VResult validateJSONObject(JsonValidator *validator,
           if (validator->traceLevel >= 1){
             trace(validator,depth,"Invalid object on unevaluated property '%s'\n",propertyName);
           }
+          char *peerHint = makePeerHint(validator, valueSpec, propertyName, accessPath);
           addValidityChild(pendingException,
                            makeValidityException(validator,
                                                  validityMessage(validator,
-                                                                 "unevaluated property not allowed: '%s' at '%s'",
-                                                                 propertyName,validatorAccessPath(validator))));
+                                                                 "unevaluated property not allowed: '%s' at '%s'%s",
+                                                                 propertyName,validatorAccessPath(validator),
+                                                                 peerHint)));
         }
       } else if (validator->flags && VALIDATOR_WARN_ON_UNDEFINED_PROPERTIES){
         trace(validator,depth,"*WARNING* unspecified property seen, '%s', and checking code is not complete, vspec->props=0x%p\n",
