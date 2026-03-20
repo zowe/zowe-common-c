@@ -4,6 +4,7 @@
 - Bugfix: Schema validation error is not properly formatted for enumerate type. [(#562)](https://github.com/zowe/zowe-common-c/pull/562)
 - Bugfix: fix a typo in the cross-memory server's help text (#565)
 - Enhancement: Move to later version of quickjs (#573)
+- Enhancement: configmgr validation errors now use dot-formatted paths and can detect if a property that's unknown is likely to be at the wrong level of indentation [(#577)](https://github.com/zowe/zowe-common-c/pull/577)
 
 ## `3.4.0`
 - Enhancement: The tcpServer, tcpClient, httpServer and httpClient family of functions now detect and allow use of IPv6 addresses [(#554)](https://github.com/zowe/zowe-common-c/pull/554) [(#539)](https://github.com/zowe/zowe-common-c/pull/539)
