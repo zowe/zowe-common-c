@@ -5001,6 +5001,7 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
               jsonAddUnterminatedString(out, "name", name, nameLength);
               jsonAddString(out, "path", path);
               jsonAddBoolean(out, "directory", fileInfoIsDirectory(&info));
+              jsonAddBoolean(out, "symlink", fileInfoIsSymbolicLink(&info));
               jsonAddInt64(out, "size", fileInfoSize(&info));
               jsonAddInt(out, "ccsid", fileInfoCCSID(&info));
               jsonAddString(out, "createdAt", timeStamp.data);
