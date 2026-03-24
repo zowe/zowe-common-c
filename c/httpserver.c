@@ -4996,12 +4996,39 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
           trimRight(group, GROUP_NAME_LEN);
           
           /*          if(status == 0) { */
+            int isSymlink = fileInfoIsSymbolicLink(&info);
+            char symlinkTarget[USS_MAX_PATH_LENGTH + 1] = {0};
+            int isDirectory = FALSE;
+            if (isSymlink) {
+              int linkLen = fileReadLink(path, symlinkTarget, USS_MAX_PATH_LENGTH, &returnCode, &reasonCode);
+              if (linkLen < 0) {
+                zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                        "fileReadLink (%s) FAILED: returnCode: %d, reasonCode: 0x%08x\n",
+                        path, returnCode, reasonCode);
+                symlinkTarget[0] = '\0';
+              } else if (symlinkTarget[0] != '\0') {
+                FileInfo targetInfo = {0};
+                if (fileInfo(symlinkTarget, &targetInfo, &returnCode, &reasonCode) == 0) {
+                  isDirectory = fileInfoIsDirectory(&targetInfo);
+                } else {
+                  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                          "fileInfo on symlink target (%s) FAILED: returnCode: %d, reasonCode: 0x%08x\n",
+                          symlinkTarget, returnCode, reasonCode);
+                }
+              }
+            } else {
+              isDirectory = fileInfoIsDirectory(&info);
+            }
+
             jsonStartObject(out, NULL);
             {
               jsonAddUnterminatedString(out, "name", name, nameLength);
               jsonAddString(out, "path", path);
-              jsonAddBoolean(out, "directory", fileInfoIsDirectory(&info));
-              jsonAddBoolean(out, "symlink", fileInfoIsSymbolicLink(&info));
+              jsonAddBoolean(out, "directory", isDirectory);
+              jsonAddBoolean(out, "symlink", isSymlink);
+              if (isSymlink) {
+                jsonAddString(out, "symlinkTarget", symlinkTarget);
+              }
               jsonAddInt64(out, "size", fileInfoSize(&info));
               jsonAddInt(out, "ccsid", fileInfoCCSID(&info));
               jsonAddString(out, "createdAt", timeStamp.data);

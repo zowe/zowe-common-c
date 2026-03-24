@@ -439,6 +439,11 @@ int fileInfo(const char *filename, FileInfo *fileInfo, int *returnCode, int *rea
 /* Same as fileInfo but does not follow symbolic link */
 int symbolicFileInfo(const char *filename, FileInfo *fileInfo, int *returnCode, int *reasonCode);
 
+/* Reads the target of a symbolic link into buffer.
+   Returns the number of bytes written to buffer (not null-terminated by BPX service,
+   but this wrapper adds a null terminator), or -1 on error. */
+int fileReadLink(char *fileName, char *buffer, int bufferSize, int *returnCode, int *reasonCode);
+
 #ifdef __ZOWE_OS_ZOS
 int fileChangeTag(const char *fileName, int *returnCode, int *reasonCode, int ccsid);
 
