@@ -28,6 +28,9 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#ifdef __ZOWE_OS_ZOS
+#include <fcntl.h>
+#endif
 
 #ifndef __ZOWE_OS_WINDOWS
 #include <time.h>
@@ -1543,17 +1546,22 @@ HttpServer *makeHttpServerInner(STCBase *base,
   server->base = base;
   server->slh = makeShortLivedHeap(65536,100);
   server->cookieName = cookieName;
-  SocketExtension *listenerSocketExtension = makeSocketExtension(listenerSocket,server->slh,FALSE,server,65536);
-  listenerSocket->userData = listenerSocketExtension;
-  /*
-    FIX THIS: Will make a more clever UID later. For now, we just need something
-    that is guaranteed to be different with each run of the same server
-    */
-  server->serverInstanceUID = (uint64)getFineGrainedTime();
-  stcRegisterSocketExtension(base, listenerSocketExtension, STC_MODULE_JEDHTTP);
+  if (listenerSocket){
+    SocketExtension *listenerSocketExtension = makeSocketExtension(listenerSocket,server->slh,FALSE,server,65536);
+    listenerSocket->userData = listenerSocketExtension;
+    /*
+      FIX THIS: Will make a more clever UID later. For now, we just need something
+      that is guaranteed to be different with each run of the same server
+      */
+    server->serverInstanceUID = (uint64)getFineGrainedTime();
+    stcRegisterSocketExtension(base, listenerSocketExtension, STC_MODULE_JEDHTTP);
 
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "ListenerSocket on SD/WinSock=0x%x\n",
-	  (listenerSocket ? getSocketDebugID(listenerSocket) : 0));
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "ListenerSocket on SD/WinSock=0x%x\n",
+	    (listenerSocket ? getSocketDebugID(listenerSocket) : 0));
+  } else{
+    server->serverInstanceUID = (uint64)getFineGrainedTime();
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "No ListenerSocket (pipe mode)\n");
+  }
 
   server->config = (HttpServerConfig*)safeMalloc31(sizeof(HttpServerConfig),"HttpServerConfig");
   server->syntheticPipeSockets = htCreate(4001, NULL, NULL, NULL, NULL);
@@ -1572,6 +1580,29 @@ HttpServer *makeHttpServerInner(STCBase *base,
 int httpServerEnablePipes(HttpServer *server,
 			  int fromDispatcherFD,
 			  int toDispatcherFD){
+  /* 
+     Disable AUTOCVT on pipe FDs so binary TCPFragment data is not corrupted.
+     When _CEE_RUNOPTS='FILETAG(AUTOCVT,AUTOTAG)' is set, z/OS LE will 
+     auto-convert data on read/write for tagged FDs. Pipe FDs from SSH exec 
+     may inherit text tags, causing binary bytes like 0xD0BED0BE to be 
+     converted to 0xACB9ACB9. We use F_CONTROL_CVT to turn off conversion.
+  */
+  {
+    F_CVT fctl;
+    fctl.cmd = F_CVT_SETCVTOFF;
+    fctl.pccsid = 1047;
+    fctl.fccsid = 1047;
+    int rc;
+    rc = fcntl(fromDispatcherFD, F_CONTROL_CVT, &fctl);
+    if (rc < 0) {
+      printf("warning: fcntl F_CONTROL_CVT on input FD %d failed, errno=%d\n", fromDispatcherFD, errno);
+    }
+    fctl.cmd = F_CVT_SETCVTOFF;
+    rc = fcntl(toDispatcherFD, F_CONTROL_CVT, &fctl);
+    if (rc < 0) {
+      printf("warning: fcntl F_CONTROL_CVT on output FD %d failed, errno=%d\n", toDispatcherFD, errno);
+    }
+  }
   Socket *pipeSocket = makePipeBasedSyntheticSocket(IPPROTO_SYNTHETIC_PIPE_DEMULTIPLEXER,
 						    fromDispatcherFD,toDispatcherFD);
   /* pipe tracking and the arguments to makeSExt() */
@@ -2634,7 +2665,8 @@ static int doSingleUserAuth(HttpServer *server, HttpRequest *request, AuthRespon
    */
   return ((strlen(request->username) == safUserLength) &&           /* Same User as ACEE */
           !memcmp(request->username,safUser,safUserLength) &&       /* Same User as ACEE */
-	  !memcmp(server->singleUserAuthBlob,md5Hash,MD5_LENGTH));  /* and the Same Blob  */
+          (server->singleUserAuthBlob == NULL ||                    /* loopback single-user: no blob needed */
+           !memcmp(server->singleUserAuthBlob,md5Hash,MD5_LENGTH)));  /* pipe single-user: check blob */
 }
 
 static int safAuthenticate(HttpService *service, HttpRequest *request, AuthResponse *authResponse){
