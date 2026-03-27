@@ -24,8 +24,8 @@ DEFINES := -D_XOPEN_SOURCE=600 -D_OPEN_THREADS=1 -D_OPEN_SYS_FILE_EXT=1
 
 CC_FLAGS := -I../../h -I../../platform/posix $(DEFINES) \
 	-qascii \
-	-Wc,dll,expo,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) \
-	-Wc,agg,list\(\),so\(\),off,xref,$(BITS)
+	-Wc,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) \
+	-Wc,agg,off,xref,$(BITS)
 
 LD_FLAGS := -Wl,$(BITS)
 
