@@ -1,0 +1,42 @@
+name: Unit Tests
+permissions:
+  id-token: write
+  issues: write
+  pull-requests: write
+  contents: read
+on:
+  push:
+    branches:
+      - v3.x/staging
+      - v3.x/master
+      - v3.x/rc
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  check-permission:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check permission
+        uses: zowe-actions/shared-actions/permission-check@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    needs: check-permission
+    steps:
+      - name: '[Prep 1] Checkout'
+        uses: actions/checkout@v2
+
+      - name: '[Prep 2] Prepare workflow'
+        uses: zowe-actions/shared-actions/prepare-workflow@main
+
+      - name: '[Test] Build and run unit tests on z/OS'
+        uses: zowe-actions/shared-actions/make-pax@main
+        with:
+          pax-name: 'unit-tests'
+          pax-options: '-x os390'
+          pax-local-workspace: './.pax/unit-tests'
+          pax-ssh-username: ${{ secrets.SSH_MARIST_USERNAME }}
+          pax-ssh-password: ${{ secrets.SSH_MARIST_RACF_PASSWORD }}
