@@ -483,7 +483,7 @@ void jobServiceFreeJobs(JobService *service, JobInfo *jobs) {
 /*
   Direct SVC 99 allocation for SAPI spool browse.
   Bypasses LE dynalloc() wrapper. All pointers are __ptr32 throughout —
-  no 64-bit widening. Text units: DALDSNAM, DALRTDDN, DALSSREQ, DALBRTKN.
+  no 64-bit widening. Text units: DALDSNAM, DALRTDDN, DALUASSR, DALBRTKN.
 */
 ZOWE_PRAGMA_PACK
 
@@ -516,7 +516,7 @@ typedef struct SAPIAllocParms_tag {
   int        flags2;
   /* end of S99RB */
   void     * __ptr32  rbPtr;      /* S99RBPTR: pointer to S99RB | HOB */
-  TextUnit * __ptr32  tuList[4];  /* DALDSNAM, DALRTDDN, DALSSREQ, DALBRTKN */
+  TextUnit * __ptr32  tuList[4];  /* DALDSNAM, DALRTDDN, DALUASSR, DALBRTKN */
   SAPIAllocRBX  rbxData;          /* inline S99RBX for extended diagnostics */
 } SAPIAllocParms;
 
@@ -556,7 +556,7 @@ static int sapiAlloc(char *dsn, char *ddnameResult,
     p->tuList[0] = createSimpleTextUnit2(DALDSNAM, dsnQuoted, 2 + dsnLen);
   }
   p->tuList[1] = createSimpleTextUnit(DALRTDDN, ddnameResult);
-  p->tuList[2] = createSimpleTextUnit(DALSSREQ, ssname);
+  p->tuList[2] = createSimpleTextUnit(DALUASSR, ssname);
   p->tuList[3] = browseToken;   /* __ptr32 → __ptr32, no widening */
 
   /* HOB on last entry */

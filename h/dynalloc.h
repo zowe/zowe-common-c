@@ -111,8 +111,9 @@
 #define DALRTORG  0x0057  /*  REQUEST RTN OF DS ORG          */
 #define DALSUSER  0x0058  /*  DEST TO ROUTE SYSOUT (JCL DEST)*/           
 #define DALSHOLD  0x0059  /*  ROUTE SYSOUT TO HOLD QUEUE     */           
-#define DALSSREQ  0x005C  /*  REQ ALLOC OF SUBSYS DATA SET   */           
-#define DALRTVAL  0x005D  /*  REQ RTN OF VOLSER              */           
+#define DALSSREQ  0x005C  /*  REQ ALLOC OF SUBSYS DATA SET   */
+#define DALRTVAL  0x005D  /*  REQ RTN OF VOLSER              */
+#define DALUASSR  0x0075  /*  UNAUTH SUBSYS DS REQ (SDSB)    */           
 #define DALSSNM   0x005F  /*  REQ ALLOC OF SUBSYS DATA SET   */           
 #define DALSSPRM  0x0060  /*  SPECS SUBSYS-DEF"D PARMS W/DALSSNM */       
 #define DALPROT   0x0061  /*  REQS DA DS BE RACF PROTECTED   */           
