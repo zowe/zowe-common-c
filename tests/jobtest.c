@@ -238,6 +238,8 @@ int main(int argc, char *argv[]) {
   int showSysout = 0;
   int showDatasets = 0;
   int readContent = 0;
+  int sapiOnly = 0;
+  char sapiJobId[9] = {0};
   int maxLines = SYSOUT_READ_DEFAULT_MAX;
 
   for (int i = 1; i < argc; i++) {
@@ -283,6 +285,11 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "-lines") == 0 && i + 1 < argc) {
       maxLines = atoi(argv[++i]);
       if (maxLines <= 0) maxLines = SYSOUT_READ_DEFAULT_MAX;
+    } else if (strcmp(argv[i], "-sapi") == 0 && i + 2 < argc) {
+      sapiOnly = 1;
+      strncpy(sapiJobId, argv[++i], 8);
+      filter.flags |= JOB_SELECT_BY_NAME;
+      strncpy(filter.jobName, argv[++i], 8);
     } else if (strcmp(argv[i], "-help") == 0) {
       printUsage();
       return 0;
@@ -304,15 +311,27 @@ int main(int argc, char *argv[]) {
 
   printf("Job Service Test - SSI 80/79\n");
   printf("============================\n");
-  if (readContent) {
-    printf("  (read mode: max %d lines per dataset)\n", maxLines);
-  }
 
   JobService *service = NULL;
   int rc = jobServiceInit(&service);
   if (rc != 0) {
     fprintf(stderr, "jobServiceInit failed, rc=%d\n", rc);
     return 1;
+  }
+
+  /* SSI 79-only path: -sapi <jobid> */
+  if (sapiOnly) {
+    printf("  SAPI-only mode: jobid=%s jobname=%s, max %d lines per dataset\n",
+           sapiJobId, filter.jobName, maxLines);
+    rc = jobServiceSAPIRead(service, sapiJobId, filter.jobName,
+                            maxLines, printSysoutRecord, NULL);
+    printf("jobServiceSAPIRead rc=%d\n", rc);
+    jobServiceTerm(service);
+    return rc;
+  }
+
+  if (readContent) {
+    printf("  (read mode: max %d lines per dataset)\n", maxLines);
   }
 
   JobInfo *jobs = NULL;

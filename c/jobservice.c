@@ -545,7 +545,16 @@ static int sapiAlloc(char *dsn, char *ddnameResult,
   p->rbPtr = (void * __ptr32)((unsigned int)p | 0x80000000);
 
   /* Text units — all __ptr32 */
-  p->tuList[0] = createSimpleTextUnit(DALDSNAM, dsn);
+  {
+    /* Wrap DSN in single quotes (EBCDIC 0x7D) */
+    int dsnLen = strlen(dsn);
+    char dsnQuoted[48];
+    dsnQuoted[0] = 0x7D;  /* EBCDIC single quote */
+    memcpy(dsnQuoted + 1, dsn, dsnLen);
+    dsnQuoted[1 + dsnLen] = 0x7D;
+    dsnQuoted[2 + dsnLen] = '\0';
+    p->tuList[0] = createSimpleTextUnit2(DALDSNAM, dsnQuoted, 2 + dsnLen);
+  }
   p->tuList[1] = createSimpleTextUnit(DALRTDDN, ddnameResult);
   p->tuList[2] = createSimpleTextUnit(DALSSREQ, ssname);
   p->tuList[3] = browseToken;   /* __ptr32 → __ptr32, no widening */
@@ -554,11 +563,24 @@ static int sapiAlloc(char *dsn, char *ddnameResult,
   p->tuList[3] = (TextUnit * __ptr32)
       ((unsigned int)p->tuList[3] | 0x80000000);
 
-  printf("SAPI-ALLOC: tu[0]=%08X tu[1]=%08X tu[2]=%08X tu[3]=%08X(btok)\n",
-         (unsigned int)p->tuList[0],
-         (unsigned int)p->tuList[1],
-         (unsigned int)p->tuList[2],
-         (unsigned int)(p->tuList[3]) & 0x7FFFFFFF);
+  /* Dump each text unit: address, key, count, parm length, and raw value bytes */
+  for (int t = 0; t < 4; t++) {
+    TextUnit * __ptr32 tu = (TextUnit * __ptr32)
+        ((unsigned int)p->tuList[t] & 0x7FFFFFFF);
+    int tuTotalLen = sizeof(TextUnit) + tu->first_parameter_length;
+    unsigned char *raw = (unsigned char *)tu;
+    printf("SAPI-ALLOC: tu[%d] @%08X key=%04X cnt=%d plen=%d hex:",
+           t, (unsigned int)tu, (unsigned)tu->key,
+           (int)tu->number_of_parameters,
+           (int)tu->first_parameter_length);
+    for (int b = 0; b < tuTotalLen && b < 60; b++) {
+      printf(" %02X", raw[b]);
+    }
+    printf("\n");
+  }
+  printf("SAPI-ALLOC: rbLen=%d verb=%02X flags1=%04X rbx=%08X flags2=%08X\n",
+         (int)(unsigned char)p->rbLen, (int)(unsigned char)p->verbCode,
+         (unsigned)p->flags1, (unsigned int)p->rbx, p->flags2);
   printf("SAPI-ALLOC: rbPtr=%08X tuListPtr=%08X\n",
          (unsigned int)p->rbPtr, (unsigned int)p->tuListPtr);
   fflush(stdout);
@@ -800,6 +822,210 @@ cleanup:
   if (recordsRead) {
     *recordsRead = totalRead;
   }
+  return result;
+}
+
+
+/* ----------------------------------------------------------------
+   SSI 79-only path: select and read sysout by jobid, no SSI 80
+   ---------------------------------------------------------------- */
+
+int jobServiceSAPIRead(JobService *service,
+                       const char *jobId,
+                       const char *jobName,
+                       int maxRecords,
+                       SysoutRecordHandler handler,
+                       void *userData) {
+  if (!service || !jobId || !jobName || !handler) {
+    return -1;
+  }
+  if (maxRecords <= 0) {
+    maxRecords = SYSOUT_READ_DEFAULT_MAX;
+  }
+
+  int sss2AllocSize = SSS2SIZE;
+  char *sss2Raw = (char *)safeMalloc31(sss2AllocSize, "SAPI79 SSS2");
+  if (!sss2Raw) {
+    return -1;
+  }
+  memset(sss2Raw, 0, sss2AllocSize);
+
+  struct sss2 *sss2 = (struct sss2 *)sss2Raw;
+
+  /* SSS2 header */
+  sss2->sss2len = SSS2SIZE;
+  sss2->sss2ver = SSS2VJCR;
+  memcpy(sss2->sss2eye, "\xE2\xE2\xE2\xF2", 4);  /* "SSS2" in EBCDIC */
+  sss2->sss2type = SSS2PUGE;
+
+  /* Selection: by jobid range (low=high=exact match) */
+  memset(sss2->sss2jbil, 0x40, 8);
+  memset(sss2->sss2jbih, 0x40, 8);
+  int idLen = strlen(jobId);
+  if (idLen > 8) idLen = 8;
+  memcpy(sss2->sss2jbil, jobId, idLen);
+  memcpy(sss2->sss2jbih, jobId, idLen);
+  sss2->sss2sjbi = 1;
+
+  /* Jobname filter */
+  memset(sss2->sss2jobn, 0x40, 8);
+  int nameLen = strlen(jobName);
+  if (nameLen > 8) nameLen = 8;
+  memcpy(sss2->sss2jobn, jobName, nameLen);
+  sss2->sss2sjbn = 1;
+
+  /* Browse, read-only */
+  sss2->sss2sbro = 1;
+  sss2->sss2sron = 1;
+
+  /* Select from all queues */
+  sss2->sss2sawt = 7;  /* all 3 bits: hold + xwtr hold + writer */
+
+  /* Include all job types */
+  sss2->sss2sstc = 1;
+  sss2->sss2stsu = 1;
+  sss2->sss2sjob = 1;
+  sss2->sss2sapc = 1;
+
+  /* Disposition: keep */
+  sss2->sss2dkpe = 1;
+
+  printf("SAPI79: selecting jobid lo='%.8s' hi='%.8s'\n",
+         sss2->sss2jbil, sss2->sss2jbih);
+  printf("SAPI79: jobname='%.8s'\n", sss2->sss2jobn);
+  printf("SAPI79: sel1=%02X sel2=%02X sel3=%02X sel4=%02X sel5=%02X sel6=%02X\n",
+         sss2->sss2sel1, sss2->sss2sel2, sss2->sss2sel3,
+         sss2->sss2sel4, sss2->sss2sel5, sss2->sss2sel6);
+  printf("SAPI79: jbil hex:");
+  for (int i = 0; i < 8; i++) printf(" %02X", sss2->sss2jbil[i]);
+  printf("\nSAPI79: jobn hex:");
+  for (int i = 0; i < 8; i++) printf(" %02X", sss2->sss2jobn[i]);
+  printf("\nSAPI79: type=%02X msc1=%02X dkpe=%d sron=%d sbro=%d\n",
+         sss2->sss2type, sss2->sss2msc1, sss2->sss2dkpe,
+         sss2->sss2sron, sss2->sss2sbro);
+  fflush(stdout);
+
+  int result = 0;
+  int dsCount = 0;
+
+  /* Walk all sysout datasets returned by SAPI */
+  while (1) {
+    int funcRC = 0;
+    int rc = callSAPI(sss2, &funcRC);
+
+    printf("SAPI79: callSSI rc=%d funcRC=%d reas=%d\n",
+           rc, funcRC, (int)sss2->sss2reas);
+    fflush(stdout);
+
+    if (rc != 0) {
+      printf("SAPI79: SSI call failed rc=%d\n", rc);
+      result = rc;
+      break;
+    }
+
+    if (funcRC == SSS2EODS) {
+      printf("SAPI79: end of data sets (%d found)\n", dsCount);
+      break;
+    }
+
+    if (funcRC != SSS2RTOK) {
+      printf("SAPI79: unexpected funcRC=%d\n", funcRC);
+      result = funcRC;
+      break;
+    }
+
+    dsCount++;
+
+    /* Extract dataset info from SSS2 output fields */
+    char dsn[45];
+    memcpy(dsn, sss2->sss2dsn, 44);
+    dsn[44] = '\0';
+    for (int i = 43; i >= 0 && dsn[i] == ' '; i--) {
+      dsn[i] = '\0';
+    }
+
+    char stepName[9], ddName[9];
+    memcpy(stepName, sss2->sss2stpd, 8);
+    stepName[8] = '\0';
+    for (int i = 7; i >= 0 && stepName[i] == ' '; i--) {
+      stepName[i] = '\0';
+    }
+    memcpy(ddName, sss2->sss2ddnd, 8);
+    ddName[8] = '\0';
+    for (int i = 7; i >= 0 && ddName[i] == ' '; i--) {
+      ddName[i] = '\0';
+    }
+
+    TextUnit * __ptr32 btok = (TextUnit * __ptr32)sss2->sss2btok;
+
+    printf("SAPI79: ds[%d] step='%s' dd='%s' dsn='%s'\n",
+           dsCount, stepName, ddName, dsn);
+    printf("SAPI79: btok=%08X key=%04X count=%d\n",
+           (unsigned int)btok, (unsigned)btok->key,
+           (int)btok->number_of_parameters);
+    /* Hex dump first 36 bytes of browse token */
+    unsigned char *__ptr32 braw = (unsigned char *__ptr32)btok;
+    printf("SAPI79: btok hex:");
+    for (int i = 0; i < 36; i++) {
+      printf(" %02X", braw[i]);
+    }
+    printf("\n");
+    fflush(stdout);
+
+    /* Try DYNALLOC */
+    char ddname[9];
+    memset(ddname, ' ', 8);
+    ddname[8] = '\0';
+
+    int allocErr = 0, allocInfo = 0;
+    rc = sapiAlloc(dsn, ddname, "JES2", btok, &allocErr, &allocInfo);
+    if (rc != 0) {
+      printf("SAPI79: DYNALLOC failed rc=%d error=%04X info=%04X\n",
+             rc, allocErr, allocInfo);
+      fflush(stdout);
+      /* Continue to next dataset */
+      continue;
+    }
+
+    printf("SAPI79: allocated DD='%.8s'\n", ddname);
+    fflush(stdout);
+
+    /* Null-terminate DD name */
+    for (int i = 7; i >= 0 && ddname[i] == ' '; i--) {
+      ddname[i] = '\0';
+    }
+
+    /* Open and read */
+    char ddPath[16];
+    sprintf(ddPath, "//DD:%s", ddname);
+
+    FILE *fp = fopen(ddPath, "rb,type=record");
+    if (!fp) {
+      printf("SAPI79: fopen failed for DD='%s'\n", ddname);
+      DeallocDDName(ddname);
+      continue;
+    }
+
+    char recordBuf[32768];
+    int lineNum = 0;
+    while (lineNum < maxRecords) {
+      int bytesRead = fread(recordBuf, 1, sizeof(recordBuf), fp);
+      if (bytesRead <= 0) break;
+      lineNum++;
+      if (handler(recordBuf, bytesRead, lineNum, userData)) break;
+    }
+
+    printf("SAPI79: read %d lines from DD='%s'\n", lineNum, ddName);
+    fclose(fp);
+    DeallocDDName(ddname);
+  }
+
+  /* Terminate SAPI thread */
+  sss2->sss2ctrl = 1;
+  int funcRC = 0;
+  callSAPI(sss2, &funcRC);
+
+  safeFree31(sss2Raw, sss2AllocSize);
   return result;
 }
 

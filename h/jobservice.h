@@ -281,6 +281,19 @@ int jobServiceReadSysout(JobService *service,
                          void *userData,
                          int *recordsRead);
 
+/*
+  Walk all sysout datasets for a job using SAPI (SSI 79) only.
+  No SSI 80 client token needed — selects by jobid directly.
+  Calls handler for each record of each dataset found.
+  Returns 0 on success.
+*/
+int jobServiceSAPIRead(JobService *service,
+                       const char *jobId,
+                       const char *jobName,
+                       int maxRecords,
+                       SysoutRecordHandler handler,
+                       void *userData);
+
 #endif
 
 
