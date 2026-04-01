@@ -27,7 +27,9 @@ STEPLIB=CBC.SCCNCMP "$SCRIPT_DIR/content/build/build_getesm.sh"
 # run unit tests
 # TODO: move this to a dedicated CI step once the .pax/.github structure is overhauled.
 echo "$SCRIPT_NAME running unit tests ..."
-STEPLIB=CBC.SCCNCMP make -C "$SCRIPT_DIR/content/tests" test
+cd "$SCRIPT_DIR/content/tests"
+STEPLIB=CBC.SCCNCMP make test
+cd "$SCRIPT_DIR"
 echo "$SCRIPT_NAME unit tests passed."
 
 # clean up content folder
