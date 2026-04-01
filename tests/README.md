@@ -10,13 +10,17 @@ on Linux and macOS for local development.
 tests/
   Makefile            - Builds all test binaries and exposes run targets
   README.md           - This file
-  unit/               - Source file for each tested header
-    json.c            - Tests for h/json.h and c/json.c
+  unit/               - One subdirectory per tested module
+    json/
+      jsontest.c      - Tests for h/json.h and c/json.c
 ```
 
-The naming rule is simple: a file that tests `h/foo.h` lives at
-`unit/foo.c`. Each `unit/*.c` file has its own `main()` and compiles to a
-standalone executable named after the module under test (e.g. `jsontest`).
+The naming rule is simple: tests for `h/foo.h` live at `unit/foo/footest.c`.
+Keeping the test source in its own subdirectory prevents its object file from
+colliding with the library object of the same name (e.g. `json.o` from
+`c/json.c` vs the test's `unit/json/jsontest.o`). Each `unit/*/...test.c` file
+has its own `main()` and compiles to a standalone executable named after the
+module under test (e.g. `jsontest`).
 
 The files outside `unit/` that pre-date this structure (e.g. `parsetest.c`,
 `schematest.c`) remain as-is; they are not yet integrated into the framework.
@@ -351,11 +355,11 @@ A failing test prints the file name, line number, and assertion message:
 
 ## Adding a new test file
 
-1. Create `tests/unit/<name>.c` where `<name>` matches the header under test.
-2. Copy the boilerplate from `tests/unit/json.c` (includes, capture helpers if
+1. Create `tests/unit/<name>/` and add `<name>test.c` inside it.
+2. Copy the boilerplate from `tests/unit/json/jsontest.c` (includes, capture helpers if
    needed, `zoweTestInit()`, `ZOWE_TEST_REPORT()`).
 3. Add the new binary to the Makefile:
-   - Define a `<NAME>TESTOBJS` variable listing `unit/<name>.o`, `zowetests.o`,
+   - Define a `<NAME>TESTOBJS` variable listing `unit/<name>/<name>test.o`, `zowetests.o`,
      and every `.o` the library under test depends on.
    - Add a link rule: `<name>test: $(<NAME>TESTOBJS)`.
    - Add an explicit compile rule for `unit/<name>.o`.

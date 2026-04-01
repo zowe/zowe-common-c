@@ -26,14 +26,19 @@ DEFINES=-D_XOPEN_SOURCE=600 -D_OPEN_THREADS=1 -D_OPEN_SYS_FILE_EXT=1 -DCONFIG_VE
 CC_FLAGS=-Iquickjs-portable -Ilibyaml/include -I../h -I../platform/posix $(DEFINES) -Wc,dll,expo,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) -Wc,agg,list\(\),so\(\),off,xref,$(BITS)
 LD_FLAGS=-Wl,$(BITS)
 
+# Flags for unit test executables: no dll/expo so symbols link directly from .o files.
+TEST_CC_FLAGS=-I../h -I../platform/posix $(DEFINES) -Wc,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) -Wc,agg,list\(\),so\(\),off,xref,$(BITS)
+TEST_LD_FLAGS=-Wl,$(BITS)
+
 LIBYAMLOBJS=api.o reader.o scanner.o parser.o loader.o writer.o emitter.o dumper.o
 SCHEMATESTOBJS=schematest.o yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o embeddedjs.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
 QUICKJSOBS=cutils.o quickjs.o quickjs-libc.o libunicode.o libregexp.o polyfill.o
 CONFIGMGROBJ=configmgr.o yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o embeddedjs.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
 
 # Object files required for the JSON unit tests.
-# zowetests.o provides the test framework; unit/json.o contains the test cases.
-JSONTESTOBJS=unit/json.o zowetests.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o
+# zowetests.o provides the test framework; unit/json/jsontest.o contains the test cases.
+# The dependency list mirrors the build line documented inside json.c itself.
+JSONTESTOBJS=unit/json/jsontest.o zowetests.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o zosfile.o zos.o recovery.o scheduling.o le.o psxregex.o
 
 .PHONY:	clean all prepare test_configmgr test_json test
 
@@ -46,13 +51,61 @@ schematest:	$(SCHEMATESTOBJS) $(LIBYAMLOBJS) $(QUICKJSOBS)
 	$(CC) $(LD_FLAGS) -o $@ $^
 
 jsontest:	$(JSONTESTOBJS)
-	$(CC) $(LD_FLAGS) -o $@ $^
+	$(CC) $(TEST_LD_FLAGS) -o $@ $^
 
 schematest.o:	schematest.c
 	$(CC) $(CC_FLAGS) -c schematest.c
 
-unit/json.o:	unit/json.c
-	$(CC) $(CC_FLAGS) -c unit/json.c -o unit/json.o
+unit/json/jsontest.o:	unit/json/jsontest.c
+	$(CC) $(TEST_CC_FLAGS) -c unit/json/jsontest.c -o unit/json/jsontest.o
+
+zowetests.o:	../c/zowetests.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/zowetests.c -o zowetests.o
+
+json.o:	../c/json.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/json.c -o json.o
+
+xlate.o:	../c/xlate.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/xlate.c -o xlate.o
+
+charsets.o:	../c/charsets.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/charsets.c -o charsets.o
+
+bpxskt.o:	../c/bpxskt.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/bpxskt.c -o bpxskt.o
+
+logging.o:	../c/logging.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/logging.c -o logging.o
+
+collections.o:	../c/collections.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/collections.c -o collections.o
+
+timeutls.o:	../c/timeutls.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/timeutls.c -o timeutls.o
+
+utils.o:	../c/utils.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/utils.c -o utils.o
+
+alloc.o:	../c/alloc.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/alloc.c -o alloc.o
+
+zosfile.o:	../c/zosfile.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/zosfile.c -o zosfile.o
+
+zos.o:	../c/zos.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/zos.c -o zos.o
+
+recovery.o:	../c/recovery.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/recovery.c -o recovery.o
+
+scheduling.o:	../c/scheduling.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/scheduling.c -o scheduling.o
+
+le.o:	../c/le.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/le.c -o le.o
+
+psxregex.o:	../platform/posix/psxregex.c
+	$(CC) $(TEST_CC_FLAGS) -c ../platform/posix/psxregex.c -o psxregex.o
 
 %.o:	../c/%.c
 	$(CC) $(CC_FLAGS) -c $<	
@@ -76,9 +129,9 @@ quickjs-portable:
 	git clone git@github.com:JoeNemo/quickjs-portable.git
 
 prepare: libyaml quickjs-portable
-	
+
 clean:
-	rm -f configmgr schematest jsontest *.o unit/*.o
+	rm -f configmgr schematest jsontest *.o unit/json/*.o
 
 test_configmgr:	configmgr
 	./configmgr -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/zowebase.yaml)' validate
@@ -88,7 +141,7 @@ test_json:	jsontest
 	./jsontest
 
 test:	test_json
-	
+
 
 ################################################################################
 #  This program and the accompanying materials are

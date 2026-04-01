@@ -11,7 +11,7 @@
 */
 
 /*
- * tests/unit/json.c - Unit tests for json.h / json.c
+ * tests/unit/json/jsontest.c - Unit tests for json.h / json.c
  *
  * Exercises the JSON writer (jsonPrinter), parser (jsonParseString),
  * type predicates, object/array accessors, and property helpers.
@@ -21,7 +21,7 @@
  *
  * Compile on Linux/macOS for local development:
  *   clang -I../h -I../platform/posix -D__ZOWE_OS_LINUX \
- *         -o json_test unit/json.c ../c/zowetests.c \
+ *         -o json_test unit/json/jsontest.c ../c/zowetests.c \
  *         ../c/json.c ../c/alloc.c ../c/utils.c ../c/collections.c \
  *         ../c/charsets.c ../c/xlate.c ../c/timeutls.c ../c/logging.c
  */

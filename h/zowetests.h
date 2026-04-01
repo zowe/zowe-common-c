@@ -154,7 +154,7 @@ int _zoweTestFinalReport(void);
  * SET_BEFORE_EACH / SET_AFTER_EACH are cleared when the next DESCRIBE begins.
  */
 #define DESCRIBE(name) \
-  do { \
+  { \
     _zoweTestDescribeBegin(name);
 
 /**
@@ -162,7 +162,7 @@ int _zoweTestFinalReport(void);
  */
 #define DESCRIBE_END \
     _zoweTestDescribeEnd(); \
-  } while (0)
+  }
 
 /**
  * \brief Registers a before-each hook for the current suite.
