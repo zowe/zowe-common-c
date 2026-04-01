@@ -24,6 +24,12 @@ echo "parent folder:"
 ls -ltr "$SCRIPT_DIR/content"
 STEPLIB=CBC.SCCNCMP "$SCRIPT_DIR/content/build/build_getesm.sh"
 
+# run unit tests
+# TODO: move this to a dedicated CI step once the .pax/.github structure is overhauled.
+echo "$SCRIPT_NAME running unit tests ..."
+STEPLIB=CBC.SCCNCMP make -C "$SCRIPT_DIR/content/tests" test
+echo "$SCRIPT_NAME unit tests passed."
+
 # clean up content folder
 echo "$SCRIPT_NAME cleaning up pax folder ..."
 cd "$SCRIPT_DIR"

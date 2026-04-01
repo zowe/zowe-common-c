@@ -35,9 +35,13 @@ SCHEMATESTOBJS:=schematest.o  yaml2json.o jsonschema.o json.o xlate.o charsets.o
 QUICKJSOBS:=cutils.o quickjs.o quickjs-libc.o libunicode.o libregexp.o polyfill.o
 CONFIGMGROBJ:=configmgr.o  yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o timeutls.o utils.o alloc.o embeddedjs.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
 
-.PHONY:	clean all prepare test_configmgr
+# Object files required for the JSON unit tests.
+# zowetests.o provides the test framework; unit/json.o contains the test cases.
+JSONTESTOBJS:=unit/json.o zowetests.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o
 
-all:	configmgr schematest
+.PHONY:	clean all prepare test_configmgr test_json test
+
+all:	configmgr schematest jsontest
 
 configmgr:	$(CONFIGMGROBJ) $(LIBYAMLOBJS) $(QUICKJSOBS)
 	$(CC) $(LD_FLAGS) -o $@ $^
@@ -45,8 +49,14 @@ configmgr:	$(CONFIGMGROBJ) $(LIBYAMLOBJS) $(QUICKJSOBS)
 schematest:	$(SCHEMATESTOBJS) $(LIBYAMLOBJS) $(QUICKJSOBS)
 	$(CC) $(LD_FLAGS) -o $@ $^
 
+jsontest:	$(JSONTESTOBJS)
+	$(CC) $(LD_FLAGS) -o $@ $^
+
 schematest.o:	schematest.c
-	$(CC) $(CC_FLAGS) -c schematest.c	
+	$(CC) $(CC_FLAGS) -c schematest.c
+
+unit/json.o:	unit/json.c
+	$(CC) $(CC_FLAGS) -c unit/json.c -o unit/json.o
 
 %.o:	../c/%.c
 	$(CC) $(CC_FLAGS) -c $<	
@@ -71,12 +81,17 @@ quickjs-portable:
 
 prepare: libyaml quickjs-portable
 	
-clean:	
-	rm -f configmgr schematest *.o
+clean:
+	rm -f configmgr schematest jsontest *.o unit/*.o
 
 test_configmgr:	configmgr
 	./configmgr -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/zowebase.yaml)' validate
 	./configmgr -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/zowebase.yaml)' env out.env && cat out.env
+
+test_json:	jsontest
+	./jsontest
+
+test:	test_json
 	
 
 ################################################################################
