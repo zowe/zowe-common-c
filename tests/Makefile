@@ -10,34 +10,30 @@
 
 # Makefile for z/OS
 # make prepare && make
-CC:=xlclang
-BITS:=
-#BITS:=lp64
+CC=xlclang
+#BITS=
+BITS=lp64
 
-ifeq ($(BITS),lp64)
-	ENHANCED_ASCII:=-qascii -D_ENHANCED_ASCII_EXT=0xFFFFFFFF
-else
-	ENHANCED_ASCII:=-qascii -D_ENHANCED_ASCII_EXT=0xFFFFFFFF -Wc,NOXPLINK 
-endif
+ENHANCED_ASCII=-qascii -D_ENHANCED_ASCII_EXT=0xFFFFFFFF
 
-MAJOR:=0
-MINOR:=2
-PATCH:=5
-VERSION:=\"$(MAJOR).$(MINOR).$(PATCH)\"
-DEFINESYAML:=-DYAML_VERSION_MAJOR=$(MAJOR) -DYAML_VERSION_MINOR=$(MINOR) -DYAML_VERSION_PATCH=$(PATCH) -DYAML_VERSION_STRING=$(VERSION) -DYAML_DECLARE_STATIC=1
-DEFINES:=-D_XOPEN_SOURCE=600 -D_OPEN_THREADS=1 -D_OPEN_SYS_FILE_EXT=1 -DCONFIG_VERSION=\"2021-03-27\" 
+MAJOR=0
+MINOR=2
+PATCH=5
+VERSION=\"$(MAJOR).$(MINOR).$(PATCH)\"
+DEFINESYAML=-DYAML_VERSION_MAJOR=$(MAJOR) -DYAML_VERSION_MINOR=$(MINOR) -DYAML_VERSION_PATCH=$(PATCH) -DYAML_VERSION_STRING=$(VERSION) -DYAML_DECLARE_STATIC=1
+DEFINES=-D_XOPEN_SOURCE=600 -D_OPEN_THREADS=1 -D_OPEN_SYS_FILE_EXT=1 -DCONFIG_VERSION=\"2021-03-27\"
 
-CC_FLAGS:=-Iquickjs-portable -Ilibyaml/include -I../h -I../platform/posix $(DEFINES) -Wc,dll,expo,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) -Wc,agg,list\(\),so\(\),off,xref,$(BITS)
-LD_FLAGS:=-Wl,$(BITS)
+CC_FLAGS=-Iquickjs-portable -Ilibyaml/include -I../h -I../platform/posix $(DEFINES) -Wc,dll,expo,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) -Wc,agg,list\(\),so\(\),off,xref,$(BITS)
+LD_FLAGS=-Wl,$(BITS)
 
-LIBYAMLOBJS:=api.o reader.o scanner.o parser.o loader.o writer.o emitter.o dumper.o
-SCHEMATESTOBJS:=schematest.o  yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o timeutls.o utils.o alloc.o embeddedjs.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
-QUICKJSOBS:=cutils.o quickjs.o quickjs-libc.o libunicode.o libregexp.o polyfill.o
-CONFIGMGROBJ:=configmgr.o  yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o timeutls.o utils.o alloc.o embeddedjs.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
+LIBYAMLOBJS=api.o reader.o scanner.o parser.o loader.o writer.o emitter.o dumper.o
+SCHEMATESTOBJS=schematest.o yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o embeddedjs.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
+QUICKJSOBS=cutils.o quickjs.o quickjs-libc.o libunicode.o libregexp.o polyfill.o
+CONFIGMGROBJ=configmgr.o yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o embeddedjs.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
 
 # Object files required for the JSON unit tests.
 # zowetests.o provides the test framework; unit/json.o contains the test cases.
-JSONTESTOBJS:=unit/json.o zowetests.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o
+JSONTESTOBJS=unit/json.o zowetests.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o
 
 .PHONY:	clean all prepare test_configmgr test_json test
 
