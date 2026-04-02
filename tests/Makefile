@@ -30,7 +30,14 @@ LD_FLAGS=-Wl,$(BITS)
 TEST_CC_FLAGS=-I../h -I../platform/posix $(DEFINES) -Wc,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) -Wc,agg,list\(\),so\(\),off,xref,$(BITS)
 TEST_LD_FLAGS=-Wl,$(BITS)
 
+# Flags for test objects that also need the libyaml header search path.
+YAML_TEST_CC_FLAGS=-Ilibyaml/include -I../h -I../platform/posix $(DEFINES) -Wc,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) -Wc,agg,list\(\),so\(\),off,xref,$(BITS)
+
 LIBYAMLOBJS=api.o reader.o scanner.o parser.o loader.o writer.o emitter.o dumper.o
+
+# libyaml objects compiled without dll/expo for use in the yaml2json unit test.
+# Each lives in unit/yaml2json/ to avoid naming collisions with $(LIBYAMLOBJS).
+LIBYAML_TEST_OBJS=unit/yaml2json/api.o unit/yaml2json/reader.o unit/yaml2json/scanner.o unit/yaml2json/parser.o unit/yaml2json/loader.o unit/yaml2json/writer.o unit/yaml2json/emitter.o unit/yaml2json/dumper.o
 SCHEMATESTOBJS=schematest.o yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o embeddedjs.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
 QUICKJSOBS=cutils.o quickjs.o quickjs-libc.o libunicode.o libregexp.o polyfill.o
 CONFIGMGROBJ=configmgr.o yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o embeddedjs.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
@@ -40,9 +47,14 @@ CONFIGMGROBJ=configmgr.o yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxs
 # The dependency list mirrors the build line documented inside json.c itself.
 JSONTESTOBJS=unit/json/jsontest.o zowetests.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o zosfile.o zos.o recovery.o scheduling.o le.o psxregex.o
 
-.PHONY:	clean all prepare test_configmgr test_json test
+# Object files required for the yaml2json unit tests.
+# unit/yaml2json/yaml2json.o is yaml2json.c compiled without dll/expo.
+# $(LIBYAML_TEST_OBJS) is libyaml compiled without dll/expo (in unit/yaml2json/).
+YAML2JSONTESTOBJS=unit/yaml2json/yaml2jsontest.o unit/yaml2json/yaml2json.o zowetests.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o zosfile.o zos.o recovery.o scheduling.o le.o psxregex.o
 
-all:	configmgr schematest jsontest
+.PHONY:	clean all prepare test_configmgr test_json test_yaml2json test
+
+all:	configmgr schematest jsontest yaml2jsontest
 
 configmgr:	$(CONFIGMGROBJ) $(LIBYAMLOBJS) $(QUICKJSOBS)
 	$(CC) $(LD_FLAGS) -o $@ $^
@@ -51,6 +63,9 @@ schematest:	$(SCHEMATESTOBJS) $(LIBYAMLOBJS) $(QUICKJSOBS)
 	$(CC) $(LD_FLAGS) -o $@ $^
 
 jsontest:	$(JSONTESTOBJS)
+	$(CC) $(TEST_LD_FLAGS) -o $@ $^
+
+yaml2jsontest:	$(YAML2JSONTESTOBJS) $(LIBYAML_TEST_OBJS)
 	$(CC) $(TEST_LD_FLAGS) -o $@ $^
 
 schematest.o:	schematest.c
@@ -107,6 +122,42 @@ le.o:	../c/le.c
 psxregex.o:	../platform/posix/psxregex.c
 	$(CC) $(TEST_CC_FLAGS) -c ../platform/posix/psxregex.c -o psxregex.o
 
+# ------------------------------------------------------------------
+# Rules for yaml2json unit test objects
+# All compiled with YAML_TEST_CC_FLAGS (no dll/expo, libyaml headers).
+# ------------------------------------------------------------------
+
+unit/yaml2json/yaml2jsontest.o:	unit/yaml2json/yaml2jsontest.c
+	$(CC) $(YAML_TEST_CC_FLAGS) -c unit/yaml2json/yaml2jsontest.c -o unit/yaml2json/yaml2jsontest.o
+
+unit/yaml2json/yaml2json.o:	../c/yaml2json.c
+	$(CC) $(YAML_TEST_CC_FLAGS) -c ../c/yaml2json.c -o unit/yaml2json/yaml2json.o
+
+# libyaml sources compiled without dll/expo and with ENHANCED_ASCII + DEFINESYAML.
+unit/yaml2json/api.o:	libyaml/src/api.c
+	$(CC) $(YAML_TEST_CC_FLAGS) $(DEFINESYAML) $(ENHANCED_ASCII) -c libyaml/src/api.c -o unit/yaml2json/api.o
+
+unit/yaml2json/reader.o:	libyaml/src/reader.c
+	$(CC) $(YAML_TEST_CC_FLAGS) $(DEFINESYAML) $(ENHANCED_ASCII) -c libyaml/src/reader.c -o unit/yaml2json/reader.o
+
+unit/yaml2json/scanner.o:	libyaml/src/scanner.c
+	$(CC) $(YAML_TEST_CC_FLAGS) $(DEFINESYAML) $(ENHANCED_ASCII) -c libyaml/src/scanner.c -o unit/yaml2json/scanner.o
+
+unit/yaml2json/parser.o:	libyaml/src/parser.c
+	$(CC) $(YAML_TEST_CC_FLAGS) $(DEFINESYAML) $(ENHANCED_ASCII) -c libyaml/src/parser.c -o unit/yaml2json/parser.o
+
+unit/yaml2json/loader.o:	libyaml/src/loader.c
+	$(CC) $(YAML_TEST_CC_FLAGS) $(DEFINESYAML) $(ENHANCED_ASCII) -c libyaml/src/loader.c -o unit/yaml2json/loader.o
+
+unit/yaml2json/writer.o:	libyaml/src/writer.c
+	$(CC) $(YAML_TEST_CC_FLAGS) $(DEFINESYAML) $(ENHANCED_ASCII) -c libyaml/src/writer.c -o unit/yaml2json/writer.o
+
+unit/yaml2json/emitter.o:	libyaml/src/emitter.c
+	$(CC) $(YAML_TEST_CC_FLAGS) $(DEFINESYAML) $(ENHANCED_ASCII) -c libyaml/src/emitter.c -o unit/yaml2json/emitter.o
+
+unit/yaml2json/dumper.o:	libyaml/src/dumper.c
+	$(CC) $(YAML_TEST_CC_FLAGS) $(DEFINESYAML) $(ENHANCED_ASCII) -c libyaml/src/dumper.c -o unit/yaml2json/dumper.o
+
 %.o:	../c/%.c
 	$(CC) $(CC_FLAGS) -c $<	
 
@@ -131,7 +182,7 @@ quickjs-portable:
 prepare: libyaml quickjs-portable
 
 clean:
-	rm -f configmgr schematest jsontest *.o unit/json/*.o
+	rm -f configmgr schematest jsontest yaml2jsontest *.o unit/json/*.o unit/yaml2json/*.o
 
 test_configmgr:	configmgr
 	./configmgr -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/zowebase.yaml)' validate
@@ -140,7 +191,10 @@ test_configmgr:	configmgr
 test_json:	jsontest
 	./jsontest
 
-test:	test_json
+test_yaml2json:	yaml2jsontest
+	./yaml2jsontest
+
+test:	test_json test_yaml2json
 
 
 ################################################################################

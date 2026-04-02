@@ -13,6 +13,8 @@ tests/
   unit/               - One subdirectory per tested module
     json/
       jsontest.c      - Tests for h/json.h and c/json.c
+    yaml2json/
+      yaml2jsontest.c - Tests for h/yaml2json.h and c/yaml2json.c
 ```
 
 The naming rule is simple: tests for `h/foo.h` live at `unit/foo/footest.c`.

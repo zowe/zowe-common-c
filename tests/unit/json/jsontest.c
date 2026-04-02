@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <unistd.h>
 
 #include "zowetypes.h"
 #include "alloc.h"
@@ -1213,6 +1214,232 @@ static void testJsonRoundTrip(void) {
 }
 
 /* ============================================================
+ *  Suite 13 - Parsing JSON fixture files from disk
+ *
+ *  Reads files that already exist inside tests/ when the binary
+ *  is invoked from that directory (as in the Makefile "test_json"
+ *  rule).  Uses jsonParseFile() to exercise the file-I/O path.
+ *
+ *  Fixtures used:
+ *    create1.json          (168 B) -- dataset-creation spec
+ *    configmgr/extract/extract.json (251 B) -- JSON-Schema doc
+ * ============================================================ */
+
+static void testJsonParseFiles(void) {
+  DESCRIBE("JSON Parser - parse files from disk") {
+    SET_BEFORE_EACH(setupParserSlh);
+    SET_AFTER_EACH(teardownParserSlh);
+
+    /* ---- create1.json ---- */
+    IT("parses create1.json and finds dsorg == PO") {
+      TEST_COVERS(jsonParseFile);
+      char errorBuf[256] = {0};
+      Json *root = jsonParseFile(parserSlh, "./create1.json",
+                                 errorBuf, sizeof(errorBuf));
+      ASSERT_NOT_NULL(root);
+      ASSERT_TRUE(jsonIsObject(root));
+      Json *dsorg = jsonObjectGetPropertyValue(jsonAsObject(root), "dsorg");
+      ASSERT_NOT_NULL(dsorg);
+      ASSERT_TRUE(jsonIsString(dsorg));
+      ASSERT_EQUAL_STR("PO", jsonAsString(dsorg));
+    } IT_END
+
+    IT("parses create1.json and finds lrecl == 80") {
+      TEST_COVERS(jsonParseFile);
+      char errorBuf[256] = {0};
+      Json *root = jsonParseFile(parserSlh, "./create1.json",
+                                 errorBuf, sizeof(errorBuf));
+      ASSERT_NOT_NULL(root);
+      Json *lrecl = jsonObjectGetPropertyValue(jsonAsObject(root), "lrecl");
+      ASSERT_NOT_NULL(lrecl);
+      ASSERT_TRUE(jsonIsInt64(lrecl));
+      ASSERT_EQUAL_INT(80, (int)jsonAsInt64(lrecl));
+    } IT_END
+
+    IT("parses create1.json and finds dsnt == PDS") {
+      TEST_COVERS(jsonParseFile);
+      char errorBuf[256] = {0};
+      Json *root = jsonParseFile(parserSlh, "./create1.json",
+                                 errorBuf, sizeof(errorBuf));
+      ASSERT_NOT_NULL(root);
+      Json *dsnt = jsonObjectGetPropertyValue(jsonAsObject(root), "dsnt");
+      ASSERT_NOT_NULL(dsnt);
+      ASSERT_TRUE(jsonIsString(dsnt));
+      ASSERT_EQUAL_STR("PDS", jsonAsString(dsnt));
+    } IT_END
+
+    IT("parses create1.json and finds numeric fields prime==3 and secnd==3") {
+      TEST_COVERS(jsonParseFile);
+      char errorBuf[256] = {0};
+      Json *root = jsonParseFile(parserSlh, "./create1.json",
+                                 errorBuf, sizeof(errorBuf));
+      ASSERT_NOT_NULL(root);
+      Json *prime = jsonObjectGetPropertyValue(jsonAsObject(root), "prime");
+      ASSERT_NOT_NULL(prime);
+      ASSERT_EQUAL_INT(3, (int)jsonAsInt64(prime));
+      Json *secnd = jsonObjectGetPropertyValue(jsonAsObject(root), "secnd");
+      ASSERT_NOT_NULL(secnd);
+      ASSERT_EQUAL_INT(3, (int)jsonAsInt64(secnd));
+    } IT_END
+
+    /* ---- configmgr/extract/extract.json ---- */
+    IT("parses extract.json and finds type == object") {
+      TEST_COVERS(jsonParseFile);
+      char errorBuf[256] = {0};
+      Json *root = jsonParseFile(parserSlh,
+                                 "./configmgr/extract/extract.json",
+                                 errorBuf, sizeof(errorBuf));
+      ASSERT_NOT_NULL(root);
+      ASSERT_TRUE(jsonIsObject(root));
+      Json *type = jsonObjectGetPropertyValue(jsonAsObject(root), "type");
+      ASSERT_NOT_NULL(type);
+      ASSERT_TRUE(jsonIsString(type));
+      ASSERT_EQUAL_STR("object", jsonAsString(type));
+    } IT_END
+
+    IT("parses extract.json and finds a nested properties object") {
+      TEST_COVERS(jsonParseFile);
+      char errorBuf[256] = {0};
+      Json *root = jsonParseFile(parserSlh,
+                                 "./configmgr/extract/extract.json",
+                                 errorBuf, sizeof(errorBuf));
+      ASSERT_NOT_NULL(root);
+      Json *props = jsonObjectGetPropertyValue(jsonAsObject(root), "properties");
+      ASSERT_NOT_NULL(props);
+      ASSERT_TRUE(jsonIsObject(props));
+      Json *testProp = jsonObjectGetPropertyValue(jsonAsObject(props), "test");
+      ASSERT_NOT_NULL(testProp);
+      ASSERT_TRUE(jsonIsObject(testProp));
+    } IT_END
+
+    IT("returns NULL and sets errorBuf for a missing file") {
+      TEST_COVERS(jsonParseFile);
+      char errorBuf[256] = {0};
+      Json *root = jsonParseFile(parserSlh,
+                                 "/tmp/no_such_json_file_jsontest.json",
+                                 errorBuf, sizeof(errorBuf));
+      ASSERT_NULL(root);
+    } IT_END
+
+  } DESCRIBE_END
+}
+
+/* ============================================================
+ *  Suite 14 - Large JSON file (~1 MiB)
+ *
+ *  Generates a JSON array of objects at runtime, writes it to
+ *  /tmp, then parses it with jsonParseFile().  Verifies that the
+ *  parser handles large inputs correctly and preserves values at
+ *  the beginning, middle, and end of the array.
+ *
+ *  Each element has the form: {"id":<n>,"value":"item_<n>"}
+ * ============================================================ */
+
+#define LARGE_JSON_TARGET_BYTES 1048576L
+
+static char s_largeJSONPath[256];
+static int  s_largeJSONCount = 0;
+
+static bool writeLargeJSONFile(void) {
+  snprintf(s_largeJSONPath, sizeof(s_largeJSONPath),
+           "/tmp/jsontest_large_%d.json", (int)getpid());
+  FILE *f = fopen(s_largeJSONPath, "w");
+  if (!f) return false;
+  fputs("[\n", f);
+  long bytes = 2; /* "[\n" */
+  int  count = 0;
+  char entry[64];
+  while (bytes < LARGE_JSON_TARGET_BYTES) {
+    if (count > 0) { fputs(",\n", f); bytes += 2; }
+    int n = snprintf(entry, sizeof(entry),
+                     "  {\"id\":%d,\"value\":\"item_%06d\"}", count, count);
+    fputs(entry, f);
+    bytes += n;
+    count++;
+  }
+  fputs("\n]\n", f);
+  fclose(f);
+  s_largeJSONCount = count;
+  return true;
+}
+
+static void setupLargeJSON(void) {
+  parserSlh = makeShortLivedHeap(0x200000, 200); /* 2 MiB */
+  writeLargeJSONFile();
+}
+
+static void teardownLargeJSON(void) {
+  SLHFree(parserSlh);
+  parserSlh = NULL;
+  if (s_largeJSONPath[0] != '\0') {
+    unlink(s_largeJSONPath);
+    s_largeJSONPath[0] = '\0';
+  }
+}
+
+static void testJsonLargeFile(void) {
+  DESCRIBE("JSON Parser - ~1 MiB generated JSON array") {
+    SET_BEFORE_EACH(setupLargeJSON);
+    SET_AFTER_EACH(teardownLargeJSON);
+
+    IT("parses a ~1 MiB JSON file and returns a non-null array") {
+      TEST_COVERS(jsonParseFile);
+      char errorBuf[256] = {0};
+      Json *root = jsonParseFile(parserSlh, s_largeJSONPath,
+                                 errorBuf, sizeof(errorBuf));
+      ASSERT_NOT_NULL(root);
+      ASSERT_TRUE(jsonIsArray(root));
+    } IT_END
+
+    IT("first element has id==0 and value==\"item_000000\"") {
+      TEST_COVERS(jsonParseFile);
+      char errorBuf[256] = {0};
+      Json *root = jsonParseFile(parserSlh, s_largeJSONPath,
+                                 errorBuf, sizeof(errorBuf));
+      ASSERT_NOT_NULL(root);
+      ASSERT_TRUE(jsonIsArray(root));
+      Json *first = jsonArrayGetItem(jsonAsArray(root), 0);
+      ASSERT_NOT_NULL(first);
+      ASSERT_TRUE(jsonIsObject(first));
+      Json *id  = jsonObjectGetPropertyValue(jsonAsObject(first), "id");
+      Json *val = jsonObjectGetPropertyValue(jsonAsObject(first), "value");
+      ASSERT_NOT_NULL(id);
+      ASSERT_NOT_NULL(val);
+      ASSERT_EQUAL_INT(0, (int)jsonAsInt64(id));
+      ASSERT_EQUAL_STR("item_000000", jsonAsString(val));
+    } IT_END
+
+    IT("element at index 100 has id==100 and value==\"item_000100\"") {
+      TEST_COVERS(jsonParseFile);
+      char errorBuf[256] = {0};
+      Json *root = jsonParseFile(parserSlh, s_largeJSONPath,
+                                 errorBuf, sizeof(errorBuf));
+      ASSERT_NOT_NULL(root);
+      ASSERT_TRUE(jsonIsArray(root));
+      ASSERT_GT_INT(jsonArrayGetCount(jsonAsArray(root)), 100);
+      Json *elem = jsonArrayGetItem(jsonAsArray(root), 100);
+      ASSERT_NOT_NULL(elem);
+      Json *id  = jsonObjectGetPropertyValue(jsonAsObject(elem), "id");
+      Json *val = jsonObjectGetPropertyValue(jsonAsObject(elem), "value");
+      ASSERT_EQUAL_INT(100, (int)jsonAsInt64(id));
+      ASSERT_EQUAL_STR("item_000100", jsonAsString(val));
+    } IT_END
+
+    IT("array element count matches the number of entries written") {
+      TEST_COVERS(jsonParseFile);
+      char errorBuf[256] = {0};
+      Json *root = jsonParseFile(parserSlh, s_largeJSONPath,
+                                 errorBuf, sizeof(errorBuf));
+      ASSERT_NOT_NULL(root);
+      ASSERT_TRUE(jsonIsArray(root));
+      ASSERT_EQUAL_INT(s_largeJSONCount,
+                       jsonArrayGetCount(jsonAsArray(root)));
+    } IT_END
+
+  } DESCRIBE_END
+}
+
+/* ============================================================
  *  main
  * ============================================================ */
 
@@ -1231,6 +1458,8 @@ int main(void) {
   testJsonArrayAccessors();
   testJsonPropertyHelpers();
   testJsonRoundTrip();
+  testJsonParseFiles();
+  testJsonLargeFile();
 
   return ZOWE_TEST_REPORT();
 }
