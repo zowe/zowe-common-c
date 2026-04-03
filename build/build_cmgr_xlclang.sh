@@ -57,6 +57,7 @@ GSKINC="${GSKDIR}/include"
 
 xlclang \
   -c \
+  ${ZWE_XLCLANG_FLAGS} \
   -q64 \
   -qascii \
   "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN')" \
@@ -93,6 +94,7 @@ xlclang \
 #fi
 
 xlclang \
+  ${ZWE_XLCLANG_FLAGS} \
   -q64 \
   "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN')" \
   -D_OPEN_SYS_FILE_EXT=1 \
