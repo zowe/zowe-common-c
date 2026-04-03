@@ -346,7 +346,7 @@ static void testGroupGetName(void) {
  *
  *  NOTE: The implementation contains a bug in the numeric-string branch:
  *
- *      userId = atoi(userId);  /* should be atoi(string) */
+ *      userId = atoi(userId);  -- should be atoi(string)
  *
  *  Passing an int to atoi() as a char* is undefined behaviour.  The numeric
  *  path is therefore not exercised here to avoid a crash.  Only the

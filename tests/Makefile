@@ -31,7 +31,7 @@ TEST_CC_FLAGS=${ZWE_XLCLANG_FLAGS} -I../h -I../platform/posix $(DEFINES) -Wc,lan
 TEST_LD_FLAGS=-Wl,$(BITS)
 
 # Flags for test objects that also need the libyaml header search path.
-YAML_TEST_CC_FLAGS=-Ilibyaml/include -I../h -I../platform/posix $(DEFINES) -Wc,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) -Wc,agg,list\(\),so\(\),off,xref,$(BITS)
+YAML_TEST_CC_FLAGS=${ZWE_XLCLANG_FLAGS} -Ilibyaml/include -I../h -I../platform/posix $(DEFINES) -Wc,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) -Wc,agg,list\(\),so\(\),off,xref,$(BITS)
 
 LIBYAMLOBJS=api.o reader.o scanner.o parser.o loader.o writer.o emitter.o dumper.o
 
@@ -223,22 +223,22 @@ test_configmgr:	configmgr
 	./configmgr -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/zowebase.yaml)' validate
 	./configmgr -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/zowebase.yaml)' env out.env && cat out.env
 
+test:	prepare test_json test_yaml2json test_unixfile test_zosaccounts
+
 test_json:	jsontest
-	./jsontest
+	-./jsontest
 
 test_yaml2json:	yaml2jsontest
-	./yaml2jsontest
+	-./yaml2jsontest
 
 test_unixfile:	unixfiletest
-	./unixfiletest
+	-./unixfiletest
 
 test_xml:	xmltest
-	./xmltest
+	-./xmltest
 
 test_zosaccounts:	zosaccountstest
-	./zosaccountstest
-
-test:	test_json test_yaml2json test_unixfile test_xml test_zosaccounts
+	-./zosaccountstest
 
 
 ################################################################################

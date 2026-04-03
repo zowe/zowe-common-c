@@ -35,6 +35,10 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <limits.h>
+/* z/OS puts PATH_MAX in <sys/limits.h>; provide a safe fallback either way. */
+#ifndef PATH_MAX
+#define PATH_MAX 1024
+#endif
 
 #include "zowetypes.h"
 #include "alloc.h"
