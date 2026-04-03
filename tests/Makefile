@@ -225,6 +225,8 @@ test_configmgr:	configmgr
 
 test:	prepare test_json test_yaml2json test_unixfile test_zosaccounts
 
+test_noprepare: test_json test_yaml2json test_unixfile test_zosaccounts
+
 test_json:	jsontest
 	-./jsontest
 

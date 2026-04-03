@@ -27,7 +27,7 @@ cd "$SCRIPT_DIR/content"
 cp -r deps/configmgr tests
 mv tests/quickjs tests/quickjs-portable
 cd "$SCRIPT_DIR/content/tests"
-STEPLIB=CBC.SCCNCMP make test
+STEPLIB=CBC.SCCNCMP make test_noprepare
 cd "$SCRIPT_DIR"
 echo "$SCRIPT_NAME unit tests passed."
 
