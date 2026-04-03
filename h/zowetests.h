@@ -102,11 +102,13 @@ typedef struct ZoweTestContext_tag {
   /* Per-suite counters (reset by each DESCRIBE) */
   int suitePassed;
   int suiteFailed;
+  int suiteSkipped;
   int suiteAssertionCount;
 
   /* Lifetime totals accumulated across all DESCRIBE blocks */
   int totalPassed;
   int totalFailed;
+  int totalSkipped;
 
   /* Assertion count for the IT block currently executing */
   int assertionCount;
@@ -118,6 +120,9 @@ typedef struct ZoweTestContext_tag {
   /* Internal state flags */
   bool inTest;
   bool testFailed;
+
+  /* Message set by SKIP() before longjmping */
+  char skipMessage[ZOWE_TEST_FAILURE_MSG_MAX];
 
   /* Functional coverage tracking */
   char coveredFunctions[ZOWE_TEST_MAX_COVERED_FUNCTIONS][ZOWE_TEST_COVERED_FUNCTION_NAME_MAX];
@@ -138,6 +143,8 @@ void _zoweTestDescribeEnd(void);
 void _zoweTestItBegin(const char *name);
 void _zoweTestItPassed(void);
 void _zoweTestItFailed(void);
+void _zoweTestItSkipped(void);
+void _zoweTestPrepareSkip(const char *msg);
 void _zoweTestAssertFailV(const char *file, int line, const char *format, ...);
 void _zoweTestRecordCoverage(const char *functionName);
 int _zoweTestFinalReport(void);
@@ -191,16 +198,19 @@ int _zoweTestFinalReport(void);
  */
 #define IT(name) \
   _zoweTestItBegin(name); \
-  if (setjmp(zoweTestCtx.assertJumpBuf) == 0) {
+  { int _zoweJmpVal_ = setjmp(zoweTestCtx.assertJumpBuf); \
+  if (_zoweJmpVal_ == 0) {
 
 /**
  * \brief Ends a test case block opened by IT.
  */
 #define IT_END \
     _zoweTestItPassed(); \
+  } else if (_zoweJmpVal_ == 2) { \
+    _zoweTestItSkipped(); \
   } else { \
     _zoweTestItFailed(); \
-  }
+  } }
 
 /**
  * \brief Records that the current IT block exercises a specific API function.
@@ -382,6 +392,18 @@ int _zoweTestFinalReport(void);
   do { \
     zoweTestCtx.assertionCount++; \
     _zoweTestAssertFailV(__FILE__, __LINE__, "%s", (message)); \
+  } while (0)
+
+/**
+ * \brief Skips the current IT block, counting it as neither pass nor fail.
+ *
+ * Execution jumps immediately to IT_END and the test is reported as skipped.
+ * Example: if (!ready) { SKIP("dependency not available"); }
+ */
+#define SKIP(msg) \
+  do { \
+    _zoweTestPrepareSkip(msg); \
+    longjmp(zoweTestCtx.assertJumpBuf, 2); \
   } while (0)
 
 #endif /* ZOWE_TESTS_H */

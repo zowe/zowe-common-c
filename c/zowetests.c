@@ -18,12 +18,27 @@
 #include <setjmp.h>
 
 #include "zowetests.h"
+#include "logging.h"
 
 /* The single global test context instance */
 ZoweTestContext zoweTestCtx;
 
 void zoweTestInit(void) {
   memset(&zoweTestCtx, 0, sizeof(ZoweTestContext));
+
+  /*
+   * Initialize the logging subsystem so that any library code that calls
+   * zowelog(NULL, ...) does not crash with a protection exception (0C4).
+   * Without this, getLoggingContext() returns NULL and the first access
+   * of context->zoweAnchor segfaults.
+   *
+   * No logging components are configured here, so all zowelog calls will
+   * find their component's currentDetailLevel at 0 (ZOWE_LOG_NA) and
+   * return immediately without producing any output.  Tests that want
+   * log output can configure components after calling zoweTestInit().
+   */
+  LoggingContext *lctx = makeLoggingContext();
+  logConfigureStandardDestinations(lctx);
 }
 
 void _zoweTestDescribeBegin(const char *name) {
@@ -32,6 +47,7 @@ void _zoweTestDescribeBegin(const char *name) {
 
   zoweTestCtx.suitePassed = 0;
   zoweTestCtx.suiteFailed = 0;
+  zoweTestCtx.suiteSkipped = 0;
   zoweTestCtx.suiteAssertionCount = 0;
   zoweTestCtx.beforeEach = NULL;
   zoweTestCtx.afterEach = NULL;
@@ -40,14 +56,16 @@ void _zoweTestDescribeBegin(const char *name) {
 }
 
 void _zoweTestDescribeEnd(void) {
-  printf("\n    %d passing, %d failing (%d assertion%s)\n",
+  printf("\n    %d passing, %d failing, %d skipped (%d assertion%s)\n",
       zoweTestCtx.suitePassed,
       zoweTestCtx.suiteFailed,
+      zoweTestCtx.suiteSkipped,
       zoweTestCtx.suiteAssertionCount,
       zoweTestCtx.suiteAssertionCount == 1 ? "" : "s");
 
-  zoweTestCtx.totalPassed += zoweTestCtx.suitePassed;
-  zoweTestCtx.totalFailed += zoweTestCtx.suiteFailed;
+  zoweTestCtx.totalPassed  += zoweTestCtx.suitePassed;
+  zoweTestCtx.totalFailed  += zoweTestCtx.suiteFailed;
+  zoweTestCtx.totalSkipped += zoweTestCtx.suiteSkipped;
 }
 
 void _zoweTestItBegin(const char *name) {
@@ -89,6 +107,24 @@ void _zoweTestItFailed(void) {
   printf("    (X) %s\n", zoweTestCtx.testName);
   printf("        %s:%d\n", zoweTestCtx.failureFile, zoweTestCtx.failureLine);
   printf("        AssertionError: %s\n", zoweTestCtx.failureMessage);
+
+  if (zoweTestCtx.afterEach != NULL) {
+    zoweTestCtx.afterEach();
+  }
+}
+
+void _zoweTestPrepareSkip(const char *msg) {
+  strncpy(zoweTestCtx.skipMessage, msg, ZOWE_TEST_FAILURE_MSG_MAX - 1);
+  zoweTestCtx.skipMessage[ZOWE_TEST_FAILURE_MSG_MAX - 1] = '\0';
+}
+
+void _zoweTestItSkipped(void) {
+  zoweTestCtx.inTest = false;
+  zoweTestCtx.suiteSkipped++;
+  zoweTestCtx.suiteAssertionCount += zoweTestCtx.assertionCount;
+
+  printf("    (-) %s (skipped: %s)\n",
+      zoweTestCtx.testName, zoweTestCtx.skipMessage);
 
   if (zoweTestCtx.afterEach != NULL) {
     zoweTestCtx.afterEach();
@@ -150,7 +186,7 @@ void _zoweTestRecordCoverage(const char *functionName) {
 }
 
 int _zoweTestFinalReport(void) {
-  int total = zoweTestCtx.totalPassed + zoweTestCtx.totalFailed;
+  int total = zoweTestCtx.totalPassed + zoweTestCtx.totalFailed + zoweTestCtx.totalSkipped;
   int i;
 
   printf("\n");
@@ -160,6 +196,7 @@ int _zoweTestFinalReport(void) {
   printf("  Total:   %d\n", total);
   printf("  Passing: %d\n", zoweTestCtx.totalPassed);
   printf("  Failing: %d\n", zoweTestCtx.totalFailed);
+  printf("  Skipped: %d\n", zoweTestCtx.totalSkipped);
 
   if (zoweTestCtx.coveredFunctionCount > 0) {
     printf("\n  Functions exercised by these tests (%d):\n",
