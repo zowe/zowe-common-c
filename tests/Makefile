@@ -23,11 +23,11 @@ VERSION=\"$(MAJOR).$(MINOR).$(PATCH)\"
 DEFINESYAML=-DYAML_VERSION_MAJOR=$(MAJOR) -DYAML_VERSION_MINOR=$(MINOR) -DYAML_VERSION_PATCH=$(PATCH) -DYAML_VERSION_STRING=$(VERSION) -DYAML_DECLARE_STATIC=1
 DEFINES=-D_XOPEN_SOURCE=600 -D_OPEN_THREADS=1 -D_OPEN_SYS_FILE_EXT=1 -DCONFIG_VERSION=\"2021-03-27\"
 
-CC_FLAGS=-Iquickjs-portable -Ilibyaml/include -I../h -I../platform/posix $(DEFINES) -Wc,dll,expo,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) -Wc,agg,list\(\),so\(\),off,xref,$(BITS)
+CC_FLAGS=${ZWE_XLCLANG_FLAGS} -Iquickjs-portable -Ilibyaml/include -I../h -I../platform/posix $(DEFINES) -Wc,dll,expo,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) -Wc,agg,list\(\),so\(\),off,xref,$(BITS)
 LD_FLAGS=-Wl,$(BITS)
 
 # Flags for unit test executables: no dll/expo so symbols link directly from .o files.
-TEST_CC_FLAGS=-I../h -I../platform/posix $(DEFINES) -Wc,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) -Wc,agg,list\(\),so\(\),off,xref,$(BITS)
+TEST_CC_FLAGS=${ZWE_XLCLANG_FLAGS} -I../h -I../platform/posix $(DEFINES) -Wc,langlvl\(extc99\),gonum,goff,hgpr,roconst,ASM,asmlib\('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN'\) -Wc,agg,list\(\),so\(\),off,xref,$(BITS)
 TEST_LD_FLAGS=-Wl,$(BITS)
 
 # Flags for test objects that also need the libyaml header search path.
@@ -42,19 +42,30 @@ SCHEMATESTOBJS=schematest.o yaml2json.o jsonschema.o json.o xlate.o charsets.o b
 QUICKJSOBS=cutils.o quickjs.o quickjs-libc.o libunicode.o libregexp.o polyfill.o
 CONFIGMGROBJ=configmgr.o yaml2json.o jsonschema.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o embeddedjs.o zosfile.o zos.o le.o scheduling.o recovery.o psxregex.o
 
+# Object files required for the XML unit tests.
+XMLTESTOBJS=unit/xml/xmltest.o zowetests.o xml.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o zosfile.o zos.o recovery.o scheduling.o le.o psxregex.o
+
+# Object files required for the zosaccounts unit tests.
+ZOSACCOUNTSTESTOBJS=unit/zosaccounts/zosaccountstest.o zowetests.o zosaccounts.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o zosfile.o zos.o recovery.o scheduling.o le.o psxregex.o
+
 # Object files required for the JSON unit tests.
 # zowetests.o provides the test framework; unit/json/jsontest.o contains the test cases.
 # The dependency list mirrors the build line documented inside json.c itself.
 JSONTESTOBJS=unit/json/jsontest.o zowetests.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o zosfile.o zos.o recovery.o scheduling.o le.o psxregex.o
+
+# Object files required for the unixfile unit tests.
+# No json.o is needed -- only zosfile.o (which implements unixfile.h) and
+# the usual set of support libraries.
+UNIXFILETESTOBJS=unit/unixfile/unixfiletest.o zowetests.o zosfile.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o zos.o recovery.o scheduling.o le.o psxregex.o
 
 # Object files required for the yaml2json unit tests.
 # unit/yaml2json/yaml2json.o is yaml2json.c compiled without dll/expo.
 # $(LIBYAML_TEST_OBJS) is libyaml compiled without dll/expo (in unit/yaml2json/).
 YAML2JSONTESTOBJS=unit/yaml2json/yaml2jsontest.o unit/yaml2json/yaml2json.o zowetests.o json.o xlate.o charsets.o bpxskt.o logging.o collections.o timeutls.o utils.o alloc.o zosfile.o zos.o recovery.o scheduling.o le.o psxregex.o
 
-.PHONY:	clean all prepare test_configmgr test_json test_yaml2json test
+.PHONY:	clean all prepare test_configmgr test_json test_yaml2json test_unixfile test_xml test_zosaccounts test
 
-all:	configmgr schematest jsontest yaml2jsontest
+all:	configmgr schematest jsontest yaml2jsontest unixfiletest zosaccountstest
 
 configmgr:	$(CONFIGMGROBJ) $(LIBYAMLOBJS) $(QUICKJSOBS)
 	$(CC) $(LD_FLAGS) -o $@ $^
@@ -66,6 +77,15 @@ jsontest:	$(JSONTESTOBJS)
 	$(CC) $(TEST_LD_FLAGS) -o $@ $^
 
 yaml2jsontest:	$(YAML2JSONTESTOBJS) $(LIBYAML_TEST_OBJS)
+	$(CC) $(TEST_LD_FLAGS) -o $@ $^
+
+unixfiletest:	$(UNIXFILETESTOBJS)
+	$(CC) $(TEST_LD_FLAGS) -o $@ $^
+
+xmltest:	$(XMLTESTOBJS)
+	$(CC) $(TEST_LD_FLAGS) -o $@ $^
+
+zosaccountstest:	$(ZOSACCOUNTSTESTOBJS)
 	$(CC) $(TEST_LD_FLAGS) -o $@ $^
 
 schematest.o:	schematest.c
@@ -121,6 +141,21 @@ le.o:	../c/le.c
 
 psxregex.o:	../platform/posix/psxregex.c
 	$(CC) $(TEST_CC_FLAGS) -c ../platform/posix/psxregex.c -o psxregex.o
+
+unit/unixfile/unixfiletest.o:	unit/unixfile/unixfiletest.c
+	$(CC) $(TEST_CC_FLAGS) -c unit/unixfile/unixfiletest.c -o unit/unixfile/unixfiletest.o
+
+xml.o:	../c/xml.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/xml.c -o xml.o
+
+zosaccounts.o:	../c/zosaccounts.c
+	$(CC) $(TEST_CC_FLAGS) -c ../c/zosaccounts.c -o zosaccounts.o
+
+unit/xml/xmltest.o:	unit/xml/xmltest.c
+	$(CC) $(TEST_CC_FLAGS) -c unit/xml/xmltest.c -o unit/xml/xmltest.o
+
+unit/zosaccounts/zosaccountstest.o:	unit/zosaccounts/zosaccountstest.c
+	$(CC) $(TEST_CC_FLAGS) -c unit/zosaccounts/zosaccountstest.c -o unit/zosaccounts/zosaccountstest.o
 
 # ------------------------------------------------------------------
 # Rules for yaml2json unit test objects
@@ -182,7 +217,7 @@ quickjs-portable:
 prepare: libyaml quickjs-portable
 
 clean:
-	rm -f configmgr schematest jsontest yaml2jsontest *.o unit/json/*.o unit/yaml2json/*.o
+	rm -f configmgr schematest jsontest yaml2jsontest unixfiletest xmltest zosaccountstest *.o unit/json/*.o unit/yaml2json/*.o unit/unixfile/*.o unit/xml/*.o unit/zosaccounts/*.o
 
 test_configmgr:	configmgr
 	./configmgr -s ./schemadata -p 'FILE(./schemadata/zoweoverrides.yaml):FILE(./schemadata/zowebase.yaml)' validate
@@ -194,7 +229,16 @@ test_json:	jsontest
 test_yaml2json:	yaml2jsontest
 	./yaml2jsontest
 
-test:	test_json test_yaml2json
+test_unixfile:	unixfiletest
+	./unixfiletest
+
+test_xml:	xmltest
+	./xmltest
+
+test_zosaccounts:	zosaccountstest
+	./zosaccountstest
+
+test:	test_json test_yaml2json test_unixfile test_xml test_zosaccounts
 
 
 ################################################################################
