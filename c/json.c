@@ -2725,6 +2725,10 @@ static void deleteJson(Json *base, const char *deleteKey) {
           }
         }
       } else {
+        /* Defensive guard: the while condition implies jsonTok != NULL in the
+         * else branch, but a compiler optimisation at -O2 can remove the null
+         * check in the 'if (jsonTok && ...)' below.  Exit early to be safe. */
+        if (!jsonTok) break;
         // If we have format like [a.b.c], ensure the jsonTok is [a.b.c], and not [a.b.c
         memset(workStr, 0x00, sizeof(char)*MAX_JSON_KEY);
         if (jsonTok && jsonTok[0] == '[') {
@@ -2776,7 +2780,7 @@ static void deleteJson(Json *base, const char *deleteKey) {
         jsonTok = strtok(NULL, ".");
       }
     }
-    if (tokenMatchFound) { // jsonTok must be NULL (no more tokens), so we matched everything
+    if (tokenMatchFound && parentNode != NULL) { // jsonTok must be NULL (no more tokens), so we matched everything
       //printf("deleteJson deleting node 0x%p\n", activeNode); fflush(stdout);
       jsonRemoveNode(parentNode, activeNode);
     }

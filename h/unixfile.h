@@ -491,9 +491,15 @@ int fileSetLock(UnixFile *file, int *returnCode, int *reasonCode);
 int fileGetLock(UnixFile *file, int *returnCode, int *reasonCode, int *isLocked);
 int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode);
 
-#define USS_MAX_PATH_LENGTH 1023
-#define USS_MAX_FILE_NAME   255
+#endif
 
+/* Maximum USS / POSIX path and file-name lengths.  Defined outside of the
+   __ZOWE_OS_ZOS block so that non-z/OS platforms (Linux, macOS) can use them. */
+#ifndef USS_MAX_PATH_LENGTH
+#define USS_MAX_PATH_LENGTH 1023
+#endif
+#ifndef USS_MAX_FILE_NAME
+#define USS_MAX_FILE_NAME   255
 #endif
 
 #ifndef __LONGNAME__ 

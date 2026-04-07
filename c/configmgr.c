@@ -432,7 +432,11 @@ static bool addPathElement(ConfigManager *mgr, CFGConfig *config, char *pathElem
   regmatch_t matches[10];
   regex_t *argPattern = regexAlloc();
   /* Nice Regex test site */
+#ifdef __ZOWE_OS_ZOS
   char *pat = "^(LIBRARY|DIR|FILE|PARMLIBS|PARMLIB)\\((.+)\\)$";
+#else
+  char *pat = "^(LIBRARY|DIR|FILE)\\((.+)\\)$";
+#endif
   int compStatus = regexComp(argPattern,pat,REG_EXTENDED);
   if (compStatus != 0){
     
@@ -449,21 +453,24 @@ static bool addPathElement(ConfigManager *mgr, CFGConfig *config, char *pathElem
       flags = CONFIG_PATH_OMVS_DIR;
     } else if (!strcmp(elementTypeName,"FILE")){
       flags = CONFIG_PATH_OMVS_FILE;
+#ifdef __ZOWE_OS_ZOS
     } else if (!strcmp(elementTypeName,"PARMLIB")){
       flags = CONFIG_PATH_MVS_PARMLIB;
     } else if (!strcmp(elementTypeName,"PARMLIBS")){
-      flags = CONFIG_PATH_MVS_PARMLIBS;      
+      flags = CONFIG_PATH_MVS_PARMLIBS;
+#endif /* __ZOWE_OS_ZOS */
     } else {
       return false; /* internal logic error */
     }
+#ifdef __ZOWE_OS_ZOS
     if (!(flags&CONFIG_PATH_MVS_PARMLIBS)){
       makePathElement(mgr,config,flags,pathElementArg,elementData);
     } else{
-      /* zowe does nothing with PARMLIBS off-ZOS */
-#ifdef __ZOWE_OS_ZOS
       addExpandedParmlibs(mgr,config,flags,pathElementArg,elementData);
-#endif
     }
+#else
+    makePathElement(mgr,config,flags,pathElementArg,elementData);
+#endif
     return true;
   } else {
     trace(mgr,DEBUG,"unhandled path element '%s'\n",pathElementArg);
@@ -735,6 +742,7 @@ static Json *readJson(ConfigManager *mgr, CFGConfig *config, ConfigPathElement *
      */
     char *absolutePath = getAbsolutePathOrKeepRelativePath(pathElement->data,mgr);
     return readYamlIntoJson(mgr,absolutePath ? absolutePath : pathElement->data,false);
+#ifdef __ZOWE_OS_ZOS
   } else if (pathElement->flags & CONFIG_PATH_MVS_PARMLIB){
     char pdsMemberSpec[MAX_PDS_NAME];
     trace(mgr,DEBUG,"pathElement=0x%p config=0x%p\n",pathElement,config);
@@ -750,6 +758,7 @@ static Json *readJson(ConfigManager *mgr, CFGConfig *config, ConfigPathElement *
     bool nullAllowed = (pathElement->flags & CONFIG_PATH_WAS_EXPANDED);
     *nullAllowedPtr = nullAllowed;
     return readYamlIntoJson(mgr,pdsMemberSpec,nullAllowed);
+#endif /* __ZOWE_OS_ZOS */
   } else {
     trace(mgr,INFO,"WARNING, only simple file and PARMLIB(s) cases yet implemented, saw flags=0x%x\n",pathElement->flags);
     return NULL;
@@ -1320,17 +1329,21 @@ static void showHelp(FILE *out){
   fprintf(out,"      -w <path>           : workspace directory\n");
   fprintf(out,"      -c                  : compact output for jq and extract commands\n");
   fprintf(out,"      -r                  : raw string output for jq and extract commands\n");
+#ifdef __ZOWE_OS_ZOS
   fprintf(out,"      -m <memberName>     : member name to find the zowe config in each PARMLIBs specified\n");
+#endif
   fprintf(out,"      -p <configPath>     : list of colon-separated configPathElements - see below\n");
   fprintf(out,"    commands:\n");
   fprintf(out,"      extract <jsonPath>  : prints value to stdout\n");
   fprintf(out,"      validate            : just loads and validates merged configuration\n");
   fprintf(out,"      env <outEnvPath>    : prints merged configuration to a file as a list of environment vars\n");
   fprintf(out,"    configPathElement: \n");
+#ifdef __ZOWE_OS_ZOS
   fprintf(out,"      PARMLIB(datasetName(memberName)) - a library that can contain config data\n");
   fprintf(out,"      PARMLIB(datasetName) - a library that can contain config data. Member name comes from the -m parameter\n");
+  fprintf(out,"      PARMLIBS         - all PARMLIBS that are defined to this running Program in ZOS\n");
+#endif
   fprintf(out,"      FILE(filename)   - the name of a file containing Yaml\n");
-  fprintf(out,"      PARMLIBS         - all PARMLIBS that are defined to this running Program in ZOS, nothing if not on ZOS\n");
 }
 
 #define ZWE_PREFIX "ZWE"
@@ -1781,8 +1794,10 @@ static int simpleMain(int argc, char **argv){
       }
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-w")) != NULL){
       zoweWorkspaceHome = optionValue;
+#ifdef __ZOWE_OS_ZOS
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-m")) != NULL){
       parmlibMemberName = optionValue;
+#endif
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-p")) != NULL){
       configPath = optionValue;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-c")) != NULL){
@@ -1829,9 +1844,11 @@ static int simpleMain(int argc, char **argv){
     fprintf(traceOut,"Failed to load schemas rsn=%d\n",schemaLoadStatus);
     return schemaLoadStatus;
   }
+#ifdef __ZOWE_OS_ZOS
   if (parmlibMemberName != NULL){
     cfgSetParmlibMemberName(mgr,configName,parmlibMemberName);
   }
+#endif
 
   int configPathStatus = cfgSetConfigPath(mgr,configName,configPath);
   if (configPathStatus){
@@ -1950,6 +1967,7 @@ static int simpleMain(int argc, char **argv){
 }
 
 /* a diagnostic function that can be used if other logging initialization bugs come up */
+#ifdef __ZOWE_OS_ZOS
 static void ensureLE64(){
   char *realCAA = NULL;
 
@@ -1968,6 +1986,7 @@ static void ensureLE64(){
      dumpbuffer(realCAA,0x450);
      */
 }
+#endif /* __ZOWE_OS_ZOS */
 
 #ifdef CMGRTEST
 int main(int argc, char **argv){

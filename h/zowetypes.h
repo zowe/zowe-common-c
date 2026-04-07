@@ -242,6 +242,30 @@ no ifdef means XLC LE on ZOS, and everything else.  This is effectively our "def
 
 #endif /* end of GCC-specific analysis */
 
+/* Base macros for macOS with Clang (Apple Clang or vanilla Clang on Darwin).
+   Apple Clang defines __clang__ but not __GNUC__ without __clang__, so the
+   GCC block above does not catch it. We treat macOS as a Linux-like POSIX
+   platform so that all existing __ZOWE_OS_LINUX code paths are reused. */
+#if defined(__APPLE__) && defined(__clang__)
+
+#define __ZOWE_OS_MACOS 1
+#ifndef __ZOWE_OS_LINUX
+#define __ZOWE_OS_LINUX 1
+#endif
+#define __ZOWE_COMP_CLANG 1
+
+#ifdef _LP64
+#define __ZOWE_64
+#else
+#define __ZOWE_32
+#endif
+
+/* Structure packing */
+#define ZOWE_PRAGMA_PACK      _Pragma ( "pack(push,1)" )
+#define ZOWE_PRAGMA_PACK_RESET _Pragma ( "pack(pop)" )
+
+#endif /* __APPLE__ && __clang__ */
+
 /* Long external names are OK for all platforms except z/OS */
 #ifndef __ZOWE_OS_ZOS
 #ifndef __LONGNAME__ 
