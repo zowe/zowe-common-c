@@ -163,7 +163,9 @@ if "%CXX%"=="" set "CXX=cl"
 :: MSVC C flags.  /std:c17 for C17, /W3 standard warnings, /O2 optimise,
 :: /Zi debug info.  Math functions are part of the CRT; no explicit /link
 :: needed.  strdup -> _strdup for MSVC CRT compatibility.
-set "BASE_CFLAGS=/nologo /W3 /O2 /Zi /std:c17"
+:: /experimental:c11atomics: enables C11 _Atomic support required by newer
+:: Windows SDK headers (VS 2022 17.5+) that pull in vcruntime_c11_stdatomic.h.
+set "BASE_CFLAGS=/nologo /W3 /O2 /Zi /std:c17 /experimental:c11atomics"
 set "BASE_CFLAGS=%BASE_CFLAGS% /D_CRT_SECURE_NO_WARNINGS /Dstrdup=_strdup"
 set "BASE_CFLAGS=%BASE_CFLAGS% /DCMGRTEST=1 /DCONFIG_BIGNUM=1"
 set "BASE_CFLAGS=%BASE_CFLAGS% /DYAML_VERSION_MAJOR=%MAJOR%"

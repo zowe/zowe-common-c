@@ -67,21 +67,36 @@ static __forceinline int __builtin_clz(unsigned int x) {
     _BitScanReverse(&r, (unsigned long)x);
     return 31 - (int)r;
 }
-static __forceinline int __builtin_clzll(unsigned long long x) {
-    unsigned long r;
-    _BitScanReverse64(&r, x);
-    return 63 - (int)r;
-}
 static __forceinline int __builtin_ctz(unsigned int x) {
     unsigned long r;
     _BitScanForward(&r, (unsigned long)x);
     return (int)r;
+}
+#ifdef _WIN64
+/* _BitScanReverse64/_BitScanForward64 are only available in 64-bit builds */
+static __forceinline int __builtin_clzll(unsigned long long x) {
+    unsigned long r;
+    _BitScanReverse64(&r, x);
+    return 63 - (int)r;
 }
 static __forceinline int __builtin_ctzll(unsigned long long x) {
     unsigned long r;
     _BitScanForward64(&r, x);
     return (int)r;
 }
+#else
+/* 32-bit fallback: split into two 32-bit scans */
+static __forceinline int __builtin_clzll(unsigned long long x) {
+    unsigned long r;
+    if ((unsigned long)(x >> 32)) { _BitScanReverse(&r, (unsigned long)(x >> 32)); return 31 - (int)r; }
+    _BitScanReverse(&r, (unsigned long)x); return 63 - (int)r;
+}
+static __forceinline int __builtin_ctzll(unsigned long long x) {
+    unsigned long r;
+    if ((unsigned long)x) { _BitScanForward(&r, (unsigned long)x); return (int)r; }
+    _BitScanForward(&r, (unsigned long)(x >> 32)); return 32 + (int)r;
+}
+#endif
 
 /* __builtin_expect ------------------------------------------------- */
 #define __builtin_expect(expr, val) (expr)
