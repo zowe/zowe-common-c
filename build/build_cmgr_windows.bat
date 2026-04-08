@@ -187,7 +187,7 @@ set "CXXFLAGS=%CXXFLAGS% /I%COMMON%\platform\windows"
     :: We also force-include quickjs_windows_compat.h to supply MSVC shims for
     :: GCC builtins (__builtin_clz/ctz, __builtin_expect) and __attribute__
     :: used by cutils.h.  /FI is MSVC's equivalent of clang's -include.
-    set "QJS_EXTRA_FLAGS=/FI"%COMMON%\platform\windows\quickjs_windows_compat.h""
+    set "QJS_EXTRA_FLAGS=/FI%COMMON%\platform\windows\quickjs_windows_compat.h"
 
 :: Response file token prefix for string-literal /D defines.
 set "RSP_D=/D"

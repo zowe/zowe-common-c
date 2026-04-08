@@ -59,6 +59,17 @@ typedef int64_t ssize_t;
  * ------------------------------------------------------------------ */
 #if defined(_MSC_VER) && !defined(__clang__)
 
+/* Suppress high-volume warnings from quickjs/libyaml that are valid GCC/clang
+   idioms but noisy under MSVC.  These are all benign for the platforms and
+   pointer sizes we target. */
+#pragma warning(disable: 4018)  /* signed/unsigned mismatch in comparison */
+#pragma warning(disable: 4146)  /* unary minus on unsigned (neg hash tricks) */
+#pragma warning(disable: 4244)  /* narrowing integer/float conversion */
+/* C2124 is an *error* in MSVC for constant-expr divide-by-zero, but
+   quickjs.c deliberately uses  1.0/0.0  to produce IEEE 754 +Infinity.
+   Disable it for the duration of the QuickJS compile. */
+#pragma warning(disable: 2124)  /* divide or mod by zero (intentional inf) */
+
 #include <intrin.h>
 
 /* __builtin_clz / __builtin_ctz ------------------------------------ */
