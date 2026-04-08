@@ -101,6 +101,12 @@ static __forceinline int __builtin_ctzll(unsigned long long x) {
 /* __builtin_expect ------------------------------------------------- */
 #define __builtin_expect(expr, val) (expr)
 
+/* __builtin_frame_address ------------------------------------------ */
+/* Used only for stack-overflow detection; an approximate current stack
+   pointer is sufficient.  _AddressOfReturnAddress() is available in
+   <intrin.h> (already included above) and gives a valid stack address. */
+#define __builtin_frame_address(level) _AddressOfReturnAddress()
+
 /* __attribute__ ---------------------------------------------------- */
 /* Strip GCC/clang __attribute__ directives that MSVC does not support.
    Covers __attribute__((packed)), __attribute__((format(...))),
@@ -112,6 +118,15 @@ static __forceinline int __builtin_ctzll(unsigned long long x) {
 #define __attribute__(x)
 
 #endif /* _MSC_VER && !__clang__ */
+
+/* CONFIG_VERSION fallback ------------------------------------------ */
+/* Passing string-literal /D defines through CMD response files is
+   unreliable (CMD may strip the enclosing double-quotes). Provide a
+   safe fallback here; the build script's /D value takes precedence if
+   it was parsed correctly. */
+#ifndef CONFIG_VERSION
+#define CONFIG_VERSION "2021-03-27"
+#endif
 
 #endif /* __QUICKJS_WINDOWS_COMPAT__ */
 
