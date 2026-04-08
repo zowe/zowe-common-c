@@ -137,6 +137,19 @@ static __forceinline int __builtin_ctzll(unsigned long long x) {
 #undef  CONFIG_VERSION
 #define CONFIG_VERSION "2021-03-27"
 
+/* YAML_VERSION_STRING is also a quoted-string /D define whose quotes CMD
+   echo strips.  Reconstruct it from the safely-passed integer defines
+   YAML_VERSION_MAJOR / YAML_VERSION_MINOR / YAML_VERSION_PATCH using
+   preprocessor stringification.  Those defines are plain integers and
+   need no quoting on the command line. */
+#define _YAML_STR2(x) #x
+#define _YAML_STR(x)  _YAML_STR2(x)
+#undef  YAML_VERSION_STRING
+#define YAML_VERSION_STRING \
+    _YAML_STR(YAML_VERSION_MAJOR) "." \
+    _YAML_STR(YAML_VERSION_MINOR) "." \
+    _YAML_STR(YAML_VERSION_PATCH)
+
 #endif /* _MSC_VER && !__clang__ */
 
 #endif /* __QUICKJS_WINDOWS_COMPAT__ */
