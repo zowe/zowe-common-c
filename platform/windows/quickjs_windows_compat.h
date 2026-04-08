@@ -107,26 +107,30 @@ static __forceinline int __builtin_ctzll(unsigned long long x) {
    <intrin.h> (already included above) and gives a valid stack address. */
 #define __builtin_frame_address(level) _AddressOfReturnAddress()
 
-/* __attribute__ ---------------------------------------------------- */
+/* __attribute__ / __attribute ------------------------------------ */
 /* Strip GCC/clang __attribute__ directives that MSVC does not support.
    Covers __attribute__((packed)), __attribute__((format(...))),
    __attribute__((unused)), etc.
+   quickjs.c uses both __attribute__((x)) and __attribute((x)) (the latter
+   is a non-standard single-underscore variant sometimes used in practice),
+   so we define both spellings.
    Struct packing is benign to drop on x86/x64: these single-member
    structs have no intra-struct padding, so the packed attribute only
    affects alignment assumptions of the pointer cast, which is harmless
    on x86/x64 where unaligned loads work correctly. */
 #define __attribute__(x)
+#define __attribute(x)
+
+/* CONFIG_VERSION --------------------------------------------------- */
+/* CMD response files may strip the enclosing double-quotes from /D
+   defines with string literal values, causing the macro to expand to a
+   bare token sequence instead of a string literal.  Force a valid
+   string literal here unconditionally; the build date is fixed for the
+   Windows port. */
+#undef  CONFIG_VERSION
+#define CONFIG_VERSION "2021-03-27"
 
 #endif /* _MSC_VER && !__clang__ */
-
-/* CONFIG_VERSION fallback ------------------------------------------ */
-/* Passing string-literal /D defines through CMD response files is
-   unreliable (CMD may strip the enclosing double-quotes). Provide a
-   safe fallback here; the build script's /D value takes precedence if
-   it was parsed correctly. */
-#ifndef CONFIG_VERSION
-#define CONFIG_VERSION "2021-03-27"
-#endif
 
 #endif /* __QUICKJS_WINDOWS_COMPAT__ */
 
