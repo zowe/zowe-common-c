@@ -181,9 +181,11 @@ set "CXXFLAGS=/nologo /W3 /O2 /Zi /EHsc /std:c++14"
 set "CXXFLAGS=%CXXFLAGS% /D_CRT_SECURE_NO_WARNINGS"
 set "CXXFLAGS=%CXXFLAGS% /I%COMMON%\platform\windows"
 
-:: quickjs.c detects _MSC_VER and includes porting/winstdio.h which already
-:: defines ssize_t via _SSIZE_T_DEFINED, so no extra compat header needed.
-set "QJS_EXTRA_FLAGS="
+:: quickjs.c detects _MSC_VER and includes porting/winstdio.h for ssize_t.
+    :: We also force-include quickjs_windows_compat.h to supply MSVC shims for
+    :: GCC builtins (__builtin_clz/ctz, __builtin_expect) and __attribute__
+    :: used by cutils.h.  /FI is MSVC's equivalent of clang's -include.
+    set "QJS_EXTRA_FLAGS=/FI"%COMMON%\platform\windows\quickjs_windows_compat.h""
 
 :: Response file token prefix for string-literal /D defines.
 set "RSP_D=/D"
