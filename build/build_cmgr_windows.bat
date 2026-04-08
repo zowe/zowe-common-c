@@ -148,74 +148,79 @@ if "%COMPILER_TYPE%"=="" (
 
 :: ---------------------------------------------------------------------------
 :: Compiler-specific flag setup
+:: Use goto labels instead of if/else if chains - the chained form is
+:: unreliable with enabledelayedexpansion and multi-line blocks in CMD.
 :: ---------------------------------------------------------------------------
-if /i "%COMPILER_TYPE%"=="msvc" (
-    if "%CC%"==""  set "CC=cl"
-    if "%CXX%"=="" set "CXX=cl"
+if /i "%COMPILER_TYPE%"=="msvc"  goto :setup_msvc
+if /i "%COMPILER_TYPE%"=="clang" goto :setup_clang
+echo ERROR: Unknown compiler '%COMPILER_TYPE%'. Use --compiler msvc or --compiler clang.
+exit /b 1
 
-    :: MSVC C flags.  /std:c17 for C17, /W3 standard warnings, /O2 optimise,
-    :: /Zi debug info.  Math functions are part of the CRT; no explicit /link
-    :: needed.  strdup -> _strdup for MSVC CRT compatibility.
-    set "BASE_CFLAGS=/nologo /W3 /O2 /Zi /std:c17"
-    set "BASE_CFLAGS=!BASE_CFLAGS! /D_CRT_SECURE_NO_WARNINGS /Dstrdup=_strdup"
-    set "BASE_CFLAGS=!BASE_CFLAGS! /DCMGRTEST=1 /DCONFIG_BIGNUM=1"
-    set "BASE_CFLAGS=!BASE_CFLAGS! /DYAML_VERSION_MAJOR=%MAJOR%"
-    set "BASE_CFLAGS=!BASE_CFLAGS! /DYAML_VERSION_MINOR=%MINOR%"
-    set "BASE_CFLAGS=!BASE_CFLAGS! /DYAML_VERSION_PATCH=%PATCH%"
-    set "BASE_CFLAGS=!BASE_CFLAGS! /DYAML_DECLARE_STATIC=1"
-    set "BASE_CFLAGS=!BASE_CFLAGS! /I%COMMON%\h"
-    set "BASE_CFLAGS=!BASE_CFLAGS! /I%COMMON%\platform\windows"
-    set "BASE_CFLAGS=!BASE_CFLAGS! /I%LIBYAML_INC%"
-    set "BASE_CFLAGS=!BASE_CFLAGS! /I%QJS%"
-    set "BASE_CFLAGS=!BASE_CFLAGS! /I%QJS%\porting"
+:setup_msvc
+if "%CC%"==""  set "CC=cl"
+if "%CXX%"=="" set "CXX=cl"
 
-    :: C++ flags for the regex wrapper (/EHsc enables standard C++ exceptions).
-    set "CXXFLAGS=/nologo /W3 /O2 /Zi /EHsc /std:c++14"
-    set "CXXFLAGS=!CXXFLAGS! /D_CRT_SECURE_NO_WARNINGS"
-    set "CXXFLAGS=!CXXFLAGS! /I%COMMON%\platform\windows"
+:: MSVC C flags.  /std:c17 for C17, /W3 standard warnings, /O2 optimise,
+:: /Zi debug info.  Math functions are part of the CRT; no explicit /link
+:: needed.  strdup -> _strdup for MSVC CRT compatibility.
+set "BASE_CFLAGS=/nologo /W3 /O2 /Zi /std:c17"
+set "BASE_CFLAGS=%BASE_CFLAGS% /D_CRT_SECURE_NO_WARNINGS /Dstrdup=_strdup"
+set "BASE_CFLAGS=%BASE_CFLAGS% /DCMGRTEST=1 /DCONFIG_BIGNUM=1"
+set "BASE_CFLAGS=%BASE_CFLAGS% /DYAML_VERSION_MAJOR=%MAJOR%"
+set "BASE_CFLAGS=%BASE_CFLAGS% /DYAML_VERSION_MINOR=%MINOR%"
+set "BASE_CFLAGS=%BASE_CFLAGS% /DYAML_VERSION_PATCH=%PATCH%"
+set "BASE_CFLAGS=%BASE_CFLAGS% /DYAML_DECLARE_STATIC=1"
+set "BASE_CFLAGS=%BASE_CFLAGS% /I%COMMON%\h"
+set "BASE_CFLAGS=%BASE_CFLAGS% /I%COMMON%\platform\windows"
+set "BASE_CFLAGS=%BASE_CFLAGS% /I%LIBYAML_INC%"
+set "BASE_CFLAGS=%BASE_CFLAGS% /I%QJS%"
+set "BASE_CFLAGS=%BASE_CFLAGS% /I%QJS%\porting"
 
-    :: quickjs.c detects _MSC_VER and includes porting/winstdio.h which already
-    :: defines ssize_t via _SSIZE_T_DEFINED, so no extra compat header needed.
-    set "QJS_EXTRA_FLAGS="
+:: C++ flags for the regex wrapper (/EHsc enables standard C++ exceptions).
+set "CXXFLAGS=/nologo /W3 /O2 /Zi /EHsc /std:c++14"
+set "CXXFLAGS=%CXXFLAGS% /D_CRT_SECURE_NO_WARNINGS"
+set "CXXFLAGS=%CXXFLAGS% /I%COMMON%\platform\windows"
 
-    :: Response file token prefix for string-literal /D defines.
-    set "RSP_D=/D"
+:: quickjs.c detects _MSC_VER and includes porting/winstdio.h which already
+:: defines ssize_t via _SSIZE_T_DEFINED, so no extra compat header needed.
+set "QJS_EXTRA_FLAGS="
 
-    echo Using compiler: MSVC (cl.exe)
+:: Response file token prefix for string-literal /D defines.
+set "RSP_D=/D"
 
-) else if /i "%COMPILER_TYPE%"=="clang" (
-    if "%CC%"==""  set "CC=clang"
-    if "%CXX%"=="" set "CXX=clang++"
+echo Using compiler: MSVC (cl.exe)
+goto :setup_done
 
-    set "BASE_CFLAGS=-std=gnu11 -Wall -Wno-unused-function -Wno-unused-variable -g -O2"
-    set "BASE_CFLAGS=!BASE_CFLAGS! -D_CRT_SECURE_NO_WARNINGS -Dstrdup=_strdup"
-    set "BASE_CFLAGS=!BASE_CFLAGS! -DCMGRTEST=1 -DCONFIG_BIGNUM=1"
-    set "BASE_CFLAGS=!BASE_CFLAGS! -DYAML_VERSION_MAJOR=%MAJOR%"
-    set "BASE_CFLAGS=!BASE_CFLAGS! -DYAML_VERSION_MINOR=%MINOR%"
-    set "BASE_CFLAGS=!BASE_CFLAGS! -DYAML_VERSION_PATCH=%PATCH%"
-    set "BASE_CFLAGS=!BASE_CFLAGS! -DYAML_DECLARE_STATIC=1"
-    set "BASE_CFLAGS=!BASE_CFLAGS! -I%COMMON%\h"
-    set "BASE_CFLAGS=!BASE_CFLAGS! -I%COMMON%\platform\windows"
-    set "BASE_CFLAGS=!BASE_CFLAGS! -I%LIBYAML_INC%"
-    set "BASE_CFLAGS=!BASE_CFLAGS! -I%QJS%"
-    set "BASE_CFLAGS=!BASE_CFLAGS! -I%QJS%\porting"
+:setup_clang
+if "%CC%"==""  set "CC=clang"
+if "%CXX%"=="" set "CXX=clang++"
 
-    set "CXXFLAGS=-std=c++14 -Wall -D_CRT_SECURE_NO_WARNINGS"
-    set "CXXFLAGS=!CXXFLAGS! -I%COMMON%\platform\windows"
+set "BASE_CFLAGS=-std=gnu11 -Wall -Wno-unused-function -Wno-unused-variable -g -O2"
+set "BASE_CFLAGS=%BASE_CFLAGS% -D_CRT_SECURE_NO_WARNINGS -Dstrdup=_strdup"
+set "BASE_CFLAGS=%BASE_CFLAGS% -DCMGRTEST=1 -DCONFIG_BIGNUM=1"
+set "BASE_CFLAGS=%BASE_CFLAGS% -DYAML_VERSION_MAJOR=%MAJOR%"
+set "BASE_CFLAGS=%BASE_CFLAGS% -DYAML_VERSION_MINOR=%MINOR%"
+set "BASE_CFLAGS=%BASE_CFLAGS% -DYAML_VERSION_PATCH=%PATCH%"
+set "BASE_CFLAGS=%BASE_CFLAGS% -DYAML_DECLARE_STATIC=1"
+set "BASE_CFLAGS=%BASE_CFLAGS% -I%COMMON%\h"
+set "BASE_CFLAGS=%BASE_CFLAGS% -I%COMMON%\platform\windows"
+set "BASE_CFLAGS=%BASE_CFLAGS% -I%LIBYAML_INC%"
+set "BASE_CFLAGS=%BASE_CFLAGS% -I%QJS%"
+set "BASE_CFLAGS=%BASE_CFLAGS% -I%QJS%\porting"
 
-    :: Pre-include the ssize_t compat header and suppress the clang diagnostic
-    :: for the compatible typedef redeclaration inside quickjs.c.
-    set "QJS_EXTRA_FLAGS=-Wno-typedef-redefinition -Wno-error=typedef-redefinition"
-    set "QJS_EXTRA_FLAGS=!QJS_EXTRA_FLAGS! -include %COMMON%\platform\windows\quickjs_windows_compat.h"
+set "CXXFLAGS=-std=c++14 -Wall -D_CRT_SECURE_NO_WARNINGS"
+set "CXXFLAGS=%CXXFLAGS% -I%COMMON%\platform\windows"
 
-    set "RSP_D=-D"
+:: Pre-include the ssize_t compat header and suppress the clang diagnostic
+:: for the compatible typedef redeclaration inside quickjs.c.
+set "QJS_EXTRA_FLAGS=-Wno-typedef-redefinition -Wno-error=typedef-redefinition"
+set "QJS_EXTRA_FLAGS=%QJS_EXTRA_FLAGS% -include %COMMON%\platform\windows\quickjs_windows_compat.h"
 
-    echo Using compiler: LLVM clang
+set "RSP_D=-D"
 
-) else (
-    echo ERROR: Unknown compiler '%COMPILER_TYPE%'. Use --compiler msvc or --compiler clang.
-    exit /b 1
-)
+echo Using compiler: LLVM clang
+
+:setup_done
 
 echo Using CC=%CC%  CXX=%CXX%
 
