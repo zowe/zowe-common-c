@@ -138,6 +138,27 @@ no ifdef means XLC LE on ZOS, and everything else.  This is effectively our "def
 
 #endif  /* _MSC_VER */
 
+/* Vanilla clang targeting Windows when NOT in MSVC-compatibility mode.
+   When invoked with e.g. -target x86_64-w64-mingw32 (MinGW ABI), clang
+   sets _WIN32 / _WIN64 but does NOT set _MSC_VER, so the block above is
+   not entered.  Detect this case explicitly so that __ZOWE_OS_WINDOWS is
+   always defined when building on any Windows toolchain with clang. */
+#if defined(__clang__) && (defined(_WIN32) || defined(_WIN64)) && \
+    !defined(__APPLE__) && !defined(_MSC_VER)
+
+#define __ZOWE_OS_WINDOWS 1
+#define __ZOWE_COMP_CLANG 1
+
+#ifdef _WIN64
+#define __ZOWE_64
+#else
+#define __ZOWE_32
+#endif
+
+#define ZOWE_PRAGMA_PACK      _Pragma ("pack(push,1)")
+#define ZOWE_PRAGMA_PACK_RESET _Pragma ("pack(pop)")
+
+#endif  /* clang on Windows, non-MSVC */
 
 
 /* Base Macros for zOS */

@@ -1,0 +1,63 @@
+/*
+  This program and the accompanying materials are
+  made available under the terms of the Eclipse Public License v2.0 which accompanies
+  this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
+
+  SPDX-License-Identifier: EPL-2.0
+
+  Copyright Contributors to the Zowe Project.
+*/
+
+/*
+  Windows compatibility shim for quickjs.c – MinGW / non-MSVC clang mode.
+
+  When building with vanilla clang targeting Windows in GNU mode
+  (_MSC_VER NOT defined, e.g. -target x86_64-w64-mingw32), quickjs.c's
+  Windows path via winstdio.h is NOT taken because it is guarded by
+  "#ifdef _MSC_VER".  The fallback branch in quickjs.c then fires:
+
+      #elif !defined(__APPLE__) && !defined(__linux__)
+          typedef int ssize_t;
+
+  which produces a 32-bit ssize_t on a 64-bit target—incorrect for
+  allocations that can exceed 2 GiB.
+
+  Pre-including this file (via -include in the build script) ensures
+  ssize_t is correctly typed as int64_t before quickjs.c's internal
+  typedef is seen.  The subsequent compatible redeclaration in quickjs.c
+  is suppressed by -Wno-typedef-redefinition in QJS_EXTRA_CFLAGS.
+
+  NOTE: When building with clang in MSVC compatibility mode (the default
+  when running the LLVM Windows installer build of clang), _MSC_VER is
+  defined and quickjs.c automatically includes porting/winstdio.h which
+  provides ssize_t.  This file is therefore a no-op in MSVC mode but is
+  harmless to include in both cases.
+
+  THIS FILE IS ONLY USED ON WINDOWS (passed via -include in the build
+  script for QuickJS sources).
+*/
+
+#ifndef __QUICKJS_WINDOWS_COMPAT__
+#define __QUICKJS_WINDOWS_COMPAT__ 1
+
+#include <stdint.h>
+
+/* Define ssize_t as a 64-bit signed integer, matching the Windows
+   convention used by porting/winstdio.h.  Guard against redefinition
+   in case the MSVC CRT or a MinGW header already provided it. */
+#ifndef _SSIZE_T_DEFINED
+#define _SSIZE_T_DEFINED
+typedef int64_t ssize_t;
+#endif
+
+#endif /* __QUICKJS_WINDOWS_COMPAT__ */
+
+/*
+  This program and the accompanying materials are
+  made available under the terms of the Eclipse Public License v2.0 which accompanies
+  this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
+
+  SPDX-License-Identifier: EPL-2.0
+
+  Copyright Contributors to the Zowe Project.
+*/

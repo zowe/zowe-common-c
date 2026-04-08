@@ -11,10 +11,11 @@
 
 /*
   Stub implementations of the z/OS-specific and network QuickJS module
-  initializers for POSIX platforms (Linux, macOS) that do not have these
-  capabilities.  The stubs satisfy the link references from embeddedjs.c
-  while doing nothing, so configmgr can be built and run without the
-  z/OS or network JS modules.
+  initializers used on all non-z/OS platforms (Linux, macOS, Windows).
+
+  These stubs satisfy the link references from embeddedjs.c while doing
+  nothing, so configmgr can be built and run without the z/OS or network
+  JS modules.
 */
 
 #include <stdlib.h>
