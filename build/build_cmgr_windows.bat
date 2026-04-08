@@ -8,27 +8,14 @@
 ::
 :: Copyright Contributors to the Zowe Project.
 
-:: Build script for configmgr on Windows.
+:: Build script for configmgr on Windows using LLVM clang.
 ::
-:: Supports two compiler toolchains, auto-detected in this order:
-::   1. MSVC  (cl.exe)   - available after running "Developer Command Prompt for
-::                         VS" or vcvarsall.bat / vcvars64.bat.
-::   2. LLVM  (clang)    - https://releases.llvm.org/
-::
-:: Override auto-detection with:
-::   --compiler msvc       force MSVC (cl.exe)
-::   --compiler clang      force LLVM clang / clang++
-::
-:: Other overrides (applied after --compiler):
-::   set CC=...            override the C compiler command
-::   set CXX=...           override the C++ compiler command
-::
-:: Prerequisites
+:: Prerequisites:
+::   - clang on PATH  (https://releases.llvm.org/)
+::   - "Desktop development with C++" workload from the VS Installer
+::     (clang on Windows links against the MSVC CRT, so the SDK headers
+::     and import libs must be present)
 ::   - git on PATH (for cloning dependencies when not yet present)
-::   - MSVC:  open a "Developer Command Prompt for VS" or call vcvars64.bat
-::            before running this script so that cl.exe is on PATH.
-::   - clang: install LLVM and "Desktop development with C++" from the
-::            Visual Studio Installer (clang on Windows needs the MSVC CRT).
 ::
 :: Output: bin\configmgr.exe relative to the zowe-common-c root.
 
@@ -37,22 +24,20 @@ setlocal enabledelayedexpansion
 :: ---------------------------------------------------------------------------
 :: Parse arguments
 :: ---------------------------------------------------------------------------
-set "FORCE_COMPILER="
 :parse_args
 if "%~1"=="" goto :args_done
-if /i "%~1"=="--compiler" ( set "FORCE_COMPILER=%~2" & shift & shift & goto :parse_args )
-if /i "%~1"=="-h"         goto :show_help
-if /i "%~1"=="--help"     goto :show_help
+if /i "%~1"=="-h"     goto :show_help
+if /i "%~1"=="--help" goto :show_help
 echo Unknown argument: %~1
-echo Usage: build_cmgr_windows.bat [--compiler msvc^|clang]
+echo Usage: build_cmgr_windows.bat
 exit /b 1
 :show_help
-echo Usage: build_cmgr_windows.bat [--compiler msvc^|clang]
+echo Usage: build_cmgr_windows.bat
 exit /b 0
 :args_done
 
 echo ********************************************************************************
-echo Building configmgr for Windows...
+echo Building configmgr for Windows (clang)...
 echo ********************************************************************************
 
 :: ---------------------------------------------------------------------------
@@ -128,77 +113,20 @@ if not exist "%COMMON%\bin" mkdir "%COMMON%\bin"
 if exist "%OUTPUT%" del /f /q "%OUTPUT%"
 
 :: ---------------------------------------------------------------------------
-:: Compiler auto-detection  (MSVC preferred, clang as fallback)
+:: Check for clang
 :: ---------------------------------------------------------------------------
-set "COMPILER_TYPE=%FORCE_COMPILER%"
-if "%COMPILER_TYPE%"=="" (
-    where cl >nul 2>nul && set "COMPILER_TYPE=msvc"
-)
-if "%COMPILER_TYPE%"=="" (
-    where clang >nul 2>nul && set "COMPILER_TYPE=clang"
-)
-if "%COMPILER_TYPE%"=="" (
-    echo ERROR: No supported compiler found.
-    echo.
-    echo   For MSVC:  open a "Developer Command Prompt for VS" (or run vcvars64.bat^)
-    echo              then re-run this script.
-    echo   For clang: install LLVM from https://releases.llvm.org/ and add it to PATH.
+if "%CC%"==""  set "CC=clang"
+if "%CXX%"=="" set "CXX=clang++"
+where "%CC%" >nul 2>nul
+if errorlevel 1 (
+    echo ERROR: %CC% not found on PATH.
+    echo Install LLVM from https://releases.llvm.org/ and ensure it is on PATH.
     exit /b 1
 )
 
 :: ---------------------------------------------------------------------------
-:: Compiler-specific flag setup
-:: Use goto labels instead of if/else if chains - the chained form is
-:: unreliable with enabledelayedexpansion and multi-line blocks in CMD.
+:: Compiler flags
 :: ---------------------------------------------------------------------------
-if /i "%COMPILER_TYPE%"=="msvc"  goto :setup_msvc
-if /i "%COMPILER_TYPE%"=="clang" goto :setup_clang
-echo ERROR: Unknown compiler '%COMPILER_TYPE%'. Use --compiler msvc or --compiler clang.
-exit /b 1
-
-:setup_msvc
-if "%CC%"==""  set "CC=cl"
-if "%CXX%"=="" set "CXX=cl"
-
-:: MSVC C flags.  /std:c17 for C17, /W3 standard warnings, /O2 optimise,
-:: /Zi debug info.  Math functions are part of the CRT; no explicit /link
-:: needed.  strdup -> _strdup for MSVC CRT compatibility.
-:: /experimental:c11atomics: enables C11 _Atomic support required by newer
-:: Windows SDK headers (VS 2022 17.5+) that pull in vcruntime_c11_stdatomic.h.
-set "BASE_CFLAGS=/nologo /W3 /O2 /Zi /std:c17 /experimental:c11atomics"
-set "BASE_CFLAGS=%BASE_CFLAGS% /D_CRT_SECURE_NO_WARNINGS /Dstrdup=_strdup"
-set "BASE_CFLAGS=%BASE_CFLAGS% /DCMGRTEST=1 /DCONFIG_BIGNUM=1"
-set "BASE_CFLAGS=%BASE_CFLAGS% /DYAML_VERSION_MAJOR=%MAJOR%"
-set "BASE_CFLAGS=%BASE_CFLAGS% /DYAML_VERSION_MINOR=%MINOR%"
-set "BASE_CFLAGS=%BASE_CFLAGS% /DYAML_VERSION_PATCH=%PATCH%"
-set "BASE_CFLAGS=%BASE_CFLAGS% /DYAML_DECLARE_STATIC=1"
-set "BASE_CFLAGS=%BASE_CFLAGS% /I%COMMON%\h"
-set "BASE_CFLAGS=%BASE_CFLAGS% /I%COMMON%\platform\windows"
-set "BASE_CFLAGS=%BASE_CFLAGS% /I%LIBYAML_INC%"
-set "BASE_CFLAGS=%BASE_CFLAGS% /I%QJS%"
-set "BASE_CFLAGS=%BASE_CFLAGS% /I%QJS%\porting"
-
-:: C++ flags for the regex wrapper (/EHsc enables standard C++ exceptions).
-set "CXXFLAGS=/nologo /W3 /O2 /Zi /EHsc /std:c++14"
-set "CXXFLAGS=%CXXFLAGS% /D_CRT_SECURE_NO_WARNINGS"
-set "CXXFLAGS=%CXXFLAGS% /I%COMMON%\platform\windows"
-
-:: quickjs.c detects _MSC_VER and includes porting/winstdio.h for ssize_t.
-    :: We also force-include quickjs_windows_compat.h to supply MSVC shims for
-    :: GCC builtins (__builtin_clz/ctz, __builtin_expect) and __attribute__
-    :: used by cutils.h.  /FI is MSVC's equivalent of clang's -include.
-    set "QJS_EXTRA_FLAGS=/FI%COMMON%\platform\windows\quickjs_windows_compat.h"
-
-:: Response file token prefix for string-literal /D defines.
-set "RSP_D=/D"
-
-echo Using compiler: MSVC (cl.exe)
-goto :setup_done
-
-:setup_clang
-if "%CC%"==""  set "CC=clang"
-if "%CXX%"=="" set "CXX=clang++"
-
 set "BASE_CFLAGS=-std=gnu11 -Wall -Wno-unused-function -Wno-unused-variable -g -O2"
 set "BASE_CFLAGS=%BASE_CFLAGS% -D_CRT_SECURE_NO_WARNINGS -Dstrdup=_strdup"
 set "BASE_CFLAGS=%BASE_CFLAGS% -DCMGRTEST=1 -DCONFIG_BIGNUM=1"
@@ -215,18 +143,11 @@ set "BASE_CFLAGS=%BASE_CFLAGS% -I%QJS%\porting"
 set "CXXFLAGS=-std=c++14 -Wall -D_CRT_SECURE_NO_WARNINGS"
 set "CXXFLAGS=%CXXFLAGS% -I%COMMON%\platform\windows"
 
-:: Pre-include the ssize_t compat header and suppress the clang diagnostic
-:: for the compatible typedef redeclaration inside quickjs.c.
-set "QJS_EXTRA_FLAGS=-Wno-typedef-redefinition -Wno-error=typedef-redefinition"
-set "QJS_EXTRA_FLAGS=%QJS_EXTRA_FLAGS% -include %COMMON%\platform\windows\quickjs_windows_compat.h"
+:: Suppress the compatible typedef-redefinition diagnostic that clang emits
+:: when quickjs.c's own ssize_t typedef meets the one from winstdio.h.
+set "QJS_EXTRA_FLAGS=-Wno-typedef-redefinition"
 
-set "RSP_D=-D"
-
-echo Using compiler: LLVM clang
-
-:setup_done
-
-echo Using CC=%CC%  CXX=%CXX%
+echo Using compiler: %CC%
 
 :: ---------------------------------------------------------------------------
 :: Temporary build directory
@@ -236,14 +157,13 @@ mkdir "%TMP_DIR%"
 if errorlevel 1 ( echo ERROR: Cannot create temp dir %TMP_DIR% & exit /b 1 )
 
 :: ---------------------------------------------------------------------------
-:: Response file for string-literal defines (avoids CMD quote-escaping issues).
-:: Both MSVC and clang support @<file> response files with the same syntax.
-:: We use RSP_D (/D or -D) chosen above to make the flags correct for each.
+:: Response file for string-literal defines (avoids CMD shell stripping quotes
+:: from -D"..." arguments when passed on the command line).
 :: ---------------------------------------------------------------------------
 set "RSP=%TMP_DIR%\string_defs.rsp"
 (
-    echo %RSP_D%CONFIG_VERSION="2021-03-27"
-    echo %RSP_D%YAML_VERSION_STRING="%MAJOR%.%MINOR%.%PATCH%"
+    echo -DCONFIG_VERSION="2021-03-27"
+    echo -DYAML_VERSION_STRING="%MAJOR%.%MINOR%.%PATCH%"
 ) > "%RSP%"
 
 echo Compiling configmgr...
@@ -252,24 +172,15 @@ echo Compiling configmgr...
 :: Helper subroutines
 ::   compile_c   <src> <obj> <extra-flags>
 ::   compile_cxx <src> <obj>
-:: These centralise the MSVC (/Fo:) vs clang (-c -o) output-flag difference.
 :: ===========================================================================
 goto :skip_helpers
 
 :compile_c
-if /i "%COMPILER_TYPE%"=="msvc" (
-    %CC% /c %BASE_CFLAGS% %~3 @"%RSP%" /Fo:"%~2" "%~1"
-) else (
-    %CC% %BASE_CFLAGS% %~3 @"%RSP%" -c -o "%~2" "%~1"
-)
+%CC% %BASE_CFLAGS% %~3 @"%RSP%" -c -o "%~2" "%~1"
 exit /b %errorlevel%
 
 :compile_cxx
-if /i "%COMPILER_TYPE%"=="msvc" (
-    %CXX% /c %CXXFLAGS% /Fo:"%~2" "%~1"
-) else (
-    %CXX% %CXXFLAGS% -c -o "%~2" "%~1"
-)
+%CXX% %CXXFLAGS% -c -o "%~2" "%~1"
 exit /b %errorlevel%
 
 :skip_helpers
@@ -332,8 +243,9 @@ for %%f in (
 :: ===========================================================================
 :: Phase 4: zowe-common-c / configmgr sources
 ::
-:: winfile.c           replaces posixfile.c  (Windows file I/O via Win32 API)
-:: stub_zos_modules.c  no-op replacements for z/OS-only QuickJS modules
+:: winfile.c replaces posixfile.c  (Windows file I/O via Win32 API).
+:: z/OS-specific modules (qjszos, qjsnet) are ifdef'd out in embeddedjs.c
+:: via __ZOWE_OS_ZOS, so no stubs are needed here.
 ::
 :: Intentionally omitted (z/OS-only or not needed for YAML/schema core):
 ::   pdsutil.c, qjszos.c, qjsnet.c, tls.c, http*.c, bpxskt.c,
@@ -356,7 +268,6 @@ for %%f in (
     "%COMMON%\c\xlate.c"
     "%COMMON%\c\yaml2json.c"
     "%COMMON%\platform\windows\winfile.c"
-    "%COMMON%\platform\common\stub_zos_modules.c"
 ) do (
     set /a "_i=!_i!+1"
     echo   [SRC] %%~nxf
@@ -371,14 +282,7 @@ echo Linking...
 set "ALL_OBJS="
 for %%f in ("%TMP_DIR%\*.obj") do set "ALL_OBJS=!ALL_OBJS! "%%f""
 
-if /i "%COMPILER_TYPE%"=="msvc" (
-    :: MSVC: drive the linker through cl.exe.  Math is part of the CRT.
-    :: winfile.c has #pragma comment(lib, "Ws2_32.lib") but we pass it
-    :: explicitly too for clarity.
-    cl /nologo /Fe:"%OUTPUT%" %ALL_OBJS% /link Ws2_32.lib
-) else (
-    clang %BASE_CFLAGS% -o "%OUTPUT%" %ALL_OBJS% -lWs2_32 -lm
-)
+%CC% -o "%OUTPUT%" %ALL_OBJS% -lWs2_32 -lm
 if errorlevel 1 ( echo Build FAILED. & goto :cleanup_fail )
 
 echo.

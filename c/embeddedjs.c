@@ -49,8 +49,10 @@
 #include "charsets.h"
 #include "embeddedjs.h"
 #include "ejsinternal.h"
+#ifdef __ZOWE_OS_ZOS
 #include "qjszos.h"
 #include "qjsnet.h"
+#endif
 
 #include "cutils.h"
 #include "quickjs-libc.h"
@@ -1449,8 +1451,10 @@ static void initContextModules(JSContext *ctx, EJSNativeModule **nativeModules, 
   js_init_module_std(ctx, asciiCM_STD);
   js_init_module_os(ctx, asciiCM_OS);
   js_init_module_experiment(ctx, asciiExperiment);
+#ifdef __ZOWE_OS_ZOS
   ejsInitModuleZOS(ctx, asciiZOS);
   ejsInitModuleNet(ctx, asciiNet);
+#endif
   ejsInitModulePOSIX(ctx, asciiPosix);
   ejsInitModuleXPlatform(ctx, asciiXPlatform);
   /* printf("after init experiment\n");*/

@@ -189,7 +189,7 @@ QJS_SRCS="
 
 # Omitted intentionally (see build_cmgr_xlclang.sh for the full z/OS list):
 #   zosfile.c / zos.c / pdsutil.c  - z/OS only
-#   qjszos.c / qjsnet.c            - replaced by stub_zos_modules.c
+#   qjszos.c / qjsnet.c            - ifdef'd out in embeddedjs.c via __ZOWE_OS_ZOS
 #   tls.c / http*.c / bpxskt.c / socketmgmt.c / fdpoll.c / jcsi.c
 #                                  - not needed for YAML/schema core
 COMMON_SRCS="
@@ -209,7 +209,6 @@ COMMON_SRCS="
   ${COMMON}/c/yaml2json.c
   ${COMMON}/platform/posix/psxregex.c
   ${COMMON}/platform/posix/posixfile.c
-  ${COMMON}/platform/common/stub_zos_modules.c
 "
 
 echo "Compiling configmgr..."
