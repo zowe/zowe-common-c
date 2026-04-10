@@ -882,6 +882,7 @@ void recoveryDESCTs(){
       "R@STENBL EQU   X'01'                                                    \n"
       "R@STABND EQU   X'02'                                                    \n"
       "R@STIREC EQU   X'04'                                                    \n"
+      "         DS    X              PADDING (C ALIGNS INT16 LINKSTK TO H)     \n"
       "RSTLSTKN DS    2X                                                       \n"
       "RSTKEY   DS    1X                                                       \n"
       "RSTVER   DS    1X                                                       \n"

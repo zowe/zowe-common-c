@@ -254,8 +254,40 @@ static JobInfo *walkJobChain(void *__ptr32 firstStatjq, int *totalJobs) {
     job->priority  = tr->sttrprio;
     job->jobNumber = tr->sttrjnum;
     job->spoolTrackGroups = tr->sttrspac;
+    job->queuePos = tr->sttrqpos;
+    copyAndTrim(job->printDest, tr->sttrprnd, 8);
+    copyAndTrim(job->device, tr->sttrdevn, 18);
+    job->wlmQueuePos = -1;  /* default: not available */
 
     decodeCompletion(tr->sttrmxrc, &job->compType, &job->compCode);
+
+    /* Walk subsequent sections looking for scheduling data (STSCHED).
+       Navigation is length-based: each section starts with a 2-byte
+       length field.  Add the length to the section start to get the
+       next section.  Stop when we reach the end of the job data or
+       find what we need. */
+    {
+      char *sect = (char *)tr;
+      uint16_t sectLen = tr->sttrlen;
+      int remaining = 2000; /* safety limit */
+      while (sectLen > 0 && remaining > 0) {
+        sect += sectLen;
+        remaining -= sectLen;
+        uint8_t sectType = ((uint8_t *)sect)[2]; /* type is at offset 2 */
+        if (sectType == STSCHED) {
+          struct statschd *sc = (struct statschd *)sect;
+          copyAndTrim(job->serviceClass, sc->stscsrvc, 8);
+          copyAndTrim(job->schedEnv, sc->stscsenv, 16);
+          job->wlmQueuePos = sc->stscqpos;
+          job->execASID = sc->stscasid;
+          job->wlmMode = sc->stsc1jcm ? 1 : 0;
+          job->delayFlags = (uint8_t)(sc->stscahld & 0xFF);
+          break;
+        }
+        sectLen = *(uint16_t *)sect;  /* length of this section */
+        if (sectLen == 0) break;
+      }
+    }
 
     /* Walk sysout chain if present */
     if (jq->stjqse) {
@@ -522,10 +554,11 @@ typedef struct SAPIAllocParms_tag {
 
 ZOWE_PRAGMA_PACK_RESET
 
-static int sapiAlloc(char *dsn, char *ddnameResult,
+int sapiAllocDataset(char *dsn, char *ddnameResult,
                      char *ssname,
-                     TextUnit * __ptr32 browseToken,
+                     void * __ptr32 browseToken,
                      int *errorOut, int *infoOut) {
+  TextUnit * __ptr32 browseTokenTU = (TextUnit * __ptr32)browseToken;
   int allocSize = sizeof(SAPIAllocParms);
   SAPIAllocParms * __ptr32 p =
       (SAPIAllocParms * __ptr32)safeMalloc31(allocSize, "sapiAlloc");
@@ -557,7 +590,7 @@ static int sapiAlloc(char *dsn, char *ddnameResult,
   }
   p->tuList[1] = createSimpleTextUnit(DALRTDDN, ddnameResult);
   p->tuList[2] = createSimpleTextUnit(DALUASSR, ssname);
-  p->tuList[3] = browseToken;   /* __ptr32 → __ptr32, no widening */
+  p->tuList[3] = browseTokenTU;  /* __ptr32 → __ptr32, no widening */
 
   /* HOB on last entry */
   p->tuList[3] = (TextUnit * __ptr32)
@@ -638,7 +671,7 @@ static int sapiAlloc(char *dsn, char *ddnameResult,
   Returns the IEFSSREQ R15 return code. On success (0), check
   *funcRC for the SAPI function return code (ssobretn).
 */
-static int callSAPI(struct sss2 *__ptr32 sss2Block, int *funcRC) {
+int sapiCall(struct sss2 *__ptr32 sss2Block, int *funcRC) {
   int allocSize = sizeof(IEFSSOBH) + sizeof(IEFJSSIB);
   char *__ptr32 block = (char *__ptr32)safeMalloc31(allocSize, "SAPI SSOB+SSIB");
   if (!block) {
@@ -711,7 +744,7 @@ int jobServiceReadSysout(JobService *service,
 
   /* Call SAPI to select the dataset */
   int funcRC = 0;
-  int rc = callSAPI(sss2, &funcRC);
+  int rc = sapiCall(sss2, &funcRC);
 
   printf("SAPI: callSSI rc=%d funcRC=%d reas=%d\n",
          rc, funcRC, (int)sss2->sss2reas);
@@ -764,7 +797,7 @@ int jobServiceReadSysout(JobService *service,
   fflush(stdout);
 
   int allocErr = 0, allocInfo = 0;
-  rc = sapiAlloc(dsn, ddname, "JES2", btok, &allocErr, &allocInfo);
+  rc = sapiAllocDataset(dsn, ddname, "JES2", btok, &allocErr, &allocInfo);
   if (rc != 0) {
     printf("SAPI: sapiAlloc failed rc=%d error=%04X info=%04X\n",
            rc, allocErr, allocInfo);
@@ -815,7 +848,7 @@ int jobServiceReadSysout(JobService *service,
 cleanup:
   /* Tell SAPI we're done — set control flag and make final call */
   sss2->sss2ctrl = 1;
-  callSAPI(sss2, &funcRC);
+  sapiCall(sss2, &funcRC);
 
   safeFree31(sss2Raw, sss2AllocSize);
 
@@ -911,7 +944,7 @@ int jobServiceSAPIRead(JobService *service,
   /* Walk all sysout datasets returned by SAPI */
   while (1) {
     int funcRC = 0;
-    int rc = callSAPI(sss2, &funcRC);
+    int rc = sapiCall(sss2, &funcRC);
 
     printf("SAPI79: callSSI rc=%d funcRC=%d reas=%d\n",
            rc, funcRC, (int)sss2->sss2reas);
@@ -978,7 +1011,7 @@ int jobServiceSAPIRead(JobService *service,
     ddname[8] = '\0';
 
     int allocErr = 0, allocInfo = 0;
-    rc = sapiAlloc(dsn, ddname, "JES2", btok, &allocErr, &allocInfo);
+    rc = sapiAllocDataset(dsn, ddname, "JES2", btok, &allocErr, &allocInfo);
     if (rc != 0) {
       printf("SAPI79: DYNALLOC failed rc=%d error=%04X info=%04X\n",
              rc, allocErr, allocInfo);
@@ -1023,7 +1056,7 @@ int jobServiceSAPIRead(JobService *service,
   /* Terminate SAPI thread */
   sss2->sss2ctrl = 1;
   int funcRC = 0;
-  callSAPI(sss2, &funcRC);
+  sapiCall(sss2, &funcRC);
 
   safeFree31(sss2Raw, sss2AllocSize);
   return result;

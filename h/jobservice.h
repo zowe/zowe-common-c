@@ -19,6 +19,8 @@
 #define jobServiceGetJobs     JBSVGTJB
 #define jobServiceFreeJobs    JBSVFRJB
 #define jobServiceReadSysout  JBSVRDSO
+#define sapiCall              SAPICALL
+#define sapiAllocDataset      SAPIALOC
 #endif
 
 #include "zowetypes.h"
@@ -168,6 +170,16 @@ typedef struct JobInfo_tag {
   uint32_t compCode;       /* completion code (RC or abend code) */
   uint32_t jobNumber;      /* binary job number */
   int32_t  spoolTrackGroups; /* spool space used (-1 if unknown) */
+  uint32_t queuePos;       /* position on class/phase queue (sttrqpos) */
+  char     printDest[19];  /* default print destination node+remote */
+  char     device[19];     /* device name if active on device */
+  /* WLM scheduling fields (from statschd section, if present) */
+  char     serviceClass[9]; /* WLM service class (stscsrvc) */
+  char     schedEnv[17];   /* WLM scheduling environment (stscsenv) */
+  int32_t  wlmQueuePos;   /* WLM queue position (stscqpos), -1 if N/A */
+  uint16_t execASID;       /* ASID where executing (stscasid) */
+  uint8_t  wlmMode;        /* 0=JES managed, 1=WLM managed (stsc1jcm) */
+  uint8_t  delayFlags;     /* why job won't run (stscahld byte) */
   int      sysoutCount;    /* number of sysout elements */
   JobSysout *sysouts;      /* linked list of sysout elements (or NULL) */
   struct JobInfo_tag *next;
@@ -293,6 +305,35 @@ int jobServiceSAPIRead(JobService *service,
                        int maxRecords,
                        SysoutRecordHandler handler,
                        void *userData);
+
+/* ----------------------------------------------------------------
+   SAPI primitives — used by logreader and other SAPI consumers
+   ---------------------------------------------------------------- */
+
+struct sss2;  /* forward decl, defined in iazsss2.h */
+
+/*
+  Make an SSI 79 (SAPI) call.
+  The SSS2 block must be in 31-bit addressable storage.
+  Returns the IEFSSREQ R15 return code.
+  On success (0), check *funcRC for the SAPI function return code.
+*/
+int sapiCall(struct sss2 *__ptr32 sss2Block, int *funcRC);
+
+/*
+  DYNALLOC a spool dataset for reading via SAPI browse token.
+  dsn:          dataset name from SSS2 output (sss2dsn)
+  ddnameResult: 8-byte buffer, receives allocated DD name
+  ssname:       subsystem name (e.g. "JES2")
+  browseToken:  text unit pointer from sss2btok
+  errorOut:     receives DYNALLOC error code
+  infoOut:      receives DYNALLOC info code
+  Returns 0 on success.
+*/
+int sapiAllocDataset(char *dsn, char *ddnameResult,
+                     char *ssname,
+                     void * __ptr32 browseToken,
+                     int *errorOut, int *infoOut);
 
 #endif
 
