@@ -1,0 +1,243 @@
+/* DOC: THIS MEMBER IS USED AT IPL TIME TO DEFINE THE AUTHORIZED   */   00010019
+/*      COMMAND LIST, THE AUTHORIZED PROGRAM LIST, THE NOT         */   00020019
+/*      BACKGROUND COMMAND LIST, THE AUTHORIZED BY THE TSO SERVICE */   00030019
+/*      FACILITY LIST, AND TO CREATE THE DEFAULTS THE SEND COMMAND */   00040019
+/*      WILL USE.                                                  */   00050019
+/*                                                                 */   00060019
+AUTHCMD NAMES(          /* AUTHORIZED COMMANDS      */      +           00070019
+   RECEIVE              /* TSO COMMANDS             */      +           00080019
+   TRANSMIT XMIT        /* TSO COMMANDS             */      +           00090019
+   LISTB    LISTBC      /* TSO COMMANDS             */      +           00100019
+   SE       SEND        /* TSO COMMANDS             */      +           00120019
+   RACONVRT CONSPROF    /* TSO COMMANDS             */      +           00130019
+   SYNC                 /* TSO COMMANDS             */      +           00140019
+   TESTAUTH TESTA       /* TSO COMMANDS             */      +           00150019
+   PARMLIB  IKJPRMLB    /* TSO COMMANDS             */      +           00160019
+   ADYOPCMD             /* TSO COMMANDS             */      +           00160123
+   IEBCOPY              /*   DFSMS                  */      +           00161019
+   EXPORT   EXP         /*   DFSMS                  */      +           00161123
+   IMPORT   IMP         /*   DFSMS                  */      +           00161223
+   LISTD    LISTDS      /*   DFSMS                  */      +           00161323
+   LISTDATA LDATA       /*   DFSMS                  */      +           00161423
+   BINDDATA BDATA       /*   DFSMS                  */      +           00162019
+   PRINT                /*   DFSMS                  */      +           00164123
+   REPRO                /*   DFSMS                  */      +           00164223
+   RMM                  /*   DFSMS                  */      +           00164323
+   SETCACHE SETC        /*   DFSMS                  */      +           00164423
+   SHCDS                /*   DFSMS                  */      +           00164523
+   VERIFY   VFY         /*   DFSMS                  */      +           00164623
+   AD       ADDSD            /*  RACF 5740-XXH      */      +           00165019
+   AG       ADDGROUP         /*  RACF 5740-XXH      */      +           00166019
+   AU       ADDUSER          /*  RACF 5740-XXH      */      +           00167019
+   ALG      ALTGROUP         /*  RACF 5740-XXH      */      +           00168019
+   ALD      ALTDSD           /*  RACF 5740-XXH      */      +           00169019
+   ALU      ALTUSER          /*  RACF 5740-XXH      */      +           00170019
+   BLKUPD                    /*  RACF 5740-XXH      */      +           00180019
+   CO       CONNECT          /*  RACF 5740-XXH      */      +           00190019
+   DD       DELDSD           /*  RACF 5740-XXH      */      +           00200019
+   DG       DELGROUP         /*  RACF 5740-XXH      */      +           00210019
+   DU       DELUSER          /*  RACF 5740-XXH      */      +           00220019
+   IRRDPI00                  /*  RACF 5740-XXH      */      +           00221023
+   LD       LISTDSD          /*  RACF 5740-XXH      */      +           00230019
+   LG       LISTGRP          /*  RACF 5740-XXH      */      +           00240019
+   LU       LISTUSER         /*  RACF 5740-XXH      */      +           00250019
+   RACLINK                   /*  RACF 5740-XXH      */      +           00260019
+   RACDCERT                  /*  RACF 5740-XXH      */      +           00270019
+   RACMAP                    /*  RACF 5740-XXH      */      +           00271025
+   RACPRIV                   /*  RACF 5740-XXH      */      +           00280019
+   RALT     RALTER           /*  RACF 5740-XXH      */      +           00290019
+   RDEF     RDEFINE          /*  RACF 5740-XXH      */      +           00300019
+   RDEL     RDELETE          /*  RACF 5740-XXH      */      +           00310019
+   RE       REMOVE           /*  RACF 5740-XXH      */      +           00320019
+   RL       RLIST            /*  RACF 5740-XXH      */      +           00330019
+   RVARY                     /*  RACF 5740-XXH      */      +           00340019
+   PASSWORD PW               /*  RACF 5740-XXH      */      +           00350019
+   PHRASE                    /*  RACF 5740-XXH      */      +           00351020
+   PE       PERMIT           /*  RACF 5740-XXH      */      +           00360019
+   SETR     SETROPTS         /*  RACF 5740-XXH      */      +           00370019
+   SR       SEARCH           /*  RACF 5740-XXH      */      +           00380019
+   ADNR      DCAS       /* COM SERV IP              */      +           00390024
+   EZAZSSI   EZBREINI   /* COM SERV IP              */      +           00400024
+   FTPDNS    IOBSNMP    /* COM SERV IP              */      +           00410024
+   FTP                  /* COM SERV IP              */      +           00420122
+   LBADV     LBAGENT    /* COM SERV IP              */      +           00420224
+   LPQ                  /* COM SERV IP              */      +           00420323
+   LPR                  /* COM SERV IP              */      +           00420423
+   LPRM                 /* COM SERV IP              */      +           00420523
+   MODDVIPA MVPMAIN     /* COM SERV IP              */      +           00420624
+   MVPXDISP NAMEDXFR    /* COM SERV IP              */      +           00420724
+   NAMED4    NSUPDATE   /* COM SERV IP              */      +           00420824
+   NSUPDAT4  OMPROUTE   /* COM SERV IP              */      +           00420924
+   OTRACERT             /* COM SERV IP              */      +           00421024
+   TRACERTE             /* COM SERV IP              */      +           00421123
+   RSH                  /* COM SERV IP              */      +           00421222
+   RSHD                 /* COM SERV IP              */      +           00421324
+   SMTP    SNTPD        /* COM SERV IP              */      +           00421424
+   TRAPFWD   TRMD       /* COM SERV IP              */      +           00421524
+   PING                 /* COM SERV IP              */      +           00421624
+   OPING   OSNMPD       /* COM SERV IP              */      +           00421724
+   MVSCPCMD             /* SVSC VM CP CMDS FROM MVS */      +           00427019
+   REXCPCMD             /* SVSC VM CP CMDS FROM REXX*/      +           00428019
+   ERWMAUTH             /* CICS PD/MVS CMDS         */      +           00429019
+   DITTO                /* DITTO UTILITY ENTRY      */      +           00430019
+   DITTOA               /* DITTO UTILITY ENTRY      */      +           00440019
+   FCESTABL             /* FLASHCOPY                */      +           00450019
+   FCQUERY              /* FLASHCOPY                */      +           00460019
+   FCWITHDR             /* FLASHCOPY                */      +           00470019
+   ALTER                /* DFP COMMANDS             */      +           00471024
+   DEF      DEFINE      /* DFP COMMANDS             */      +           00472024
+   IMP      IMPORT      /* DFP COMMANDS             */      +           00473024
+             )          /*                          */                  00480019
+                        /*                          */                  00490019
+AUTHPGM NAMES(          /* AUTHORIZED PROGRAMS      */      +           00500019
+   AOPCMND              /* INFOPRINT SERVER         */      +           00510023
+   IEBCOPY              /* DFSMS                    */      +           00511023
+   CSFDAUTH             /* CRYPTOGRAPHIC SERVICES ICSF */   +           00520019
+   CSFDPKDS             /*                          */      +           00530019
+   ICADCT                    /*  FIREWALL TEC       */      +           00540024
+   ICADDCT                   /*  FIREWALL TEC       */      +           00541024
+   ICADCFGS                  /*  FIREWALL TEC       */      +           00542024
+   ICADPFTP                  /*  FIREWALL TEC       */      +           00543024
+   ICADFTPD                  /*  FIREWALL TEC       */      +           00544024
+   ICADSLOG                  /*  FIREWALL TEC       */      +           00545024
+   ICADSOCK                  /*  FIREWALL TEC       */      +           00546024
+   ICADSOXD                  /*  FIREWALL TEC       */      +           00547024
+   ICADSTAK                  /*  FIREWALL TEC       */      +           00548024
+   ICADIKED                  /*  FIREWALL TEC       */      +           00549024
+   EDGAUD               /* DFSMS RMM                */      +           00550023
+   EDGBKUP              /* DFSMS RMM                */      +           00560023
+   EDGHSKP              /* DFSMS RMM                */      +           00570023
+   EDGRPDT              /* DFSMS RMM                */      +           00580023
+   EDGUPDT              /* DFSMS RMM                */      +           00590023
+   EDGUTIL              /* DFSMS RMM                */      +           00600023
+   FTP                  /* COM SERV IP              */      +           00610023
+   GIMSMP               /* SMP/E                    */      +           00620023
+   ICHDSM00                  /*  RACF 5740-XXH      */      +           00631022
+   ICHUT100                  /*  RACF 5740-XXH      */      +           00632024
+   ICHUT200                  /*  RACF 5740-XXH      */      +           00633024
+   ICHUT400                  /*  RACF 5740-XXH      */      +           00634024
+   IRRDSC00                  /*  RACF 5740-XXH      */      +           00635019
+   IRRUT100                  /*  RACF 5740-XXH      */      +           00636019
+   IRRUT200                  /*  RACF 5740-XXH      */      +           00637019
+   IRRUT400                  /*  RACF 5740-XXH      */      +           00638019
+   ICHDSM00                  /*  RACF 5740-XXH      */      +           00639025
+   IRRDPI00                  /*  RACF 5740-XXH      */      +           00639125
+   IRRXUTI2                  /*  RACF 5740-XXH  @L2A*/      +           00639225
+   IOEGRWAG                  /*  DFS                */      +           00641021
+   IOENEWAG                  /*  DFS                */      +           00650019
+   IOESALVG                  /*  DFS                */      +           00660019
+   IOESMBPW                  /*  DFS                */      +           00670019
+   IOEAGFMT                  /*  DFS                */      +           00680019
+   IOEAGSLV                  /*  DFS                */      +           00681019
+   IOEDFSXP                  /*  DFS                */      +           00681123
+   IOEZADM                   /*  DFS                */      +           00682019
+   REXCPCMD             /* SVSC VM CP CMDS FROM REXX*/      +           00683019
+   ERWMAUTH                  /*  CICS PD/MVS        */      +           00684019
+           )            /*                          */                  00685019
+                        /*                          */                  00686019
+NOTBKGND NAMES(         /* COMMANDS WHICH MAY NOT BE */  +              00687019
+                        /* ISSUED IN THE BACKGROUND  */  +              00688019
+   OPER     OPERATOR    /*                           */  +              00689019
+   TERM     TERMINAL)   /*                           */                 00690019
+                        /*                           */                 00700019
+AUTHTSF NAMES(          /* PROGRAMS TO BE AUTHORIZED */  +              00710019
+                        /* WHEN CALLED THROUGH THE   */  +              00720019
+                        /* TSO SERVICE FACILITY.     */  +              00730019
+   IEBCOPY              /* DFSMS                     */  +              00740019
+   CSFDAUTH             /*       ICSF                */  +              00750019
+   CSFDPKDS             /*  ICSF                     */  +              00760021
+   EDGAUD               /* DFSMS RMM                */      +           00761023
+   EDGBKUP              /* DFSMS RMM                */      +           00762023
+   EDGHSKP              /* DFSMS RMM                */      +           00763023
+   EDGRPDT              /* DFSMS RMM                */      +           00764023
+   EDGUPDT              /* DFSMS RMM                */      +           00765023
+   EDGUTIL              /* DFSMS RMM                */      +           00766023
+   GIMSMP               /* SMP/E                    */      +           00767023
+   ICHDSM00 IRRUT100    /* RACF                      */  +              00770021
+   IRRUT200 IRRUT400    /* RACF                      */  +              00770121
+   IRRDPI00 IRRXUTI2    /* RACF                      */  +              00770221
+   IOEDFSXP             /* DFS                       */  +              00771021
+   IOEAGSLV             /* DFS                       */  +              00771121
+   IOEAGFMT             /* DFS                       */  +              00771221
+   IOEZADM              /* DFS                       */  +              00771321
+   ICQASLI0             /* TSO/E                     */  +              00772021
+   IKJEFF76             /* TSO/E                     */  +              00780019
+   EOUCCSYM             /* DPAM WRITE TO SYS1.LOGREC */  +              00790019
+   ERWMAUTH)            /*                           */                 00800019
+                        /*                           */                 00810019
+SEND                    /* SEND COMMAND DEFAULTS     */  +              00820019
+   OPERSEND(ON)         /*                           */  +              00830019
+   USERSEND(ON)         /*                           */  +              00840019
+   SAVE(ON)             /*                           */  +              00850019
+   CHKBROD(OFF)         /*                           */  +              00860019
+   LOGNAME(SYS1.BRODCAST)  /*                        */  +              00870019
+   USEBROD(ON)               /*                     */      +           00880019
+   MSGPROTECT(OFF)           /*                     */      +           00890019
+   SYSPLEXSHR(OFF)           /*                     */                  00900019
+                        /*                           */                 00910019
+ALLOCATE                   /* ALLOCATE COMMAND DEFAULT           */  +  00920019
+   DEFAULT(OLD)              /*                                 */      00930019
+                        /*                           */                 00940019
+TRANSREC NODESMF((N1,S0W1))      /* TRANSMIT/RECEIVE DEFAULTS      */ + 00950019
+                                  /*                               */ + 00960019
+         CIPHER(YES)              /*                               */ + 00970019
+         SPOOLCL(B)               /*                               */ + 00980019
+         OUTWARN(10000,5000)      /*                               */ + 00990019
+         OUTLIM(1000000)          /*                               */ + 01000019
+         VIO(        )            /*                               */ + 01010019
+         LOGSEL(LOG)              /*                               */ + 01020019
+         LOGNAME(MISC)            /*                               */ + 01030019
+         DAPREFIX(USERID)         /*                               */ + 01040019
+         USRCTL(NAMES.TEXT)       /*                               */ + 01050019
+         SYSOUT(*)                /*                               */   01060019
+                                                                        01070019
+CONSOLE INITUNUM(1000)            /* CONSOLE COMMAND DEFAULTS      */ + 01080019
+        INITSNUM(1000)            /*                               */ + 01090019
+        MAXUNUM(10000)            /*                               */ + 01100019
+        MAXSNUM(10000)            /*                               */   01110019
+                                                                        01120019
+PLATCMD NAMES(                    /* COMMANDS TO BE INVOKED        */ + 01130019
+                                  /* VIA THE TSO COMMAND           */ + 01140019
+                                  /* INVOCATION PLATFORM           */ + 01150019
+                                  /* (COMMANDS IN THIS             */ + 01160019
+                                  /*  LIST MUST NOT REQUIRE        */ + 01170019
+                                  /*  TASK TERMINATION             */ + 01180019
+                                  /*  CLEANUP PROCESSING)          */ + 01190019
+   ALLOCATE ALLOC                 /*                               */ + 01200019
+   ALTLIB            IKJADLIB     /*                               */ + 01210019
+   ATTRIB   ATTR                  /*                               */ + 01220019
+   CALL              IKJEFG00     /*                               */ + 01230019
+   EXEC     EX       IKJEXC2      /*                               */ + 01240019
+   FREE     UNALLOC               /*                               */ + 01250019
+   PRINTDS  PR       IKJEFY50     /*                               */ + 01260019
+   PROFILE  PROF                  /*                               */ + 01270019
+   SUBMIT   SUB                   /*                               */ + 01280019
+   STATUS   ST       IKJEFFCA     /*                               */ + 01290019
+   LISTBC   LISTB                 /*  AUTHORIZED COMMANDS          */ + 01300019
+   LISTDS   LISTD                 /*                               */ + 01310019
+   PARMLIB  IKJPRMLB              /* (THESE COMMANDS MUST          */ + 01320019
+   RECEIVE                        /* BE LISTED IN AUTHCMD          */ + 01330019
+   SEND     SE                    /* STATEMENT OR IKJEFTE2         */ + 01340019
+   TRANSMIT XMIT                  /* TABLE)                        */ + 01350019
+   SYNC                           /*                               */ + 01360019
+   RACONVRT                       /*                               */ + 01370019
+   CONSPROF)                      /*                               */   01380019
+                                                                        01390019
+HELP    ENU(SYS1.HELP)            /* HELP COMMAND DEFAULTS         */   01400019
+                                                                        01410019
+                                                                        01420019
+                                                                        01430019
+PLATPGM NAMES(                    /* PROGRAMS TO BE INVOKED        */ + 01440019
+   IEFBR14                        /* VIA THE TSO COMMAND/PROGRAM   */ + 01450019
+                                  /* INVOCATION PLATFORM           */ + 01460019
+                                  /* (PROGRAMS IN THIS             */ + 01470019
+                                  /*  LIST MUST NOT REQUIRE        */ + 01480019
+                                  /*  TASK TERMINATION             */ + 01490019
+                                  /*  CLEANUP PROCESSING)          */ + 01500019
+                                  /*                               */ + 01510019
+   IKJEFF76)                      /*  AUTHORIZED PROGRAMS          */ + 01520019
+                                  /* (THESE PROGRAMS MUST          */ + 01530019
+                                  /* BE LISTED IN AUTHTSF          */ + 01540019
+                                  /* OR THE IKJEFTAP TABLE)        */ + 01550019
+                                  /*                               */   01560019
+                                                                        01570019
