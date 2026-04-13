@@ -1,6 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.5.0`
+- Bugfix: Set IO error flag in `jsonConvertAndWriteBuffer()` when character conversion or write operations fail, allowing callers to detect and stop processing early. (#590)
 - Bugfix: Schema validation error is not properly formatted for enumerate type. [(#562)](https://github.com/zowe/zowe-common-c/pull/562)
 - Bugfix: fix a typo in the cross-memory server's help text (#565)
 - Enhancement: Move to later version of quickjs (#573)
