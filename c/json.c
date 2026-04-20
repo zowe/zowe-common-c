@@ -400,6 +400,7 @@ void jsonConvertAndWriteBuffer(jsonPrinter *p, char *text, size_t len,
       if (newLen < 0) {
         JSONERROR("jsonConvertAndWriteBuffer() error: newLen = %d\n",
                   (int)newLen);
+        jsonSetIOErrorFlag(p);
         return;
       }
       JSON_DEBUG("utf8, len %d:\n", newLen);
@@ -412,6 +413,7 @@ void jsonConvertAndWriteBuffer(jsonPrinter *p, char *text, size_t len,
       if (bytesWritten < 0){
         JSONERROR("jsonConvertAndWriteBuffer() error: bytesWritten = %zd\n",
                 bytesWritten);
+        jsonSetIOErrorFlag(p);
         return;
       }
     } else {

@@ -1,8 +1,14 @@
 # Zowe Common C Changelog
 
 ## `3.5.0`
+- Bugfix: Set IO error flag in `jsonConvertAndWriteBuffer()` when character conversion or write operations fail, allowing callers to detect and stop processing early. (#590)
 - Bugfix: Schema validation error is not properly formatted for enumerate type. [(#562)](https://github.com/zowe/zowe-common-c/pull/562)
 - Bugfix: fix a typo in the cross-memory server's help text (#565)
+- Enhancement: Move to later version of quickjs (#573)
+- Enhancement: configmgr validation errors now use dot-formatted paths and can detect if a property that's unknown is likely to be at the wrong level of indentation [(#577)](https://github.com/zowe/zowe-common-c/pull/577)
+- Enhancement: file API now returns the boolean "symlink" to state if a file is a symbolic link or not. [(#579)](https://github.com/zowe/zowe-common-c/pull/579)
+- Enhancement: file API now includes the target path of a symlink in the field "symlinkTarget". [(#580)](https://github.com/zowe/zowe-common-c/pull/580)
+- Enhancement: file API's "directory" value for symlinks now corresponds to whether the target is a directory or not. [(#580)](https://github.com/zowe/zowe-common-c/pull/580)
 - Enhancement: take into account active PC callers during termination (#569)
 
 ## `3.4.0`
