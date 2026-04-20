@@ -1,6 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.5.0`
+- Enhancement: `TlsSettings` now supports a `clientLabel` field. When set, `tlsSocketInit` uses this label for outbound (client) TLS connections instead of `label`, allowing a separate certificate with a client-only EKU to be used. When `clientLabel` is NULL, `label` continues to be used for both server and client connections as before. [(#590)](https://github.com/zowe/zowe-common-c/pull/590)
 - Bugfix: Set IO error flag in `jsonConvertAndWriteBuffer()` when character conversion or write operations fail, allowing callers to detect and stop processing early. (#590)
 - Bugfix: Schema validation error is not properly formatted for enumerate type. [(#562)](https://github.com/zowe/zowe-common-c/pull/562)
 - Bugfix: fix a typo in the cross-memory server's help text (#565)
