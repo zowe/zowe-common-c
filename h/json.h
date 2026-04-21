@@ -1,5 +1,3 @@
-
-
 /*
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
@@ -34,6 +32,15 @@
 
 typedef struct Json_tag Json;
 
+/************** Comment Alignment ********************/
+
+/* Controls how inline comments are aligned when printing JSON or YAML */
+typedef enum {
+  JSON_COMMENT_ALIGN_NONE     = 0,  /* single space before comment marker */
+  JSON_COMMENT_ALIGN_FIXED    = 1,  /* pad to commentPadWidth spaces before marker */
+  JSON_COMMENT_ALIGN_ORIGINAL = 2   /* try to restore original column from parse time */
+} JsonCommentAlign;
+
 /**
  *   \brief  jsonPrinter represents a high-level stream to write JSON.
  *
@@ -66,6 +73,13 @@ typedef struct jsonPrinter_tag {
                  char *keyOrNull,
                  Json *value);
   void *filterContext;
+  int printComments;
+  char *pendingComment;
+  char *pendingInlineComment;
+  int   pendingInlineCommentColumn;
+  JsonCommentAlign commentAlignMode;
+  int   commentPadWidth;
+  int   currentColumn;
 } jsonPrinter;
 
 typedef struct jsonBuffer_tag {
@@ -108,7 +122,14 @@ jsonPrinter *makeBufferNativeJsonPrinter(int inputCCSID, JsonBuffer *buf);
  *   This function is normally used for testing or low volume work.   It wastes memory and IO resources. 
  */
 
+void jsonEnableCommentPrint(jsonPrinter *p);
 void jsonEnablePrettyPrint(jsonPrinter *p);
+
+/* Configure inline comment alignment for the JSON printer.
+   Only effective when printComments is enabled.
+   mode: JSON_COMMENT_ALIGN_NONE, JSON_COMMENT_ALIGN_FIXED, or JSON_COMMENT_ALIGN_ORIGINAL
+   padWidth: number of spaces before '//' when using FIXED mode (default: 2) */
+void jsonSetCommentAlignment(jsonPrinter *p, JsonCommentAlign mode, int padWidth);
 
 /** 
  * \brief  This will reclaim the memory of the internals of the jsonPrinter.  
@@ -390,17 +411,26 @@ struct Json_tag {
     JsonArray *array;
     JsonError *error;
   } data;
+  char *inlineComment;   /* YAML comment on same line as value */
+  char *beforeComment;   /* YAML comment on line(s) before this node */
+  int yamlScalarStyle;     /* original YAML scalar style for round-trip */
+  int inlineCommentColumn; /* original column of '#' for alignment */
 };
 
 struct JsonObject_tag {
   JsonProperty *firstProperty;
   JsonProperty *lastProperty;
+  char *documentComment; /* YAML comment at top of document */
+  char *trailerComment;  /* YAML comment at end of document */
 };
 
 struct JsonProperty_tag {
   char *key;
   Json *value;
   JsonProperty *next;
+  char *inlineComment;   /* YAML comment on same line as this property */
+  char *beforeComment;   /* YAML comment on line(s) before this property */
+  int inlineCommentColumn; /* original column of '#' for alignment */
 };
 
 struct JsonArray_tag {
@@ -415,7 +445,9 @@ struct JsonError_tag {
 
 Json *jsonParseString(ShortLivedHeap *slh, char *jsonString, char* errorBufferOrNull, int errorBufferSize);
 Json *jsonParseUnterminatedString(ShortLivedHeap *slh, char *jsonString, int len, char* errorBufferOrNull, int errorBufferSize);
+Json *jsonParseUnterminatedStringWithComments(ShortLivedHeap *slh, char *jsonString, int len, char* errorBufferOrNull, int errorBufferSize);
 Json *jsonParseFile(ShortLivedHeap *slh, const char *filename , char* errorBufferOrNull, int errorBufferSize);
+Json *jsonParseFile2WithComments(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize);
 /* parseFile2 supports full-width integers and floating-point numbers */
 Json *jsonParseFile2(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize);
 Json *jsonParseUnterminatedUtf8String(ShortLivedHeap *slh, int outputCCSID,
@@ -580,6 +612,8 @@ struct JsonParser_tag {
   CharStream *in;
   Json *jsonError;
   int   version;
+  int   retainComments;
+  char *pendingBeforeComment;
 };
 
 typedef struct JsonBuilder_tag {
@@ -700,6 +734,34 @@ void printJsonPointer(FILE *out, JsonPointer *jp);
 Json *jsonObjectGetPropertyValueLoud(JsonObject *object, const char *key);
 void jsonDumpObj(JsonObject *object);
 
+/************** Comment Support ********************/
+
+/* Set/get comments on Json values (for round-trip YAML comment preservation) */
+void jsonSetInlineComment(Json *json, const char *comment);
+void jsonSetBeforeComment(Json *json, const char *comment);
+const char *jsonGetInlineComment(Json *json);
+const char *jsonGetBeforeComment(Json *json);
+
+/* Set/get comments on Json properties */
+void jsonPropertySetInlineComment(JsonProperty *prop, const char *comment);
+void jsonPropertySetBeforeComment(JsonProperty *prop, const char *comment);
+const char *jsonPropertyGetInlineComment(JsonProperty *prop);
+const char *jsonPropertyGetBeforeComment(JsonProperty *prop);
+/* Set/get document-level comment on JsonObject (top of YAML file) */
+void jsonObjectSetDocumentComment(JsonObject *obj, const char *comment);
+const char *jsonObjectGetDocumentComment(JsonObject *obj);
+void jsonObjectSetTrailerComment(JsonObject *obj, const char *comment);
+const char *jsonObjectGetTrailerComment(JsonObject *obj);
+/* Set/get YAML scalar style for round-trip quoting */
+void jsonSetYamlScalarStyle(Json *json, int style);
+int jsonGetYamlScalarStyle(Json *json);
+/* Set/get inline comment column for alignment */
+void jsonSetInlineCommentColumn(Json *json, int column);
+int jsonGetInlineCommentColumn(Json *json);
+void jsonPropertySetInlineCommentColumn(JsonProperty *prop, int column);
+int jsonPropertyGetInlineCommentColumn(JsonProperty *prop);
+
+
 #endif	/* __JSON__ */
 
 
@@ -712,4 +774,3 @@ void jsonDumpObj(JsonObject *object);
   
   Copyright Contributors to the Zowe Project.
 */
-
