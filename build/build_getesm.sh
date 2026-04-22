@@ -21,6 +21,7 @@ mkdir -p "${TMP_DIR}" && cd "${TMP_DIR}"
 rm -f "${COMMON}/bin/getesm"
 
 xlclang \
+  ${ZWE_XLCLANG_FLAGS} \
   -q64 \
   "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('SYS1.MACLIB')" \
   -D_OPEN_SYS_FILE_EXT=1 \

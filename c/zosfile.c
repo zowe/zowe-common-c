@@ -54,6 +54,7 @@
 #pragma linkage(BPX4LST,OS)
 #pragma linkage(BPX4GGN,OS)
 #pragma linkage(BPX4GPN,OS)
+#pragma linkage(BPX4RDL,OS)
 
 #define BPXRED BPX4RED
 #define BPXOPN BPX4OPN
@@ -75,6 +76,7 @@
 #define BPXLST BPX4LST
 #define BPXGGN BPX4GGN
 #define BPXGPN BPX4GPN
+#define BPXRDL BPX4RDL
 
 #else
 
@@ -98,6 +100,7 @@
 #pragma linkage(BPX1LST,OS)
 #pragma linkage(BPX1GGN,OS)
 #pragma linkage(BPX1GPN,OS)
+#pragma linkage(BPX1RDL,OS)
 
 #define BPXRED BPX1RED
 #define BPXOPN BPX1OPN
@@ -119,6 +122,7 @@
 #define BPXLST BPX1LST
 #define BPXGGN BPX1GGN
 #define BPXGPN BPX1GPN
+#define BPXRDL BPX1RDL
 #endif
 
 /* Better compilers need these symbols to be declared as functions */
@@ -142,6 +146,7 @@ int BPXFCT();
 int BPXLST();
 int BPXGGN();
 int BPXGPN();
+int BPXRDL();
 
 #define MAX_ENTRY_BUFFER_SIZE 2550
 #define MAX_NUM_ENTRIES       1000
@@ -905,6 +910,54 @@ int symbolicFileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int
     *returnCode = 0;
     *reasonCode = 0;
   }
+  return returnValue;
+}
+
+int fileReadLink(char *fileName, char *buffer, int bufferSize, int *returnCode, int *reasonCode) {
+  int nameLength = strlen(fileName);
+  int *reasonCodePtr;
+  int returnValue = 0;
+
+#ifndef _LP64
+  reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
+#else
+  reasonCodePtr = reasonCode;
+#endif
+
+  BPXRDL(&nameLength,
+         fileName,
+         &bufferSize,
+         &buffer,
+         &returnValue,
+         returnCode,
+         reasonCodePtr);
+
+  if (fileTrace) {
+    if (returnValue == -1) {
+#ifdef METTLE
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRDL (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+             fileName, returnValue, *returnCode, *reasonCode);
+#else
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRDL (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+             fileName, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
+#endif
+    }
+    else {
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRDL (%s) OK: returnVal: %d\n", fileName, returnValue);
+    }
+  }
+
+  if (returnValue == -1) {
+    return -1;
+  }
+
+  /* Null-terminate the result; returnValue is the number of bytes written */
+  if (returnValue < bufferSize) {
+    buffer[returnValue] = '\0';
+  }
+
+  *returnCode = 0;
+  *reasonCode = 0;
   return returnValue;
 }
 
@@ -1863,14 +1916,14 @@ int fileSetLock(UnixFile *file, int *returnCode, int *reasonCode) {
 #endif
 
   int action = F_SET_LOCK;
-  F_LOCK flockdata;
+  FLock flockdata;
   flockdata.l_type = F_WRITE_LOCK;
   flockdata.l_whence = F_SEEK_SET;
   flockdata.l_start = 0;
   flockdata.l_len = F_WHENCE_TO_END;
   flockdata.l_pid = 0;
 
-  F_LOCK *fnctl_ptr = &flockdata;
+  FLock *fnctl_ptr = &flockdata;
 
   BPXFCT(&file->fd,
          &action,
@@ -1898,14 +1951,14 @@ int fileGetLock(UnixFile *file, int *returnCode, int *reasonCode, int *isLocked)
 #endif
 
   int action = F_GET_LOCK;
-  F_LOCK flockdata;
+  FLock flockdata;
   flockdata.l_type = F_WRITE_LOCK;
   flockdata.l_whence = F_SEEK_SET;
   flockdata.l_start = 0;
   flockdata.l_len = F_WHENCE_TO_END;
   flockdata.l_pid = 0;
 
-  F_LOCK *fnctl_ptr = &flockdata;
+  FLock *fnctl_ptr = &flockdata;
 
   BPXFCT(&file->fd,
          &action,
@@ -1937,14 +1990,14 @@ int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode) {
 #endif
 
   int action = F_SET_LOCK;
-  F_LOCK flockdata;
+  FLock flockdata;
   flockdata.l_type = F_UNLOCK;
   flockdata.l_whence = F_SEEK_SET;
   flockdata.l_start = 0;
   flockdata.l_len = F_WHENCE_TO_END;
   flockdata.l_pid = 0;
 
-  F_LOCK *fnctl_ptr = &flockdata;
+  FLock *fnctl_ptr = &flockdata;
 
   BPXFCT(&file->fd,
          &action,

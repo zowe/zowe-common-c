@@ -136,6 +136,8 @@ typedef struct TlsSettings_tag {
   */
   char *maxTls;
   char *minTls;
+  // certificate label for client connections; when NULL, label is used for both server and client
+  char *clientLabel;
 } TlsSettings;
 
 typedef struct TlsEnvironment_tag {

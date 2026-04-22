@@ -1,5 +1,16 @@
 # Zowe Common C Changelog
 
+## `3.5.0`
+- Enhancement: `TlsSettings` now supports a `clientLabel` field. When set, `tlsSocketInit` uses this label for outbound (client) TLS connections instead of `label`, allowing a separate certificate with a client-only EKU to be used. When `clientLabel` is NULL, `label` continues to be used for both server and client connections as before. [(#590)](https://github.com/zowe/zowe-common-c/pull/590)
+- Bugfix: Set IO error flag in `jsonConvertAndWriteBuffer()` when character conversion or write operations fail, allowing callers to detect and stop processing early. (#590)
+- Bugfix: Schema validation error is not properly formatted for enumerate type. [(#562)](https://github.com/zowe/zowe-common-c/pull/562)
+- Bugfix: fix a typo in the cross-memory server's help text (#565)
+- Enhancement: Move to later version of quickjs (#573)
+- Enhancement: configmgr validation errors now use dot-formatted paths and can detect if a property that's unknown is likely to be at the wrong level of indentation [(#577)](https://github.com/zowe/zowe-common-c/pull/577)
+- Enhancement: file API now returns the boolean "symlink" to state if a file is a symbolic link or not. [(#579)](https://github.com/zowe/zowe-common-c/pull/579)
+- Enhancement: file API now includes the target path of a symlink in the field "symlinkTarget". [(#580)](https://github.com/zowe/zowe-common-c/pull/580)
+- Enhancement: file API's "directory" value for symlinks now corresponds to whether the target is a directory or not. [(#580)](https://github.com/zowe/zowe-common-c/pull/580)
+
 ## `3.4.0`
 - Enhancement: The tcpServer, tcpClient, httpServer and httpClient family of functions now detect and allow use of IPv6 addresses [(#554)](https://github.com/zowe/zowe-common-c/pull/554) [(#539)](https://github.com/zowe/zowe-common-c/pull/539)
 

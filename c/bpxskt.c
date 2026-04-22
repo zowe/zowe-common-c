@@ -436,7 +436,7 @@ int SocketAddress_toString(const SocketAddress *in_socketAddress,
     {
       case AF_INET:
       {
-        const unsigned char* data = &(in_socketAddress->v4Addr[0]);
+        const unsigned char* data = (const unsigned char *)&(in_socketAddress->v4Addr[0]);
         sprintf(tmpbuf, "%d.%d.%d.%d", data[0], data[1], data[2], data[3]);
         required = 1 + strlen(tmpbuf);
         break;
@@ -446,7 +446,7 @@ int SocketAddress_toString(const SocketAddress *in_socketAddress,
       {
         if (SocketAddress_isV4mappable(in_socketAddress)) {
           /* mapped V4 format - take bytes from indexes 12, 13, 14, 15 */
-          const unsigned char* data = &(in_socketAddress->data6.addrData[12]);
+          const unsigned char* data = (const unsigned char *)&(in_socketAddress->data6.addrData[12]);
           sprintf(tmpbuf, "::ffff:%d.%d.%d.%d", data[0], data[1], data[2], data[3]);
           required = 1 + strlen(tmpbuf);
         } else {
@@ -824,7 +824,7 @@ static SocketAddress *makeSocketAddrIPv4(InetAddr *addr,
   SocketAddress *address = (SocketAddress*)safeMalloc31(sizeof(SocketAddress),"SocketAddress");
   memset(address,0,sizeof(SocketAddress));
   if (socketTrace){
-    printf("socket address at 0x%x\n",address);
+    printf("socket address at 0x%p\n",address);
   }
   address->length = 14; /* see SOCK_SIN#LEN in BPXYSOCK */
   address->family = AF_INET;
@@ -833,7 +833,7 @@ static SocketAddress *makeSocketAddrIPv4(InetAddr *addr,
     address->v4Address = addr->data.data4.addrBytes;
   }
   if (socketTrace){
-    printf("makeSocketAddrIPv4: returning socket address at 0x%x\n",address);
+    printf("makeSocketAddrIPv4: returning socket address at 0x%p\n",address);
   }
   return address;
 }
@@ -852,7 +852,7 @@ SocketAddress *makeSocketAddrIPv6(InetAddr *addr, unsigned short port){
   SocketAddress *address = (SocketAddress*)safeMalloc31(sizeof(SocketAddress),"SocketAddress");
   memset(address,0,sizeof(SocketAddress));
   if (socketTrace){
-    printf("socket address at 0x%x\n",address);
+    printf("socket address at 0x%p\n",address);
   }
   address->length = 0; /* BPXYSOCK: "Specifically for AF_INET6, SOCK_LEN can either be defined as zero or SOCK#LEN+SOCK_SIN6#LEN" */
   address->family = AF_INET6;
@@ -866,7 +866,7 @@ SocketAddress *makeSocketAddrIPv6(InetAddr *addr, unsigned short port){
     }
   }
   if (socketTrace){
-    printf("makeSocketAddrIPv6: returning socket address at 0x%x\n",address);
+    printf("makeSocketAddrIPv6: returning socket address at 0x%p\n",address);
   }
   return address;
 }
