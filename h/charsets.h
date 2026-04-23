@@ -57,6 +57,16 @@
  */
 bool isMultiByteCCSID(int ccsid);
 
+/**
+ * Parses an encoding value that may be either a charset name string
+ * (e.g. "IBM-1047", "UTF-8", "binary") or a decimal CCSID integer
+ * string (e.g. "1047", "819", "65535").
+ * Returns the CCSID on success, or -1 if the value cannot be parsed
+ * or is not in the valid range 1-65535.
+ * Note: "binary" / "BINARY" returns CCSID_BINARY (0xFFFF).
+ */
+int parseEncodingValue(const char *value);
+
 #elif defined(__ZOWE_OS_WINDOWS)
 #include <Windows.h>
 /* WINDOWS CCSID's that are not common 
