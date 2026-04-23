@@ -50,6 +50,13 @@
 #define CCSID_UNTAGGED        (short)0x0000
 #define CCSID_BINARY          (short)0xFFFF
 
+/**
+ * Returns TRUE if the given CCSID uses a multi-byte encoding (e.g. UTF-8,
+ * UTF-16, or EBCDIC MIX), and FALSE if it is single-byte.
+ * Returns FALSE for unrecognised or special values (0, -1, 0xFFFF).
+ */
+bool isMultiByteCCSID(int ccsid);
+
 #elif defined(__ZOWE_OS_WINDOWS)
 #include <Windows.h>
 /* WINDOWS CCSID's that are not common 
