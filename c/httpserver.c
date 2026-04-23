@@ -4446,55 +4446,113 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
       
       streamBinaryForFile2(response, NULL, in, ENCODING_CHUNKED, asB64);
     } else {
+      /* Read caller-supplied encoding params. Accept both canonical names
+       * "sourceEncoding"/"targetEncoding" and legacy aliases "source"/"target".
+       * Both accept charset name strings (e.g. "IBM-1047", "UTF-8", "binary",
+       * "auto") and decimal CCSID integers (e.g. "1047", "819").
+       *
+       * Either param may be omitted or set to "auto":
+       *   sourceEncoding absent/auto  -> use the file's CCSID tag (or NATIVE_CODEPAGE if untagged)
+       *   targetEncoding absent/auto  -> use the auto-selected webCodePage
+       * If either is "binary", raw bytes are streamed without conversion. */
+      char *sourceParam = getQueryParam(response->request, "sourceEncoding");
+      char *targetParam = getQueryParam(response->request, "targetEncoding");
+      if (sourceParam == NULL) {
+        sourceParam = getQueryParam(response->request, "source");
+      }
+      if (targetParam == NULL) {
+        targetParam = getQueryParam(response->request, "target");
+      }
+
+      int callerSourceCCSID = 0; /* 0 = auto */
+      int callerTargetCCSID = 0; /* 0 = auto */
+
+      if (sourceParam != NULL && strcasecmp(sourceParam, "auto") != 0) {
+        callerSourceCCSID = parseEncodingValue(sourceParam);
+        if (callerSourceCCSID == -1) {
+          respondWithError(response, HTTP_STATUS_BAD_REQUEST,
+                           "Unsupported or unrecognised sourceEncoding value.");
+          fileClose(in, &returnCode, &reasonCode);
+          return;
+        }
+      }
+      if (targetParam != NULL && strcasecmp(targetParam, "auto") != 0) {
+        callerTargetCCSID = parseEncodingValue(targetParam);
+        if (callerTargetCCSID == -1) {
+          respondWithError(response, HTTP_STATUS_BAD_REQUEST,
+                           "Unsupported or unrecognised targetEncoding value.");
+          fileClose(in, &returnCode, &reasonCode);
+          return;
+        }
+      }
+
       writeHeader(response);
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Streaming %d for %s\n", ccsid, absolutePath);
 
-      /* Choose the target web encoding based on the source file's CCSID.
-         Single-byte source CCSIDs (e.g. IBM-1047, ISO-8859-1) map to
-         ISO-8859-1 (819) since every byte value round-trips cleanly.
-         Multi-byte source CCSIDs (UTF-8, UTF-16, EBCDIC MIX) map to
-         UTF-8 (1208) to preserve characters that cannot be represented
-         in a single-byte encoding. */
-#ifdef __ZOWE_OS_ZOS
+      /* effectiveCCSID: the source CCSID used when sourceEncoding=auto.
+       *
+       * "auto" source resolution is a two-stage process that has already
+       * partially run before we reach this block:
+       *
+       *   Stage 1 (above, via getMimeType2 + the isBinary check):
+       *     The file's CCSID tag and extension are used to determine whether
+       *     the file is binary.  If the tag is -1 (binary tag) or the
+       *     extension implies binary with no overriding text tag, the file
+       *     is streamed as raw bytes and this block is never reached.
+       *
+       *   Stage 2 (here):
+       *     We are in the text path.  The source CCSID is the file's tag
+       *     if one was set (ccsid > 0), or NATIVE_CODEPAGE as a last-resort
+       *     fallback for untagged files (ccsid == 0).  There is no further
+       *     per-extension CCSID guess at this stage; extension-based guessing
+       *     already governed the binary/text decision in Stage 1. */
       int effectiveCCSID = (ccsid == 0) ? NATIVE_CODEPAGE : ccsid;
+
+      /* Choose the target web encoding based on the file's effective CCSID.
+         Single-byte CCSIDs (e.g. IBM-1047, ISO-8859-1) map to ISO-8859-1 (819).
+         Multi-byte CCSIDs (UTF-8, UTF-16, EBCDIC MIX) map to UTF-8 (1208). */
+#ifdef __ZOWE_OS_ZOS
       int webCodePage = isMultiByteCCSID(effectiveCCSID) ? CCSID_UTF_8 : CCSID_ISO_8859_1;
 #elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_WINDOWS)
       int webCodePage = CCSID_UTF_8;
 #else
 #error Unknown OS
 #endif
-    char *forceEnabled = getQueryParam(response->request, "force");
-    if (ccsid == 0 && !strcmp(forceEnabled, "enable")) {
-        char *sourceEncoding = getQueryParam(response->request, "source");
-        char *targetEncoding = getQueryParam(response->request, "target");
-        int sEncoding;
-        int tEncoding;
-        if(sourceEncoding != NULL && targetEncoding != NULL) {
-           int sscanfSource = sscanf(sourceEncoding, "%d", &sEncoding);
-           int sscanfTarget = sscanf(targetEncoding, "%d", &tEncoding);
-           if (sscanfSource != 1 || sscanfTarget != 1) {
-             respondWithError(response, HTTP_STATUS_BAD_REQUEST, "source/target encoding value parsing error.");
-             return;
-           }
-	         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Sending with forced conversion between %d and %d\n", 
-                   sscanfSource, sscanfTarget);
-           streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, sEncoding, tEncoding, asB64);
-        }
-        else {
-          respondWithError(response, HTTP_STATUS_BAD_REQUEST, "force encoding enabled make sure to pass all the requried params");
-          return;
-        }
-    }
-    else if(ccsid == 0) {
-	    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Sending with default conversion between %d and %d\n", 
-              NATIVE_CODEPAGE, webCodePage);
-      streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
-    }
-    else {
-	    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Sending with tagged conversion between %d and %d\n", 
-              ccsid, webCodePage);
-      streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, ccsid, webCodePage, asB64);
-    }
+
+      bool srcIsBinary = (callerSourceCCSID != 0 &&
+                          (unsigned short)callerSourceCCSID == (unsigned short)CCSID_BINARY);
+      bool tgtIsBinary = (callerTargetCCSID != 0 &&
+                          (unsigned short)callerTargetCCSID == (unsigned short)CCSID_BINARY);
+
+      if (srcIsBinary || tgtIsBinary) {
+        /* binary on either side: stream raw bytes without conversion */
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                "Streaming binary (caller-requested) for %s\n", absolutePath);
+        streamBinaryForFile2(response, NULL, in, ENCODING_CHUNKED, asB64);
+      } else if (callerSourceCCSID != 0 && callerTargetCCSID != 0) {
+        /* both explicit: use caller's conversion directly */
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                "Streaming with caller-supplied conversion %d->%d for %s\n",
+                callerSourceCCSID, callerTargetCCSID, absolutePath);
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, callerSourceCCSID, callerTargetCCSID, asB64);
+      } else if (callerSourceCCSID != 0) {
+        /* source explicit, target auto: convert from caller source to webCodePage */
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                "Streaming with caller source %d->webCodePage %d for %s\n",
+                callerSourceCCSID, webCodePage, absolutePath);
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, callerSourceCCSID, webCodePage, asB64);
+      } else if (callerTargetCCSID != 0) {
+        /* source auto, target explicit: use file's CCSID, deliver to caller target */
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                "Streaming with file CCSID %d->caller target %d for %s\n",
+                effectiveCCSID, callerTargetCCSID, absolutePath);
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, effectiveCCSID, callerTargetCCSID, asB64);
+      } else {
+        /* both auto: standard conversion using file's CCSID and auto webCodePage */
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                "Streaming with auto conversion %d->%d for %s\n", effectiveCCSID, webCodePage, absolutePath);
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, effectiveCCSID, webCodePage, asB64);
+      }
 
 #ifdef USE_CONTINUE_RESPONSE_HACK
       /* See comments above */
