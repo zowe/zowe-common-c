@@ -74,6 +74,32 @@ int getCharsetCode(const char *charsetName) {
   }
 }
 
+#if defined(__ZOWE_OS_ZOS) || defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
+
+bool isMultiByteCCSID(int ccsid) {
+  switch (ccsid) {
+    /* Unicode multi-byte encodings */
+    case CCSID_UTF_8:      /* 1208 */
+    case CCSID_UTF_16:     /* 1200 */
+    case CCSID_UTF_16_BE:  /* 1201 */
+    case CCSID_UTF_16_LE:  /* 1202 */
+    /* EBCDIC MIX (SBCS+DBCS) code pages */
+    case 930:   /* IBM930  - EBCDIC MIX Japanese */
+    case 933:   /* IBM933  - EBCDIC MIX Korean */
+    case 935:   /* IBM935  - EBCDIC MIX Simplified Chinese */
+    case 937:   /* IBM937  - EBCDIC MIX Traditional Chinese */
+    case 939:   /* IBM939  - EBCDIC MIX Japanese (Latin extension) */
+    case 1364:  /* IBM1364 - EBCDIC MIX Korean */
+    case 1388:  /* IBM1388 - EBCDIC MIX Simplified Chinese */
+    case 1390:  /* IBM1390 - EBCDIC MIX Japanese */
+    case 1399:  /* IBM1399 - EBCDIC MIX Japanese */
+      return TRUE;
+    default:
+      return FALSE;
+  }
+}
+
+#endif /* z/OS, Linux, AIX */
 
 #ifdef __ZOWE_OS_WINDOWS
 

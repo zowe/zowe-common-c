@@ -4449,29 +4449,20 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
       writeHeader(response);
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Streaming %d for %s\n", ccsid, absolutePath);
 
-      /* TBD: This isn't really an OS dependency, but this is what I had
-         to do to get this working on Linux. The problem is that there really
-         are some of the JavaScript files encoded as UTF-8, that contain characters 
-         outside the set representable ny ISO-8859-1. I'm not sure how this is 
-         working on z/OS; I suspect that the encoding function is more permissive.
-         I think we're going to need:
-
-           * A separate lookaside file on non-z/OS platforms to provide the file
-             encoding information available on z/OS through tagging.
-           * Tagging the files encoded as UTF-8 (using whatever platform-dependent
-             mechanism).
-           * Setting the Content-type header with the appropriate encoding.
-       */
-
-      int webCodePage = 
+      /* Choose the target web encoding based on the source file's CCSID.
+         Single-byte source CCSIDs (e.g. IBM-1047, ISO-8859-1) map to
+         ISO-8859-1 (819) since every byte value round-trips cleanly.
+         Multi-byte source CCSIDs (UTF-8, UTF-16, EBCDIC MIX) map to
+         UTF-8 (1208) to preserve characters that cannot be represented
+         in a single-byte encoding. */
 #ifdef __ZOWE_OS_ZOS
-        CCSID_ISO_8859_1
+      int effectiveCCSID = (ccsid == 0) ? NATIVE_CODEPAGE : ccsid;
+      int webCodePage = isMultiByteCCSID(effectiveCCSID) ? CCSID_UTF_8 : CCSID_ISO_8859_1;
 #elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_WINDOWS)
-        CCSID_UTF_8
+      int webCodePage = CCSID_UTF_8;
 #else
 #error Unknown OS
 #endif
-        ;
     char *forceEnabled = getQueryParam(response->request, "force");
     if (ccsid == 0 && !strcmp(forceEnabled, "enable")) {
         char *sourceEncoding = getQueryParam(response->request, "source");
