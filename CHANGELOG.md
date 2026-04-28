@@ -1,5 +1,10 @@
 # Zowe Common C Changelog
 
+## `3.6.0`
+- Bugfix: `icsfDigestInit` in `icsf.c` contained a typo in the SHA-256 ICSF rule array keyword (`"SHA246"` instead of `"SHA256"`), causing SHA-256 hashing to fail.
+- Bugfix: `ICSFDigest.hash` buffer in `icsf.h` was 32 bytes, too small for SHA-384 (48 bytes) and SHA-512 (64 bytes). Increased to 64 bytes to prevent buffer overflow.
+- Enhancement: Added SHA-3 (Keccak) algorithm support to the ICSF digest wrapper: `ICSF_DIGEST_SHA3_224`, `ICSF_DIGEST_SHA3_256`, `ICSF_DIGEST_SHA3_384`, `ICSF_DIGEST_SHA3_512` with corresponding cases in `icsfDigestInit`, `icsfDigestUpdate`, and `icsfDigestFinish`.
+
 ## `3.5.0`
 - Enhancement: YAML comment preservation tooling for the YAML-to-JSON-to-YAML round-trip pipeline. Comments are scanned separately from libyaml, attached to the JSON tree, and re-emitted with configurable alignment (none, fixed, original). Opt-in; not yet enabled in configmgr. [(#583)](https://github.com/zowe/zowe-common-c/issues/583)
 - Enhancement: `TlsSettings` now supports a `clientLabel` field. When set, `tlsSocketInit` uses this label for outbound (client) TLS connections instead of `label`, allowing a separate certificate with a client-only EKU to be used. When `clientLabel` is NULL, `label` continues to be used for both server and client connections as before. [(#590)](https://github.com/zowe/zowe-common-c/pull/590)
