@@ -398,8 +398,14 @@ char *resolveSymbolBySyscall(const char *inputSymbol, int *rc, int *rsn) {
 //    printf("input '%s', output '%s'\n", below2G->input, below2G->output);
     int outputLen = strlen(below2G->output);
     if (outputLen != 0){
-      char *result = safeMalloc(sizeof(below2G->output), "output");
-      snprintf(result, outputLen+1, "%s", below2G->output);
+      char *result = safeMalloc(outputLen+1, "output");
+      if (result == NULL) {
+        *rc = RESOLVESYMBOL_RETURN_ALLOC_FAILED;
+        FREE_STRUCT31(STRUCT31_NAME(below2G));
+        return NULL;
+      }
+      memcpy(result, below2G->output, outputLen);
+      result[outputLen] = '\0';
       FREE_STRUCT31(STRUCT31_NAME(below2G));
       return result;
     } else{
@@ -462,9 +468,25 @@ char *resolveSymbol(const char *inputSymbol, int *rc, int *rsn) {
 //      printf("Symbol=%.*s\n", entry->symbolLength, currentSymbol);
 
       // extra '.' at end to account for
-      if ((inputLen+1 == entry->symbolLength) && (memcmp(currentSymbol, inputSymbol, inputLen) == 0) && currentSymbol[inputLen]=='.'){
+      if ((inputLen+1 == entry->symbolLength) && (memcmp(currentSymbol, inputSymbol, inputLen) == 0) && currentSymbol[inputLen]=='.') {
+        if (entry->subtextLength == 0) {
+          // symbol is defined but has no value - return empty string
+          char *result = (char*) safeMalloc(1, "subtext");
+          if (result == NULL) {
+            *rc = RESOLVESYMBOL_RETURN_ALLOC_FAILED;
+            return NULL;
+          }
+          result[0] = '\0';
+          return result;
+        }
+        char *subtextSrc = (char*)firstEntry + entry->subtextOffset;
         char *result = (char*) safeMalloc(entry->subtextLength+1, "subtext");
-        snprintf(result, entry->subtextLength+1, "%s", (char*)firstEntry + entry->subtextOffset);
+        if (result == NULL) {
+          *rc = RESOLVESYMBOL_RETURN_ALLOC_FAILED;
+          return NULL;
+        }
+        memcpy(result, subtextSrc, entry->subtextLength);
+        result[entry->subtextLength] = '\0';
         return result;
       }
 
@@ -472,15 +494,36 @@ char *resolveSymbol(const char *inputSymbol, int *rc, int *rsn) {
     } else{
       char *currentSymbol = entry->symbolPtr;
 
+      if (currentSymbol == NULL) {
+        entry = entry+1;
+        continue;
+      }
+
       printf("Symbol=%.*s\n", entry->symbolLength, currentSymbol);
 
 
       // extra '.' at end to account for
-      if ((inputLen+1 == entry->symbolLength) && (memcmp(currentSymbol, inputSymbol, inputLen) == 0) && currentSymbol[inputLen]=='.'){
+      if ((inputLen+1 == entry->symbolLength) && (memcmp(currentSymbol, inputSymbol, inputLen) == 0) && currentSymbol[inputLen]=='.') {
+       if (entry->subtextPtr == NULL || entry->subtextLength == 0) {
+         // symbol is defined but has no value - return empty string
+         char *result = (char*) safeMalloc(1, "subtext");
+         if (result == NULL) {
+           *rc = RESOLVESYMBOL_RETURN_ALLOC_FAILED;
+           return NULL;
+         }
+         result[0] = '\0';
+         return result;
+       }
         char *result = (char*) safeMalloc(entry->subtextLength+1, "subtext");
-        snprintf(result, entry->subtextLength+1, "%s", entry->subtextPtr);
+        if (result == NULL) {
+          *rc = RESOLVESYMBOL_RETURN_ALLOC_FAILED;
+          return NULL;
+        }
+        memcpy(result, entry->subtextPtr, entry->subtextLength);
+        result[entry->subtextLength] = '\0';
         return result;
       }
+      entry = entry+1;
     }
  
      //printf("next entry at 0x%p\n", entry);
