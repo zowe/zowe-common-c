@@ -1,5 +1,8 @@
 # Zowe Common C Changelog
 
+## `2.18.5`
+- Bugfix: Use "%.*s" version of snprintf to stop overreading in 'zosResolveSymbol()' which causes abend.([#595](https://github.com/zowe/zowe-common-c/pull/595))
+
 ## `2.18.3`
 - Bugfix: Fix a leak in the safeFree64Internal by adding free() and protect against rexx variable changes in addConfig ([#556](https://github.com/zowe/zowe-common-c/pull/556))
 
