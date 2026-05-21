@@ -2209,7 +2209,12 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "ReqURI white\n");
         parser->state = HTTP_STATE_REQUEST_GAP2;
       } else{
-        parser->uri[parser->uriLength++] = c;
+        if (parser->uriLength < sizeof(parser->uri) - 1) {
+          parser->uri[parser->uriLength++] = c;
+        } else {
+          parser->httpReasonCode = HTTP_STATUS_URI_TOO_LONG;
+          return 0;
+        }
       }
       break;
     case HTTP_STATE_REQUEST_GAP2:
