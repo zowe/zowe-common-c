@@ -16,6 +16,9 @@ tests/*.asm
 tests/*.o
 tests/*.dbg
 tests/*.lst
+tests/*/*.o
+tests/*/*.dbg
+tests/*/*.lst
 
 # emacs
 *~

@@ -100,7 +100,7 @@ char *getCAA(void){
 #else
   __asm(
       ASM_PREFIX
-      "         LA    %0,0(,12) \n"
+      "         LA    %0,0(,12)\n"
       : "=r"(realCAA)
       :
       :
@@ -154,7 +154,7 @@ char *makeFakeCAA(char *stackArea, int stackSize){
 
   memcpy(fakeCAA+copyStart,realCAA+copyStart,copyEnd-copyStart);
   /* move the top of stack indicator */
-  *((int*)(fakeCAA+0x314)) = (int)(stackArea + stackSize);
+  *((int*)(fakeCAA+0x314)) = (int)(uint64)(stackArea + stackSize);
   return fakeCAA;
 }
 

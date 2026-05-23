@@ -1794,6 +1794,13 @@ void jsonObjectRemoveNode(Json* base, Json* remove) {
 }
 
 static void jsonRemoveNode(Json* base, Json* remove) {
+  if (base == NULL || remove == NULL) {
+    /* No-op on NULL: the traversal in deleteJson can leave parentNode NULL
+     * for inputs that don't resolve to a removable location (empty key,
+     * malformed bracketed path, key with no dots that doesn't match). The
+     * contract of cfgDeleteFromConfiguration is "missing key is a no-op". */
+    return;
+  }
   if (jsonIsObject(base)) {
     jsonObjectRemoveNode(base, remove);
   } else if (jsonIsArray(base)) {

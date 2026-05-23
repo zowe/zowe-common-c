@@ -125,28 +125,7 @@
 #define BPXRDL BPX1RDL
 #endif
 
-/* Better compilers need these symbols to be declared as functions */
-int BPXRED();
-int BPXOPN();
-int BPXWRT();
-int BPXREN();
-int BPXCHR();
-int BPXCHM();
-int BPXCLO();
-int BPXLCO();
-int BPXSTA();
-int BPXUNL();
-int BPXOPD();
-int BPXMKD();
-int BPXRDD();
-int BPXRMD();
-int BPXCLD();
-int BPXUMK();
-int BPXFCT();
-int BPXLST();
-int BPXGGN();
-int BPXGPN();
-int BPXRDL();
+#include "zowe_bpx_prototypes.h"
 
 #define MAX_ENTRY_BUFFER_SIZE 2550
 #define MAX_NUM_ENTRIES       1000
@@ -205,7 +184,7 @@ UnixFile *fileOpen(const char *filename, int options, int mode,
 #endif
 
   BPXOPN(&len,
-         filename,
+         (char*)filename,
          &options,
          &mode,
          &returnValue,
@@ -511,7 +490,7 @@ int fileChangeTagPure(const char *fileName, int *returnCode, int *reasonCode,
   }
 
   BPXCHR(nameLength,
-         fileName,
+         (char*)fileName,
          attributeLength,
          &attributes,
          &returnValue,
@@ -556,7 +535,7 @@ int fileChangeMode(const char *fileName, int *returnCode, int *reasonCode, int m
 #endif
 
   BPXCHM(nameLength,
-         fileName,
+         (char*)fileName,
          mode,
          &returnValue,
          returnCode,
@@ -748,9 +727,9 @@ int fileRename(const char *oldFileName, const char *newFileName, int *returnCode
 #endif
 
   BPXREN(&oldLen,
-         oldFileName,
+         (char*)oldFileName,
          &newLen,
-         newFileName,
+         (char*)newFileName,
          &returnValue,
          returnCode,
          reasonCodePtr);
@@ -793,7 +772,7 @@ int fileDelete(const char *fileName, int *returnCode, int *reasonCode){
 #endif
 
   BPXUNL(&len,
-         fileName,
+         (char*)fileName,
          &returnValue,
          returnCode,
          reasonCodePtr);
@@ -836,7 +815,7 @@ int fileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int *reason
 #endif
 
   BPXSTA(&nameLength,
-         filename,
+         (char*)filename,
          &statsLength,
          stats,
          &returnValue,
@@ -881,7 +860,7 @@ int symbolicFileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int
 #endif
 
   BPXLST(&nameLength,
-         filename,
+         (char*)filename,
          &statsLength,
          stats,
          &returnValue,
@@ -975,7 +954,7 @@ int fileChangeOwner(const char *fileName, int *returnCode, int *reasonCode,
 #endif
 
   BPXLCO(&nameLength,
-         fileName,
+         (char*)fileName,
          usrId,
          grpId,
          &returnValue,
@@ -1069,7 +1048,7 @@ UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonC
 #endif
 
   BPXOPD(&nameLength,
-         directoryName,
+         (char*)directoryName,
          &fd,
          returnCode,
          reasonCodePtr);
@@ -1255,7 +1234,7 @@ int directoryMake(const char *pathName, int mode, int *returnCode, int *reasonCo
   #endif
 
   BPXMKD(&pathLength,
-         pathName,
+         (char*)pathName,
          &mode,
          &returnValue,
          returnCode,
@@ -1306,7 +1285,7 @@ int directoryDelete(const char *pathName, int *returnCode, int *reasonCode){
   #endif
 
   BPXRMD(&pathLength,
-         pathName,
+         (char*)pathName,
          &returnValue,
          returnCode,
          reasonCodePtr);

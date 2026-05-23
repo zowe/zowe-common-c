@@ -13,6 +13,8 @@
 #ifndef __ZOS__
 #define __ZOS__  1
 
+#ifdef __ZOWE_OS_ZOS
+
 #ifdef METTLE
 #include <metal/stdarg.h>
 #else
@@ -1687,7 +1689,9 @@ bool isCallerSRB(void);
  */
 bool isCallerCrossMemory(void);
 
-#endif
+#endif /* __ZOWE_OS_ZOS */
+
+#endif /* __ZOS__ */
 
 
 /*

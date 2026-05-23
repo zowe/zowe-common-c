@@ -244,6 +244,37 @@ static const union {
 #include "//'SYS1.SCUNHF(CUNHC)'"
 #endif
 
+
+/* Open XL (ibm-clang64) does not declare the __troo HLASM translate builtin
+ * in <builtins.h>  its clang path only wires up __stckf. xlclang provided
+ * the full family via #pragma linkage(__troo, builtin). Declare it here so
+ * the symbol resolves at link time against LE's C runtime. */
+#if defined(__ZOWE_COMP_CLANG)
+static int __troo(char *output, char *input, unsigned long inputLength,
+                    char *table, unsigned char testChar,
+                    unsigned char mask) {
+    int cc;
+    unsigned long gr0 = testChar;   /* low byte consumed by hardware */
+    __asm(
+        ASM_PREFIX
+        "         LG    0,%1 \n"        /* The test byte */
+        "         LG    1,%2 \n"        /* The translation table */
+        "         LG    8,%3 \n"        /* output */
+        "         LG    9,%5 \n"        /* input length */
+        "         LG    2,%4 \n"        /* input */
+        "         TROO  8,2,0\n"        /* M3=0: test before xlate */
+        "         BRC   1,*-4\n"        /* CC=3 => partial, retry */
+        "         IPM   15\n"
+        "         SRL   15,28\n"
+        "         ST    15,%0\n"
+        : "=m"(cc)
+        : "m"(gr0),"m"(table),"m"(output),"m"(input),"m"(inputLength)
+        : "cc", "memory");
+    return cc;
+  }
+#endif
+
+
 int convertCharset(char *input, 
                    int inputLength, 
                    int inputCCSID,
