@@ -474,7 +474,7 @@ static void syntaxError(XmlParser *p, char *formatString, ...){
   char buffer[2048];
   va_list argPointer;
   va_start(argPointer,formatString);
-  vsprintf(buffer,formatString,argPointer);
+  vsnprintf(buffer, sizeof(buffer), formatString, argPointer);
   va_end(argPointer);
   
   printf("SYNTAX ERROR line=%d %s\n",(p ? p->lineNumber : -1) ,buffer);
