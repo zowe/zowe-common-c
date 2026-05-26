@@ -461,9 +461,10 @@ static void freeBAOS(ByteArrayOutputStream *baos){
 
 static void writeBAOS(ByteArrayOutputStream *baos, int b){
   if (baos->pos == (BAOS_MAX + baos->extraSize)){
-    printf("PANIC, baos out of room\n");
+    printf("PANIC, baos out of room, position %d\n", baos->pos);
+  } else {
+    baos->bytes[baos->pos++] = (char)b;
   }
-  baos->bytes[baos->pos++] = (char)b;
 }
 
 static void resetBAOS(ByteArrayOutputStream *baos){
