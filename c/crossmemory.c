@@ -1381,9 +1381,14 @@ static bool isCallerAuthorized(CrossMemoryServerGlobalArea *globalArea,
 
   ACEE callerACEE;
   ACEE *callerACEEAddr = NULL;
-  cmGetCallerAddressSpaceACEE(&callerACEE, &callerACEEAddr);
+  /* get ACEE of the current task, in which the caller is running */
+  cmGetCallerTaskACEE(&callerACEE, &callerACEEAddr);
   if (callerACEEAddr == NULL) {
-    return FALSE;
+    /* fallback to the address space ACEE if the task TCB not found */
+    cmGetCallerAddressSpaceACEE(&callerACEE, &callerACEEAddr);
+    if (callerACEEAddr == NULL) {
+        return FALSE;
+    }
   }
   if (memcmp(callerACEE.aceeacee, "ACEE", sizeof(callerACEE.aceeacee))) {
     return FALSE;
