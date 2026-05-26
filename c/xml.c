@@ -1126,6 +1126,10 @@ XMLNode *parseXMLNode(XmlParser *p) {
 	newElement = makeXMLNode(NODE_ELEMENT,idToken->bytes);
 	  
 	if (currentNode != NULL) {
+    if (stackPointer >= NODE_DEPTH_LIMIT) {
+      syntaxError(p, "exceeded node depth limit of %d", NODE_DEPTH_LIMIT);
+      return NULL;
+    }
 	  stack[stackPointer++] = currentNode;
 	  addChild(currentNode,newElement);
 	  currentNode = newElement;
