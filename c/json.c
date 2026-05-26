@@ -172,6 +172,15 @@ void jsonEnablePrettyPrint(jsonPrinter *p) {
   p->prettyPrint = TRUE;
 }
 
+void jsonEnableCommentPrint(jsonPrinter *p) {
+  p->printComments = TRUE;
+}
+
+void jsonSetCommentAlignment(jsonPrinter *p, JsonCommentAlign mode, int padWidth) {
+  p->commentAlignMode = mode;
+  p->commentPadWidth = padWidth;
+}
+
 void freeJsonPrinter(jsonPrinter *p) {
   if (p->_conversionBufferSize > 0) {
     safeFree(p->_conversionBuffer, p->_conversionBufferSize);
@@ -225,6 +234,14 @@ void jsonWriteBufferInternal(jsonPrinter *p, char *text, int len) {
         break;
       }
       bytesWritten += newWriteReturn;
+    }
+  }
+  /* Track currentColumn for comment alignment */
+  for (int i = 0; i < len; i++) {
+    if (text[i] == '\n') {
+      p->currentColumn = 0;
+    } else {
+      p->currentColumn++;
     }
   }
 }
@@ -400,6 +417,7 @@ void jsonConvertAndWriteBuffer(jsonPrinter *p, char *text, size_t len,
       if (newLen < 0) {
         JSONERROR("jsonConvertAndWriteBuffer() error: newLen = %d\n",
                   (int)newLen);
+        jsonSetIOErrorFlag(p);
         return;
       }
       JSON_DEBUG("utf8, len %d:\n", newLen);
@@ -412,6 +430,7 @@ void jsonConvertAndWriteBuffer(jsonPrinter *p, char *text, size_t len,
       if (bytesWritten < 0){
         JSONERROR("jsonConvertAndWriteBuffer() error: bytesWritten = %zd\n",
                 bytesWritten);
+        jsonSetIOErrorFlag(p);
         return;
       }
     } else {
@@ -462,8 +481,47 @@ void jsonNewLine(jsonPrinter *p) {
   } else {
     jsonWrite(p, ",", false, SOURCE_CODE_CHARSET);
   }
+  /* Emit any pending inline comment after the comma, before newline */
+  if (p->printComments && p->pendingInlineComment) {
+    int pad = 1;
+    if (p->commentAlignMode == JSON_COMMENT_ALIGN_FIXED) {
+      int target = (p->commentPadWidth > 0) ? p->commentPadWidth : 40;
+      pad = target - p->currentColumn;
+      if (pad < 1) pad = 1;
+    } else if (p->commentAlignMode == JSON_COMMENT_ALIGN_ORIGINAL) {
+      pad = p->pendingInlineCommentColumn - p->currentColumn;
+      if (pad < 1) pad = 1;
+    }
+    int j;
+    for (j = 0; j < pad; j++) {
+      jsonWrite(p, " ", false, SOURCE_CODE_CHARSET);
+    }
+    jsonWrite(p, "// ", false, SOURCE_CODE_CHARSET);
+    jsonWrite(p, p->pendingInlineComment, false, SOURCE_CODE_CHARSET);
+    p->pendingInlineComment = NULL;
+    p->pendingInlineCommentColumn = 0;
+  }
   if (p->prettyPrint) {
     jsonWrite(p, "\n", false, SOURCE_CODE_CHARSET);
+    if (p->printComments && p->pendingComment) {
+      char *comment = p->pendingComment;
+      char *nl;
+      while ((nl = strchr(comment, '\n')) != NULL) {
+        int lineLen = (int)(nl - comment);
+        jsonIndent(p);
+        jsonWrite(p, "// ", false, SOURCE_CODE_CHARSET);
+        jsonConvertAndWriteBuffer(p, comment, lineLen, false, SOURCE_CODE_CHARSET);
+        jsonWrite(p, "\n", false, SOURCE_CODE_CHARSET);
+        comment = nl + 1;
+      }
+      if (*comment) {
+        jsonIndent(p);
+        jsonWrite(p, "// ", false, SOURCE_CODE_CHARSET);
+        jsonWrite(p, comment, false, SOURCE_CODE_CHARSET);
+        jsonWrite(p, "\n", false, SOURCE_CODE_CHARSET);
+      }
+      p->pendingComment = NULL;
+    }
     jsonIndent(p);
   }
 }
@@ -1527,6 +1585,25 @@ JsonToken *jsonNextToken(JsonParser* parser) {
   }
 
   if (token->type == JSON_TOKEN_LINE_COMMENT || token->type == JSON_TOKEN_BLOCK_COMMENT) {
+    if (parser->retainComments) {
+      /* Buffer the comment text for attachment to the next node.
+         Strip leading whitespace for consistency with YAML-sourced comments. */
+      char *commentText = token->text;
+      while (*commentText == ' ' || *commentText == '\t') commentText++;
+      int commentLen = strlen(commentText);
+      if (parser->pendingBeforeComment == NULL) {
+        parser->pendingBeforeComment = (char*)jsonParserAlloc(parser, commentLen + 1);
+        memcpy(parser->pendingBeforeComment, commentText, commentLen + 1);
+      } else {
+        /* Concatenate with newline separator */
+        int existingLen = strlen(parser->pendingBeforeComment);
+        char *newBuf = (char*)jsonParserAlloc(parser, existingLen + 1 + commentLen + 1);
+        memcpy(newBuf, parser->pendingBeforeComment, existingLen);
+        newBuf[existingLen] = '\n';
+        memcpy(newBuf + existingLen + 1, commentText, commentLen + 1);
+        parser->pendingBeforeComment = newBuf;
+      }
+    }
     token = jsonNextToken(parser);
   }
   jsonValidateToken(parser, token);
@@ -1736,6 +1813,11 @@ void jsonObjectAddProperty(JsonParser *parser, JsonObject *obj, char *key, Json 
     obj->firstProperty = property;
     obj->lastProperty = property;
   }
+  /* Attach any buffered comment from the parser */
+  if (parser->retainComments && parser->pendingBeforeComment) {
+    property->beforeComment = parser->pendingBeforeComment;
+    parser->pendingBeforeComment = NULL;
+  }
 }
 
 JsonProperty *jsonObjectGetFirstProperty(JsonObject *object) {
@@ -1796,6 +1878,11 @@ static void jsonArrayAddElement(JsonParser *parser, JsonArray *arr, Json *elemen
     arr->capacity = newCapacity;
   }
   arr->elements[arr->count++] = element;
+  /* Attach any buffered comment from the parser */
+  if (parser->retainComments && parser->pendingBeforeComment) {
+    element->beforeComment = parser->pendingBeforeComment;
+    parser->pendingBeforeComment = NULL;
+  }
 }
 
 int jsonArrayGetCount(JsonArray *array) {
@@ -1845,6 +1932,12 @@ static Json *jsonGetObject(JsonParser* parser) {
     JsonToken *lookahead = jsonLookaheadToken(parser);
     if (lookahead->type == JSON_TOKEN_STRING) {
       JsonToken *keyToken = jsonMatchToken(parser, JSON_TOKEN_STRING);
+      /* Save any pending comment that belongs to this property (before value parsing steals it) */
+      char *savedComment = NULL;
+      if (parser->retainComments && parser->pendingBeforeComment) {
+        savedComment = parser->pendingBeforeComment;
+        parser->pendingBeforeComment = NULL;
+      }
       JsonToken *colonToken = jsonMatchToken(parser, JSON_TOKEN_COLON);
       if (jsonIsTokenUnmatched(colonToken)) {
         return parser->jsonError;
@@ -1852,6 +1945,10 @@ static Json *jsonGetObject(JsonParser* parser) {
       Json *valueJSON = jsonParse(parser);
       if (jsonIsError(valueJSON)) {
         return parser->jsonError;
+      }
+      /* Restore the saved comment so jsonObjectAddProperty attaches it to this property */
+      if (savedComment) {
+        parser->pendingBeforeComment = savedComment;
       }
       jsonObjectAddProperty(parser, obj, keyToken->text, valueJSON);
       lookahead = jsonLookaheadToken(parser);
@@ -1886,9 +1983,19 @@ static Json *jsonGetArray(JsonParser* parser) {
   while (TRUE) {
     JsonToken *lookahead = jsonLookaheadToken(parser);
     if (lookahead->type != JSON_TOKEN_ARRAY_END) {
+      /* Save any pending comment that belongs to this element */
+      char *savedComment = NULL;
+      if (parser->retainComments && parser->pendingBeforeComment) {
+        savedComment = parser->pendingBeforeComment;
+        parser->pendingBeforeComment = NULL;
+      }
       Json *element = jsonParse(parser);
       if (jsonIsError(element)) {
         return parser->jsonError;
+      }
+      /* Restore the saved comment so jsonArrayAddElement attaches it to this element */
+      if (savedComment) {
+        parser->pendingBeforeComment = savedComment;
       }
       jsonArrayAddElement(parser, arr, element);
       lookahead = jsonLookaheadToken(parser);
@@ -2442,14 +2549,41 @@ void jsonPrintObject(jsonPrinter* printer, JsonObject *object) {
   JsonProperty *property;
 
   for (property = jsonObjectGetFirstProperty(object); property != NULL; property = jsonObjectGetNextProperty(property)) {
+    if (printer->printComments) {
+      const char *bc = jsonPropertyGetBeforeComment(property);
+      if (bc) {
+        printer->pendingComment = (char *)bc;
+      }
+    }
     jsonPrintInternal(printer, jsonPropertyGetKey(property), jsonPropertyGetValue(property));
+    if (printer->printComments) {
+      const char *ic = jsonPropertyGetInlineComment(property);
+      if (ic) {
+        printer->pendingInlineComment = (char *)ic;
+        printer->pendingInlineCommentColumn = jsonPropertyGetInlineCommentColumn(property);
+      }
+    }
   }
 }
 
 void jsonPrintArray(jsonPrinter* printer, JsonArray *array) {
   int i, count = jsonArrayGetCount(array);
   for (i = 0; i < count; i++) {
-    jsonPrintInternal(printer, NULL, jsonArrayGetItem(array, i));
+    Json *element = jsonArrayGetItem(array, i);
+    if (printer->printComments) {
+      const char *bc = jsonGetBeforeComment(element);
+      if (bc) {
+        printer->pendingComment = (char *)bc;
+      }
+    }
+    jsonPrintInternal(printer, NULL, element);
+    if (printer->printComments) {
+      const char *ic = jsonGetInlineComment(element);
+      if (ic) {
+        printer->pendingInlineComment = (char *)ic;
+        printer->pendingInlineCommentColumn = jsonGetInlineCommentColumn(element);
+      }
+    }
   }
 }
 
@@ -2502,6 +2636,22 @@ Json *jsonParseUnterminatedString(ShortLivedHeap *slh, char *jsonString, int len
   return json;
 }
 
+Json *jsonParseUnterminatedStringWithComments(ShortLivedHeap *slh, char *jsonString, int len, char* errorBufferOrNull, int errorBufferSize) {
+  Json *json = NULL;
+  JsonParser *parser = makeJsonParser(slh, jsonString, len);
+  parser->retainComments = 1;
+  json = jsonParse(parser);
+  JsonToken *token = jsonMatchToken(parser, JSON_TOKEN_EOF);
+  if (jsonIsError(json) || jsonIsTokenUnmatched(token)) {
+    json = NULL;
+    if (errorBufferOrNull) {
+      snprintf(errorBufferOrNull, errorBufferSize, "%s", parser->jsonError->data.error->message);
+    }
+  }
+  freeJsonParser(parser);
+  return json;
+}
+
 /*
  * Converts the string from UTF-8 to `outputCCSID` before parsing.
  *
@@ -2537,7 +2687,7 @@ Json *jsonParseUnterminatedUtf8String(ShortLivedHeap *slh, int outputCCSID,
 }
 
 static Json *jsonParseFileInternal(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize,
-                                   int version){
+                                   int version, int retainComments){
   Json *json = NULL;
   int returnCode = 0;
   int reasonCode = 0;
@@ -2557,6 +2707,7 @@ static Json *jsonParseFileInternal(ShortLivedHeap *slh, const char *filename, ch
     fileLen = (int)fileInfoSize(&info);
     JsonParser *parser = makeJsonFileParser(slh, file, fileLen);
     parser->version = version;
+    parser->retainComments = retainComments;
     json = jsonParse(parser);
     JsonToken *token = jsonMatchToken(parser, JSON_TOKEN_EOF);
     if (jsonIsError(json) || jsonIsTokenUnmatched(token)) {
@@ -2576,11 +2727,15 @@ static Json *jsonParseFileInternal(ShortLivedHeap *slh, const char *filename, ch
 }
 
 Json *jsonParseFile(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize){
-  return jsonParseFileInternal(slh,filename,errorBufferOrNull,errorBufferSize,JSON_PARSE_VERSION_1);
+  return jsonParseFileInternal(slh,filename,errorBufferOrNull,errorBufferSize,JSON_PARSE_VERSION_1, 0);
 }
 
 Json *jsonParseFile2(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize){
-  return jsonParseFileInternal(slh,filename,errorBufferOrNull,errorBufferSize,JSON_PARSE_VERSION_2);
+  return jsonParseFileInternal(slh,filename,errorBufferOrNull,errorBufferSize,JSON_PARSE_VERSION_2, 0);
+}
+
+Json *jsonParseFile2WithComments(ShortLivedHeap *slh, const char *filename, char* errorBufferOrNull, int errorBufferSize){
+  return jsonParseFileInternal(slh,filename,errorBufferOrNull,errorBufferSize,JSON_PARSE_VERSION_2, 1);
 }
 
 Json *jsonParseString(ShortLivedHeap *slh, char *jsonString, char* errorBufferOrNull, int errorBufferSize) {
@@ -3138,6 +3293,102 @@ int main(int argc, char *argv[]) {
 }
 
 #endif
+
+/* =====================================================
+   Comment support for YAML round-trip preservation
+   ===================================================== */
+
+void jsonSetInlineComment(Json *json, const char *comment) {
+  if (json) {
+    json->inlineComment = comment ? (char*)comment : NULL;
+  }
+}
+
+void jsonSetBeforeComment(Json *json, const char *comment) {
+  if (json) {
+    json->beforeComment = comment ? (char*)comment : NULL;
+  }
+}
+
+const char *jsonGetInlineComment(Json *json) {
+  return json ? json->inlineComment : NULL;
+}
+
+const char *jsonGetBeforeComment(Json *json) {
+  return json ? json->beforeComment : NULL;
+}
+
+void jsonPropertySetInlineComment(JsonProperty *prop, const char *comment) {
+  if (prop) {
+    prop->inlineComment = comment ? (char*)comment : NULL;
+  }
+}
+
+void jsonPropertySetBeforeComment(JsonProperty *prop, const char *comment) {
+  if (prop) {
+    prop->beforeComment = comment ? (char*)comment : NULL;
+  }
+}
+
+const char *jsonPropertyGetInlineComment(JsonProperty *prop) {
+  return prop ? prop->inlineComment : NULL;
+}
+
+const char *jsonPropertyGetBeforeComment(JsonProperty *prop) {
+  return prop ? prop->beforeComment : NULL;
+}
+
+void jsonObjectSetDocumentComment(JsonObject *obj, const char *comment) {
+  if (obj) {
+    obj->documentComment = comment ? (char*)comment : NULL;
+  }
+}
+
+const char *jsonObjectGetDocumentComment(JsonObject *obj) {
+  return obj ? obj->documentComment : NULL;
+}
+
+void jsonObjectSetTrailerComment(JsonObject *obj, const char *comment) {
+  if (obj) {
+    obj->trailerComment = comment ? (char*)comment : NULL;
+  }
+}
+
+const char *jsonObjectGetTrailerComment(JsonObject *obj) {
+  return obj ? obj->trailerComment : NULL;
+}
+
+void jsonSetYamlScalarStyle(Json *json, int style) {
+  if (json) {
+    json->yamlScalarStyle = style;
+  }
+}
+
+int jsonGetYamlScalarStyle(Json *json) {
+  return json ? json->yamlScalarStyle : 0;
+}
+
+void jsonSetInlineCommentColumn(Json *json, int column) {
+  if (json) {
+    json->inlineCommentColumn = column;
+  }
+}
+
+int jsonGetInlineCommentColumn(Json *json) {
+  return json ? json->inlineCommentColumn : 0;
+}
+
+void jsonPropertySetInlineCommentColumn(JsonProperty *prop, int column) {
+  if (prop) {
+    prop->inlineCommentColumn = column;
+  }
+}
+
+int jsonPropertyGetInlineCommentColumn(JsonProperty *prop) {
+  return prop ? prop->inlineCommentColumn : 0;
+}
+
+
 
 
 /*

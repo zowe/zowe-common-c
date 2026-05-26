@@ -90,6 +90,7 @@ static char *tokenTypeName(yaml_token_type_t type){
       return "UNKNOWN_TOKEN";
     }
   }
+
 }
 
 static char *getScalarStyleName(yaml_scalar_style_t style){
@@ -1106,6 +1107,680 @@ int json2Yaml2File(Json *json, FILE *out){
   yaml_emitter_set_output_file(&emitter, out);
   return emitYaml(&emitter,json);
 }
+
+/* =====================================================================
+   Comment-preserving YAML round-trip support
+   =====================================================================
+
+   Architecture:
+   1. scanYamlComments() reads the raw YAML file line-by-line and
+      extracts comment text with line numbers (native codepage).
+   2. yaml2JSONWithComments() builds the Json tree (via existing yaml2JSON1)
+      then walks the YAML document + Json tree in parallel to attach
+      comments to JsonProperty / Json nodes using start_mark line numbers.
+   3. The custom YAML writer (json2Yaml2BufferWithComments /
+      json2Yaml2FileWithComments) emits YAML text directly (no libyaml
+      emitter) so that it can interleave comment lines.
+   ===================================================================== */
+
+/* ---------- Comment data structures ---------- */
+
+typedef struct YamlComment_tag {
+  int  line;       /* 0-based line number in the source file */
+  char *text;      /* comment body (after '#', trimmed, native encoding) */
+  int  isInline;   /* 1 = after content on same line, 0 = full-line comment */
+  int  column;     /* column of '#' in original line (for alignment) */
+  int  isBlank;    /* 1 = blank line (separator), 0 = comment */
+} YamlComment;
+
+struct YamlCommentList_tag {
+  YamlComment *comments;
+  int count;
+  int capacity;
+};
+
+/* ---------- Comment scanner ---------- */
+
+static void addComment(YamlCommentList *list, int line, const char *text, int isInline, int column, int isBlank) {
+  if (list->count >= list->capacity) {
+    int newCap = list->capacity ? list->capacity * 2 : 64;
+    YamlComment *newArr = (YamlComment*)safeMalloc(newCap * sizeof(YamlComment), "YamlComment array");
+    if (list->comments) {
+      memcpy(newArr, list->comments, list->count * sizeof(YamlComment));
+      safeFree((char*)list->comments, list->capacity * sizeof(YamlComment));
+    }
+    list->comments = newArr;
+    list->capacity = newCap;
+  }
+  YamlComment *c = &list->comments[list->count++];
+  c->line = line;
+  c->isInline = isInline;
+  c->column = column;
+  c->isBlank = isBlank;
+  int len = strlen(text);
+  c->text = safeMalloc(len + 1, "comment text");
+  memcpy(c->text, text, len + 1);
+}
+
+/*
+ * Find the start of a comment on a line.
+ * Returns pointer to the '#' character, or NULL if no comment.
+ * Handles single-quoted and double-quoted strings.
+ */
+static const char *findCommentStart(const char *line) {
+  int inSingle = 0, inDouble = 0;
+  const char *p = line;
+  while (*p) {
+    if (*p == '\'' && !inDouble) {
+      inSingle = !inSingle;
+    } else if (*p == '"' && !inSingle) {
+      inDouble = !inDouble;
+    } else if (*p == '\\' && inDouble && *(p+1)) {
+      p++; /* skip escaped character */
+    } else if (*p == '#' && !inSingle && !inDouble) {
+      /* In YAML, '#' is a comment only if preceded by whitespace or at start of line */
+      if (p == line || *(p-1) == ' ' || *(p-1) == '\t') {
+        return p;
+      }
+    }
+    p++;
+  }
+  return NULL;
+}
+
+/* Trim leading whitespace from a string, return pointer into same buffer */
+static const char *trimLeading(const char *s) {
+  while (*s == ' ' || *s == '\t') s++;
+  return s;
+}
+
+/* Trim trailing whitespace/newline in place */
+static void trimTrailing(char *s) {
+  int len = strlen(s);
+  while (len > 0 && (s[len-1] == ' ' || s[len-1] == '\t' || s[len-1] == '\n' || s[len-1] == '\r')) {
+    s[--len] = '\0';
+  }
+}
+
+YamlCommentList *scanYamlComments(const char *filename) {
+  FILE *fp = fopen(filename, "r");
+  if (!fp) return NULL;
+
+  YamlCommentList *list = (YamlCommentList*)safeMalloc(sizeof(YamlCommentList), "YamlCommentList");
+  memset(list, 0, sizeof(YamlCommentList));
+
+  char lineBuf[4096];
+  int lineNum = 0;
+  while (fgets(lineBuf, sizeof(lineBuf), fp)) {
+    trimTrailing(lineBuf);
+    const char *trimmed = trimLeading(lineBuf);
+
+    if (*trimmed == '#') {
+      /* Full-line comment */
+      const char *body = trimmed + 1;
+      if (*body == ' ') body++;
+      addComment(list, lineNum, body, 0, (int)(trimmed - lineBuf), 0);
+    } else if (*trimmed != '\0') {
+      /* Non-empty, non-comment-only line: check for inline comment */
+      const char *hashPos = findCommentStart(lineBuf);
+      if (hashPos) {
+        const char *body = hashPos + 1;
+        if (*body == ' ') body++;
+        addComment(list, lineNum, body, 1, (int)(hashPos - lineBuf), 0);
+      }
+    }
+    lineNum++;
+  }
+
+  fclose(fp);
+  return list;
+}
+
+void freeYamlComments(YamlCommentList *list) {
+  if (!list) return;
+  for (int i = 0; i < list->count; i++) {
+    if (list->comments[i].text) {
+      safeFree(list->comments[i].text, strlen(list->comments[i].text) + 1);
+    }
+  }
+  if (list->comments) {
+    safeFree((char*)list->comments, list->capacity * sizeof(YamlComment));
+  }
+  safeFree((char*)list, sizeof(YamlCommentList));
+}
+
+/* ---------- Comment lookup helpers ---------- */
+
+/*
+ * Concatenate all full-line comments (isInline==0) whose line numbers
+ * fall in (afterLine, beforeLine).  Returns a safeMalloc'd string with
+ * newline separators, or NULL if none found.
+ */
+static char *gatherBeforeComments(YamlCommentList *list, int afterLine, int beforeLine) {
+  if (!list) return NULL;
+  /* First pass: measure total length */
+  int totalLen = 0;
+  int found = 0;
+  for (int i = 0; i < list->count; i++) {
+    YamlComment *c = &list->comments[i];
+    if (!c->isInline && c->line > afterLine && c->line < beforeLine) {
+      totalLen += strlen(c->text) + 1; /* +1 for newline */
+      found++;
+    }
+  }
+  if (!found) return NULL;
+
+  char *result = safeMalloc(totalLen + 1, "before comments");
+  char *p = result;
+  for (int i = 0; i < list->count; i++) {
+    YamlComment *c = &list->comments[i];
+    if (!c->isInline && c->line > afterLine && c->line < beforeLine) {
+      int len = strlen(c->text);
+      memcpy(p, c->text, len);
+      p += len;
+      *p++ = '\n';
+    }
+  }
+  /* Overwrite last newline with null terminator */
+  if (p > result) {
+    *(p - 1) = '\0';
+  } else {
+    *p = '\0';
+  }
+  return result;
+}
+
+/*
+ * Find the inline comment for a specific line.
+ * Returns pointer to the comment text (owned by the list), or NULL.
+ */
+static char *getInlineCommentForLine(YamlCommentList *list, int line) {
+  if (!list) return NULL;
+  for (int i = 0; i < list->count; i++) {
+    YamlComment *c = &list->comments[i];
+    if (c->isInline && c->line == line) {
+      return c->text;
+    }
+  }
+  return NULL;
+}
+
+/*
+ * Find the inline comment column for a specific line.
+ * Returns the column of '#' in the original source, or 0 if not found.
+ */
+static int getInlineCommentColumnForLine(YamlCommentList *list, int line) {
+  if (!list) return 0;
+  for (int i = 0; i < list->count; i++) {
+    YamlComment *c = &list->comments[i];
+    if (c->isInline && c->line == line) {
+      return c->column;
+    }
+  }
+  return 0;
+}
+
+/*
+ * Find the first full-line comment line number in the file
+ * (used for document-level comment detection).
+ */
+static int getFirstContentLine(YamlCommentList *list) {
+  if (!list || list->count == 0) return 0;
+  /* Return the line number of the first comment, if it's a full-line comment at line 0 */
+  return 0;
+}
+
+/* ---------- Comment attachment ---------- */
+
+/*
+ * Walk the YAML document tree and the Json tree in parallel,
+ * attaching comments from the YamlCommentList to Json nodes.
+ * prevLine tracks the end of the previous sibling for before-comment ranges.
+ */
+static void attachComments(Json *json, yaml_document_t *doc, yaml_node_t *yamlNode,
+                           YamlCommentList *comments, int *prevLine) {
+  if (!json || !yamlNode || !comments) return;
+
+  switch (yamlNode->type) {
+  case YAML_MAPPING_NODE: {
+    JsonObject *obj = jsonAsObject(json);
+    JsonProperty *prop = jsonObjectGetFirstProperty(obj);
+    yaml_node_pair_t *pair = yamlNode->data.mapping.pairs.start;
+
+    while (prop && pair < yamlNode->data.mapping.pairs.top) {
+      yaml_node_t *keyNode = yaml_document_get_node(doc, pair->key);
+      yaml_node_t *valNode = yaml_document_get_node(doc, pair->value);
+      int keyLine = (int)keyNode->start_mark.line;
+
+      /* Before-comments: full-line comments between previous item and this key */
+      char *before = gatherBeforeComments(comments, *prevLine, keyLine);
+      if (before) {
+        jsonPropertySetBeforeComment(prop, before);
+      }
+
+      /* Inline comment: on the key's line (most YAML configs put
+         the value on the same line as the key for scalars) */
+      int inlineLine = keyLine;
+      if (valNode && valNode->type == YAML_SCALAR_NODE) {
+        /* If scalar value is on a different line, use value's line */
+        int valLine = (int)valNode->start_mark.line;
+        if (valLine == keyLine) {
+          inlineLine = keyLine;
+        } else {
+          inlineLine = valLine;
+        }
+      }
+      char *inl = getInlineCommentForLine(comments, inlineLine);
+      if (inl) {
+        jsonPropertySetInlineComment(prop, inl);
+        jsonPropertySetInlineCommentColumn(prop, getInlineCommentColumnForLine(comments, inlineLine));
+      }
+
+      /* Advance prevLine and recurse into non-scalar values */
+      if (valNode) {
+        if (valNode->type == YAML_SCALAR_NODE) {
+          *prevLine = (int)valNode->end_mark.line;
+        } else {
+          /* For the first child inside a mapping/sequence, prevLine is the key line */
+          int childPrev = keyLine;
+          attachComments(jsonPropertyGetValue(prop), doc, valNode, comments, &childPrev);
+          *prevLine = childPrev;
+        }
+      }
+
+      prop = jsonObjectGetNextProperty(prop);
+      pair++;
+    }
+    break;
+  }
+  case YAML_SEQUENCE_NODE: {
+    JsonArray *arr = jsonAsArray(json);
+    int count = jsonArrayGetCount(arr);
+    yaml_node_item_t *item = yamlNode->data.sequence.items.start;
+    int i = 0;
+
+    while (i < count && item < yamlNode->data.sequence.items.top) {
+      yaml_node_t *itemNode = yaml_document_get_node(doc, *item);
+      Json *element = jsonArrayGetItem(arr, i);
+      int itemLine = (int)itemNode->start_mark.line;
+
+      char *before = gatherBeforeComments(comments, *prevLine, itemLine);
+      if (before) {
+        jsonSetBeforeComment(element, before);
+      }
+
+      if (itemNode->type == YAML_SCALAR_NODE) {
+        char *inl = getInlineCommentForLine(comments, itemLine);
+        if (inl) {
+          jsonSetInlineComment(element, inl);
+          jsonSetInlineCommentColumn(element, getInlineCommentColumnForLine(comments, itemLine));
+        }
+        *prevLine = (int)itemNode->end_mark.line;
+      } else {
+        int childPrev = itemLine;
+        attachComments(element, doc, itemNode, comments, &childPrev);
+        *prevLine = childPrev;
+      }
+
+      item++;
+      i++;
+    }
+    break;
+  }
+  default:
+    break;
+  }
+}
+
+/*
+ * Attach the document-level comment (full-line comments at the very
+ * top of the file, before the root node starts).
+ */
+static void attachDocumentComment(Json *json, yaml_document_t *doc, YamlCommentList *comments) {
+  if (!json || !jsonIsObject(json) || !comments) return;
+  yaml_node_t *root = yaml_document_get_root_node(doc);
+  if (!root) return;
+  int rootLine = (int)root->start_mark.line;
+  if (rootLine <= 0) return;
+
+  char *docComment = gatherBeforeComments(comments, -1, rootLine);
+  if (docComment) {
+    JsonObject *obj = jsonAsObject(json);
+    jsonObjectSetDocumentComment(obj, docComment);
+  }
+}
+
+Json *yaml2JSONWithComments(yaml_document_t *document, YamlCommentList *comments, ShortLivedHeap *slh) {
+  /* Build the JSON tree using the existing converter */
+  Json *json = yaml2JSON(document, slh);
+  if (!json || !comments) return json;
+
+  /* Attach comments from the scanned list */
+  yaml_node_t *root = yaml_document_get_root_node(document);
+  if (root) {
+    attachDocumentComment(json, document, comments);
+    int prevLine = (int)root->start_mark.line - 1;
+    attachComments(json, document, root, comments, &prevLine);
+
+    /* Attach trailing comments (after the last node) */
+    if (jsonIsObject(json)) {
+      int lastCommentLine = -1;
+      for (int i = 0; i < comments->count; i++) {
+        if (comments->comments[i].line > lastCommentLine) {
+          lastCommentLine = comments->comments[i].line;
+        }
+      }
+      /* Gather full-line comments after the last content line */
+      char *trailer = gatherBeforeComments(comments, prevLine, lastCommentLine + 1);
+      if (trailer) {
+        jsonObjectSetTrailerComment(jsonAsObject(json), trailer);
+      }
+    }
+  }
+  return json;
+}
+
+/* ---------- Custom YAML writer with comments ---------- */
+
+static void yamlWriteIndent(ByteOutputStream *bos, int indentLevel) {
+  for (int i = 0; i < indentLevel; i++) {
+    bosAppendChar(bos, ' ');
+  }
+}
+
+static void yamlWriteCommentLines(ByteOutputStream *bos, const char *comment, int indentLevel) {
+  if (!comment) return;
+  const char *p = comment;
+  while (*p) {
+    yamlWriteIndent(bos, indentLevel);
+    bosAppendString(bos, "# ");
+    const char *eol = strchr(p, '\n');
+    if (eol) {
+      bosWrite(bos, (char*)p, (int)(eol - p));
+      bosAppendChar(bos, '\n');
+      p = eol + 1;
+    } else {
+      bosAppendString(bos, (char*)p);
+      bosAppendChar(bos, '\n');
+      break;
+    }
+  }
+}
+
+static void yamlWriteInlineComment(ByteOutputStream *bos, const char *comment,
+                                    YamlWriteOptions *opts, int originalColumn) {
+  if (!comment) return;
+  /* Compute actual column from last newline in buffer */
+  int currentColumn = 0;
+  for (int k = bos->size - 1; k >= 0; k--) {
+    if (bos->data[k] == '\n') {
+      currentColumn = bos->size - k - 1;
+      break;
+    }
+    if (k == 0) {
+      currentColumn = bos->size;  /* no newline found, entire buffer is one line */
+    }
+  }
+  if (opts && opts->commentAlignMode == JSON_COMMENT_ALIGN_FIXED) {
+    int target = opts->commentPadWidth > 0 ? opts->commentPadWidth : 40;
+    while (currentColumn < target) {
+      bosAppendChar(bos, ' ');
+      currentColumn++;
+    }
+    bosAppendString(bos, "# ");
+  } else if (opts && opts->commentAlignMode == JSON_COMMENT_ALIGN_ORIGINAL) {
+    /* Restore original column from stored inlineCommentColumn */
+    if (originalColumn > currentColumn) {
+      while (currentColumn < originalColumn) {
+        bosAppendChar(bos, ' ');
+        currentColumn++;
+      }
+      bosAppendString(bos, "# ");
+    } else {
+      bosAppendString(bos, " # ");
+    }
+  } else {
+    bosAppendString(bos, " # ");
+  }
+  bosAppendString(bos, (char*)comment);
+}
+
+/* Forward declaration for recursive calls */
+static void yamlWriteValue(ByteOutputStream *bos, Json *json, int indentLevel, YamlWriteOptions *opts);
+
+static int yamlNeedsQuoting(const char *s) {
+  if (!s || !*s) return 1;
+  /* Check for special YAML values that need quoting */
+  if (!strcmp(s, "true") || !strcmp(s, "false") ||
+      !strcmp(s, "null") || !strcmp(s, "~") ||
+      !strcmp(s, "yes") || !strcmp(s, "no") ||
+      !strcmp(s, "on") || !strcmp(s, "off") ||
+      !strcmp(s, "True") || !strcmp(s, "False") ||
+      !strcmp(s, "TRUE") || !strcmp(s, "FALSE") ||
+      !strcmp(s, "Yes") || !strcmp(s, "No") ||
+      !strcmp(s, "ON") || !strcmp(s, "OFF")) {
+    return 1;
+  }
+  /* Check for characters that need quoting */
+  const char *p = s;
+  if (*p == '-' || *p == '?' || *p == ':' || *p == '{' || *p == '}' ||
+      *p == '[' || *p == ']' || *p == ',' || *p == '&' || *p == '*' ||
+      *p == '#' || *p == '!' || *p == '|' || *p == '>' || *p == '\'' ||
+      *p == '"' || *p == '%' || *p == '@' || *p == '`') {
+    return 1;
+  }
+  while (*p) {
+    if (*p == ':' || *p == '#') return 1;
+    p++;
+  }
+  return 0;
+}
+
+static void yamlWriteScalar(ByteOutputStream *bos, Json *json) {
+  char buf[256];
+  if (jsonIsString(json)) {
+    char *s = jsonAsString(json);
+    if (yamlNeedsQuoting(s)) {
+      bosAppendChar(bos, '"');
+      /* Simple escaping for common cases */
+      char *p = s;
+      while (*p) {
+        if (*p == '"') {
+          bosAppendString(bos, "\\\"");
+        } else if (*p == '\\') {
+          bosAppendString(bos, "\\\\");
+        } else if (*p == '\n') {
+          bosAppendString(bos, "\\n");
+        } else {
+          bosAppendChar(bos, *p);
+        }
+        p++;
+      }
+      bosAppendChar(bos, '"');
+    } else {
+      bosAppendString(bos, s);
+    }
+  } else if (jsonIsInt64(json)) {
+#ifdef __ZOWE_OS_WINDOWS
+    sprintf(buf, "%lld", jsonAsInt64(json));
+#else
+    sprintf(buf, "%ld", jsonAsInt64(json));
+#endif
+    bosAppendString(bos, buf);
+  } else if (jsonIsNumber(json)) {
+    sprintf(buf, "%d", jsonAsNumber(json));
+    bosAppendString(bos, buf);
+  } else if (jsonIsDouble(json)) {
+    sprintf(buf, "%g", jsonAsDouble(json));
+    bosAppendString(bos, buf);
+  } else if (jsonIsBoolean(json)) {
+    bosAppendString(bos, jsonAsBoolean(json) ? "true" : "false");
+  } else if (jsonIsNull(json)) {
+    bosAppendString(bos, "null");
+  }
+}
+
+static void yamlWriteMapping(ByteOutputStream *bos, Json *json, int indentLevel, YamlWriteOptions *opts) {
+  JsonObject *obj = jsonAsObject(json);
+  const char *docComment = jsonObjectGetDocumentComment(obj);
+  if (docComment && indentLevel == 0) {
+    yamlWriteCommentLines(bos, docComment, 0);
+  }
+
+  JsonProperty *prop = jsonObjectGetFirstProperty(obj);
+  while (prop) {
+    const char *beforeComment = jsonPropertyGetBeforeComment(prop);
+    if (beforeComment) {
+      yamlWriteCommentLines(bos, beforeComment, indentLevel);
+    }
+
+    yamlWriteIndent(bos, indentLevel);
+    bosAppendString(bos, jsonPropertyGetKey(prop));
+    bosAppendChar(bos, ':');
+
+    Json *value = jsonPropertyGetValue(prop);
+    if (jsonIsObject(value) || jsonIsArray(value)) {
+      const char *inl = jsonPropertyGetInlineComment(prop);
+      yamlWriteInlineComment(bos, inl, opts, jsonPropertyGetInlineCommentColumn(prop));
+      bosAppendChar(bos, '\n');
+      yamlWriteValue(bos, value, indentLevel + 2, opts);
+    } else {
+      bosAppendChar(bos, ' ');
+      yamlWriteScalar(bos, value);
+      const char *inl = jsonPropertyGetInlineComment(prop);
+      yamlWriteInlineComment(bos, inl, opts, jsonPropertyGetInlineCommentColumn(prop));
+      bosAppendChar(bos, '\n');
+    }
+
+    prop = jsonObjectGetNextProperty(prop);
+  }
+
+  /* Emit trailer comment at root level */
+  if (indentLevel == 0) {
+    const char *trailer = jsonObjectGetTrailerComment(obj);
+    if (trailer) {
+      bosAppendChar(bos, '\n');
+      yamlWriteCommentLines(bos, trailer, 0);
+    }
+  }
+}
+
+static void yamlWriteSequence(ByteOutputStream *bos, Json *json, int indentLevel, YamlWriteOptions *opts) {
+  JsonArray *arr = jsonAsArray(json);
+  int count = jsonArrayGetCount(arr);
+  for (int i = 0; i < count; i++) {
+    Json *element = jsonArrayGetItem(arr, i);
+
+    const char *beforeComment = jsonGetBeforeComment(element);
+    if (beforeComment) {
+      yamlWriteCommentLines(bos, beforeComment, indentLevel);
+    }
+
+    yamlWriteIndent(bos, indentLevel);
+    bosAppendString(bos, "- ");
+
+    if (jsonIsObject(element)) {
+      /* Write first property on same line as '- ', rest indented */
+      JsonObject *obj = jsonAsObject(element);
+      JsonProperty *first = jsonObjectGetFirstProperty(obj);
+      if (first) {
+        const char *bcom = jsonPropertyGetBeforeComment(first);
+        if (bcom) {
+          /* Before-comment for first property goes above the '- ' line.
+             Already printed if it was in the element's beforeComment.
+             For safety, print it here. */
+        }
+        bosAppendString(bos, jsonPropertyGetKey(first));
+        bosAppendChar(bos, ':');
+        Json *fval = jsonPropertyGetValue(first);
+        if (jsonIsObject(fval) || jsonIsArray(fval)) {
+          const char *inl = jsonPropertyGetInlineComment(first);
+          yamlWriteInlineComment(bos, inl, opts, jsonPropertyGetInlineCommentColumn(first));
+          bosAppendChar(bos, '\n');
+          yamlWriteValue(bos, fval, indentLevel + 4, opts);
+        } else {
+          bosAppendChar(bos, ' ');
+          yamlWriteScalar(bos, fval);
+          const char *inl = jsonPropertyGetInlineComment(first);
+          yamlWriteInlineComment(bos, inl, opts, jsonPropertyGetInlineCommentColumn(first));
+          bosAppendChar(bos, '\n');
+        }
+        /* Remaining properties at indentLevel + 2 */
+        JsonProperty *rest = jsonObjectGetNextProperty(first);
+        while (rest) {
+          const char *bc = jsonPropertyGetBeforeComment(rest);
+          if (bc) {
+            yamlWriteCommentLines(bos, bc, indentLevel + 2);
+          }
+          yamlWriteIndent(bos, indentLevel + 2);
+          bosAppendString(bos, jsonPropertyGetKey(rest));
+          bosAppendChar(bos, ':');
+          Json *rv = jsonPropertyGetValue(rest);
+          if (jsonIsObject(rv) || jsonIsArray(rv)) {
+            const char *inl = jsonPropertyGetInlineComment(rest);
+            yamlWriteInlineComment(bos, inl, opts, jsonPropertyGetInlineCommentColumn(rest));
+            bosAppendChar(bos, '\n');
+            yamlWriteValue(bos, rv, indentLevel + 4, opts);
+          } else {
+            bosAppendChar(bos, ' ');
+            yamlWriteScalar(bos, rv);
+            const char *inl = jsonPropertyGetInlineComment(rest);
+            yamlWriteInlineComment(bos, inl, opts, jsonPropertyGetInlineCommentColumn(rest));
+            bosAppendChar(bos, '\n');
+          }
+          rest = jsonObjectGetNextProperty(rest);
+        }
+      } else {
+        /* Empty object as array item */
+        bosAppendString(bos, "{}\n");
+      }
+      /* Inline comment on the array element (the '- ' line) */
+      const char *elemInl = jsonGetInlineComment(element);
+      /* Already written via the first property; skip for now */
+    } else if (jsonIsArray(element)) {
+      bosAppendChar(bos, '\n');
+      yamlWriteValue(bos, element, indentLevel + 2, opts);
+    } else {
+      yamlWriteScalar(bos, element);
+      const char *inl = jsonGetInlineComment(element);
+      yamlWriteInlineComment(bos, inl, opts, jsonGetInlineCommentColumn(element));
+      bosAppendChar(bos, '\n');
+    }
+  }
+}
+
+static void yamlWriteValue(ByteOutputStream *bos, Json *json, int indentLevel, YamlWriteOptions *opts) {
+  if (jsonIsObject(json)) {
+    yamlWriteMapping(bos, json, indentLevel, opts);
+  } else if (jsonIsArray(json)) {
+    yamlWriteSequence(bos, json, indentLevel, opts);
+  } else {
+    yamlWriteIndent(bos, indentLevel);
+    yamlWriteScalar(bos, json);
+    bosAppendChar(bos, '\n');
+  }
+}
+
+int json2Yaml2BufferWithComments(Json *json, char **buffer, int *bufferLen, YamlWriteOptions *opts) {
+  ByteOutputStream *baos = makeByteOutputStream(0x1000);
+  yamlWriteValue(baos, json, 0, opts);
+  *buffer = bosNullTerminateAndUse(baos);
+  *bufferLen = baos->size;
+  bosFree(baos, false);
+  return YAML_SUCCESS;
+}
+
+int json2Yaml2FileWithComments(Json *json, FILE *out, YamlWriteOptions *opts) {
+  char *buffer = NULL;
+  int bufferLen = 0;
+  int status = json2Yaml2BufferWithComments(json, &buffer, &bufferLen, opts);
+  if (status == YAML_SUCCESS && buffer) {
+    fwrite(buffer, 1, bufferLen - 1, out); /* -1 to skip null terminator */
+    safeFree(buffer, bufferLen);
+  }
+  return status;
+}
+
 
 /*
   This program and the accompanying materials are

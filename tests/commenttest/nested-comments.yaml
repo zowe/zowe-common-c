@@ -1,0 +1,32 @@
+# Deep Nesting and Comment Placement
+# This file tests comments at every level of a deeply nested structure.
+
+# Top-level section
+level1:
+  # Second level - indented once
+  level2:
+    # Third level - indented twice
+    level3:
+      # Fourth level - indented three times
+      level4:
+        value: deep             # four levels of nesting
+        flag: true              # deeply nested boolean
+    sibling: neighbor           # back at level 3
+  # Another level-2 key
+  otherBranch:
+    items:
+      # First item in the array
+      - name: alpha             # item 1
+        priority: high          # urgent
+      # Second item
+      - name: beta              # item 2
+        priority: low           # can wait
+      - name: gamma             # item 3
+        # Sub-object in array element
+        tags:
+          - production          # live tag
+          # Staging environments
+          - staging
+          - dev                 # development
+  # Scalars at level 2
+  simpleValue: 42               # the answer
