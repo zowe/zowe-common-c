@@ -937,6 +937,9 @@ XMLToken *getXMLToken(XmlParser *p) {
 	  return makeXMLToken(p,XMLTOKEN_BROKEN);
 	}
       } else if (((char)b == ';') && (p->tokenState == XMLTOKEN_STATE_CHAR)){
+        if (p->charSequencePos >= sizeof(p->charSequence) -1) {
+          return makeXMLToken(p, XMLTOKEN_BROKEN);
+        }
 	p->charSequence[p->charSequencePos] = 0;
 	if (!strcmp(p->charSequence,"&lt")){
 	  writeBAOS(p->tokenBytes,'<');
@@ -951,6 +954,9 @@ XMLToken *getXMLToken(XmlParser *p) {
 	  return makeXMLToken(p,XMLTOKEN_BROKEN);
 	}
       } else if (p->tokenState == XMLTOKEN_STATE_CHAR){
+        if (p->charSequencePos >= sizeof(p->charSequence) - 1) {
+          return makeXMLToken(p, XMLTOKEN_BROKEN);
+        }
 	p->charSequence[p->charSequencePos++] = (char)b;
       } else {
 	writeBAOS(p->tokenBytes,b);
