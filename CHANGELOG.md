@@ -1,7 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
-- Bugfix: When reporting XML error, use `vsnprintf` to print it. [(#???)](https://github.com/zowe/zowe-common-c/pull/???)
+- Bugfix: Various XML updates. [(#598)](https://github.com/zowe/zowe-common-c/pull/598)
 
 ## `3.5.0`
 - Enhancement: YAML comment preservation tooling for the YAML-to-JSON-to-YAML round-trip pipeline. Comments are scanned separately from libyaml, attached to the JSON tree, and re-emitted with configurable alignment (none, fixed, original). Opt-in; not yet enabled in configmgr. [(#583)](https://github.com/zowe/zowe-common-c/issues/583)
