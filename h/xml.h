@@ -168,6 +168,7 @@ void setLineBufferSize(XmlParser *p, int size);
 
 XmlParser *makeXmlStringParser(char *s, int len);
 XMLNode *parseXMLNode(XmlParser *parser);
+void freeXmlParser(XmlParser *p);
 int setXMLParseTrace(int trace);
 int setXMLTrace(int trace);
 XMLToken *getTokenNoWS(XmlParser *parser);

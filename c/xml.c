@@ -52,7 +52,7 @@
 #define TRUE 1
 #define FALSE 0
 
-static int traceXML = TRUE;
+static int traceXML = FALSE;
 
 int setXMLTrace(int trace){
   int was = traceXML;
@@ -96,17 +96,14 @@ static void writeFully(xmlPrinter *p, char *text, int len){
 }
 
 void writeByte(xmlPrinter *p, char c){
-  if (p->isCustom){
-    /* printf("writeByte custom 0x%x \n",p->customWriteByte); */
-    p->customWriteByte(p,c);
-  }
-
   char buffer[4];
   buffer[0] = c;
   int returnCode = 0;
   int reasonCode = 0;
 
-  if (p->isHTTP){
+  if (p->isCustom){
+    p->customWriteByte(p,c);
+  } else if (p->isHTTP){
     long rc;
     unsigned long ullen = 1;
 
@@ -237,8 +234,6 @@ static xmlPrinter *makeXmlPrinterInternal(int isCustom,
   if (xmlDeclaration != NULL){
     xmlPrintInternal(p,xmlDeclaration,strlen(xmlDeclaration),TRUE,TRUE);
   }
-  printf("makeXMLPrinter custom=%d full 0x%p byte 0x%p\n",
-	 p->isCustom,p->customWriteFully,p->customWriteByte);
   return p; 
 }
 
@@ -433,7 +428,7 @@ int xml_main(int argc, char **argv){
 static char *xmlTokenTypeNames[10] = { "broken", "start-open", "end-open", "close", "empty-close", "pcdata", "id", "whitespace",
 				    "attr-equal", "attr-value" };
 
-static int parseTrace = TRUE;
+static int parseTrace = FALSE;
 
 int setXMLParseTrace(int trace){
   int was = parseTrace;
@@ -829,26 +824,67 @@ XMLToken *getXMLToken(XmlParser *p) {
     b = safeRead(p);
     if ((char)b == '/') {
       return makeXMLToken(p,XMLTOKEN_END_OPEN);
+    } else if ((char)b == '?') {
+      /* Processing instruction (e.g. <?xml version="1.0"?>) -- skip to closing ?> */
+      int prev = 0;
+      while (TRUE) {
+        int c2 = safeRead(p);
+        if (c2 == -1) {
+          p->tokenizationFailureReason = "Unterminated processing instruction";
+          return NULL;
+        }
+        if (prev == '?' && (char)c2 == '>') {
+          break;
+        }
+        prev = (char)c2;
+      }
+      return makeXMLToken(p,XMLTOKEN_COMMENT); /* causes getTokenNoWS to skip it */
     } else if ((char)b == '!'){
       b =  safeRead(p);
-      XMLToken *comment = NULL;
-      int badCommentSyntax = TRUE;
       if (b == '-'){
-	b = safeRead(p);
-	if (b == '-'){
-	  badCommentSyntax = FALSE;
-	  comment = readCommentTail(p);
-	}
+        b = safeRead(p);
+        if (b == '-'){
+          XMLToken *comment = readCommentTail(p);
+          if (comment == NULL){
+            p->tokenizationFailureReason = "Bad Comment Termination";
+            return NULL;
+          }
+          return comment;
+        }
+      } else if ((char)b == '[') {
+        /* Check for CDATA section: <![CDATA[ ... ]]> */
+        const char cdataPrefix[] = "CDATA[";
+        int ok = TRUE;
+        int ci;
+        for (ci = 0; ci < 6 && ok; ci++) {
+          int c2 = safeRead(p);
+          if ((char)c2 != cdataPrefix[ci]) ok = FALSE;
+        }
+        if (ok) {
+          /* consume raw content until ]]>, writing bytes to tokenBytes */
+          int prev2 = 0, prev1 = 0;
+          while (TRUE) {
+            int c2 = safeRead(p);
+            if (c2 == -1) {
+              p->tokenizationFailureReason = "Unterminated CDATA section";
+              return NULL;
+            }
+            if (prev2 == ']' && prev1 == ']' && (char)c2 == '>') {
+              /* strip the ]] that were already written */
+              if (p->tokenBytes->pos >= 2) p->tokenBytes->pos -= 2;
+              break;
+            }
+            writeBAOS(p->tokenBytes, c2);
+            prev2 = prev1;
+            prev1 = (char)c2;
+          }
+          XMLToken *cdataToken = makeXMLToken(p, XMLTOKEN_PCDATA);
+          cdataToken->bytes = getBAOSBytes(p, p->tokenBytes);
+          return cdataToken;
+        }
       }
-      if (badCommentSyntax){
-	p->tokenizationFailureReason = "Bad Comment Tag";
-	return NULL;
-      } else if (comment == NULL){
-	p->tokenizationFailureReason = "Bad Comment Termination";
-	return NULL;
-      } else{
-	return comment;
-      }
+      p->tokenizationFailureReason = "Unrecognized <! construct";
+      return NULL;
     } else {
       pushback(p,b);
       XMLToken *tt = makeXMLToken(p,XMLTOKEN_START_OPEN);
@@ -950,6 +986,12 @@ XMLToken *getXMLToken(XmlParser *p) {
 	} else if (!strcmp(p->charSequence,"&amp")){
 	  writeBAOS(p->tokenBytes,'&');
 	  p->tokenState = XMLTOKEN_STATE_NORMAL;
+	} else if (!strcmp(p->charSequence,"&quot")){
+	  writeBAOS(p->tokenBytes,'"');
+	  p->tokenState = XMLTOKEN_STATE_NORMAL;
+	} else if (!strcmp(p->charSequence,"&apos")){
+	  writeBAOS(p->tokenBytes,'\'');
+	  p->tokenState = XMLTOKEN_STATE_NORMAL;
 	} else{
 	  return makeXMLToken(p,XMLTOKEN_BROKEN);
 	}
@@ -988,8 +1030,10 @@ XMLNode *makeXMLNode(int type, char *name) {
   node->type = type;
   node->name = name;
   node->childCount = 0;
+  node->childrenLength = 0;
   node->children = NULL;
   node->attributeCount = 0;
+  node->attributesLength = 0;
   node->attributes = NULL;
   node->nextSibling = NULL;
   node->prevSibling = NULL;
@@ -1005,13 +1049,16 @@ void addChild(XMLNode *node, XMLNode *child) {
     node->childCount = 1;
     node->childrenLength = 4;
   } else if (node->childCount == node->childrenLength) {
-    XMLNode** newChildren = (XMLNode**)safeMalloc(node->childCount * 2 * sizeof(XMLNode*),"XML Node Array Extension");
-    memcpy(newChildren,node->children,node->childCount * sizeof(XMLNode*));
-    safeFree((void*)node->children,node->childCount*sizeof(XMLNode*));
-    newChildren[node->childCount++] = child;
+    int oldCount = node->childCount;
+    int newCapacity = oldCount * 2;
+    XMLNode** newChildren = (XMLNode**)safeMalloc(newCapacity * sizeof(XMLNode*),"XML Node Array Extension");
+    memcpy(newChildren,node->children,oldCount * sizeof(XMLNode*));
+    safeFree((void*)node->children,oldCount * sizeof(XMLNode*));
+    newChildren[oldCount] = child;
     child->parent = node;
+    node->childCount = oldCount + 1;
     node->children = newChildren;
-    node->childrenLength++;
+    node->childrenLength = newCapacity;
   } else {
     node->children[node->childCount++] = child;
     child->parent = node;
@@ -1031,13 +1078,18 @@ void addAttribute(XMLNode *node, char *attrName, char *attrValue) {
     node->attributes[0] = attrNode;
     attrNode->parent = node;
     node->attributeCount = 1;
+    node->attributesLength = 4;
   } else if (node->attributeCount == node->attributesLength) {
-    XMLNode **newAttributes = (XMLNode**)safeMalloc(node->attributeCount * 2 * sizeof(XMLNode*),"XML Attributes Extension");
-    memcpy(newAttributes,node->attributes,node->attributeCount * sizeof(XMLNode*));
-    safeFree((void*)node->attributes,node->attributeCount*sizeof(XMLNode*));
-    newAttributes[node->attributeCount++] = attrNode;
+    int oldCount = node->attributeCount;
+    int newCapacity = oldCount * 2;
+    XMLNode **newAttributes = (XMLNode**)safeMalloc(newCapacity * sizeof(XMLNode*),"XML Attributes Extension");
+    memcpy(newAttributes,node->attributes,oldCount * sizeof(XMLNode*));
+    safeFree((void*)node->attributes,oldCount * sizeof(XMLNode*));
+    newAttributes[oldCount] = attrNode;
     attrNode->parent = node;
+    node->attributeCount = oldCount + 1;
     node->attributes = newAttributes;
+    node->attributesLength = newCapacity;
   } else {
     node->attributes[node->attributeCount++] = attrNode;
     attrNode->parent = node;
@@ -1340,6 +1392,7 @@ char *textFromChildWithTag(XMLNode *node, char *tag){
 
 int intFromChildWithTag(XMLNode *node, char *tag, int *value){
   char *text = textFromChildWithTag(node,tag);
+  if (text == NULL) return 0;
   int len = strlen(text);
   int i;
   int x = 0;
