@@ -92,7 +92,8 @@ int setJwtTrace(int toWhat) {
 static int extractParts(char base64Buf[], int maxParts,
                         char *dparts[],  int pLen[], char *decodedText) {
   char *tokenizer;
-  unsigned int nParts, i = 0;
+  unsigned int nParts;
+  int i = 0;
   char *part;
 
   for (part = strtok_r(base64Buf, ".", &tokenizer);
