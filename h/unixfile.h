@@ -496,6 +496,13 @@ int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode);
 
 #endif
 
+#if defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_MACOSX)
+/* Make the path-length constants available on POSIX hosts too, so portable
+ * code that uses USS_MAX_PATH_LENGTH compiles without a second ifdef. */
+#define USS_MAX_PATH_LENGTH 1023
+#define USS_MAX_FILE_NAME   255
+#endif
+
 #ifndef __LONGNAME__ 
 
 #define fileInfoIsDirectory FNFOISDR 
