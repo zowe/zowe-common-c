@@ -2226,6 +2226,10 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
       } else{
         parser->state = HTTP_STATE_REQUEST_VERSION;
         parser->versionLength = 0;
+        if (parser->versionLength >= sizeof(parser->version) - 1) {
+          parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
+          return 0;
+        }
         parser->version[parser->versionLength++] = c;
       }
       break;
@@ -2233,6 +2237,10 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
       if (isCR){
         parser->state = HTTP_STATE_REQUEST_CR_SEEN;
       } else if (isAsciiPrintable){
+        if (parser->versionLength >= sizeof(parser->version) - 1) {
+          parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
+          return 0;
+        }
         parser->version[parser->versionLength++] = c;
       } else{
         parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
