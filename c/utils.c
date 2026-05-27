@@ -1493,6 +1493,10 @@ ShortLivedHeap *makeShortLivedHeap64(int blockSize, int maxBlocks){
 }
 
 char *SLHAlloc(ShortLivedHeap *slh, int size){
+    return SLHAlloc2(slh, size, false);
+}
+
+char *SLHAlloc2(ShortLivedHeap *slh, int size, bool surpressAbend){
   /* expand for fullword alignment */
   int rem = size & 0x7;
   if (rem != 0){
@@ -1508,8 +1512,10 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
     printf("SLH at 0x%p cannot allocate above block size %d > %d mxbl %d bkct %d bksz %d\n",
 	   slh,size,remainingHeapBytes,slh->maxBlocks,slh->blockCount,slh->blockSize);
     fflush(stdout);
-    char *mem = (char*)0;
-    mem[0] = 13;
+    if (!surpressAbend) {
+        char *mem = (char*)0;
+        mem[0] = 13;
+    }
     return NULL;
   } else if (size > slh->blockSize){
     char *bigBlock = (slh->is64 ? 
@@ -1560,7 +1566,7 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
   data = slh->activeBlock;
   slh->activeBlock += size;
   return (char *)data;
-  }
+}
 
 void SLHFree(ShortLivedHeap *slh){
   ListElt *chain = slh->blockChain;
