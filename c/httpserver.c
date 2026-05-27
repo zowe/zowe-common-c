@@ -2274,6 +2274,10 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
           parser->state = HTTP_STATE_HEADER_GAP1;
         }
       } else if (isAsciiPrintable){
+        if (parser->headerNameLength >= sizeof(parser->headerName) - 1){
+          parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
+          return 0;
+        }
         parser->headerName[parser->headerNameLength++] = c;
       } else{
         parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
