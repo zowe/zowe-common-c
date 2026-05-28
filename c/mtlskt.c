@@ -133,6 +133,8 @@
 
 #endif
 
+#include "zowe_bpx_prototypes.h"
+
 static int socketTrace = 0;
 
 #ifndef Addr_Info
@@ -2198,7 +2200,7 @@ int getLocalHostName(char* inout_hostname,
   else
   {
     BPXHST(AF_INET,
-           inout_hostname_len,
+           (int*)inout_hostname_len,
            inout_hostname,
            &cs_retval,
            returnCode,
