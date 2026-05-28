@@ -790,6 +790,9 @@ XMLToken *readCommentTail(XmlParser *p){
   while (TRUE){
     int b = safeRead(p);
 
+    if (b == -1) { // EOF in comment, bad
+      return NULL;
+    }
     switch (hyphenCount){
     case 0:
       if (b == '-'){
