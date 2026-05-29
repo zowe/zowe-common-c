@@ -1449,8 +1449,10 @@ static void initContextModules(JSContext *ctx, EJSNativeModule **nativeModules, 
   js_init_module_std(ctx, asciiCM_STD);
   js_init_module_os(ctx, asciiCM_OS);
   js_init_module_experiment(ctx, asciiExperiment);
+#ifdef __ZOWE_OS_ZOS
   ejsInitModuleZOS(ctx, asciiZOS);
   ejsInitModuleNet(ctx, asciiNet);
+#endif
   ejsInitModulePOSIX(ctx, asciiPosix);
   ejsInitModuleXPlatform(ctx, asciiXPlatform);
   /* printf("after init experiment\n");*/
@@ -1818,6 +1820,9 @@ typedef struct TemplateEvaluationContext_tag {
   EmbeddedJS *ejs;
   Json *topJson;
   ShortLivedHeap *slh;
+  int markersSeen;       /* "${{ ... }}" markers encountered in this pass */
+  int markersResolved;   /* markers successfully replaced with a value this pass */
+  bool reportErrors;     /* true only on a diagnostic pass after a stall/cap */
 } TemplateEvaluationContext;
 
 static bool evaluationVisitor(void *context, Json *json, Json *parent, char *keyInParent, int indexInParent){
@@ -1826,18 +1831,33 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
     JsonProperty *property;
     TemplateEvaluationContext *evalContext = (TemplateEvaluationContext*)context;
     EmbeddedJS *ejs = evalContext->ejs;
+    evalContext->markersSeen++;
     JsonObject *topObject = jsonAsObject(evalContext->topJson);
+    /* Publish every top-level config property as a JS global so the
+     * template can refer to other config keys. Two corrections vs. the
+     * original implementation:
+     *   1. SKIP a top-level property whose value is itself still an
+     *      unevaluated marker. Publishing the marker object made forward
+     *      references coerce to "[object Object]" via JS string concat.
+     *      Skipping it makes the JS code throw ReferenceError, which we
+     *      catch below and retry on a later pass.
+     *   2. Use jsonToJS1 with hideUnevaluated=true when descending into
+     *      OBJECT values, so nested markers become `undefined` in JS
+     *      rather than being exposed as their raw marker shape.
+     */
     for (property = jsonObjectGetFirstProperty(topObject);
          property != NULL;
          property = jsonObjectGetNextProperty(property)) {
       char *key = jsonPropertyGetKey(property);
       Json *value = jsonPropertyGetValue(property);
-      /* printf ("global object key '%s'\n", key); */
+      if (isZoweUnevaluated(value)) {
+        continue;  /* don't publish unresolved top-level markers */
+      }
       size_t keyLen = strlen(key);
       char convertedKey[keyLen+1];
       snprintf (convertedKey, keyLen + 1, "%.*s", (int)keyLen, key);
       convertFromNative(convertedKey, keyLen);
-      ejsSetGlobalProperty_internal(ejs,convertedKey,ejsJsonToJS_internal(ejs,value));
+      ejsSetGlobalProperty_internal(ejs,convertedKey,jsonToJS1(ejs,value,true /*hideUnevaluated*/));
     }
     Json *sourceValue = jsonObjectGetPropertyValue(object,"source");
     if (sourceValue){
@@ -1846,28 +1866,33 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
       char asciiSource[sourceLen + 1];
       snprintf (asciiSource, sourceLen + 1, "%.*s", (int)sourceLen, source);
       convertFromNative(asciiSource, sourceLen);
-      /* printf("should evaluate: %s\n",source); */
-      
+
       int evalStatus = 0;
       char embedded[] = "<embedded>";
       convertFromNative(embedded, sizeof(embedded));
       JSValue output = ejsEvalBuffer1(ejs,asciiSource,strlen(asciiSource),embedded,0,&evalStatus);
       if (evalStatus){
-        printf("failed to evaluate '%s', status=%d\n",source,evalStatus);
+        /* Eval failed -- most likely a forward reference whose target
+         * is still a marker (and was therefore skipped from globals).
+         * Leave the marker in place; the next iteration pass will
+         * retry once the target is resolved. On the dedicated reporting
+         * pass we surface the error to the user. */
+        if (evalContext->reportErrors) {
+          printf("template evaluator: failed to evaluate '%s', status=%d\n",
+                 source, evalStatus);
+        }
       } else {
-        /* 
-           printf("evaluation succeeded\n");
-           dumpbuffer((char*)&output,sizeof(JSValue));
-        */
         Json *evaluationResult = ejsJSToJson_internal(ejs,output,evalContext->slh);
-        if (evaluationResult){
+        if (evaluationResult && !isZoweUnevaluated(evaluationResult)){
           if (keyInParent){
             setJsonProperty(jsonAsObject(parent),keyInParent,evaluationResult);
           } else {
             setJsonArrayElement(jsonAsArray(parent),indexInParent,evaluationResult);
           }
-        } else {
-          printf("Warning EJS failed to translate eval result JSValue to Json\n");
+          evalContext->markersResolved++;
+        } else if (evalContext->reportErrors) {
+          printf("template evaluator: '%s' returned a value that could not be stored\n",
+                 source);
         }
       }
     }
@@ -1877,20 +1902,57 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
   }
 }
 
+#define MAX_TEMPLATE_PASSES 16
+
 Json *evaluateJsonTemplates(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
-  /* jsonToJS1(ejs,json,false); */
-  TemplateEvaluationContext evalContext;
-  if (jsonIsObject(json)){
-    JsonObject *topObject = jsonAsObject(json);
-      
-    evalContext.ejs = ejs;
-    evalContext.slh = slh;
-    evalContext.topJson = json;
-    visitJSON(json,NULL,NULL,-1,evaluationVisitor,&evalContext);
-    return json;
-  } else {
+  if (!jsonIsObject(json)) {
     return NULL;
   }
+  TemplateEvaluationContext evalContext;
+  evalContext.ejs = ejs;
+  evalContext.slh = slh;
+  evalContext.topJson = json;
+
+  /* Fixed-point iteration. Each pass walks the tree, publishes resolved
+   * top-level keys as JS globals, and tries to evaluate every remaining
+   * marker. Markers whose deps are now resolved become real values; the
+   * rest stay markers and we go around again.
+   *
+   * Termination:
+   *   - markersSeen == 0       -> all done, return the resolved tree
+   *   - markersResolved == 0   -> no progress; cycle or unresolvable ref
+   *   - pass == MAX_PASSES     -> cap hit; cycle or excessive nesting
+   */
+  for (int pass = 0; pass < MAX_TEMPLATE_PASSES; pass++) {
+    evalContext.markersSeen = 0;
+    evalContext.markersResolved = 0;
+    evalContext.reportErrors = false;
+    visitJSON(json,NULL,NULL,-1,evaluationVisitor,&evalContext);
+    if (evalContext.markersSeen == 0) {
+      return json;  /* fully resolved */
+    }
+    if (evalContext.markersResolved == 0) {
+      /* Stalled: every marker still there failed to resolve this pass.
+       * Re-run once with reportErrors=true to surface the failures. */
+      evalContext.markersSeen = 0;
+      evalContext.markersResolved = 0;
+      evalContext.reportErrors = true;
+      visitJSON(json,NULL,NULL,-1,evaluationVisitor,&evalContext);
+      printf("template evaluator: stalled at pass %d with %d unresolved template(s); "
+             "likely circular reference or undefined variable\n",
+             pass + 1, evalContext.markersSeen);
+      return NULL;
+    }
+  }
+  /* Cap hit: very deep chains or a cycle the stall check missed. */
+  evalContext.markersSeen = 0;
+  evalContext.markersResolved = 0;
+  evalContext.reportErrors = true;
+  visitJSON(json,NULL,NULL,-1,evaluationVisitor,&evalContext);
+  printf("template evaluator: hit MAX_TEMPLATE_PASSES=%d with %d unresolved template(s); "
+         "circular or excessively nested reference?\n",
+         MAX_TEMPLATE_PASSES, evalContext.markersSeen);
+  return NULL;
 }
 
 EmbeddedJS *allocateEmbeddedJS(EmbeddedJS *sharedRuntimeEJS /* can be NULL */){

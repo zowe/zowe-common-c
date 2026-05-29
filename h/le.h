@@ -356,7 +356,7 @@ RLETask *makeRLETask(RLEAnchor *anchor,
 
 void deleteRLETask(RLETask *task);
 
-void initRLEEnvironment();
+void initRLEEnvironment(RLEAnchor *anchor);
 void termRLEEnvironment();
 
 char *makeFakeCAA(char *stackArea, int stackSize);

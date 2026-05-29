@@ -20,7 +20,14 @@
 #endif // USE_RS_SSL
 
 #include <stdbool.h>
+#ifdef __ZOWE_OS_ZOS
 #include <gskssl.h>
+#else
+/* Stub so struct fields and function prototypes referencing gsk_handle
+ * still parse on non-z/OS hosts. The real gsk API only exists on z/OS via
+ * GSK SSL; non-z/OS builds cannot link or call these entry points. */
+typedef void *gsk_handle;
+#endif
 
 typedef struct TlsSettings_tag {
   // certificate collection, one of:
