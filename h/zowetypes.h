@@ -161,8 +161,10 @@ no ifdef means XLC LE on ZOS, and everything else.  This is effectively our "def
 #endif /* __MVS__ __IBMC__ */
 
 
-/* new clang on ZOS cases */
-#if defined(__MVS__) && defined(__clang__) && (defined (_LP64) || defined (_ILP32))
+/* new clang on ZOS cases - ibm-clang64 (Open XL) only, NOT legacy xlclang.
+ * xlclang sets both __IBMC__ and __clang__, so the plain __clang__ check is
+ * ambiguous; __ibmxl__ is defined under xlclang and absent under ibm-clang64. */
+#if defined(__MVS__) && defined(__clang__) && !defined(__ibmxl__) && (defined (_LP64) || defined (_ILP32))
 
 #define __ZOWE_OS_ZOS
 #define __ZOWE_ARCH_Z
@@ -195,8 +197,10 @@ no ifdef means XLC LE on ZOS, and everything else.  This is effectively our "def
  #endif
 #endif /* AIX */
 
-/* Base Macros for GCC, which is usually Linux or Unix, but Z,P and X architectures can use GCC so analysis is more complex */
-#if defined(__GNUC__) && !defined(__clang__)
+/* Base Macros for GCC-compatible frontends (gcc and clang) on non-z/OS hosts.
+ * clang defines __GNUC__ for source-compat, so testing __GNUC__ alone catches
+ * both. z/OS compilers are handled by the __MVS__ blocks above. */
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__MVS__)
 
 #ifdef _LP64
 #define __ZOWE_64
@@ -212,7 +216,9 @@ no ifdef means XLC LE on ZOS, and everything else.  This is effectively our "def
 #if defined(__x86_64__) || defined(__amd64__)
 /* proven to be GCC for x86-64, but are we linux? - anyway assume linux for now. */
 
+#ifndef __ZOWE_OS_LINUX
 #define __ZOWE_OS_LINUX
+#endif
 
 #elif defined(__powerpc__)
 
@@ -221,12 +227,16 @@ no ifdef means XLC LE on ZOS, and everything else.  This is effectively our "def
 #ifdef _AIX
 #define __ZOWE_OS_AIX
 #else  /* could this be i-series, too?? */
+#ifndef __ZOWE_OS_LINUX
 #define __ZOWE_OS_LINUX
+#endif
 #endif
 
 #else /* of architecture if-then-else */
 
+#ifndef __ZOWE_OS_LINUX
 #define __ZOWE_OS_LINUX    /* Z Linux */
+#endif
 
 #endif /* end of architecture if-then-else */
 

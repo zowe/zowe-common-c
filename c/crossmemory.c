@@ -5152,6 +5152,8 @@ static bool isModulePrivate(void) {
 #define BPXQDB BPX1QDB
 #endif
 
+#include "zowe_bpx_prototypes.h"
+
 static bool isDubStatusOk(int *status, int *bpxRC, int *bpxRSN) {
 
   const int dubFailRC = 4; /* QDB_DUB_MAY_FAIL */
