@@ -46,7 +46,7 @@ int startPDSIterator(PDSIterator *iterator, char *pdsName){
   char filenameBuffer[50];
   memset(iterator,0,sizeof(PDSIterator));
 
-  snprintf(filenameBuffer,sizeof(filenameBuffer), "//'%s'",pdsName);
+  snprintf(filenameBuffer, sizeof(filenameBuffer), "//'%s'", pdsName);
   iterator->in = fopen(filenameBuffer,"rb");
   if (iterator->in){
     iterator->posInBlock = 0;
@@ -149,7 +149,7 @@ void listDirectory(char *pdsName){
   int blockCount = 0;
   int lastBlock = 0;
 
-  snprintf(filenameBuffer, sizeof(filenameBuffer), "//'%s'",pdsName);
+  snprintf(filenameBuffer, sizeof(filenameBuffer), "//'%s'", pdsName);
   in = fopen(filenameBuffer,"rb");
    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "fopen in=0x%x errno=%d\n",in,errno);
   while (!feof(in) && !lastBlock){
@@ -201,7 +201,7 @@ StringList *getPDSMembers(char *pdsName){
   ShortLivedHeap *slh = makeShortLivedHeap(65536,100);
   StringList *list = makeStringList(slh);
 
-  snprintf(filenameBuffer, sizeof(filenameBuffer), "//'%s'",pdsName);
+  snprintf(filenameBuffer, sizeof(filenameBuffer), "//'%s'", pdsName);
   in = fopen(filenameBuffer,"rb");
    zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "fopen in=0x%x errno=%d\n",in);
   if (in == 0){
