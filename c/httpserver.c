@@ -5515,7 +5515,7 @@ static void upgradeToWebSocket(HttpConversation *conversation,
          (webSocketVersion != NULL ? webSocketVersion->nativeValue : "<n/a>"),
          (origin != NULL ? origin->nativeValue : "<n/a>"));
   
-  if (webSocketVersion == NULL || webSocketVersion->nativeValue == NULL || strcmp(webSocketVersion->nativeValue, "13") != 0) {
+  if (!headerMatch(webSocketVersion,"13")){
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "WebSocket version\n");
     respondWithError(response,HTTP_STATUS_BAD_REQUEST,"bad web socket version");
     // Response is finished on return
