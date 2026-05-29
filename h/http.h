@@ -195,8 +195,6 @@ char *copyStringToNative(ShortLivedHeap *slh, char *s, int len);
 char* destructivelyNativize(char *s);
 void asciify(char *s, int len);
 
-int headerMatch(HttpHeader *header, char *s);
-
 char *toASCIIUTF8(char *buffer, int len);
 
 int writeFully(Socket *socket, char *buffer, int len);
