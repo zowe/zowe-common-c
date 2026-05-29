@@ -149,6 +149,10 @@ char* destructivelyNativize(char *s)
 #endif
 }
 
+int headerMatch(HttpHeader *header, char *s){
+  return !strcmp(header->nativeValue,s);
+}
+
 #ifdef __ZOWE_OS_ZOS
 static const char* iso8859_1_Table = (const char*) 0;
 #endif
