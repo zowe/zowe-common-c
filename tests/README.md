@@ -51,14 +51,80 @@ third-party libraries.
 ### Lifecycle
 
 ```
-zoweTestInit()  -- called once in main() before any DESCRIBE block
-DESCRIBE(...)   -- one or more named suites
-ZOWE_TEST_REPORT() -- prints the summary and returns an exit code
+zoweTestInit()           -- called once in main() before any DESCRIBE block
+zoweTestParseArgs(argc, argv)  -- parse CLI options (optional, after init)
+DESCRIBE(...)            -- one or more named suites
+ZOWE_TEST_REPORT()       -- prints the summary and returns an exit code
 ```
 
 Calling `ZOWE_TEST_REPORT()` as the return value of `main()` means the process
 exits with code `0` when all tests pass and `1` when any test fails. This
 integrates naturally with `make` and CI pipelines.
+
+### Command-Line Arguments
+
+The framework supports CLI arguments parsed via `zoweTestParseArgs()`:
+
+```c
+int main(int argc, char *argv[]) {
+  zoweTestInit();
+  zoweTestParseArgs(argc, argv);
+  /* ... DESCRIBE blocks ... */
+  return ZOWE_TEST_REPORT();
+}
+```
+
+| Argument | Description |
+|----------|-------------|
+| `--filter <pattern>` | Only run tests whose suite or test name contains `<pattern>` (case-insensitive) |
+| `--color` | Force colorized ANSI output |
+| `--no-color` | Disable colorized output |
+| `--junit <path>` | Write JUnit XML report to `<path>` |
+| `--leaks` | Enable memory leak detection |
+
+**Environment variables** (checked automatically by `zoweTestInit()`):
+
+| Variable | Description |
+|----------|-------------|
+| `ZOWE_TEST_JUNIT_XML` | JUnit XML output path (same as `--junit`) |
+| `ZOWE_TEST_FILTER` | Filter pattern (same as `--filter`) |
+| `NO_COLOR` | If set, disables color (respects [no-color.org](https://no-color.org/)) |
+| `CI` | If set, enables color even without a TTY (CI environments) |
+
+**Examples:**
+
+```sh
+# Run only tests related to "hashtable"
+./collectionstest --filter hashtable
+
+# Run with leak detection and JUnit output
+./jsontest --leaks --junit results/json.xml
+
+# Run without color (e.g., piping to a file)
+./xmltest --no-color > output.txt
+
+# Filter via environment variable
+ZOWE_TEST_FILTER="base64" ./utilstest
+```
+
+### Colorized Output
+
+The framework automatically detects TTY support and produces ANSI-colored
+output:
+
+- **Green ✓** — passing tests
+- **Red ✗** — failing tests (with file:line and assertion message)
+- **Yellow -** — skipped tests
+- **Bold** — suite names and report header
+- **Dim** — assertion counts and metadata
+
+Color is auto-enabled when:
+1. stdout is a TTY, OR
+2. The `CI` environment variable is set
+
+Color is disabled when:
+1. `NO_COLOR` environment variable is set, OR
+2. `--no-color` is passed on the command line
 
 ### `DESCRIBE` and `DESCRIBE_END`
 

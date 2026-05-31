@@ -17,21 +17,54 @@
 #include <stdbool.h>
 #include <setjmp.h>
 #include <time.h>
+#include <ctype.h>
+
+#ifndef _WIN32
+#include <unistd.h>  /* isatty() on POSIX */
+#endif
 
 /*
  * Prevent the leak-wrap macros from redefining safeMalloc/safeFree inside
  * this translation unit — we call the REAL versions here.
  */
+#ifndef ZOWE_TEST_NO_LEAK_WRAP
 #define ZOWE_TEST_NO_LEAK_WRAP
+#endif
 
 #include "zowetests.h"
+
+#ifndef ZOWE_TEST_FRAMEWORK_ONLY
 #include "logging.h"
+#endif
 
 /* The single global test context instance */
 ZoweTestContext zoweTestCtx;
 
+/* Forward declarations for internal helpers */
+static bool _isTTY(void);
+static const char *_green(void);
+static const char *_red(void);
+static const char *_yellow(void);
+static const char *_cyan(void);
+static const char *_bold(void);
+static const char *_dim(void);
+static const char *_reset(void);
+
 void zoweTestInit(void) {
   memset(&zoweTestCtx, 0, sizeof(ZoweTestContext));
+
+  /*
+   * Auto-detect color support: enable if stdout is a TTY and NO_COLOR
+   * environment variable is not set (respects https://no-color.org/).
+   */
+  if (_isTTY() && getenv("NO_COLOR") == NULL) {
+    zoweTestCtx.colorEnabled = true;
+  }
+
+  /* CI environments: also check CI=true which forces no-TTY but we still want color */
+  if (getenv("CI") != NULL && getenv("NO_COLOR") == NULL) {
+    zoweTestCtx.colorEnabled = true;
+  }
 
   /*
    * Check environment variable for JUnit output path.
@@ -41,6 +74,14 @@ void zoweTestInit(void) {
     strncpy(zoweTestCtx.junitOutputPath, junitEnv, sizeof(zoweTestCtx.junitOutputPath) - 1);
     zoweTestCtx.junitOutputPath[sizeof(zoweTestCtx.junitOutputPath) - 1] = '\0';
     zoweTestCtx.junitEnabled = true;
+  }
+
+  /*
+   * Check environment variable for filter pattern.
+   */
+  const char *filterEnv = getenv("ZOWE_TEST_FILTER");
+  if (filterEnv != NULL && filterEnv[0] != '\0') {
+    zoweTestSetFilter(filterEnv);
   }
 
   /*
@@ -54,8 +95,10 @@ void zoweTestInit(void) {
    * return immediately without producing any output.  Tests that want
    * log output can configure components after calling zoweTestInit().
    */
+#ifndef ZOWE_TEST_FRAMEWORK_ONLY
   LoggingContext *lctx = makeLoggingContext();
   logConfigureStandardDestinations(lctx);
+#endif
 }
 
 void zoweTestEnableJUnit(const char *outputPath) {
@@ -70,6 +113,142 @@ void zoweTestEnableLeakDetection(void) {
   zoweTestCtx.leakDetector.enabled = true;
 }
 
+/* ============================================================
+ *  Color output helpers
+ * ============================================================ */
+
+static bool _isTTY(void) {
+#ifdef _WIN32
+  /* On Windows, check if stdout is a console */
+  return _isatty(_fileno(stdout)) != 0;
+#elif defined(__ZOWE_OS_ZOS)
+  /* z/OS USS terminals support ANSI if the TERM is set */
+  return (getenv("TERM") != NULL);
+#else
+  return isatty(STDOUT_FILENO) != 0;
+#endif
+}
+
+void zoweTestEnableColor(void) {
+  zoweTestCtx.colorEnabled = true;
+}
+
+void zoweTestDisableColor(void) {
+  zoweTestCtx.colorEnabled = false;
+}
+
+static const char *_green(void) {
+  return zoweTestCtx.colorEnabled ? ZOWE_TEST_COLOR_GREEN : "";
+}
+
+static const char *_red(void) {
+  return zoweTestCtx.colorEnabled ? ZOWE_TEST_COLOR_RED : "";
+}
+
+static const char *_yellow(void) {
+  return zoweTestCtx.colorEnabled ? ZOWE_TEST_COLOR_YELLOW : "";
+}
+
+static const char *_cyan(void) {
+  return zoweTestCtx.colorEnabled ? ZOWE_TEST_COLOR_CYAN : "";
+}
+
+static const char *_bold(void) {
+  return zoweTestCtx.colorEnabled ? ZOWE_TEST_COLOR_BOLD : "";
+}
+
+static const char *_dim(void) {
+  return zoweTestCtx.colorEnabled ? ZOWE_TEST_COLOR_DIM : "";
+}
+
+static const char *_reset(void) {
+  return zoweTestCtx.colorEnabled ? ZOWE_TEST_COLOR_RESET : "";
+}
+
+/* ============================================================
+ *  Filter support
+ * ============================================================ */
+
+void zoweTestSetFilter(const char *pattern) {
+  if (pattern != NULL && pattern[0] != '\0') {
+    strncpy(zoweTestCtx.filterPattern, pattern, ZOWE_TEST_FILTER_MAX - 1);
+    zoweTestCtx.filterPattern[ZOWE_TEST_FILTER_MAX - 1] = '\0';
+    zoweTestCtx.filterEnabled = true;
+  }
+}
+
+/* Case-insensitive substring search */
+static bool _strcasestr(const char *haystack, const char *needle) {
+  if (needle == NULL || needle[0] == '\0') return true;
+  if (haystack == NULL) return false;
+
+  int hLen = (int)strlen(haystack);
+  int nLen = (int)strlen(needle);
+
+  for (int i = 0; i <= hLen - nLen; i++) {
+    bool match = true;
+    for (int j = 0; j < nLen; j++) {
+      if (tolower((unsigned char)haystack[i + j]) != tolower((unsigned char)needle[j])) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return true;
+  }
+  return false;
+}
+
+bool _zoweTestShouldSkipByFilter(void) {
+  if (!zoweTestCtx.filterEnabled) {
+    return false;
+  }
+  /* Match against suite name OR test name (case-insensitive) */
+  if (_strcasestr(zoweTestCtx.suiteName, zoweTestCtx.filterPattern)) {
+    return false; /* Suite matches — run all tests in it */
+  }
+  if (_strcasestr(zoweTestCtx.testName, zoweTestCtx.filterPattern)) {
+    return false; /* Test name matches */
+  }
+  return true; /* No match — skip */
+}
+
+void _zoweTestItFiltered(void) {
+  zoweTestCtx.inTest = false;
+  zoweTestCtx.totalFiltered++;
+  /* Don't call afterEach — test body was never entered */
+}
+
+/* ============================================================
+ *  CLI argument parsing
+ * ============================================================ */
+
+int zoweTestParseArgs(int argc, char *argv[]) {
+  int consumed = 0;
+
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "--filter") == 0 && i + 1 < argc) {
+      zoweTestSetFilter(argv[i + 1]);
+      i++;
+      consumed += 2;
+    } else if (strcmp(argv[i], "--no-color") == 0) {
+      zoweTestDisableColor();
+      consumed++;
+    } else if (strcmp(argv[i], "--color") == 0) {
+      zoweTestEnableColor();
+      consumed++;
+    } else if (strcmp(argv[i], "--junit") == 0 && i + 1 < argc) {
+      zoweTestEnableJUnit(argv[i + 1]);
+      i++;
+      consumed += 2;
+    } else if (strcmp(argv[i], "--leaks") == 0) {
+      zoweTestEnableLeakDetection();
+      consumed++;
+    }
+  }
+
+  return consumed;
+}
+
 void _zoweTestDescribeBegin(const char *name) {
   strncpy(zoweTestCtx.suiteName, name, ZOWE_TEST_SUITE_NAME_MAX - 1);
   zoweTestCtx.suiteName[ZOWE_TEST_SUITE_NAME_MAX - 1] = '\0';
@@ -81,14 +260,14 @@ void _zoweTestDescribeBegin(const char *name) {
   zoweTestCtx.beforeEach = NULL;
   zoweTestCtx.afterEach = NULL;
 
-  printf("\n  %s\n", name);
+  printf("\n  %s%s%s\n", _bold(), name, _reset());
 }
 
 void _zoweTestDescribeEnd(void) {
-  printf("\n    %d passing, %d failing, %d skipped (%d assertion%s)\n",
-      zoweTestCtx.suitePassed,
-      zoweTestCtx.suiteFailed,
-      zoweTestCtx.suiteSkipped,
+  printf("\n    %s%d passing%s, %s%d failing%s, %s%d skipped%s (%d assertion%s)\n",
+      _green(), zoweTestCtx.suitePassed, _reset(),
+      zoweTestCtx.suiteFailed > 0 ? _red() : _dim(), zoweTestCtx.suiteFailed, _reset(),
+      zoweTestCtx.suiteSkipped > 0 ? _yellow() : _dim(), zoweTestCtx.suiteSkipped, _reset(),
       zoweTestCtx.suiteAssertionCount,
       zoweTestCtx.suiteAssertionCount == 1 ? "" : "s");
 
@@ -151,17 +330,22 @@ void _zoweTestItPassed(void) {
   leaks = _zoweTestLeakCheck();
 
   if (leaks > 0) {
-    printf("    (/) %s (%d assertion%s) [WARNING: %d leak(s), %d bytes]\n",
+    printf("    %s✓%s %s (%d assertion%s) %s[WARNING: %d leak(s), %d bytes]%s\n",
+        _green(), _reset(),
         zoweTestCtx.testName,
         zoweTestCtx.assertionCount,
         zoweTestCtx.assertionCount == 1 ? "" : "s",
+        _yellow(),
         zoweTestCtx.leakDetector.leaksDetected,
-        zoweTestCtx.leakDetector.bytesLeaked);
+        zoweTestCtx.leakDetector.bytesLeaked,
+        _reset());
   } else {
-    printf("    (/) %s (%d assertion%s)\n",
+    printf("    %s✓%s %s %s(%d assertion%s)%s\n",
+        _green(), _reset(),
         zoweTestCtx.testName,
-        zoweTestCtx.assertionCount,
-        zoweTestCtx.assertionCount == 1 ? "" : "s");
+        _dim(), zoweTestCtx.assertionCount,
+        zoweTestCtx.assertionCount == 1 ? "" : "s",
+        _reset());
   }
 
   _zoweTestRecordResult(ZOWE_TEST_STATUS_PASSED);
@@ -178,16 +362,18 @@ void _zoweTestItFailed(void) {
   zoweTestCtx.suiteFailed++;
   zoweTestCtx.suiteAssertionCount += zoweTestCtx.assertionCount;
 
-  printf("    (X) %s\n", zoweTestCtx.testName);
-  printf("        %s:%d\n", zoweTestCtx.failureFile, zoweTestCtx.failureLine);
-  printf("        AssertionError: %s\n", zoweTestCtx.failureMessage);
+  printf("    %s✗ %s%s\n", _red(), zoweTestCtx.testName, _reset());
+  printf("        %s%s:%d%s\n", _dim(), zoweTestCtx.failureFile, zoweTestCtx.failureLine, _reset());
+  printf("        %sAssertionError: %s%s\n", _red(), zoweTestCtx.failureMessage, _reset());
 
   /* Check for memory leaks */
   leaks = _zoweTestLeakCheck();
   if (leaks > 0) {
-    printf("        [WARNING: %d leak(s), %d bytes]\n",
+    printf("        %s[WARNING: %d leak(s), %d bytes]%s\n",
+        _yellow(),
         zoweTestCtx.leakDetector.leaksDetected,
-        zoweTestCtx.leakDetector.bytesLeaked);
+        zoweTestCtx.leakDetector.bytesLeaked,
+        _reset());
   }
 
   _zoweTestRecordResult(ZOWE_TEST_STATUS_FAILED);
@@ -207,8 +393,8 @@ void _zoweTestItSkipped(void) {
   zoweTestCtx.suiteSkipped++;
   zoweTestCtx.suiteAssertionCount += zoweTestCtx.assertionCount;
 
-  printf("    (-) %s (skipped: %s)\n",
-      zoweTestCtx.testName, zoweTestCtx.skipMessage);
+  printf("    %s- %s (skipped: %s)%s\n",
+      _yellow(), zoweTestCtx.testName, zoweTestCtx.skipMessage, _reset());
 
   _zoweTestRecordResult(ZOWE_TEST_STATUS_SKIPPED);
 
@@ -276,23 +462,35 @@ int _zoweTestFinalReport(void) {
   int i;
 
   printf("\n");
-  printf("  ======================================\n");
-  printf("  Test Results\n");
-  printf("  ======================================\n");
+  printf("  %s======================================%s\n", _bold(), _reset());
+  printf("  %sTest Results%s\n", _bold(), _reset());
+  printf("  %s======================================%s\n", _bold(), _reset());
   printf("  Total:   %d\n", total);
-  printf("  Passing: %d\n", zoweTestCtx.totalPassed);
-  printf("  Failing: %d\n", zoweTestCtx.totalFailed);
-  printf("  Skipped: %d\n", zoweTestCtx.totalSkipped);
+  printf("  %sPassing: %d%s\n", _green(), zoweTestCtx.totalPassed, _reset());
+  if (zoweTestCtx.totalFailed > 0) {
+    printf("  %sFailing: %d%s\n", _red(), zoweTestCtx.totalFailed, _reset());
+  } else {
+    printf("  Failing: 0\n");
+  }
+  if (zoweTestCtx.totalSkipped > 0) {
+    printf("  %sSkipped: %d%s\n", _yellow(), zoweTestCtx.totalSkipped, _reset());
+  } else {
+    printf("  Skipped: 0\n");
+  }
+  if (zoweTestCtx.filterEnabled && zoweTestCtx.totalFiltered > 0) {
+    printf("  %sFiltered: %d (pattern: \"%s\")%s\n",
+        _dim(), zoweTestCtx.totalFiltered, zoweTestCtx.filterPattern, _reset());
+  }
 
   if (zoweTestCtx.coveredFunctionCount > 0) {
-    printf("\n  Functions exercised by these tests (%d):\n",
-        zoweTestCtx.coveredFunctionCount);
+    printf("\n  %sFunctions exercised by these tests (%d):%s\n",
+        _cyan(), zoweTestCtx.coveredFunctionCount, _reset());
     for (i = 0; i < zoweTestCtx.coveredFunctionCount; i++) {
       printf("    - %s\n", zoweTestCtx.coveredFunctions[i]);
     }
   }
 
-  printf("  ======================================\n");
+  printf("  %s======================================%s\n", _bold(), _reset());
 
   /* Write JUnit XML if enabled */
   if (zoweTestCtx.junitEnabled) {

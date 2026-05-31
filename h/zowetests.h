@@ -82,9 +82,19 @@
 #define ZOWE_TEST_COVERED_FUNCTION_NAME_MAX 128
 #define ZOWE_TEST_MAX_RESULTS 1024
 #define ZOWE_TEST_MAX_ALLOC_ENTRIES 4096
+#define ZOWE_TEST_FILTER_MAX 256
 
 /* JUnit XML output environment variable name */
 #define ZOWE_TEST_JUNIT_ENV "ZOWE_TEST_JUNIT_XML"
+
+/* ANSI color escape codes for terminal output */
+#define ZOWE_TEST_COLOR_RESET   "\033[0m"
+#define ZOWE_TEST_COLOR_GREEN   "\033[32m"
+#define ZOWE_TEST_COLOR_RED     "\033[31m"
+#define ZOWE_TEST_COLOR_YELLOW  "\033[33m"
+#define ZOWE_TEST_COLOR_CYAN    "\033[36m"
+#define ZOWE_TEST_COLOR_BOLD    "\033[1m"
+#define ZOWE_TEST_COLOR_DIM     "\033[2m"
 
 /**
  * \brief Status enum for a completed test case result.
@@ -187,6 +197,14 @@ typedef struct ZoweTestContext_tag {
 
   /* Memory leak detection */
   ZoweTestLeakDetector leakDetector;
+
+  /* Filter pattern for --filter CLI argument (substring match) */
+  char filterPattern[ZOWE_TEST_FILTER_MAX];
+  bool filterEnabled;
+  int totalFiltered; /* count of tests skipped by filter */
+
+  /* Colorized output control */
+  bool colorEnabled;
 } ZoweTestContext;
 
 /** The single global test context. Defined in zowetests.c. */
@@ -214,6 +232,38 @@ void zoweTestEnableJUnit(const char *outputPath);
  */
 void zoweTestEnableLeakDetection(void);
 
+/**
+ * \brief Parses command-line arguments for framework options.
+ *
+ * Recognized arguments:
+ *   --filter <pattern>    Only run tests whose DESCRIBE or IT name contains <pattern>
+ *   --no-color            Disable ANSI color output
+ *   --color               Force ANSI color output (default when TTY detected)
+ *   --junit <path>        Enable JUnit XML output to <path>
+ *
+ * Call after zoweTestInit() and before any DESCRIBE block.
+ * Returns the number of args consumed (for forwarding remaining args).
+ */
+int zoweTestParseArgs(int argc, char *argv[]);
+
+/**
+ * \brief Sets a substring filter. Only tests matching this pattern will run.
+ *
+ * Both DESCRIBE suite names and IT test names are matched (case-insensitive).
+ * Tests that don't match are silently skipped (not counted as skipped).
+ */
+void zoweTestSetFilter(const char *pattern);
+
+/**
+ * \brief Enables colorized ANSI terminal output.
+ */
+void zoweTestEnableColor(void);
+
+/**
+ * \brief Disables colorized output.
+ */
+void zoweTestDisableColor(void);
+
 /* Internal functions used only by the macros below. Callers should not invoke these directly. */
 void _zoweTestDescribeBegin(const char *name);
 void _zoweTestDescribeEnd(void);
@@ -232,6 +282,10 @@ void _zoweTestLeakTrackFree(void *ptr, int size);
 int _zoweTestLeakCheck(void);
 void _zoweTestLeakReset(void);
 void _zoweTestWriteJUnitXML(void);
+
+/* Filter support — used internally by the IT macro */
+bool _zoweTestShouldSkipByFilter(void);
+void _zoweTestItFiltered(void);
 
 /* ============================================================
  *  Mocha-style structural macros
@@ -279,9 +333,15 @@ void _zoweTestWriteJUnitXML(void);
  * If an ASSERT_* macro fails inside this block, execution immediately jumps
  * to the corresponding IT_END and the test is recorded as failed. All code
  * after the failing assertion within the block is skipped.
+ *
+ * If a filter is active (--filter), tests whose name does not match are
+ * silently skipped without being counted.
  */
 #define IT(name) \
   _zoweTestItBegin(name); \
+  if (_zoweTestShouldSkipByFilter()) { \
+    _zoweTestItFiltered(); \
+  } else \
   { int _zoweJmpVal_ = setjmp(zoweTestCtx.assertJumpBuf); \
   if (_zoweJmpVal_ == 0) {
 
