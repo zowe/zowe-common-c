@@ -43,7 +43,7 @@ jobs:
         working-directory: tests
         run: |
           if [ ! -d libyaml ]; then
-            git clone --depth 1 https://github.com/nicholasgasior/libyaml.git
+            git clone --depth 1 https://github.com/yaml/libyaml.git
           fi
 
       - name: Build and run JSON tests
@@ -153,7 +153,7 @@ jobs:
         working-directory: tests
         run: |
           if [ ! -d libyaml ]; then
-            git clone --depth 1 https://github.com/nicholasgasior/libyaml.git
+            git clone --depth 1 https://github.com/yaml/libyaml.git
           fi
 
       - name: Build and run JSON tests
