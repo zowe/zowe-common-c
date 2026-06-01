@@ -242,6 +242,32 @@ no ifdef means XLC LE on ZOS, and everything else.  This is effectively our "def
 
 #endif /* end of GCC-specific analysis */
 
+/* Base Macros for Clang on Linux/macOS (non-z/OS, non-AIX) */
+#if defined(__clang__) && !defined(__MVS__) && !defined(_AIX) && !defined(_MSC_VER)
+
+#ifndef __ZOWE_64
+#ifdef _LP64
+#define __ZOWE_64
+#else
+#define __ZOWE_32
+#endif
+#endif
+
+#ifndef ZOWE_PRAGMA_PACK
+#define ZOWE_PRAGMA_PACK  _Pragma ( "pack(push,1)" )
+#define ZOWE_PRAGMA_PACK_RESET  _Pragma ( "pack(pop)" )
+#endif
+
+#ifndef __ZOWE_OS_LINUX
+#if defined(__APPLE__)
+#define __ZOWE_OS_MACOS
+#else
+#define __ZOWE_OS_LINUX
+#endif
+#endif
+
+#endif /* end of Clang on Linux/macOS */
+
 /* Long external names are OK for all platforms except z/OS */
 #ifndef __ZOWE_OS_ZOS
 #ifndef __LONGNAME__ 
