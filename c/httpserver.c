@@ -1654,7 +1654,11 @@ static HttpServer *makeSecureHttpServerInner(STCBase *base, int port,
   server->config = (HttpServerConfig*)safeMalloc31(sizeof(HttpServerConfig),"HttpServerConfig");
   server->properties = htCreate(4001,stringHash,stringCompare,NULL,NULL);
   memset(server->config,0,sizeof(HttpServerConfig));
-  int64 now = getFineGrainedTime();
+  int64 now;
+  int icsfReason = 0;
+  if (icsfGenerateRandomNumber(&now, sizeof(now), &icsfReason) != 0) {
+    now = getFineGrainedTime();
+  }
   server->config->sessionTokenKeySize = sizeof (now);
   memcpy(&server->config->sessionTokenKey[0], &now, sizeof (now));
   server->config->httpRequestHeapMaxBlocks = HTTP_REQUEST_HEAP_DEFAULT_BLOCKS;
