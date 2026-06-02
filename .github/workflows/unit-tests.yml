@@ -1,0 +1,257 @@
+name: Unit Tests
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+on:
+  push:
+    branches:
+      - v3.x/staging
+      - v3.x/master
+      - v3.x/rc
+      - test/tests
+      - test/tests2
+  pull_request:
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+
+env:
+  # Force color output in CI (GitHub Actions supports ANSI)
+  CI: true
+  FORCE_COLOR: 1
+
+jobs:
+  unit-tests-linux:
+    name: Unit Tests (Linux x86_64)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential ${{ matrix.compiler }}
+
+      - name: Clone test dependencies (libyaml)
+        working-directory: tests
+        run: |
+          if [ ! -d libyaml ]; then
+            git clone --depth 1 https://github.com/yaml/libyaml.git
+          fi
+
+      - name: Build and run JSON tests
+        working-directory: tests
+        env:
+          CC: ${{ matrix.compiler }}
+          ZOWE_TEST_JUNIT_XML: results/jsontest-${{ matrix.compiler }}.xml
+        run: |
+          mkdir -p results
+          $CC -I../h -I../platform/posix -D__ZOWE_OS_LINUX \
+              -o jsontest \
+              unit/json/jsontest.c \
+              ../c/zowetests.c \
+              ../c/json.c \
+              ../c/alloc.c \
+              ../c/utils.c \
+              ../c/collections.c \
+              ../c/charsets.c \
+              ../c/xlate.c \
+              ../c/xlate_tables.c \
+              ../c/timeutls.c \
+              ../c/logging.c \
+              ../platform/posix/psxregex.c \
+              ../platform/posix/psxfile.c \
+              -lm
+          ./jsontest --color
+
+      - name: Build and run XML tests
+        working-directory: tests
+        env:
+          CC: ${{ matrix.compiler }}
+          ZOWE_TEST_JUNIT_XML: results/xmltest-${{ matrix.compiler }}.xml
+        run: |
+          $CC -I../h -I../platform/posix -D__ZOWE_OS_LINUX \
+              -o xmltest \
+              unit/xml/xmltest.c \
+              ../c/zowetests.c \
+              ../c/xml.c \
+              ../c/alloc.c \
+              ../c/utils.c \
+              ../c/collections.c \
+              ../c/charsets.c \
+              ../c/xlate.c \
+              ../c/xlate_tables.c \
+              ../c/timeutls.c \
+              ../c/logging.c \
+              ../platform/posix/psxfile.c \
+              -lm
+          ./xmltest --color
+
+      - name: Build and run YAML2JSON tests
+        working-directory: tests
+        env:
+          CC: ${{ matrix.compiler }}
+          ZOWE_TEST_JUNIT_XML: results/yaml2jsontest-${{ matrix.compiler }}.xml
+        run: |
+          # Build libyaml objects
+          for src in api reader scanner parser loader writer emitter dumper; do
+            $CC -Ilibyaml/include -I../h -I../platform/posix -D__ZOWE_OS_LINUX \
+                -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 \
+                -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 \
+                -c libyaml/src/$src.c -o libyaml_$src.o
+          done
+          # Build test
+          $CC -Ilibyaml/include -I../h -I../platform/posix -D__ZOWE_OS_LINUX \
+              -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 \
+              -DYAML_VERSION_STRING=\"0.2.5\" -DYAML_DECLARE_STATIC=1 \
+              -o yaml2jsontest \
+              unit/yaml2json/yaml2jsontest.c \
+              ../c/zowetests.c \
+              ../c/yaml2json.c \
+              ../c/json.c \
+              ../c/alloc.c \
+              ../c/utils.c \
+              ../c/collections.c \
+              ../c/charsets.c \
+              ../c/xlate.c \
+              ../c/xlate_tables.c \
+              ../c/timeutls.c \
+              ../c/logging.c \
+              ../platform/posix/psxregex.c \
+              ../platform/posix/psxfile.c \
+              libyaml_*.o \
+              -lm
+          ./yaml2jsontest --color
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-linux-${{ matrix.compiler }}
+          path: tests/results/*.xml
+
+      - name: Publish test report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Test Results (Linux ${{ matrix.compiler }})
+          path: tests/results/*.xml
+          reporter: java-junit
+          fail-on-error: true
+
+  unit-tests-macos:
+    name: Unit Tests (macOS)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Clone test dependencies (libyaml)
+        working-directory: tests
+        run: |
+          if [ ! -d libyaml ]; then
+            git clone --depth 1 https://github.com/yaml/libyaml.git
+          fi
+
+      - name: Build and run JSON tests
+        working-directory: tests
+        env:
+          CC: clang
+          ZOWE_TEST_JUNIT_XML: results/jsontest-macos.xml
+        run: |
+          mkdir -p results
+          clang -I../h -I../platform/posix -D__ZOWE_OS_LINUX \
+              -o jsontest \
+              unit/json/jsontest.c \
+              ../c/zowetests.c \
+              ../c/json.c \
+              ../c/alloc.c \
+              ../c/utils.c \
+              ../c/collections.c \
+              ../c/charsets.c \
+              ../c/xlate.c \
+              ../c/xlate_tables.c \
+              ../c/timeutls.c \
+              ../c/logging.c \
+              ../platform/posix/psxregex.c \
+              ../platform/posix/psxfile.c \
+              -lm
+          ./jsontest --color
+
+      - name: Build and run XML tests
+        working-directory: tests
+        env:
+          ZOWE_TEST_JUNIT_XML: results/xmltest-macos.xml
+        run: |
+          clang -I../h -I../platform/posix -D__ZOWE_OS_LINUX \
+              -o xmltest \
+              unit/xml/xmltest.c \
+              ../c/zowetests.c \
+              ../c/xml.c \
+              ../c/alloc.c \
+              ../c/utils.c \
+              ../c/collections.c \
+              ../c/charsets.c \
+              ../c/xlate.c \
+              ../c/xlate_tables.c \
+              ../c/timeutls.c \
+              ../c/logging.c \
+              ../platform/posix/psxfile.c \
+              -lm
+          ./xmltest --color
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-macos
+          path: tests/results/*.xml
+
+      - name: Publish test report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Test Results (macOS)
+          path: tests/results/*.xml
+          reporter: java-junit
+          fail-on-error: true
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests-linux, unit-tests-macos]
+    if: always()
+
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          path: all-results
+          pattern: test-results-*
+
+      - name: Summary
+        run: |
+          echo "## Unit Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          total_files=$(find all-results -name "*.xml" | wc -l)
+          echo "JUnit XML reports collected: $total_files" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          # Quick pass/fail summary from XML files
+          for f in $(find all-results -name "*.xml" | sort); do
+            name=$(basename "$f" .xml)
+            tests=$(grep -o 'tests="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+            failures=$(grep -o 'failures="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+            if [ "$failures" = "0" ]; then
+              echo "- ✅ **$name**: $tests tests passed" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ❌ **$name**: $failures/$tests failed" >> $GITHUB_STEP_SUMMARY
+            fi
+          done

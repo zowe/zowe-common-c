@@ -18,6 +18,7 @@
 #include <setjmp.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <time.h>
 
 /** \file
  *  \brief zowetests.h is a simple, mocha-inspired unit test framework for C on z/OS.
@@ -79,6 +80,65 @@
 #define ZOWE_TEST_FAILURE_FILE_MAX 256
 #define ZOWE_TEST_MAX_COVERED_FUNCTIONS 512
 #define ZOWE_TEST_COVERED_FUNCTION_NAME_MAX 128
+#define ZOWE_TEST_MAX_RESULTS 1024
+#define ZOWE_TEST_MAX_ALLOC_ENTRIES 4096
+#define ZOWE_TEST_FILTER_MAX 256
+
+/* JUnit XML output environment variable name */
+#define ZOWE_TEST_JUNIT_ENV "ZOWE_TEST_JUNIT_XML"
+
+/* ANSI color escape codes for terminal output */
+#define ZOWE_TEST_COLOR_RESET   "\033[0m"
+#define ZOWE_TEST_COLOR_GREEN   "\033[32m"
+#define ZOWE_TEST_COLOR_RED     "\033[31m"
+#define ZOWE_TEST_COLOR_YELLOW  "\033[33m"
+#define ZOWE_TEST_COLOR_CYAN    "\033[36m"
+#define ZOWE_TEST_COLOR_BOLD    "\033[1m"
+#define ZOWE_TEST_COLOR_DIM     "\033[2m"
+
+/**
+ * \brief Status enum for a completed test case result.
+ */
+typedef enum {
+  ZOWE_TEST_STATUS_PASSED  = 0,
+  ZOWE_TEST_STATUS_FAILED  = 1,
+  ZOWE_TEST_STATUS_SKIPPED = 2
+} ZoweTestStatus;
+
+/**
+ * \brief Stores the result of a single IT block for JUnit reporting.
+ */
+typedef struct ZoweTestResult_tag {
+  char suiteName[ZOWE_TEST_SUITE_NAME_MAX];
+  char testName[ZOWE_TEST_CASE_NAME_MAX];
+  ZoweTestStatus status;
+  char failureMessage[ZOWE_TEST_FAILURE_MSG_MAX];
+  char failureFile[ZOWE_TEST_FAILURE_FILE_MAX];
+  int failureLine;
+  int assertionCount;
+  double durationSec;
+} ZoweTestResult;
+
+/**
+ * \brief A single allocation tracking entry for leak detection.
+ */
+typedef struct ZoweTestAllocEntry_tag {
+  void *ptr;
+  int size;
+  const char *site;
+  bool freed;
+} ZoweTestAllocEntry;
+
+/**
+ * \brief Leak detection state tracked per IT block.
+ */
+typedef struct ZoweTestLeakDetector_tag {
+  bool enabled;
+  ZoweTestAllocEntry entries[ZOWE_TEST_MAX_ALLOC_ENTRIES];
+  int entryCount;
+  int leaksDetected;
+  int bytesLeaked;
+} ZoweTestLeakDetector;
 
 /**
  * \brief Internal context for an active test run. Do not access members directly.
@@ -127,6 +187,24 @@ typedef struct ZoweTestContext_tag {
   /* Functional coverage tracking */
   char coveredFunctions[ZOWE_TEST_MAX_COVERED_FUNCTIONS][ZOWE_TEST_COVERED_FUNCTION_NAME_MAX];
   int coveredFunctionCount;
+
+  /* JUnit XML output */
+  ZoweTestResult results[ZOWE_TEST_MAX_RESULTS];
+  int resultCount;
+  char junitOutputPath[512];
+  bool junitEnabled;
+  clock_t testStartTime;
+
+  /* Memory leak detection */
+  ZoweTestLeakDetector leakDetector;
+
+  /* Filter pattern for --filter CLI argument (substring match) */
+  char filterPattern[ZOWE_TEST_FILTER_MAX];
+  bool filterEnabled;
+  int totalFiltered; /* count of tests skipped by filter */
+
+  /* Colorized output control */
+  bool colorEnabled;
 } ZoweTestContext;
 
 /** The single global test context. Defined in zowetests.c. */
@@ -136,6 +214,55 @@ extern ZoweTestContext zoweTestCtx;
  * \brief Initializes the test context. Must be called once before any DESCRIBE block.
  */
 void zoweTestInit(void);
+
+/**
+ * \brief Enables JUnit XML output to the specified file path.
+ *
+ * Call after zoweTestInit() but before any DESCRIBE block. If path is NULL,
+ * the framework checks the ZOWE_TEST_JUNIT_XML environment variable.
+ */
+void zoweTestEnableJUnit(const char *outputPath);
+
+/**
+ * \brief Enables memory leak detection for subsequent test cases.
+ *
+ * When enabled, the framework tracks allocations made via safeMalloc/safeFree
+ * during each IT block and reports any unfreed memory as a test warning.
+ * Call after zoweTestInit().
+ */
+void zoweTestEnableLeakDetection(void);
+
+/**
+ * \brief Parses command-line arguments for framework options.
+ *
+ * Recognized arguments:
+ *   --filter <pattern>    Only run tests whose DESCRIBE or IT name contains <pattern>
+ *   --no-color            Disable ANSI color output
+ *   --color               Force ANSI color output (default when TTY detected)
+ *   --junit <path>        Enable JUnit XML output to <path>
+ *
+ * Call after zoweTestInit() and before any DESCRIBE block.
+ * Returns the number of args consumed (for forwarding remaining args).
+ */
+int zoweTestParseArgs(int argc, char *argv[]);
+
+/**
+ * \brief Sets a substring filter. Only tests matching this pattern will run.
+ *
+ * Both DESCRIBE suite names and IT test names are matched (case-insensitive).
+ * Tests that don't match are silently skipped (not counted as skipped).
+ */
+void zoweTestSetFilter(const char *pattern);
+
+/**
+ * \brief Enables colorized ANSI terminal output.
+ */
+void zoweTestEnableColor(void);
+
+/**
+ * \brief Disables colorized output.
+ */
+void zoweTestDisableColor(void);
 
 /* Internal functions used only by the macros below. Callers should not invoke these directly. */
 void _zoweTestDescribeBegin(const char *name);
@@ -148,6 +275,17 @@ void _zoweTestPrepareSkip(const char *msg);
 void _zoweTestAssertFailV(const char *file, int line, const char *format, ...);
 void _zoweTestRecordCoverage(const char *functionName);
 int _zoweTestFinalReport(void);
+
+/* Leak detection tracking functions — called by the safeMalloc/safeFree wrappers */
+void _zoweTestLeakTrackAlloc(void *ptr, int size, const char *site);
+void _zoweTestLeakTrackFree(void *ptr, int size);
+int _zoweTestLeakCheck(void);
+void _zoweTestLeakReset(void);
+void _zoweTestWriteJUnitXML(void);
+
+/* Filter support — used internally by the IT macro */
+bool _zoweTestShouldSkipByFilter(void);
+void _zoweTestItFiltered(void);
 
 /* ============================================================
  *  Mocha-style structural macros
@@ -195,9 +333,15 @@ int _zoweTestFinalReport(void);
  * If an ASSERT_* macro fails inside this block, execution immediately jumps
  * to the corresponding IT_END and the test is recorded as failed. All code
  * after the failing assertion within the block is skipped.
+ *
+ * If a filter is active (--filter), tests whose name does not match are
+ * silently skipped without being counted.
  */
 #define IT(name) \
   _zoweTestItBegin(name); \
+  if (_zoweTestShouldSkipByFilter()) { \
+    _zoweTestItFiltered(); \
+  } else \
   { int _zoweJmpVal_ = setjmp(zoweTestCtx.assertJumpBuf); \
   if (_zoweJmpVal_ == 0) {
 
@@ -405,6 +549,60 @@ int _zoweTestFinalReport(void);
     _zoweTestPrepareSkip(msg); \
     longjmp(zoweTestCtx.assertJumpBuf, 2); \
   } while (0)
+
+/* ============================================================
+ *  Memory leak detection macros
+ *
+ *  When leak detection is enabled (zoweTestEnableLeakDetection()), the
+ *  following macros wrap safeMalloc/safeFree to track allocations during
+ *  each IT block. Include zowetests.h AFTER alloc.h to activate tracking.
+ *
+ *  If you do NOT want tracking in a particular file, define
+ *  ZOWE_TEST_NO_LEAK_WRAP before including zowetests.h.
+ * ============================================================ */
+
+#ifndef ZOWE_TEST_NO_LEAK_WRAP
+
+/**
+ * \brief Tracked version of safeMalloc. Records the allocation for leak detection.
+ *
+ * The extern declaration inside the function uses whatever name safeMalloc
+ * has been mapped to (e.g. SAFEMLLC when __LONGNAME__ is not defined).
+ */
+static inline char *_zoweTestSafeMalloc(int size, char *site) {
+  extern char *safeMalloc(int size, char *site);
+  char *ptr = safeMalloc(size, site);
+  if (ptr) {
+    _zoweTestLeakTrackAlloc(ptr, size, site);
+  }
+  return ptr;
+}
+
+/**
+ * \brief Tracked version of safeFree. Marks the allocation as freed.
+ */
+static inline void _zoweTestSafeFree(char *data, int size) {
+  extern void safeFree(char *data, int size);
+  _zoweTestLeakTrackFree(data, size);
+  safeFree(data, size);
+}
+
+/*
+ * Undefine any existing short-name mapping from alloc.h (e.g. safeMalloc->SAFEMLLC)
+ * before redefining as our tracked wrappers.
+ */
+#undef safeMalloc
+#undef safeFree
+
+/*
+ * Redefine safeMalloc/safeFree to use tracked wrappers when leak detection
+ * header is active. Test code that includes zowetests.h automatically gets
+ * tracking. Library .c files compiled separately are NOT affected.
+ */
+#define safeMalloc(size, site) _zoweTestSafeMalloc((size), (site))
+#define safeFree(data, size)   _zoweTestSafeFree((data), (size))
+
+#endif /* ZOWE_TEST_NO_LEAK_WRAP */
 
 #endif /* ZOWE_TESTS_H */
 

@@ -51,14 +51,80 @@ third-party libraries.
 ### Lifecycle
 
 ```
-zoweTestInit()  -- called once in main() before any DESCRIBE block
-DESCRIBE(...)   -- one or more named suites
-ZOWE_TEST_REPORT() -- prints the summary and returns an exit code
+zoweTestInit()           -- called once in main() before any DESCRIBE block
+zoweTestParseArgs(argc, argv)  -- parse CLI options (optional, after init)
+DESCRIBE(...)            -- one or more named suites
+ZOWE_TEST_REPORT()       -- prints the summary and returns an exit code
 ```
 
 Calling `ZOWE_TEST_REPORT()` as the return value of `main()` means the process
 exits with code `0` when all tests pass and `1` when any test fails. This
 integrates naturally with `make` and CI pipelines.
+
+### Command-Line Arguments
+
+The framework supports CLI arguments parsed via `zoweTestParseArgs()`:
+
+```c
+int main(int argc, char *argv[]) {
+  zoweTestInit();
+  zoweTestParseArgs(argc, argv);
+  /* ... DESCRIBE blocks ... */
+  return ZOWE_TEST_REPORT();
+}
+```
+
+| Argument | Description |
+|----------|-------------|
+| `--filter <pattern>` | Only run tests whose suite or test name contains `<pattern>` (case-insensitive) |
+| `--color` | Force colorized ANSI output |
+| `--no-color` | Disable colorized output |
+| `--junit <path>` | Write JUnit XML report to `<path>` |
+| `--leaks` | Enable memory leak detection |
+
+**Environment variables** (checked automatically by `zoweTestInit()`):
+
+| Variable | Description |
+|----------|-------------|
+| `ZOWE_TEST_JUNIT_XML` | JUnit XML output path (same as `--junit`) |
+| `ZOWE_TEST_FILTER` | Filter pattern (same as `--filter`) |
+| `NO_COLOR` | If set, disables color (respects [no-color.org](https://no-color.org/)) |
+| `CI` | If set, enables color even without a TTY (CI environments) |
+
+**Examples:**
+
+```sh
+# Run only tests related to "hashtable"
+./collectionstest --filter hashtable
+
+# Run with leak detection and JUnit output
+./jsontest --leaks --junit results/json.xml
+
+# Run without color (e.g., piping to a file)
+./xmltest --no-color > output.txt
+
+# Filter via environment variable
+ZOWE_TEST_FILTER="base64" ./utilstest
+```
+
+### Colorized Output
+
+The framework automatically detects TTY support and produces ANSI-colored
+output:
+
+- **Green ✓** — passing tests
+- **Red ✗** — failing tests (with file:line and assertion message)
+- **Yellow -** — skipped tests
+- **Bold** — suite names and report header
+- **Dim** — assertion counts and metadata
+
+Color is auto-enabled when:
+1. stdout is a TTY, OR
+2. The `CI` environment variable is set
+
+Color is disabled when:
+1. `NO_COLOR` environment variable is set, OR
+2. `--no-color` is passed on the command line
 
 ### `DESCRIBE` and `DESCRIBE_END`
 
@@ -374,3 +440,123 @@ A failing test prints the file name, line number, and assertion message:
    - Extend the `test` phony target to depend on `test_<name>`.
    - Add `<name>test` to the `clean` rule.
 4. Add `unit/<name>.o` to the `clean` pattern if not already covered.
+
+---
+
+## JUnit XML Output (CI Integration)
+
+The framework can produce JUnit XML reports consumable by Jenkins, GitHub
+Actions, Azure DevOps, Bamboo, and other CI systems.
+
+### Enabling JUnit output
+
+**Option 1 — Environment variable (recommended for CI):**
+
+```sh
+export ZOWE_TEST_JUNIT_XML=results/jsontest.xml
+./jsontest
+```
+
+**Option 2 — Programmatic (in `main()`):**
+
+```c
+int main(void) {
+  zoweTestInit();
+  zoweTestEnableJUnit("results/jsontest.xml");
+  /* ... DESCRIBE blocks ... */
+  return ZOWE_TEST_REPORT();
+}
+```
+
+If a path is set via the environment variable, it is picked up automatically
+by `zoweTestInit()`. The programmatic call can override it.
+
+When `ZOWE_TEST_JUNIT_XML` is set but empty, the default filename
+`test-results.xml` is used in the current directory.
+
+### Output format
+
+The report follows the de-facto JUnit XML standard (Apache Ant / Maven
+Surefire). Each `DESCRIBE` block maps to a `<testsuite>` element; each `IT`
+block maps to a `<testcase>`. Failed tests include `<failure>` elements with
+file, line number, and assertion message.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="93" failures="0" skipped="2" time="0.045">
+  <testsuite name="JSON Writer - scalar values" tests="3" failures="0" skipped="0" time="0.001">
+    <testcase name="writes a string property" classname="JSON Writer - scalar values" time="0.000" assertions="4" />
+    <testcase name="writes an integer property" classname="JSON Writer - scalar values" time="0.000" assertions="2" />
+  </testsuite>
+</testsuites>
+```
+
+### CI pipeline example (GitHub Actions)
+
+```yaml
+- name: Run tests
+  run: |
+    cd tests
+    export ZOWE_TEST_JUNIT_XML=results/jsontest.xml
+    make test_json
+  
+- name: Publish test results
+  uses: dorny/test-reporter@v1
+  if: always()
+  with:
+    name: Unit Tests
+    path: tests/results/*.xml
+    reporter: java-junit
+```
+
+---
+
+## Memory Leak Detection
+
+The framework includes a built-in memory leak detector that tracks
+`safeMalloc` / `safeFree` calls made during each `IT` block.
+
+### Enabling leak detection
+
+```c
+int main(void) {
+  zoweTestInit();
+  zoweTestEnableLeakDetection();
+  /* ... DESCRIBE blocks ... */
+  return ZOWE_TEST_REPORT();
+}
+```
+
+### How it works
+
+1. At the start of each `IT` block, the allocation tracker is reset.
+2. Every `safeMalloc()` call made by test code (compiled with `zowetests.h`
+   included) is recorded in a fixed-size table.
+3. Every `safeFree()` call marks the corresponding entry as freed.
+4. After each `IT` block completes (pass or fail), the framework scans for
+   unfreed allocations and reports them.
+
+### Output
+
+A test that leaks memory still passes (the assertion succeeded), but a
+warning is appended:
+
+```
+    (/) allocates and frees a buffer (3 assertions) [WARNING: 1 leak(s), 256 bytes]
+        LEAK: 256 bytes at 0x7f4a2c (site: testHelper)
+```
+
+Up to 5 individual leak sites are printed per test case.
+
+### Scope and limitations
+
+- **Only tracks `safeMalloc` / `safeFree`** — raw `malloc`/`free` calls are
+  NOT tracked. This is by design: library code compiled separately (without
+  `zowetests.h`) uses the real `safeMalloc`/`safeFree` and is tracked if
+  the test binary links against it.
+- **Fixed table size** — up to 4096 allocations per `IT` block. If exceeded,
+  additional allocations are silently untracked.
+- **Not thread-safe** — single-threaded test execution only.
+- **Does not detect double-free** — only unfreed allocations.
+- To disable tracking in a specific file, define `ZOWE_TEST_NO_LEAK_WRAP`
+  before including `zowetests.h`.
