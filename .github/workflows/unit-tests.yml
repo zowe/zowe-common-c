@@ -66,6 +66,8 @@ jobs:
               ../c/xlate_tables.c \
               ../c/timeutls.c \
               ../c/logging.c \
+              ../platform/posix/psxregex.c \
+              ../platform/posix/psxfile.c \
               -lm
           ./jsontest --color
 
@@ -88,6 +90,7 @@ jobs:
               ../c/xlate_tables.c \
               ../c/timeutls.c \
               ../c/logging.c \
+              ../platform/posix/psxfile.c \
               -lm
           ./xmltest --color
 
@@ -121,6 +124,8 @@ jobs:
               ../c/xlate_tables.c \
               ../c/timeutls.c \
               ../c/logging.c \
+              ../platform/posix/psxregex.c \
+              ../platform/posix/psxfile.c \
               libyaml_*.o \
               -lm
           ./yaml2jsontest --color
@@ -176,6 +181,8 @@ jobs:
               ../c/xlate_tables.c \
               ../c/timeutls.c \
               ../c/logging.c \
+              ../platform/posix/psxregex.c \
+              ../platform/posix/psxfile.c \
               -lm
           ./jsontest --color
 
@@ -197,6 +204,7 @@ jobs:
               ../c/xlate_tables.c \
               ../c/timeutls.c \
               ../c/logging.c \
+              ../platform/posix/psxfile.c \
               -lm
           ./xmltest --color
 
