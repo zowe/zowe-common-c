@@ -1658,9 +1658,6 @@ static HttpServer *makeSecureHttpServerInner(STCBase *base, int port,
   int icsfReason = 0;
   if (icsfGenerateRandomNumber(&now, sizeof(now), &icsfReason) != 0) {
     now = getFineGrainedTime();
-	printf("*** Using STCK %lld\n", now);
-  } else {
-	  printf("*** Using %lld\n", now);
   }
   server->config->sessionTokenKeySize = sizeof (now);
   memcpy(&server->config->sessionTokenKey[0], &now, sizeof (now));
