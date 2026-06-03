@@ -405,11 +405,11 @@ char *resolveSymbolBySyscall(const char *inputSymbol, int *rc, int *rsn) {
       result = safeMalloc(outputLen+1, "output");
       if (result == NULL) {
         *rc = RESOLVESYMBOL_RETURN_ALLOC_FAILED;
-    } else {
-      snprintf(result, outputLen+1, "%.*s", outputLen, below2G->output);
-    }
-    FREE_STRUCT31(STRUCT31_NAME(below2G));
-    return result;
+      } else {
+        snprintf(result, outputLen+1, "%.*s", outputLen, below2G->output);
+      }
+      FREE_STRUCT31(STRUCT31_NAME(below2G));
+      return result;
     }
 
 }
