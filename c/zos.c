@@ -412,6 +412,9 @@ char *resolveSymbolBySyscall(const char *inputSymbol, int *rc, int *rsn) {
       return result;
     }
 
+    FREE_STRUCT31(STRUCT31_NAME(below2G));
+    return NULL;
+
 }
 
 
