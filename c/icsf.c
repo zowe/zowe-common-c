@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>  
+#include <limits.h>
 #endif
 
 #include "copyright.h"
@@ -384,6 +385,26 @@ int icsfDigestFully(char *digestType, char *s, int len){
   
 }
 
+#define ICV_LENGTH 12
+#define GCM_LENGTH 16
+typedef struct ICSFEncodingBlockHeader_tag {
+  char icv[ICV_LENGTH];
+  char gcm[GCM_LENGTH];
+} ICSFEncodingBlockHeader;
+
+typedef struct ICSFEncodingBlock_tag {
+  ICSFEncodingBlockHeader header;
+  char payload[1];
+} ICSFEncodingBlock;
+
+int icsfEncipherOutputLength(unsigned int inputLength, unsigned int *outputLength) {
+    if (UINT_MAX - inputLength < sizeof(ICSFEncodingBlockHeader)) {
+        return 1;
+    }
+    *outputLength = inputLength + sizeof(ICSFEncodingBlockHeader);
+    return 0;
+}
+
 int icsfEncipher(const void *key, unsigned int keyLength,
                  const char *text, unsigned int textLength,
                  char *resultBuffer, unsigned int resultBufferLength,
@@ -397,28 +418,26 @@ int icsfEncipher(const void *key, unsigned int keyLength,
 #define ICSF_SYN_ENC_RULE_COUNT 4
   char ruleArray[ICSF_SYN_ENC_RULE_COUNT][8] = {
       {"AES     "},
-      {"CFB     "},
+      {"GCM     "},
       {"KEY-CLR "},
-      {"INITIAL "},
+      {"ONLY    "},
   };
   unsigned int ruleArrayCount = ICSF_SYN_ENC_RULE_COUNT;
 
   unsigned int keyIdentifierLength = keyLength;
   const void *keyIdentifier = key;
 
-  unsigned int keyParmsLength = 0;
-  void *keyParms = NULL;
+  unsigned int keyParmsLength = GCM_LENGTH;
+  char keyParms[GCM_LENGTH] = {0};
 
   unsigned int blockLength = 16; /* AES */
 
-  /* ICV doesn't need to be secret */
-  char icv[16] = {
-      0xEB, 0xE3, 0xD0, 0x08,
-      0x00, 0x24, 0xB9, 0x04,
-      0x00, 0xFD, 0xE3, 0xD0,
-      0xD0, 0x88, 0x00, 0x04
-  };
-  unsigned int icvLength = sizeof(icv);
+  unsigned int icvLength = ICV_LENGTH;
+  char icv[ICV_LENGTH] = {0};
+  if (0 != (rc = icsfGenerateRandomNumber(icv, icvLength, &rsn))) {
+    *reasonCode = rsn;
+    return rc;
+  }
 
   char chainData[32] = {0};
   unsigned int chainDataLength = sizeof(chainData);
@@ -426,8 +445,8 @@ int icsfEncipher(const void *key, unsigned int keyLength,
   unsigned int clearTextLength = textLength;
   const char *clearText = text;
 
-  unsigned int cipherTextLength = resultBufferLength;
-  char *cipherText = resultBuffer;
+  unsigned int cipherTextLength = resultBufferLength - sizeof(ICSFEncodingBlockHeader);
+  char *cipherText = ((ICSFEncodingBlock*)resultBuffer)->payload;
 
   unsigned int optionalDataLength = 0;
   void *optionalData = NULL;
@@ -471,10 +490,22 @@ int icsfEncipher(const void *key, unsigned int keyLength,
       optionalData
   );
 
+  if (rc == 0 || rc == 4) {
+    memcpy(((ICSFEncodingBlock*)resultBuffer)->header.gcm, keyParms, GCM_LENGTH);
+    memcpy(((ICSFEncodingBlock*)resultBuffer)->header.icv, icv, ICV_LENGTH);
+  }
+
   *reasonCode = rsn;
   return rc;
 }
 
+int icsfDecipherOutputLength(unsigned int inputLength, unsigned int *outputLength) {
+    if (inputLength <= sizeof(ICSFEncodingBlockHeader)) {
+        return 1;
+    }
+    *outputLength = inputLength - sizeof(ICSFEncodingBlockHeader);
+    return 0;
+}
 
 int icsfDecipher(const void *key, unsigned int keyLength,
                  const char *text, unsigned int textLength,
@@ -489,37 +520,35 @@ int icsfDecipher(const void *key, unsigned int keyLength,
 #define ICSF_SYN_DEC_RULE_COUNT 4
   char ruleArray[ICSF_SYN_DEC_RULE_COUNT][8] = {
       {"AES     "},
-      {"CFB     "},
+      {"GCM     "},
       {"KEY-CLR "},
-      {"INITIAL "},
+      {"ONLY    "},
   };
   unsigned int ruleArrayCount = ICSF_SYN_DEC_RULE_COUNT;
 
   unsigned int keyIdentifierLength = keyLength;
   const void *keyIdentifier = key;
 
-  unsigned int keyParmsLength = 0;
-  void *keyParms = NULL;
+  unsigned int keyParmsLength = GCM_LENGTH;
+  char gcmParms[GCM_LENGTH];
+  memcpy(gcmParms, ((ICSFEncodingBlock*)text)->header.gcm, GCM_LENGTH);
+  void *keyParms = gcmParms;
 
   unsigned int blockLength = 16; /* AES */
 
   /* ICV doesn't need to be secret */
-  char icv[16] = {
-      0xEB, 0xE3, 0xD0, 0x08,
-      0x00, 0x24, 0xB9, 0x04,
-      0x00, 0xFD, 0xE3, 0xD0,
-      0xD0, 0x88, 0x00, 0x04
-  };
-  unsigned int icvLength = sizeof(icv);
+  unsigned int icvLength = ICV_LENGTH;
+  char icv[ICV_LENGTH];
+  memcpy(icv, ((ICSFEncodingBlock*)text)->header.icv, ICV_LENGTH);
 
   char chainData[32] = {0};
   unsigned int chainDataLength = sizeof(chainData);
 
-  unsigned int cipherTextLength = textLength;
-  const char *cipherText = text;
+  unsigned int cipherTextLength = textLength - sizeof(ICSFEncodingBlockHeader);
+  const char *cipherText = ((ICSFEncodingBlock*)text)->payload;
 
   unsigned int clearTextLength = resultBufferLength;
-  const char *clearText = resultBuffer;
+  char *clearText = resultBuffer;
 
   unsigned int optionalDataLength = 0;
   void *optionalData = NULL;

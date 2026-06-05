@@ -1410,9 +1410,24 @@ static int encodeSessionToken(ShortLivedHeap *slh,
                               const HttpServerConfig *config,
                               const char *tokenText,
                               unsigned int tokenTextLength,
-                              char **result) {
+                              char **result,
+                              unsigned int *resultLength) {
 
-  unsigned int encodedTokenTextLength = tokenTextLength;
+  unsigned int encodedTokenTextLength;
+#ifdef __ZOWE_OS_ZOS
+
+  if (icsfEncipherOutputLength(tokenTextLength, &encodedTokenTextLength) != 0) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+      "Error: incorrect decoded session token length (size=%u)\n", tokenTextLength);
+    return -1;
+  }
+
+#elif defined(__ZOWE_OS_WINDOWS)
+
+    encodedTokenTextLength = tokenTextLength;
+
+#endif
+
   char *encodedTokenText = SLHAlloc(slh, encodedTokenTextLength);
   if (encodedTokenText == NULL) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
@@ -1421,9 +1436,7 @@ static int encodeSessionToken(ShortLivedHeap *slh,
     return -1;
   }
 
-
 #ifdef __ZOWE_OS_ZOS
-
 
   int icsfRSN = 0;
   int icsfRC = icsfEncipher(config->sessionTokenKey,
@@ -1440,21 +1453,20 @@ static int encodeSessionToken(ShortLivedHeap *slh,
     return -1;
   }
 
-  *result = encodedTokenText;
-  return 0;
-
 #elif defined(__ZOWE_OS_WINDOWS)
 
   printf("*WARNING* - Trivial Cipher in use\n");
   trivialEncipher(encodedTokenText,tokenText,tokenTextLength);
-  *result = encodedTokenText;
-  return 0;
   
 #else
 
 #error Session token encoding has been implemented for z/OS only
 
 #endif /* __ZOWE_OS_ZOS */
+
+  *result = encodedTokenText;
+  *resultLength = encodedTokenTextLength;
+  return 0;
 
 }
 
@@ -1463,13 +1475,28 @@ static int decodeSessionToken(ShortLivedHeap *slh,
                               const char *encodedTokenText,
                               unsigned int encodedTokenTextLength,
                               char **result) {
-  unsigned int tokenTextLength = encodedTokenTextLength;
+  unsigned int tokenTextLength;
+
+#ifdef __ZOWE_OS_ZOS
+
+  if (icsfDecipherOutputLength(encodedTokenTextLength, &tokenTextLength) != 0) {
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+      "Error: incorrect decoded session token length (size=%u)\n", encodedTokenTextLength);
+    return -1;
+  }
+
+#elif defined(__ZOWE_OS_WINDOWS)
+
+  tokenTextLength = encodedTokenTextLength;
+
+#endif
+
   unsigned int paddingLength = 4;
   char *tokenText = SLHAlloc(slh, tokenTextLength+paddingLength);
   if (tokenText == NULL) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
     		    "Error: decoded session token buffer not allocated "
-            "(size=%u, SLH=%p)\n", encodedTokenTextLength, slh);
+            "(size=%u, SLH=%p)\n", tokenTextLength, slh);
     return -1;
   }
 
@@ -1492,16 +1519,11 @@ static int decodeSessionToken(ShortLivedHeap *slh,
 
   // always null terminate because consumer might be expecting null terminate on other side
   tokenText[tokenTextLength]=0;
-  *result = tokenText;
-  return 0;
 
 #elif defined(__ZOWE_OS_WINDOWS)
 
   printf("*WARNING* - Trivial Cipher in use\n");
   trivialDecipher(tokenText,encodedTokenText,tokenTextLength);
-  *result = tokenText;
-  return 0;
-
 
 #else
 
@@ -1509,6 +1531,8 @@ static int decodeSessionToken(ShortLivedHeap *slh,
 
 #endif /* __ZOWE_OS_ZOS */
 
+  *result = tokenText;
+  return 0;
 }
 
 static
@@ -3120,16 +3144,18 @@ static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *req
   int tokenPlaintextLength = sprintf(tokenPlaintextBuffer,"%s:%llx:%llx",username,getFineGrainedTime(),service->serverInstanceUID);
 
   char *tokenCiphertext = NULL;
+  unsigned int tokenCiphertextLength = 0;
   int encodeRC = encodeSessionToken(slh, server->config,
                                     tokenPlaintextBuffer,
                                     tokenPlaintextLength,
-                                    &tokenCiphertext);
+                                    &tokenCiphertext,
+                                    &tokenCiphertextLength);
   if (encodeRC != 0) {
     return NULL;
   }
 
   int encodedLength = 0;
-  char *base64Output = encodeBase64(slh,tokenCiphertext,tokenPlaintextLength,&encodedLength,TRUE);
+  char *base64Output = encodeBase64(slh,tokenCiphertext,tokenCiphertextLength,&encodedLength,TRUE);
 
   char *cookieName = getSessionTokenCookieName(service);
 

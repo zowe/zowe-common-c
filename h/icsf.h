@@ -47,10 +47,12 @@ int icsfDigestInit(ICSFDigest *digest, int type);
 int icsfDigestUpdate(ICSFDigest *digest, char *data, int len);
 int icsfDigestFinish(ICSFDigest *digest, char *hash);
 
+int icsfEncipherOutputLength(unsigned int inputLength, unsigned int *outputLength);
 int icsfEncipher(const void *key, unsigned int keyLength,
                  const char *text, unsigned int textLength,
                  char *resultBuffer, unsigned int resultBufferLength,
                  int *reasonCode);
+int icsfDecipherOutputLength(unsigned int inputLength, unsigned int *outputLength);
 int icsfDecipher(const void *key, unsigned int keyLength,
                  const char *text, unsigned int textLength,
                  char *resultBuffer, unsigned int resultBufferLength,
