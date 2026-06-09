@@ -1714,7 +1714,6 @@ char *stringListPrint(StringList *list, int start, int max, char *separator, cha
   }
   /* printf("string list formats to %d chars \n",pos); */
   out[pos] = 0;
-  printf("stringListPrint out '%s'\n", out);  // Delete me
   return out;
 }
 
