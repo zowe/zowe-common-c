@@ -396,17 +396,24 @@ char *resolveSymbolBySyscall(const char *inputSymbol, int *rc, int *rsn) {
     }
 
 //    printf("input '%s', output '%s'\n", below2G->input, below2G->output);
+    // We are not checking for return code here and therefore cannot differentiate between a blank and not found.
+    // For more info: https://www.ibm.com/docs/en/zos/2.2.0?topic=hsp-asasymbm-asasymbf-substitute-text-symbols
+    // printf("ASASYMBF return code %x\n", below2G->returnCode);
     int outputLen = strlen(below2G->output);
-    if (outputLen != 0){
-      char *result = safeMalloc(sizeof(below2G->output), "output");
-      snprintf(result, outputLen+1, "%s", below2G->output);
+    char *result = NULL;
+    if (outputLen > 0) {
+      result = safeMalloc(outputLen+1, "output");
+      if (result == NULL) {
+        *rc = RESOLVESYMBOL_RETURN_ALLOC_FAILED;
+      } else {
+        snprintf(result, outputLen+1, "%.*s", outputLen, below2G->output);
+      }
       FREE_STRUCT31(STRUCT31_NAME(below2G));
       return result;
-    } else{
-      FREE_STRUCT31(STRUCT31_NAME(below2G));
-      return NULL;
     }
 
+    FREE_STRUCT31(STRUCT31_NAME(below2G));
+    return NULL;
 
 }
 
@@ -453,38 +460,35 @@ char *resolveSymbol(const char *inputSymbol, int *rc, int *rsn) {
 
 
   SymbTableEntry *entry = firstEntry;
+  for (int i = 0; i < entryCount; i++, entry++) {
+    char *currentSymbol;
+    const char *subtextSrc;
+    int subtextLen;
 
-  for (int i = 0; i < entryCount; i++) {
     if (useEntryOffsets) {
-      //printf("firstEntry = 0x%p, symbol offset = 0x%x, length=%d, subtext offset = 0x%x, length=%d\n", firstEntry, entry->symbolOffset, entry->symbolLength, entry->subtextOffset, entry->subtextLength);
-      
-      char *currentSymbol = (char*)firstEntry + entry->symbolOffset;
-//      printf("Symbol=%.*s\n", entry->symbolLength, currentSymbol);
-
-      // extra '.' at end to account for
-      if ((inputLen+1 == entry->symbolLength) && (memcmp(currentSymbol, inputSymbol, inputLen) == 0) && currentSymbol[inputLen]=='.'){
-        char *result = (char*) safeMalloc(entry->subtextLength+1, "subtext");
-        snprintf(result, entry->subtextLength+1, "%s", (char*)firstEntry + entry->subtextOffset);
-        return result;
-      }
-
-      entry = entry+1;
-    } else{
-      char *currentSymbol = entry->symbolPtr;
-
-      printf("Symbol=%.*s\n", entry->symbolLength, currentSymbol);
-
-
-      // extra '.' at end to account for
-      if ((inputLen+1 == entry->symbolLength) && (memcmp(currentSymbol, inputSymbol, inputLen) == 0) && currentSymbol[inputLen]=='.'){
-        char *result = (char*) safeMalloc(entry->subtextLength+1, "subtext");
-        snprintf(result, entry->subtextLength+1, "%s", entry->subtextPtr);
-        return result;
-      }
+      currentSymbol = (char*)firstEntry + entry->symbolOffset;
+      subtextSrc    = (char*)firstEntry + entry->subtextOffset;
+      subtextLen    = entry->subtextLength;
+    } else {
+      if (entry->symbolPtr == NULL) continue;
+      currentSymbol = entry->symbolPtr;
+      subtextSrc    = entry->subtextPtr ? entry->subtextPtr : "";
+      subtextLen    = entry->subtextPtr ? entry->subtextLength : 0;
     }
- 
-     //printf("next entry at 0x%p\n", entry);
 
+    // extra '.' at end to account for
+    if ((inputLen+1 == entry->symbolLength) &&
+        (memcmp(currentSymbol, inputSymbol, inputLen) == 0) &&
+        currentSymbol[inputLen] == '.') {
+      char *result = (char*) safeMalloc(subtextLen+1, "subtext");
+      if (result == NULL) {
+        *rc = RESOLVESYMBOL_RETURN_ALLOC_FAILED;
+        return NULL;
+      }
+      // NOTE: For a blank subtext (offset mode: subtextLength == 0, pointer mode: subtextPtr == NULL), an empty string "" is returned.
+      snprintf(result, subtextLen+1, "%.*s", subtextLen, subtextSrc);
+      return result;
+    }
   }
 
   return resolveSymbolBySyscall(inputSymbol, rc, rsn);

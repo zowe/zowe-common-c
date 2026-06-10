@@ -471,6 +471,7 @@ typedef struct SymbTable1_tag{
 #define SYMBT_MAXSTATIC_TABLE_SIZE 32512
 
 #define RESOLVESYMBOL_RETURN_BAD_INPUT 1
+#define RESOLVESYMBOL_RETURN_ALLOC_FAILED 2
 
 typedef struct ecvt_tag{
   char  eyecatcher[4];
