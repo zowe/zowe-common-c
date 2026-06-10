@@ -150,6 +150,9 @@ char* destructivelyNativize(char *s)
 }
 
 int headerMatch(HttpHeader *header, char *s){
+  if (header == NULL || header->nativeValue == NULL || s == NULL) {
+    return 0;
+  }
   return !strcmp(header->nativeValue,s);
 }
 
