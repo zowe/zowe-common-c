@@ -127,6 +127,7 @@ int tknLength(token *t);
 #define dumpbuffer2 DMPBFFR2
 #define dumpBufferToStream DMPBFFRS
 #define compareIgnoringCase CMPIGNCS
+#define compareStringsIgnoringCase CMPSTRNC
 #define strupcase STRUPCAS
 #endif
 

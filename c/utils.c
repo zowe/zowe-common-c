@@ -260,20 +260,33 @@ static int upchar(char c){
   }
 }
 
+/*
+ * Performs a case-insensitive comparison of two strings.
+ *
+ * len specifies the maximum number of characters to compare. A negative value means no limit.
+ */
 int compareIgnoringCase(char *s1, char *s2, int len){
-  int i;
-
-  for (i=0; i<len; i++){
+  for (int i=0; len<0 || i<len; i++){
     int c1 = upchar(s1[i]);
     int c2 = upchar(s2[i]);
     int diff = c1-c2;
     if (diff){
       return diff;
     }
+    if (!c1) {
+      break;
+    }
   }
   return 0;
 }
-                                          
+
+/*
+ * Performs a case-insensitive comparison of two complete strings.
+*/
+int compareStringsIgnoringCase(char *s1, char *s2){
+    return compareIgnoringCase(s1, s2, -1);
+}
+
 int isCharAN(char c){
   char low = (char)(c & 0xf);
   char high = (char)(c &0xf0);

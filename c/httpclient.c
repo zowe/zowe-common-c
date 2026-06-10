@@ -166,14 +166,14 @@ static void addResponseHeader(HttpResponseParser *parser) {
 #endif
 
   /* pull out enough data for parsing the entity body */
-  if (!compareIgnoringCase(newHeader->nativeName, "Transfer-Encoding", parser->headerNameLength + 1)) {
-    if (!compareIgnoringCase(newHeader->nativeValue, "chunked", parser->headerValueLength + 1)) {
+  if (!compareStringsIgnoringCase(newHeader->nativeName, "Transfer-Encoding")) {
+    if (!compareStringsIgnoringCase(newHeader->nativeValue, "chunked")) {
       parser->isChunked = TRUE;
     }
-  } else if (!compareIgnoringCase(newHeader->nativeName, "Content-Length", parser->headerNameLength + 1)) {
+  } else if (!compareStringsIgnoringCase(newHeader->nativeName, "Content-Length")) {
     /* printf("worry about atoi\n"); */
     parser->specifiedContentLength = atoi(newHeader->nativeValue);
-  } else if (!compareIgnoringCase(newHeader->nativeName, "Content-Type", parser->headerNameLength + 1)) {
+  } else if (!compareStringsIgnoringCase(newHeader->nativeName, "Content-Type")) {
     parser->contentType = newHeader->nativeValue;
   }
 
