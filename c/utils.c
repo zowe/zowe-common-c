@@ -2247,20 +2247,20 @@ bool isPassPhrase(const char *password) {
 
 /* timingsafe_memcmp compares two memory regions for equality in a way that is safe against timing attacks. */
 /* returns 0 if the regions are equal, non-zero otherwise */
-int timingsafe_memcmp(const void *a, const void *b, size_t n) {
+int timesafe_memcmp(const void *a, const void *b, size_t n) {
   const unsigned char *pointer_a = (const unsigned char *)a;
   const unsigned char *pointer_b = (const unsigned char *)b;
   volatile unsigned char result = 0;
 
   for (size_t i = 0; i < n; i++) {
     result |= pointer_a[i] ^ pointer_b[i];
-	/*
+
     __asm volatile(
         ASM_PREFIX
         ""
         : "+r"(result)
     );
-	*/
+
   }
 
   return result;
