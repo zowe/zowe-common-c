@@ -2254,13 +2254,6 @@ int timesafe_memcmp(const void *a, const void *b, size_t n) {
 
   for (size_t i = 0; i < n; i++) {
     result |= pointer_a[i] ^ pointer_b[i];
-
-    __asm volatile(
-        ASM_PREFIX
-        ""
-        : "+r"(result)
-    );
-
   }
 
   return result;
