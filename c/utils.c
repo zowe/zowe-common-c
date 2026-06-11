@@ -2253,7 +2253,9 @@ int timesafe_memcmp(const void *a, const void *b, size_t n) {
   volatile unsigned char result = 0;
 
   for (size_t i = 0; i < n; i++) {
-    result |= pointer_a[i] ^ pointer_b[i];
+    unsigned char diff = pointer_a[i] ^ pointer_b[i];
+    __asm volatile("" : "+r"(diff));
+    result |= diff;
   }
 
   return result;
