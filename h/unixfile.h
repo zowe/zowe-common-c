@@ -439,6 +439,11 @@ int fileInfo(const char *filename, FileInfo *fileInfo, int *returnCode, int *rea
 /* Same as fileInfo but does not follow symbolic link */
 int symbolicFileInfo(const char *filename, FileInfo *fileInfo, int *returnCode, int *reasonCode);
 
+/* Reads the target of a symbolic link into buffer.
+   Returns the number of bytes written to buffer (not null-terminated by BPX service,
+   but this wrapper adds a null terminator), or -1 on error. */
+int fileReadLink(char *fileName, char *buffer, int bufferSize, int *returnCode, int *reasonCode);
+
 #ifdef __ZOWE_OS_ZOS
 int fileChangeTag(const char *fileName, int *returnCode, int *reasonCode, int ccsid);
 
@@ -473,13 +478,13 @@ typedef struct F_CVT_tag {
 /* Length Values */
 #define F_WHENCE_TO_END  0            /* Locked file is from whence to end of the file */
 
-typedef struct F_LOCK_TAG {
+typedef struct FLock_tag {
   short l_type;
   short l_whence;
   int64 l_start;
   int64 l_len;
   unsigned int l_pid;
-} F_LOCK;
+} FLock;
 
 int fileDisableConversion(UnixFile *file, int *returnCode, int *reasonCode);
 int fileSetLock(UnixFile *file, int *returnCode, int *reasonCode);
@@ -489,6 +494,13 @@ int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode);
 #define USS_MAX_PATH_LENGTH 1023
 #define USS_MAX_FILE_NAME   255
 
+#endif
+
+#if defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_MACOSX)
+/* Make the path-length constants available on POSIX hosts too, so portable
+ * code that uses USS_MAX_PATH_LENGTH compiles without a second ifdef. */
+#define USS_MAX_PATH_LENGTH 1023
+#define USS_MAX_FILE_NAME   255
 #endif
 
 #ifndef __LONGNAME__ 

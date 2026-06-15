@@ -21,6 +21,7 @@ tml
 
 #else
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 
@@ -33,6 +34,7 @@ tml
 #include "unixfile.h"
 #include "timeutls.h"
 #include "logging.h"
+#include "zowe_bpx_prototypes.h"
 
 static int accountTrace = FALSE;
 
@@ -86,14 +88,14 @@ int gidGetUserInfo(const char *userName,  UserInfo * info,
 #endif
 
   BPXGPN(&nameLength,
-         userName,
+         (char *)userName,
          &returnValue,
          returnCode,
          reasonCodePtr);
 
   /* Copy returned structure */
   if (returnValue != 0) {
-    memcpy (info, (char *)returnValue, sizeof (UserInfo));
+    memcpy (info, (char *)(uintptr_t)returnValue, sizeof (UserInfo));
     retValue = 0;
   }
 
@@ -139,7 +141,7 @@ int getUserInfo(int uid, UserInfo *info, int *returnCode, int *reasonCode) {
          reasonCodePtr);
 
   if (returnValue != 0) {
-    memcpy (info, (char *)returnValue, sizeof (UserInfo));
+    memcpy (info, (char *)(uintptr_t)returnValue, sizeof (UserInfo));
     retValue = 0;
   }
 
@@ -180,11 +182,11 @@ int resetZosUserPassword(const char *userName,  const char *password, const char
 #endif
 
   BPXPWD(&nameLength,
-         userName,
+         (char *)userName,
          &passwordLength,
-         password,
+         (char *)password,
          &newPasswordLength,
-         newPassword,
+         (char *)newPassword,
          &returnValue,
          returnCode,
          reasonCodePtr);
@@ -227,14 +229,14 @@ int gidGetGroupInfo(const char *groupName,  GroupInfo *info,
 #endif
 
   BPXGGN(&groupLength,
-         groupName,
+         (char *)groupName,
          &returnValue,
          returnCode,
          reasonCodePtr);
 
   /* Copy returned structure */
   if (returnValue >  0) {
-    memcpy (info, (char *)returnValue, sizeof (GroupInfo));
+    memcpy (info, (char *)(uintptr_t)returnValue, sizeof (GroupInfo));
     retValue = 0;
   }
 
@@ -278,7 +280,7 @@ int getGroupInfo(int gid, GroupInfo *info, int *returnCode, int *reasonCode) {
          reasonCodePtr);
 
   if (returnValue >  0) {
-    memcpy (info, (char *)returnValue, sizeof (GroupInfo));
+    memcpy (info, (char *)(uintptr_t)returnValue, sizeof (GroupInfo));
     retValue = 0;
   }
 
@@ -342,7 +344,7 @@ int userIdGet (char *string, int *returnCode, int *reasonCode) {
     userId = -1;
   }
   else if (stringIsDigit(string)) {
-    userId = atoi(userId);
+    userId = atoi(string);
   }
   else {
     /* get user info by name */
@@ -441,7 +443,7 @@ int getGroupList(const char *userName, int *groups, int *groupCount, int *return
 #endif
 
   BPXGUG(&nameLength,
-         userName,
+         (char *)userName,
          groupCount,
          &groups,
          groupCount,

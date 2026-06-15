@@ -93,6 +93,8 @@ typedef struct AttachParms_tag{
   int    nslsplAlet;
 } AttachParms;
 
+ZOWE_PRAGMA_PACK_RESET
+
 #ifdef METTLE
 static Addr31 getTrampoline() {
 

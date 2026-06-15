@@ -2209,7 +2209,12 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "ReqURI white\n");
         parser->state = HTTP_STATE_REQUEST_GAP2;
       } else{
-        parser->uri[parser->uriLength++] = c;
+        if (parser->uriLength < sizeof(parser->uri) - 1) {
+          parser->uri[parser->uriLength++] = c;
+        } else {
+          parser->httpReasonCode = HTTP_STATUS_URI_TOO_LONG;
+          return 0;
+        }
       }
       break;
     case HTTP_STATE_REQUEST_GAP2:
@@ -2221,6 +2226,10 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
       } else{
         parser->state = HTTP_STATE_REQUEST_VERSION;
         parser->versionLength = 0;
+        if (parser->versionLength >= sizeof(parser->version) - 1) {
+          parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
+          return 0;
+        }
         parser->version[parser->versionLength++] = c;
       }
       break;
@@ -2228,6 +2237,10 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
       if (isCR){
         parser->state = HTTP_STATE_REQUEST_CR_SEEN;
       } else if (isAsciiPrintable){
+        if (parser->versionLength >= sizeof(parser->version) - 1) {
+          parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
+          return 0;
+        }
         parser->version[parser->versionLength++] = c;
       } else{
         parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
@@ -2261,6 +2274,10 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
           parser->state = HTTP_STATE_HEADER_GAP1;
         }
       } else if (isAsciiPrintable){
+        if (parser->headerNameLength >= sizeof(parser->headerName) - 1){
+          parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
+          return 0;
+        }
         parser->headerName[parser->headerNameLength++] = c;
       } else{
         parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
@@ -4996,11 +5013,39 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
           trimRight(group, GROUP_NAME_LEN);
           
           /*          if(status == 0) { */
+            int isSymlink = fileInfoIsSymbolicLink(&info);
+            char symlinkTarget[USS_MAX_PATH_LENGTH + 1] = {0};
+            int isDirectory = FALSE;
+            if (isSymlink) {
+              int linkLen = fileReadLink(path, symlinkTarget, USS_MAX_PATH_LENGTH, &returnCode, &reasonCode);
+              if (linkLen < 0) {
+                zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                        "fileReadLink (%s) FAILED: returnCode: %d, reasonCode: 0x%08x\n",
+                        path, returnCode, reasonCode);
+                symlinkTarget[0] = '\0';
+              } else if (symlinkTarget[0] != '\0') {
+                FileInfo targetInfo = {0};
+                if (fileInfo(symlinkTarget, &targetInfo, &returnCode, &reasonCode) == 0) {
+                  isDirectory = fileInfoIsDirectory(&targetInfo);
+                } else {
+                  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                          "fileInfo on symlink target (%s) FAILED: returnCode: %d, reasonCode: 0x%08x\n",
+                          symlinkTarget, returnCode, reasonCode);
+                }
+              }
+            } else {
+              isDirectory = fileInfoIsDirectory(&info);
+            }
+
             jsonStartObject(out, NULL);
             {
               jsonAddUnterminatedString(out, "name", name, nameLength);
               jsonAddString(out, "path", path);
-              jsonAddBoolean(out, "directory", fileInfoIsDirectory(&info));
+              jsonAddBoolean(out, "directory", isDirectory);
+              jsonAddBoolean(out, "symlink", isSymlink);
+              if (isSymlink) {
+                jsonAddString(out, "symlinkTarget", symlinkTarget);
+              }
               jsonAddInt64(out, "size", fileInfoSize(&info));
               jsonAddInt(out, "ccsid", fileInfoCCSID(&info));
               jsonAddString(out, "createdAt", timeStamp.data);

@@ -103,7 +103,7 @@ SocketAddress * setSocketAddr(SocketAddress *address,
   }
 
 if (socketTrace) {
-   dumpbuffer(address, sizeof(SocketAddress));
+   dumpbuffer((const char *)address, sizeof(SocketAddress));
 }
 
   return address;
@@ -354,10 +354,10 @@ int udpReceiveFrom(Socket *socket,
   *returnCode = *reasonCode = 0;
 
   if (socketTrace > 2){
-    printf("receiveFrom into buffer=0x%x bufLen=%d\n", buffer,bufferLength);
+    printf("receiveFrom into buffer=0x%p bufLen=%d\n", buffer,bufferLength);
   }
 
-  int bytesReadOrError = recvfrom(sd, buffer, bufferLength, flags, sockAddr, &socketAddressSize);
+  int bytesReadOrError = recvfrom(sd, buffer, bufferLength, flags, sockAddr, (socklen_t *)&socketAddressSize);
   
   if (bytesReadOrError < 0){
     *returnCode = errno;
@@ -418,7 +418,7 @@ int udpSendTo(Socket *socket,
   if (socketTrace > 2){
     printf("sendTo desired=%d\n", desiredBytes);
     dumpbuffer(buffer, desiredBytes);
-    dumpbuffer(destinationAddress, sizeof(SocketAddress));
+    dumpbuffer((const char *)destinationAddress, sizeof(SocketAddress));
   }
 
   int bytesSent = sendto(sd, buffer, desiredBytes, flags, sockAddr, socketAddressSize);
@@ -446,7 +446,7 @@ int getSocketKeepAliveMode(Socket *socket, int *returnCode, int *reasonCode){
 
   int optval = 0;
   int optlen = sizeof(optval);
-  int returnValue = getSocketOption(socket,SO_KEEPALIVE,&optlen,&optval,
+  int returnValue = getSocketOption(socket,SO_KEEPALIVE,&optlen,(char *)&optval,
                                     returnCode,reasonCode);
   if (returnValue < 0) {       // If an error occurred 
     printf("Unable to get socket option SO_KEEPALIVE.\n");
@@ -467,7 +467,7 @@ int setSocketKeepAliveMode(Socket *socket, int enableKeepAlive,
 
   // Enable/disable SO_KEEPALIVE, as requested
   int optval = (enableKeepAlive ? 1 : 0);
-  int returnValue = setSocketOption(socket,SOL_SOCKET,SO_KEEPALIVE,sizeof(optval),&optval,
+  int returnValue = setSocketOption(socket,SOL_SOCKET,SO_KEEPALIVE,sizeof(optval),(char *)&optval,
                                     returnCode,reasonCode);
   if (returnValue < 0) {       // If an error occurred 
     printf("Unable to set socket option SO_KEEPALIVE to %s.\n",(optval? "on" : "off"));
@@ -772,10 +772,11 @@ Socket *tcpServer(InetAddr *addr, /* usually NULL/0 */
     return NULL;
   }
 
-  status = setSocketReuseAddr(&sd,
-                     returnCode,
-                     reasonCode);
+  /* Socket* wrapper isn't built yet; call setsockopt() directly on raw fd. */
+  int reuseOptval = 1;
+  status = setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &reuseOptval, sizeof(reuseOptval));
   if (status != 0){
+    *reasonCode = *returnCode = errno;
     if (socketTrace){
       printf("Failed to set SO_REUSEADDR errno=%d reason=0x%x\n",
              *returnCode,*reasonCode);
@@ -999,7 +1000,7 @@ int getV4HostByName(char *hostName){
       }
       numericAddress = *((int*)hostAddr); /*very IP-v4 here */  
       if (socketTrace) {
-        printf("hostAddr is at 0x%x\n", hostAddr);
+        printf("hostAddr is at 0x%p\n", hostAddr);
         printf("numeric=0x%x == %d.%d.%d.%d\n", numericAddress, (int) hostAddr[0], (int) hostAddr[1], (int) hostAddr[2],
             (int) hostAddr[3]);
       }
@@ -1061,7 +1062,8 @@ int getLocalHostName(char* inout_hostname,
     if (result < 0) {
       *reasonCode = *returnCode = errno;
       if (socketTrace) {
-        printf("gethostname(*,%d) failed, errno=%d (%s)\n",
+        printf("gethostname(%.*s) failed, errno=%d (%s)\n",
+               (int)*inout_hostname_len, inout_hostname,
                *returnCode, strerror(*returnCode));
       }
     } else {
@@ -1453,6 +1455,13 @@ int setSocketOption(Socket *socket, int level, int optionName, int optionDataLen
 		    int *returnCode, int *reasonCode)
 {
   return setSocketOptionEx(socket, level, "", optionName, "", optionDataLength, optionData, returnCode, reasonCode);
+}
+
+/* sxSocketIsReady was intended as a socket-extension hook that never got
+ * implemented; treat "ready" as the default so the idle-timeout experiment
+ * builds. Revisit if/when the socket-extension layer materializes. */
+static int sxSocketIsReady(Socket *socket) {
+  return 1;
 }
 
 void setSocketIdleTimeoutMode(Socket *socket, int enableIdleTimeout) {

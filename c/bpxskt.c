@@ -116,28 +116,7 @@
 
 #endif
 
-/* xlclang and clang what prototypes, these are incomplete, but quiet the compiler */
-int BPXSOC();
-int BPXCON();
-int BPXGHN();
-int BPXSLP();
-int BPXCHR();
-int BPXBND();
-int BPXLSN();
-int BPXACP();
-int BPXSEL();
-int BPXOPT();
-int BPXGNM();
-int BPXSTO();
-int BPXRFM();
-int BPXHST();
-int BPXIOC();
-int BPXRED();
-int BPXWRT();
-int BPXFCT();
-int BPXCLO();
-int BPXGAI();
-int BPXFAI();
+#include "zowe_bpx_prototypes.h"
 
 #define SOCK_SO_REUSEADDR 0x00000004
 #define SOCK_SO_SNDBUF    0x00001001
@@ -256,9 +235,9 @@ AddrInfoList getAddressInfoList(const char* nodeName, const char* serviceName,
       printf("about to call BPXGAI...\n");
     }
 
-    BPXGAI(nodeName,
+    BPXGAI((char*)nodeName,
            &nodeNameLen,
-           serviceName,
+           (char*)serviceName,
            &serviceNameLen,
            &hintsPtr,
            &addrInfoList,
@@ -436,7 +415,7 @@ int SocketAddress_toString(const SocketAddress *in_socketAddress,
     {
       case AF_INET:
       {
-        const unsigned char* data = &(in_socketAddress->v4Addr[0]);
+        const unsigned char* data = (const unsigned char *)&(in_socketAddress->v4Addr[0]);
         sprintf(tmpbuf, "%d.%d.%d.%d", data[0], data[1], data[2], data[3]);
         required = 1 + strlen(tmpbuf);
         break;
@@ -446,7 +425,7 @@ int SocketAddress_toString(const SocketAddress *in_socketAddress,
       {
         if (SocketAddress_isV4mappable(in_socketAddress)) {
           /* mapped V4 format - take bytes from indexes 12, 13, 14, 15 */
-          const unsigned char* data = &(in_socketAddress->data6.addrData[12]);
+          const unsigned char* data = (const unsigned char *)&(in_socketAddress->data6.addrData[12]);
           sprintf(tmpbuf, "::ffff:%d.%d.%d.%d", data[0], data[1], data[2], data[3]);
           required = 1 + strlen(tmpbuf);
         } else {
@@ -824,7 +803,7 @@ static SocketAddress *makeSocketAddrIPv4(InetAddr *addr,
   SocketAddress *address = (SocketAddress*)safeMalloc31(sizeof(SocketAddress),"SocketAddress");
   memset(address,0,sizeof(SocketAddress));
   if (socketTrace){
-    printf("socket address at 0x%x\n",address);
+    printf("socket address at 0x%p\n",address);
   }
   address->length = 14; /* see SOCK_SIN#LEN in BPXYSOCK */
   address->family = AF_INET;
@@ -833,7 +812,7 @@ static SocketAddress *makeSocketAddrIPv4(InetAddr *addr,
     address->v4Address = addr->data.data4.addrBytes;
   }
   if (socketTrace){
-    printf("makeSocketAddrIPv4: returning socket address at 0x%x\n",address);
+    printf("makeSocketAddrIPv4: returning socket address at 0x%p\n",address);
   }
   return address;
 }
@@ -852,7 +831,7 @@ SocketAddress *makeSocketAddrIPv6(InetAddr *addr, unsigned short port){
   SocketAddress *address = (SocketAddress*)safeMalloc31(sizeof(SocketAddress),"SocketAddress");
   memset(address,0,sizeof(SocketAddress));
   if (socketTrace){
-    printf("socket address at 0x%x\n",address);
+    printf("socket address at 0x%p\n",address);
   }
   address->length = 0; /* BPXYSOCK: "Specifically for AF_INET6, SOCK_LEN can either be defined as zero or SOCK#LEN+SOCK_SIN6#LEN" */
   address->family = AF_INET6;
@@ -866,7 +845,7 @@ SocketAddress *makeSocketAddrIPv6(InetAddr *addr, unsigned short port){
     }
   }
   if (socketTrace){
-    printf("makeSocketAddrIPv6: returning socket address at 0x%x\n",address);
+    printf("makeSocketAddrIPv6: returning socket address at 0x%p\n",address);
   }
   return address;
 }
@@ -905,7 +884,11 @@ Socket *tcpClient3(SocketAddress *socketAddress,
 #else
   reasonCodePtr = reasonCode;
 #endif
-  BPXSOC(AF_INET,
+
+  int family = (int) socketAddress->family;
+  int socketAddrSize = (AF_INET6 == family) ? SOCKET_ADDRESS_SIZE_IPV6 : SOCKET_ADDRESS_SIZE_IPV4;
+
+  BPXSOC(family,
          SOCTYPE_STREAM,
          IPPROTO_TCP,
          1,
@@ -924,7 +907,6 @@ Socket *tcpClient3(SocketAddress *socketAddress,
     }
     return NULL;
   } else{
-    int socketAddrSize = SOCKET_ADDRESS_SIZE_IPV4;
     if (connectTimeoutInMillis >= 0){
       Socket tempSocket;
       tempSocket.sd = socketVector[0];
@@ -1083,7 +1065,10 @@ Socket *udpPeer(SocketAddress *socketAddress,
 #else
   reasonCodePtr = reasonCode;
 #endif
-  BPXSOC(AF_INET,
+  
+  int family = (int) socketAddress->family;
+
+  BPXSOC(family,
          SOCTYPE_DATAGRAM,
          IPPROTO_UDP,
          1,
@@ -1103,7 +1088,8 @@ Socket *udpPeer(SocketAddress *socketAddress,
     return NULL;
   } else{
     int sd = socketVector[0];
-    int socketAddressSize = SOCKET_ADDRESS_SIZE_IPV4;
+    int socketAddressSize = (AF_INET6 == family) ? SOCKET_ADDRESS_SIZE_IPV6 : SOCKET_ADDRESS_SIZE_IPV4;
+
     BPXBND(&sd,
            &socketAddressSize,
            socketAddress,
@@ -1649,7 +1635,7 @@ int setSocketBlockingMode(Socket *socket, int isNonBlocking,
     return -1;
   } else {
     if (socketTrace){
-      printf("BPXFCT value %d returnValue %d \n",isNonBlocking, returnValue);
+      printf("BPXFCT value %d returnValue %d\n",isNonBlocking, returnValue);
     }
     *returnCode = 0;
     *reasonCode = 0;
@@ -1677,7 +1663,7 @@ int setSocketBlockingMode(Socket *socket, int isNonBlocking,
     return returnValue;
   } else {
     if (socketTrace){
-      printf("BPXFCT value %d returnValue %d \n",isNonBlocking, returnValue);
+      printf("BPXFCT value %d returnValue %d\n",isNonBlocking, returnValue);
     }
     /* this seems bogus 
      *returnCode = 0;
@@ -1838,7 +1824,9 @@ int udpSendTo(Socket *socket,
   int flags = 0;  /* some exotic stuff in doc
                      http://publibz.boulder.ibm.com/cgi-bin/bookmgr_OS390/BOOKS/bpxzb1c0/B.30?SHELF=all13be9&DT=20110609191818#HDRYMSGF
                    */
-  int socketAddressSize = SOCKET_ADDRESS_SIZE_IPV4;
+
+  int family = (int) destinationAddress->family;
+  int socketAddressSize = (AF_INET6 == family) ? SOCKET_ADDRESS_SIZE_IPV6 : SOCKET_ADDRESS_SIZE_IPV4;
 
   if (socketTrace > 2){
     printf("sendTo desired=%d retVal=%d retCode=%d reasonCode=%d\n",
@@ -1989,7 +1977,8 @@ int udpReceiveFrom(Socket *socket,
   int flags = 0;  /* some exotic stuff in doc
                      http://publibz.boulder.ibm.com/cgi-bin/bookmgr_OS390/BOOKS/bpxzb1c0/B.30?SHELF=all13be9&DT=20110609191818#HDRYMSGF
                    */
-  int socketAddressSize = SOCKET_ADDRESS_SIZE_IPV4;
+
+  int socketAddressSize = sizeof(SocketAddress);
 
   if (socketTrace > 2){
     printf("receiveFrom into buffer=0x%p bufLen=%d retVal=%d retCode=%d reasonCode=%d\n",
@@ -2263,7 +2252,7 @@ int getSocketName(
 
     int socketAddrSize = SOCKET_ADDRESS_SIZE_IPV4;
 
-    BPXGNM(socket,
+    BPXGNM(&(socket->sd),
             1,
             &socketAddrSize,
             socketAddress,
@@ -2295,13 +2284,13 @@ int getSocketName2(
 
     int socketAddrSize = SOCKET_ADDRESS_SIZE_IPV4;
 
-    BPXGNM(socket,
-            2,
-            &socketAddrSize,
-            socketAddress,
-            &returnValue,
-            &returnCode,
-            reasonCodePtr);
+    BPXGNM(&(socket->sd),
+           2,
+           &socketAddrSize,
+           socketAddress,
+           &returnValue,
+           &returnCode,
+           reasonCodePtr);
 
     if (returnValue == 0){
       return returnValue;
@@ -2333,7 +2322,7 @@ int getLocalHostName(char* inout_hostname,
   reasonCodePtr = reasonCode;
 #endif    
     BPXHST(AF_INET,
-            inout_hostname_len,
+            (int*)inout_hostname_len,
             inout_hostname,
             &cs_retval,
             returnCode,

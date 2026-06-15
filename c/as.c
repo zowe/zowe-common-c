@@ -260,9 +260,10 @@ int addressSpaceCreateWithTerm(const ASParmString *startParmString,
                                void * __ptr32 termCallbackParm,
                                int *reasonCode) {
 
-  _Packed union {
+  ZOWE_PRAGMA_PACK
+  union {
     ASUserToken tokenValue;
-    _Packed struct {
+    struct {
       ASCRETermCallback * __ptr32 termCallback;
       void * __ptr32 termCallbackParm;
     };
@@ -270,6 +271,7 @@ int addressSpaceCreateWithTerm(const ASParmString *startParmString,
       .termCallback = termCallback,
       .termCallbackParm = termCallbackParm,
   };
+  ZOWE_PRAGMA_PACK_RESET
 
   return addressSpaceCreateInternal(startParmString, parm, NULL,
                                     getTermExitWrapper(), &utoken.tokenValue,

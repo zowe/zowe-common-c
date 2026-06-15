@@ -1,0 +1,32 @@
+# Quoting behavior demonstration for PR review
+# This file shows cases where YAML round-trip may change quoting style.
+# In all cases the *value* is preserved; only the visual quoting changes.
+
+# === Safe: quotes are cosmetic, removal is harmless ===
+safe:
+  plain-string: "hello"           # becomes: hello (same value)
+  single-quoted: 'world'          # becomes: world (same value)
+  quoted-path: "/usr/local/bin"   # becomes: /usr/local/bin (same value)
+  quoted-url: "https://example.com"  # becomes: https://example.com
+
+# === Protected: yamlNeedsQuoting() keeps the quotes ===
+protected:
+  looks-like-bool: "true"         # stays: "true" (not converted to boolean)
+  looks-like-null: "null"         # stays: "null" (not converted to null)
+  yaml11-bool: "yes"              # stays: "yes" (not converted to boolean)
+  yaml11-bool2: "on"              # stays: "on"
+  has-colon: "key: value"         # stays quoted (colon+space)
+  has-hash: "color #fff"          # stays quoted (contains #)
+  empty-string: ""                # stays: "" (empty needs quoting)
+  leading-special: "*anchor"      # stays quoted (leading *)
+  leading-brace: "{not json}"     # stays quoted (leading {)
+
+# === The gray area: type depends on consumer ===
+gray-area:
+  port: "8080"                    # JSON carries this as string, writes back as "8080"
+  count: "3"                      # same -- string type preserved through JSON
+  ratio: "1.5"                    # same
+  # Note: if a YAML value is unquoted like  port: 8080
+  # libyaml parses it as a string anyway, but our yaml2JSON
+  # may interpret it as a number. The quotes don't come back
+  # because the JSON type (int/float) has no "was quoted" memory.

@@ -221,7 +221,11 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
   if (!socket) {
     return TLS_ALLOC_ERROR;
   }
-  char *label = env->settings->label;
+  /* Use clientLabel for outbound (client) connections when it is configured,
+     so that a dedicated client certificate with the appropriate EKU is used. */
+  char *label = (!isServer && env->settings->clientLabel)
+                  ? env->settings->clientLabel
+                  : env->settings->label;
   char *ciphers = env->settings->ciphers;
   char *keyshares = env->settings->keyshares;
   rc = rc || gsk_secure_socket_open(env->envHandle, &socket->socketHandle);

@@ -1632,7 +1632,6 @@ static int validateWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
     jsonBuildBool(builder,result,"ok",false,&errorCode);
     break;
   }
-  jsonBuildInt(builder,result,"shoeSize",11,&errorCode);
   freeJsonValidator(validator);
   ejsReturnJson(invocation,result);
   freeJsonBuilder(builder,false); 
@@ -1974,6 +1973,7 @@ static int simpleMain(int argc, char **argv){
   return ZCFG_SUCCESS;
 }
 
+#ifdef __ZOWE_OS_ZOS
 /* a diagnostic function that can be used if other logging initialization bugs come up */
 static void ensureLE64(){
   char *realCAA = NULL;
@@ -1987,12 +1987,13 @@ static void ensureLE64(){
   realCAA = *(char **)(lca + 8);
   printf("realCAA = 0x%p\n",realCAA);
   dumpbuffer(realCAA,0x450);
-  /* 
+  /*
      memset(realCAA+0x2A0,0,8);
      printf("realCAA again = 0x%p\n",realCAA);
      dumpbuffer(realCAA,0x450);
      */
 }
+#endif
 
 #ifdef CMGRTEST
 int main(int argc, char **argv){
