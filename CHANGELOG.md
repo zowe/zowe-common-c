@@ -1,5 +1,10 @@
 # Zowe Common C Changelog
 
+## `3.6.0`
+- Bugfix: Return code 414 (`HTTP_STATUS_URI_TOO_LONG`) for too long URI [(#597)](https://github.com/zowe/zowe-common-c/issues/597)
+- Bugfix: Various XML updates. [(#598)](https://github.com/zowe/zowe-common-c/pull/598)
+- Enhancement: made zowe-common-c compatible with clang/llvm on z/OS and Linux. [(#596)](https://github.com/zowe/zowe-common-c/pull/596)
+
 ## `3.5.0`
 - Enhancement: YAML comment preservation tooling for the YAML-to-JSON-to-YAML round-trip pipeline. Comments are scanned separately from libyaml, attached to the JSON tree, and re-emitted with configurable alignment (none, fixed, original). Opt-in; not yet enabled in configmgr. [(#583)](https://github.com/zowe/zowe-common-c/issues/583)
 - Enhancement: `TlsSettings` now supports a `clientLabel` field. When set, `tlsSocketInit` uses this label for outbound (client) TLS connections instead of `label`, allowing a separate certificate with a client-only EKU to be used. When `clientLabel` is NULL, `label` continues to be used for both server and client connections as before. [(#590)](https://github.com/zowe/zowe-common-c/pull/590)

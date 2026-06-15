@@ -102,6 +102,8 @@ int endSafImpersonation(ACEE **acee) {
 #define BPXTLS BPX1TLS
 #endif /*_LP64 */
 
+#include "zowe_bpx_prototypes.h"
+
 /*
  * The BPX version is really the one to use unless you have a reviewed need to do something in SAF itself
  */
