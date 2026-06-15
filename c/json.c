@@ -2680,6 +2680,9 @@ Json *jsonParseUnterminatedUtf8String(ShortLivedHeap *slh, int outputCCSID,
   if (len > 0 && len <= (((INT_MAX) / 2) - 7)) {
     conversionOutputLength = 2 * len;
     buffer = SLHAlloc(slh, conversionOutputLength);
+  } else {
+    snprintf(errorBufferOrNull, errorBufferSize, "incorrect UTF8 string length %i", len);
+    return NULL;
   }
   if (buffer == NULL) {
     snprintf(errorBufferOrNull, errorBufferSize, "not enough memory");
