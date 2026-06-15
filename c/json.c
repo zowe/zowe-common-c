@@ -2677,7 +2677,7 @@ Json *jsonParseUnterminatedUtf8String(ShortLivedHeap *slh, int outputCCSID,
   char *buffer = NULL;
 
   // SLHAlloc rounds up to a multiple of 8
-  if (len > 0 &&len <= (((INT_MAX) / 2) - 7)) {
+  if (len > 0 && len <= (((INT_MAX) / 2) - 7)) {
     conversionOutputLength = 2 * len;
     buffer = SLHAlloc(slh, conversionOutputLength);
   }
