@@ -2673,23 +2673,27 @@ Json *jsonParseUnterminatedUtf8String(ShortLivedHeap *slh, int outputCCSID,
                                       char *jsonUtf8String, int len,
                                       char* errorBufferOrNull, int errorBufferSize) {
   int convRc, convRsn;
-  int convesionOutputLength = 2 * len;
-  char *buffer;
+  int conversionOutputLength = 0;
+  char *buffer = NULL;
 
-  buffer = SLHAlloc(slh, convesionOutputLength);
+  // SLHAlloc rounds up to a multiple of 8
+  if (len > 0 &&len <= (((INT_MAX) / 2) - 7)) {
+    conversionOutputLength = 2 * len;
+    buffer = SLHAlloc(slh, conversionOutputLength);
+  }
   if (buffer == NULL) {
     snprintf(errorBufferOrNull, errorBufferSize, "not enough memory");
     return NULL;
   }
   convRc = convertCharset(jsonUtf8String, len, CCSID_UTF_8,
-      CHARSET_OUTPUT_USE_BUFFER, &buffer, convesionOutputLength, outputCCSID,
-      NULL, &convesionOutputLength, &convRsn);
+      CHARSET_OUTPUT_USE_BUFFER, &buffer, conversionOutputLength, outputCCSID,
+      NULL, &conversionOutputLength, &convRsn);
   if (convRc != 0) {
     snprintf(errorBufferOrNull, errorBufferSize, "could not convert from UTF8:"
         " conversion rc %d, reason %d", convRc, convRsn);
     return NULL;
   }
-  return jsonParseUnterminatedString(slh, buffer, convesionOutputLength,
+  return jsonParseUnterminatedString(slh, buffer, conversionOutputLength,
       errorBufferOrNull, errorBufferSize);
 }
 
