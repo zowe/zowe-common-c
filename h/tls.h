@@ -256,6 +256,7 @@ typedef struct CipherMap_tag {
 int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings);
 int tlsDestroy(TlsEnvironment *env);
 int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isServer);
+int tlsSocketInit2(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isServer, const char *peerHost);
 int tlsSocketClose(TlsSocket *socket);
 int tlsRead(TlsSocket *socket, const char *buf, int size, int *outLength);
 int tlsWrite(TlsSocket *socket, const char *buf, int size, int *outLength);

@@ -214,7 +214,7 @@ static int secureSocketSend(int fd, void *data, int len, char *userData) {
   return rc;
 }
  
-int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isServer) {
+int tlsSocketInit2(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isServer, const char *peerHost) {
   int rc = 0;
   gsk_iocallback ioCallbacks = {secureSocketRecv, secureSocketSend, NULL, NULL, NULL, NULL};
   TlsSocket *socket = (TlsSocket*)safeMalloc(sizeof(TlsSocket), "Tls Socket");
@@ -262,6 +262,11 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
     }
   }
   rc = rc || gsk_attribute_set_callback(socket->socketHandle, GSK_IO_CALLBACK, &ioCallbacks);
+  if (!isServer && peerHost) {
+    rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_REFERENCE_ID_DNS, peerHost, 0);
+    rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_REFERENCE_ID_CN, peerHost, 0);
+    rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_WILDCARD_VALIDATION_ENABLE, GSK_WILDCARD_VALIDATION_ENABLE_ON);
+  }
   rc = rc || gsk_secure_socket_init(socket->socketHandle);
   if (rc == 0) {
     *outSocket = socket;
@@ -270,6 +275,10 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
     *outSocket = NULL;
   }
   return rc;
+}
+
+int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isServer) {
+    return tlsSocketInit2(env, outSocket, fd, isServer, NULL);
 }
 
 int tlsRead(TlsSocket *socket, const char *buf, int size, int *outLength) {

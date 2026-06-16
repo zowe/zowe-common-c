@@ -702,7 +702,7 @@ int httpClientSessionInitv2(HttpClientContext *ctx, HttpClientSession **outSessi
     }
 #ifdef USE_ZOWE_TLS
   if (ctx->tlsEnvironment) {
-    int rc = tlsSocketInit(ctx->tlsEnvironment, &socket->tlsSocket, socket->sd, false);
+    int rc = tlsSocketInit2(ctx->tlsEnvironment, &socket->tlsSocket, socket->sd, false, ctx->settings->host);
     if (rc != 0) {
       HTTP_CLIENT_TRACE_VERBOSE("failed to init tls socket, rc=%d, (%s)", rc, tlsStrError(rc));
       socketClose(socket, bpxrc, &bpxrsn);
