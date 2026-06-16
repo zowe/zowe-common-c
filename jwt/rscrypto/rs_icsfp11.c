@@ -251,7 +251,11 @@ int rs_icsfp11_getRandomBytes(const ICSFP11_HANDLE_T *token_handle,
         randbuf);
 
   } while(0);
-
+  
+  if (8 <= *out_rc) {
+    status = RSCRYPTO_CALLABLE_SERVICE_ERROR;
+  }
+  
   return status;
 }
 
