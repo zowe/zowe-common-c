@@ -825,7 +825,7 @@ int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLen
   int reasonCode = 0;
   int convertBufferSize;
 
-  if (contentLength > 0 && (long long)contentLength * 2 + 7 <= INT_MAX) {
+  if (contentLength > 0 && (int64)contentLength * 2 + 7 <= INT_MAX) {
     convertBufferSize = 2 * contentLength;
   } else {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG, "Content length is too large to process: %i\n", contentLength);
@@ -901,7 +901,7 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
   int reasonCode = 0;
   int dataToWriteSize;
 
-  if (contentLength > 0 && (long long)contentLength * 2 + 7 <= INT_MAX) {
+  if (contentLength > 0 && (int64)contentLength * 2 + 7 <= INT_MAX) {
     dataToWriteSize = 2 * contentLength;
   } else {
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG, "Content length is too large to process: %i\n", contentLength);
