@@ -2890,8 +2890,11 @@ static void deleteJson(Json *base, const char *deleteKey) {
         // If we have format like [a.b.c], ensure the jsonTok is [a.b.c], and not [a.b.c
         memset(workStr, 0x00, sizeof(char)*MAX_JSON_KEY);
         if (jsonTok && jsonTok[0] == '[') {
-          strncpy(workStr, jsonTok, strlen(jsonTok));
-          while (workStr[strlen(workStr)-1] != ']') {
+          int n = snprintf(workStr, sizeof(workStr), "%s", jsonTok);
+          if (n < 0 || (size_t)n >= sizeof(workStr)) {
+            break;
+          }
+          while (workStr[0] != '\0' && workStr[strlen(workStr)-1] != ']') {
             char* nextTok = strtok(NULL, ".");
             if (!nextTok) {
               // end of string, unmatched '['
