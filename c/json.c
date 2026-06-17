@@ -2888,7 +2888,7 @@ static void deleteJson(Json *base, const char *deleteKey) {
         }
       } else {
         // If we have format like [a.b.c], ensure the jsonTok is [a.b.c], and not [a.b.c
-        memset(workStr, 0x00, sizeof(char)*MAX_JSON_KEY);
+        memset(workStr, 0x00, sizeof(workStr));
         if (jsonTok && jsonTok[0] == '[') {
           int n = snprintf(workStr, sizeof(workStr), "%s", jsonTok);
           if (n < 0 || (size_t)n >= sizeof(workStr)) {
