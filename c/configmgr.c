@@ -1241,14 +1241,17 @@ static int extractText(ConfigManager *mgr, const char *configName, JsonPointer *
 
   if (jsonIsArray(value)) {
     JsonArray *array = jsonAsArray(value);
-    for (int i = 0; i < jsonArrayGetCount(array); i++) {
+    int arrayCount = jsonArrayGetCount(array);
+    for (int i = 0; i < arrayCount; i++) {
       Json *arrayItem = jsonArrayGetItem(array, i);
       if (jsonIsObject(arrayItem) || jsonIsArray(arrayItem)) {
         fprintf(out,"error: cannot access objects or arrays in arrays");
         return ZCFG_EXTRACT_ERROR;
       } else {
         ret = printPrimitiveDataType(arrayItem, out);
-        fprintf(out, "\n");
+        if (i < (arrayCount - 1)) {
+          fprintf(out, "\n");
+        }
         if (ret) {
           return ret;
         }
