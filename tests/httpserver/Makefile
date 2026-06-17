@@ -1,7 +1,11 @@
 ###########################################################################
-# NOTICE: must run the make command in the following way:
+# NOTICE:
 #
-# _C89_L6SYSLIB="CEE.SCEEBND2:SYS1.CSSLIB:CSF.SCSFMOD0" make
+# 1. Copy the whole "zis" folder from ZSS to the same directory where this
+#    file resides.
+#
+# 2. Must run the make command in the following way:
+#    _C89_L6SYSLIB="CEE.SCEEBND2:SYS1.CSSLIB:CSF.SCSFMOD0" make
 #
 ###########################################################################
 
@@ -95,6 +99,10 @@ all: bigreqtest
 
 bigreqtest: bigreqtest.o $(COMMON_OBJS)
 	$(CC) $(LD_FLAGS) -o $@ $^
+
+# more test units go here...
+# another_test: another_test.o $(COMMON_OBJS)
+# 	$(CC) $(LD_FLAGS) -o $@ $^
 
 %.o: %.c
 	$(CC) $(CC_FLAGS) -c $<
