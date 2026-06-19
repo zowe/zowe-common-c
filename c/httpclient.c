@@ -224,10 +224,10 @@ static int asciiHexDigitDecimalValue(char c) {
 }
 
 /* returns ansi status */
-static int processHttpResponseFragment(HttpResponseParser *parser,
-                                       char *data,
-                                       int len,
-                                       HttpClientResponse **outClientResponse) {
+int processHttpResponseFragment(HttpResponseParser *parser,
+                                char *data,
+                                int len,
+                                HttpClientResponse **outClientResponse) {
   for (int i = 0; i < len; i++) {
     char c = data[i];
     int isWhitespace = FALSE;
