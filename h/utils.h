@@ -234,7 +234,7 @@ char *SLHAlloc(ShortLivedHeap *slh, int size);
  *    true, otherwise it will trigger ABEND.
  */
 
-char *SLHAlloc2(ShortLivedHeap *slh, int size, bool surpressAbend);
+char *SLHAlloc2(ShortLivedHeap *slh, int size, bool suppressAbend);
 
 /**
  *    \brief   This will reclaim the whole heap.
