@@ -51,9 +51,9 @@ const char *RSJWT_ERROR_DESCRIPTIONS[] = {
   [RC_JWT_CONTEXT_ALLOCATION_FAILED] = "context allocation failed",
   [RC_JWT_CRYPTO_TOKEN_NOT_FOUND] = "crypto token not found",
   [RC_JWT_KEY_NOT_FOUND] = "key not found in crypto token",
+  [RC_JWT_UNKNOWN_CONTEXT_TYPE] = "unknown JWT context type",
+  [RC_JWT_NOT_CONFIGURED] = "JWT not configured",
   [RC_JWT_INSECURE] = "JWT is insecure",
-  [RC_JWT_UNKNOWN_CONTEXT_TYPE] = "Unknown JWT context type",
-  [RC_JWT_NOT_CONFIGURED] = "JWT not configured"
 };
 
 #ifdef __ZOWE_EBCDIC
@@ -92,7 +92,7 @@ int setJwtTrace(int toWhat) {
 static int extractParts(char base64Buf[], int maxParts,
                         char *dparts[],  int pLen[], char *decodedText) {
   char *tokenizer;
-  unsigned int nParts, i = 0;
+  int nParts, i = 0;
   char *part;
 
   for (part = strtok_r(base64Buf, ".", &tokenizer);
