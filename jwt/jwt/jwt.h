@@ -43,7 +43,7 @@
 #  define IS_JWT_RC_OK($rc) (($rc) == RC_JWT_OK)
 #endif
  */
-#define RC_JWT_INSECURE          14
+#define RC_JWT_INSECURE          16
 
 #define MAX_JWT_RC RC_JWT_INSECURE
 
