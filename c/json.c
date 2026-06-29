@@ -2900,8 +2900,11 @@ static void deleteJson(Json *base, const char *deleteKey) {
               // end of string, unmatched '['
               break;
             }
-            strcat(workStr, ".");
-            strcat(workStr, nextTok);
+            size_t curLen = strlen(workStr);
+            int appended = snprintf(workStr + curLen, sizeof(workStr) - curLen, ".%s", nextTok);
+            if (appended < 0 || (size_t)appended >= sizeof(workStr) - curLen) {
+              break;
+            }
           }
           // strip the first and last brackets if they're present
           if (workStr[0]== '[' && workStr[strlen(workStr)-1]== ']') {
