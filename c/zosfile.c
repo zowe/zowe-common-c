@@ -596,7 +596,7 @@ int fileCopyConverted(const char *existingFileName, const char *newFileName,
   }
 
   UnixFile *newFile = fileOpen(newFileName,
-                               FILE_OPTION_WRITE_ONLY | FILE_OPTION_TRUNCATE | FILE_OPTION_CREATE | FILE_OPTION_EXCLUSIVE,
+                               FILE_OPTION_CREATE_IF_NON_EXISTENT | FILE_OPTION_TRUNCATE,
                                fileMode,
                                0,
                                &returnCode,
