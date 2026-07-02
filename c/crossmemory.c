@@ -1128,13 +1128,6 @@ typedef struct SAFEnityName_tag {
   char padding[7];
 } SAFEnityName;
 
-typedef enum SAFAccessAttribute_tag {
-  SAF_ACCESS_ATTRIBUTE_READ = 0x02,
-  SAF_ACCESS_ATTRIBUTE_UPDATE = 0x04,
-  SAF_ACCESS_ATTRIBUTE_CONTROL = 0x08,
-  SAF_ACCESS_ATTRIBUTE_ALTER = 0x08,
-  } SAFAccessAttribute;
-
 static void safEntityNameInit(SAFEnityName *string, char *cstring, char padChar) {
   memset(string->entityName, padChar, sizeof(string->entityName));
   unsigned int cstringLength = strlen(cstring);
@@ -1303,7 +1296,7 @@ static int racrouteLIST(char *className, int *racfRC, int *racfRSN) {
 
 __asm("GLBFSTAP RACROUTE REQUEST=FASTAUTH,MF=L" : "DS"(GLBFSTAP));
 
-static int racroutFASTAUTH(ACEE *acee, char *className, char *profileName, SAFAccessAttribute accessLevel,
+static int racroutFASTAUTH(ACEE *acee, char *className, char *profileName, CMSSAFAccessLevel accessLevel,
                            int *racfRC, int *racfRSN, int traceLevel) {
 
   __asm("GLBFSTAP RACROUTE REQUEST=FASTAUTH,MF=L" : "DS"(fastauthParmList));
@@ -1363,6 +1356,7 @@ static bool isAuthCheckRequired(const CrossMemoryServerGlobalArea *globalArea) {
 static bool isCallerAuthorized(CrossMemoryServerGlobalArea *globalArea,
                                char *className,
                                char *entityName,
+                               CMSSAFAccessLevel accessLevel,
                                bool noSAFRequested) {
 
   if (noSAFRequested) {
@@ -1390,7 +1384,8 @@ static bool isCallerAuthorized(CrossMemoryServerGlobalArea *globalArea,
   }
 
   int racfRC = 0, racfRSN = 0;
-  int safRC = racroutFASTAUTH(callerACEEAddr, className, entityName, SAF_ACCESS_ATTRIBUTE_READ, &racfRC, &racfRSN, 0);
+  int safRC = racroutFASTAUTH(callerACEEAddr, className, entityName,
+                              accessLevel, &racfRC, &racfRSN, 0);
   if (safRC != 0) {
     return FALSE;
   }
@@ -1410,7 +1405,7 @@ bool cmsTestAuth(CrossMemoryServerGlobalArea *globalArea,
   int racfRC = 0, racfRSN = 0;
   int safRC = racroutFASTAUTH(callerACEEAddr, (char *)className,
                               (char *)entityName,
-                              SAF_ACCESS_ATTRIBUTE_READ, &racfRC, &racfRSN, 0);
+                              CMS_SAF_ACCESS_LEVEL_READ, &racfRC, &racfRSN, 0);
   if (safRC != 0) {
     return FALSE;
   }
@@ -2112,7 +2107,6 @@ static void extractServiceFunctionAbendInfo(RecoveryContext * __ptr32 context,
 static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
                                    bool isSpaceSwitchPC) {
 
-  ABENDInfo abendInfo;
   LatentParmList *latentParmList = parmList->latentParmList;
   CrossMemoryServerGlobalArea *globalArea = latentParmList->parm1;
 
@@ -2143,6 +2137,7 @@ static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
   if (!isCallerAuthorized(globalArea,
                           "FACILITY",
                           CROSS_MEMORY_SERVER_RACF_PROFILE,
+                          CMS_SAF_ACCESS_LEVEL_READ,
                           localParmList.flags & CMS_PARMLIST_FLAG_NO_SAF_CHECK))
   {
     return RC_CMS_PERMISSION_DENIED;
@@ -2172,9 +2167,21 @@ static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
     return RC_CMS_FUNCTION_NULL;
   }
 
+  if (service->flags & CROSS_MEMORY_SERVICE_FLAG_SAF_CHECK) {
+    CrossMemoryServiceSAFExt *safEntry =
+        &globalArea->serviceSAFTable[localParmList.serviceID];
+    if (!isCallerAuthorized(
+            globalArea, safEntry->safClassName, safEntry->safEntityName,
+            safEntry->accessLevel,
+            localParmList.flags & CMS_PARMLIST_FLAG_NO_SAF_CHECK)) {
+      return RC_CMS_SERVICE_PERMISSION_DENIED;
+    }
+  }
+
   int returnCode = RC_CMS_OK;
 
 #ifdef CMS_ABEND_DIAG
+  ABENDInfo abendInfo;
   int pushRC = recoveryPush("CMS service function call",
                             RCVR_FLAG_RETRY | RCVR_FLAG_DELETE_ON_RETRY |
                             RCVR_FLAG_SDWA_TO_LOGREC,
@@ -2667,7 +2674,15 @@ static bool isServiceEntryAvailable(const CrossMemoryService *entry) {
   return false;
 }
 
-int cmsRegisterService(CrossMemoryServer *server, int id, CrossMemoryServiceFunction *serviceFunction, void *serviceData, int flags) {
+static int cmsRegisterServiceInternal(
+    CrossMemoryServer *server,
+    int id,
+    CrossMemoryServiceFunction *serviceFunction,
+    void *serviceData,
+    const char *safClassName,
+    const char *safEntityName,
+    CMSSAFAccessLevel accessLevel,
+    int flags) {
 
   if (id < CROSS_MEMORY_SERVER_MIN_SERVICE_ID || CROSS_MEMORY_SERVER_MAX_SERVICE_ID < id) {
     zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE, CMS_LOG_BAD_SERVICE_ID_MSG, id);
@@ -2684,6 +2699,7 @@ int cmsRegisterService(CrossMemoryServer *server, int id, CrossMemoryServiceFunc
   bool isCurrentPrimary = !isSpaceSwitch;
   bool codeInCommon = flags & CMS_SERVICE_FLAG_CODE_IN_COMMON ? true : false;
   bool relocateToCommon = flags & CMS_SERVICE_FLAG_RELOCATE_TO_COMMON ? true : false;
+  bool safCheck = flags & CMS_SERVICE_FLAG_SAF_CHECK ? true : false;
 
   bool relocationRequired = (isSpaceSwitch && relocateToCommon && !codeInCommon) || (isCurrentPrimary && !codeInCommon);
 
@@ -2709,9 +2725,58 @@ int cmsRegisterService(CrossMemoryServer *server, int id, CrossMemoryServiceFunc
     server->serviceTable[id].flags |= CROSS_MEMORY_SERVICE_FLAG_SPACE_SWITCH;
   }
 
+  if (safCheck) {
+    if (id >= CROSS_MEMEORY_SERVER_MAX_SERVICE_SAF_EXT_COUNT) {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+              CMS_LOG_BAD_SERVICE_PARM_MSG, id, "service ID",
+              "too large for SAF table");
+      return RC_CMS_ERROR;
+    }
+    size_t classLen = safClassName ? strlen(safClassName) : 0;
+    if (!safClassName || classLen == 0 ||
+        classLen >= sizeof(server->serviceSAFTable[id].safClassName)) {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+              CMS_LOG_BAD_SERVICE_PARM_MSG, id, "SAF class", "invalid");
+      return RC_CMS_ERROR;
+    }
+    size_t entityLen = safEntityName ? strlen(safEntityName) : 0;
+    if (!safEntityName || entityLen == 0 ||
+        entityLen >= sizeof(server->serviceSAFTable[id].safEntityName)) {
+      zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_SEVERE,
+              CMS_LOG_BAD_SERVICE_PARM_MSG, id, "SAF profile", "invalid");
+      return RC_CMS_ERROR;
+    }
+    strcpy(server->serviceSAFTable[id].safClassName, safClassName);
+    strcpy(server->serviceSAFTable[id].safEntityName, safEntityName);
+    server->serviceSAFTable[id].accessLevel = accessLevel;
+    server->serviceTable[id].flags |= CROSS_MEMORY_SERVICE_FLAG_SAF_CHECK;
+  }
+
   zowelog(NULL, LOG_COMP_ID_CMS, ZOWE_LOG_DEBUG, CMS_LOG_DEBUG_MSG_ID" function %d - 0x%p\n", id, serviceFunction);
 
   return RC_CMS_OK;
+}
+
+int cmsRegisterService(CrossMemoryServer *server,
+                        int id,
+                        CrossMemoryServiceFunction *serviceFunction,
+                        void *serviceData,
+                        int flags) {
+  return cmsRegisterServiceInternal(server, id, serviceFunction, serviceData,
+                                    NULL, NULL, 0x00, flags);
+}
+
+int cmsRegisterService2(CrossMemoryServer *server,
+                        int id,
+                        CrossMemoryServiceFunction *serviceFunction,
+                        void *serviceData,
+                        const char *safClassName,
+                        const char *safEntityName,
+                        CMSSAFAccessLevel accessLevel,
+                        int flags) {
+  return cmsRegisterServiceInternal(server, id, serviceFunction, serviceData,
+                                    safClassName, safEntityName, accessLevel,
+                                    flags);
 }
 
 static int loadServer(CrossMemoryServer *server) {
@@ -3578,6 +3643,8 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
   globalArea->serverFlags |= server->flags;
   globalArea->serverASID = getMyPASID();
   globalArea->callerCount = 0;
+  /* Indicate that the core services are checked by SAF */
+  globalArea->flags |= CMS_GLOBAL_AREA_FLAG_SAF_CHECKED_SERVICES;
 
   const char *statusText = "n/a";
   /* Register the module or load it to LPA if needed, otherwise re-use the
@@ -3644,6 +3711,8 @@ static int allocateGlobalResources(CrossMemoryServer *server) {
   /* Prepare the service table */
   initializeServiceTable(server);
   memcpy(globalArea->serviceTable, server->serviceTable, sizeof(globalArea->serviceTable));
+  memcpy(globalArea->serviceSAFTable, server->serviceSAFTable,
+         sizeof(globalArea->serviceSAFTable));
 
   /* Prepare the PC-cp handler. */
   char *handlerAddressLocal = (char *)handlePCCP;

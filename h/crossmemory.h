@@ -145,7 +145,8 @@
 #define RC_CMS_STDSVC_PARM_BAD_VERSION      94
 #define RC_CMS_CONFIG_VALUE_BUF_TOO_SMALL   95
 #define RC_CMS_MODREG_FAILED                96
-#define RC_CMS_MAX_RC                       96
+#define RC_CMS_SERVICE_PERMISSION_DENIED    97
+#define RC_CMS_MAX_RC                       97
 
 extern const char *CMS_RC_DESCRIPTION[];
 
@@ -178,6 +179,8 @@ typedef struct ELXLIST_tag {
 
 #define CROSS_MEMEORY_SERVER_MAX_SERVICE_COUNT   (CROSS_MEMORY_SERVER_MAX_SERVICE_ID + 1)
 
+#define CROSS_MEMEORY_SERVER_MAX_SERVICE_SAF_EXT_COUNT 24
+
 #define CROSS_MEMORY_SERVER_MAX_CMD_TASK_NUM  30
 
 struct CrossMemoryServerGlobalArea_tag;
@@ -191,8 +194,25 @@ typedef struct CrossMemoryService_tag {
 #define CROSS_MEMORY_SERVICE_FLAG_INITIALIZED   0x00000001
 #define CROSS_MEMORY_SERVICE_FLAG_SPACE_SWITCH  0x00000002
 #define CROSS_MEMORY_SERVICE_FLAG_LPA           0x00000004
+#define CROSS_MEMORY_SERVICE_FLAG_SAF_CHECK     0x00000008
   PAD_LONG(1, void *serviceData);
 } CrossMemoryService;
+
+#pragma enum(1)
+typedef enum CMSSAFAccessLevel_tag {
+  CMS_SAF_ACCESS_LEVEL_READ = 0x02,
+  CMS_SAF_ACCESS_LEVEL_UPDATE = 0x04,
+  CMS_SAF_ACCESS_LEVEL_CONTROL = 0x08,
+  CMS_SAF_ACCESS_LEVEL_ALTER = 0x80,
+} CMSSAFAccessLevel;
+#pragma enum(reset)
+
+typedef struct CrossMemoryServiceSAFExt_tag {
+  char safClassName[8 + 1];  /* room for 8 chars plus null term */
+  char safEntityName[32 + 1];  /* room for 32 chars plus null term */
+  CMSSAFAccessLevel accessLevel;
+  char padding0[5];
+} CrossMemoryServiceSAFExt;
 
 /*
  * TODO this version must not be incremented until the following gets addressed.
@@ -235,6 +255,7 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   unsigned short size;
   unsigned int flags;
 #define CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE 0x00000001
+#define CMS_GLOBAL_AREA_FLAG_SAF_CHECKED_SERVICES 0x00000002
   volatile int callerCount;
   char reserved1[52];
 
@@ -280,8 +301,9 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   char reserved3[480];
 
   CrossMemoryService serviceTable[CROSS_MEMEORY_SERVER_MAX_SERVICE_COUNT];
+  CrossMemoryServiceSAFExt serviceSAFTable[CROSS_MEMEORY_SERVER_MAX_SERVICE_SAF_EXT_COUNT];
 
-  char reserved4[1320];
+  char reserved4[168];
 
 } CrossMemoryServerGlobalArea;
 
@@ -368,6 +390,7 @@ typedef struct CrossMemoryServer_tag {
   unsigned int pcssStackPoolSize;
   unsigned int pcssRecoveryPoolSize;
   CrossMemoryService serviceTable[CROSS_MEMEORY_SERVER_MAX_SERVICE_COUNT];
+  CrossMemoryServiceSAFExt serviceSAFTable[CROSS_MEMEORY_SERVER_MAX_SERVICE_SAF_EXT_COUNT];
 } CrossMemoryServer;
 
 typedef struct CrossMemoryServerParmList_tag {
@@ -434,6 +457,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define removeCrossMemoryServer CMMCRSRV
 #define cmsSetPoolParameters CMCMSSPP
 #define cmsRegisterService CMCMSRSR
+#define cmsRegisterService2 CMCMSRS2
 #define cmsStartMainLoop CMCMAINL
 #define cmsGetGlobalArea CMGETGA
 #define cmsAddConfigParm CMADDPRM
@@ -472,6 +496,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define CMS_SERVICE_FLAG_SPACE_SWITCH         0x00000001
 #define CMS_SERVICE_FLAG_RELOCATE_TO_COMMON   0x00000002
 #define CMS_SERVICE_FLAG_CODE_IN_COMMON       0x00000004
+#define CMS_SERVICE_FLAG_SAF_CHECK            0x00000008
 
 /* server side functions (must be authorized and in supervisor mode) */
 void cmsInitializeLogging();
@@ -491,6 +516,14 @@ void cmsSetPoolParameters(CrossMemoryServer *server,
                           unsigned int pcssStackPoolSize,
                           unsigned int pcssRecoveryPoolSize);
 int cmsRegisterService(CrossMemoryServer *server, int id, CrossMemoryServiceFunction *serviceFunction, void *serviceData, int flags);
+int cmsRegisterService2(CrossMemoryServer *server,
+                        int id,
+                        CrossMemoryServiceFunction *serviceFunction,
+                        void *serviceData,
+                        const char *safClassName,
+                        const char *safEntityName,
+                        CMSSAFAccessLevel accessLevel,
+                        int flags);
 int cmsStartMainLoop(CrossMemoryServer *server);
 int cmsGetGlobalArea(const CrossMemoryServerName *serverName, CrossMemoryServerGlobalArea **globalAreaAddress);
 int cmsAddConfigParm(CrossMemoryServer *server,
@@ -1204,6 +1237,12 @@ typedef struct CMSDynlinkEnv_tag {
 #endif
 #define CMS_LOG_MODREG_RESET_WARN_MSG_TEXT      "Module registry reset RC = %d"
 #define CMS_LOG_MODREG_RESET_WARN_MSG           CMS_LOG_MODREG_RESET_WARN_MSG_ID" "CMS_LOG_MODREG_RESET_WARN_MSG_TEXT
+
+#ifndef CMS_LOG_BAD_SERVICE_PARM_MSG_ID
+#define CMS_LOG_BAD_SERVICE_PARM_MSG_ID         CMS_MSG_PRFX"0262E"
+#endif
+#define CMS_LOG_BAD_SERVICE_PARM_MSG_TEXT       "Service with ID %d not registered, parameter \'%s\' is \'%s\'"
+#define CMS_LOG_BAD_SERVICE_PARM_MSG            CMS_LOG_BAD_SERVICE_PARM_MSG_ID" "CMS_LOG_BAD_SERVICE_PARM_MSG_TEXT
 
 
 #endif /* H_CROSSMEMORY_H_ */
