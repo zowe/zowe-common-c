@@ -607,7 +607,7 @@ void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char 
 }
 
 /* Creates an empty unix file with no tag. This is
- * done by mimicing the touch command.
+ * done by mimicking the touch command.
  */
 static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
   int returnCode = 0, reasonCode = 0, status = 0;
@@ -619,7 +619,7 @@ static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
   }
 
   UnixFile *dest = fileOpen(absolutePath,
-                            FILE_OPTION_CREATE | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY,
+                            FILE_OPTION_CREATE | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY | FILE_OPTION_EXCLUSIVE,
                             0700,
                             0,
                             &returnCode,
