@@ -12,6 +12,7 @@
 
 #ifdef METTLE
 #include <metal/metal.h>
+#include <metal/limits.h>
 #include <metal/stddef.h>
 #include <metal/stdio.h>
 #include <metal/stdlib.h>
@@ -21,6 +22,7 @@
 #include "metalio.h"
 
 #else
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1493,10 +1495,18 @@ ShortLivedHeap *makeShortLivedHeap64(int blockSize, int maxBlocks){
 }
 
 char *SLHAlloc(ShortLivedHeap *slh, int size){
+  if (size <= 0) {
+    return NULL; 
+  }
+
   /* expand for fullword alignment */
   int rem = size & 0x7;
   if (rem != 0){
-    size += (8-rem);
+    int padding = 8 - rem;
+    if (size > INT_MAX - padding) {
+      return NULL; // Handle overflow error (out of memory range)
+    }
+    size += padding;
   }
   char *data;
   /* 
@@ -1691,7 +1701,6 @@ char *stringListPrint(StringList *list, int start, int max, char *separator, cha
   /* printf("stringListPrint totalSize = %d listCount=%d buffer size %d, max=%d, slh=0x%x\n",
      list->totalSize,list->count,allocSize,max,list->slh); */
   out = SLHAlloc(list->slh, allocSize);
-  memcpy(out,"                        ",20);
   for (i=0; (i<start && elt); i++){
     elt = elt->next;
   }
