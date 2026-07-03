@@ -1,6 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+- Bugfix: Internal Short Lived Heap allocation routine `SLHAlloc` checks the size [(#620)](https://github.com/zowe/zowe-common-c/issues/620)
 - Bugfix: Return code 414 (`HTTP_STATUS_URI_TOO_LONG`) for too long URI [(#597)](https://github.com/zowe/zowe-common-c/issues/597)
 - Bugfix: Various XML updates. [(#598)](https://github.com/zowe/zowe-common-c/pull/598)
 - Enhancement: made zowe-common-c compatible with clang/llvm on z/OS and Linux. [(#596)](https://github.com/zowe/zowe-common-c/pull/596)
