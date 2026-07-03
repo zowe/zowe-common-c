@@ -4494,7 +4494,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 #endif
         ;
     char *forceEnabled = getQueryParam(response->request, "force");
-    if (ccsid == 0 && !strcmp(forceEnabled, "enable")) {
+    if (ccsid == 0 && forceEnabled && !strcmp(forceEnabled, "enable")) {
         char *sourceEncoding = getQueryParam(response->request, "source");
         char *targetEncoding = getQueryParam(response->request, "target");
         int sEncoding;
