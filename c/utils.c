@@ -1691,7 +1691,6 @@ char *stringListPrint(StringList *list, int start, int max, char *separator, cha
   /* printf("stringListPrint totalSize = %d listCount=%d buffer size %d, max=%d, slh=0x%x\n",
      list->totalSize,list->count,allocSize,max,list->slh); */
   out = SLHAlloc(list->slh, allocSize);
-  memcpy(out,"                        ",20);
   for (i=0; (i<start && elt); i++){
     elt = elt->next;
   }
