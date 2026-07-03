@@ -1178,7 +1178,7 @@ static int safVerifyInternal(int options,
   ACEE * __ptr32  * __ptr32 ACEEPtr =  (ACEE * __ptr32 * __ptr32) safeMalloc31(4, "ACEE ptr");
   safVerifyRequest *verifyRequest = (safVerifyRequest*)(((char*)safWrapper)+ sizeof(safp));
   char *countedUserid = makeCountedString("userid", userid, 8, FALSE, &countedUserSize);
-  if (strlen (password) <= 8) {
+  if (!password || strlen (password) <= 8) {
     countedPassword = makeCountedString("password", password, 8, FALSE, &countedPasswordSize);
   }
   else {
