@@ -307,7 +307,11 @@ int convertCharset(char *input,
 */
 
 
-#elif defined(__ZOWE_OS_ZOS) && !defined(__ZOWE_COMP_XLCLANG)
+#elif defined(__ZOWE_OS_ZOS) && !defined(__ZOWE_COMP_XLCLANG) && !defined(__ZOWE_COMP_CLANG)
+/* z/OS metal / non-clang (old xlc) only. ibm-clang64 (__ZOWE_COMP_CLANG) is an
+ * LE clang compiler and belongs on the iconv branch below with xlclang -- it was
+ * previously falling in here via !__ZOWE_COMP_XLCLANG and using CUNLCNV, which
+ * broke convertCharsetStreaming (metal semantics, not POSIX iconv). */
 
 /*
 
@@ -504,7 +508,7 @@ int convertCharset(char *input,
 
 /* End of Traditional METAL and XLC cases, since linkage(OS64_NOSTACK) doesn't work in xlclang and clang 
    some C code goes through here, too.  We should short circuit easy special cases here some day */
-#elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || (defined(__ZOWE_OS_ZOS) && defined(__ZOWE_COMP_XLCLANG))
+#elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || (defined(__ZOWE_OS_ZOS) && (defined(__ZOWE_COMP_XLCLANG) || defined(__ZOWE_COMP_CLANG)))
 
 #include <iconv.h>
 #include <errno.h>
