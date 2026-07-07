@@ -524,7 +524,7 @@ int convertCharset(char *input,
 static const char *getCharsetName(int ibmCode){
   switch (ibmCode){
   case CCSID_ISO_8859_1:
-    return "ISO-8859-1";
+    return "ISO8859-1"; /* NO dash after ISO: z/OS iconv rejects "ISO-8859-1" (errno 121); glibc accepts both */
   case CCSID_IBM1047:
     return "IBM-1047";
   case CCSID_UTF_8:
@@ -642,8 +642,129 @@ int convertCharset(char *input,
   }
   return result;
 }
-#else  
+
+/* Streaming charset conversion for the file-content path (USE_BUFFER only).
+ * Converts as much of [input, inputLength] as forms COMPLETE characters into
+ * the caller's output buffer, and reports BOTH how much output was produced
+ * (*conversionOutputLength) and how much input was consumed (*inputBytesConsumed).
+ *
+ * A trailing incomplete multibyte sequence (iconv EINVAL) is intentionally left
+ * unconsumed and is NOT an error: the caller carries those leftover bytes
+ * (inputLength - *inputBytesConsumed) forward and prepends them to the next read,
+ * which is what fixes multi-byte characters split across a read-buffer boundary.
+ *
+ * Characters the target cannot represent are substituted rather than aborting
+ * the whole response (the #828 silent empty body): //TRANSLIT handles
+ * unmappable-in-target, and an explicit '?' is emitted for bytes that are
+ * invalid in the source encoding, so one bad byte can't stall the stream. */
+int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
+                            char *output, int outputLength, int outputCCSID,
+                            int *conversionOutputLength, int *inputBytesConsumed,
+                            int *reasonCode){
+  *reasonCode = 0;
+  *conversionOutputLength = 0;
+  *inputBytesConsumed = 0;
+
+  const char *inputCharset = getCharsetName(inputCCSID);
+  const char *outputCharset = getCharsetName(outputCCSID);
+  if ((inputCharset == NULL) || (outputCharset == NULL)){
+    return CHARSET_UNKNOWN_CCSID;
+  }
+
+  /* "//TRANSLIT" is a glibc transliteration extension: on glibc it gives clean
+   * per-character substitution for characters unmappable in the target. z/OS
+   * iconv does NOT implement it as a modifier -- it opens "NAME//TRANSLIT" as a
+   * distinct, malfunctioning converter (drops data, mishandles incomplete
+   * sequences) -- and z/OS iconv already substitutes unmappable characters
+   * natively (SUB, 0x1A). So attempt //TRANSLIT only on glibc; everywhere else
+   * use the plain converter, whose EILSEQ we substitute for ourselves below. */
+  iconv_t converter = (iconv_t) -1;
+#if defined(__ZOWE_OS_LINUX)
+  char translitCharset[64];
+  snprintf(translitCharset, sizeof(translitCharset), "%s//TRANSLIT", outputCharset);
+  converter = iconv_open (translitCharset, inputCharset);
+#endif
+  if (converter == (iconv_t) -1){
+    converter = iconv_open (outputCharset, inputCharset);
+  }
+  if (converter == (iconv_t) -1){
+    *reasonCode = errno;
+    return CHARSET_CONVERSION_UNIMPLEMENTED;
+  }
+
+  char  *inPtr  = input;
+  size_t inLeft = (size_t) inputLength;
+  char  *outPtr = output;
+  size_t outLeft = (size_t) outputLength;
+  int result = CHARSET_CONVERSION_SUCCESS;
+
+  while (inLeft > 0){
+    size_t status = iconv(converter, &inPtr, &inLeft, &outPtr, &outLeft);
+    if (status != (size_t) -1){
+      break; /* all remaining input consumed */
+    }
+    if (errno == EINVAL){
+      break; /* incomplete trailing sequence -> caller carries it forward */
+    } else if (errno == E2BIG){
+      result = CHARSET_SHORT_BUFFER; /* output full; caller has what fit */
+      break;
+    } else if (errno == EILSEQ){
+      /* byte not valid in the source encoding: substitute and skip it so a
+         single bad byte cannot stall the whole stream. */
+      if (outLeft == 0){ result = CHARSET_SHORT_BUFFER; break; }
+      *outPtr++ = 0x3F; /* '?' as a numeric byte: correct in ASCII-family targets
+                           (UTF-8, 819). The char literal '?' would be EBCDIC 0x6F
+                           under -fexec-charset=IBM-1047 and render 'o' in a 819 stream. */
+      outLeft--;
+      inPtr++;
+      inLeft--;
+      continue;
+    } else {
+      result = CHARSET_INTERNAL_ERROR;
+      break;
+    }
+  }
+
+  iconv_close(converter);
+  *conversionOutputLength = (int) ((size_t) outputLength - outLeft);
+  *inputBytesConsumed     = (int) ((size_t) inputLength  - inLeft);
+  return result;
+}
+
+/* This build has a native streaming converter (iconv); suppress the portable
+ * fallback defined after the OS switch below. */
+#define ZOWE_HAVE_CONVERT_CHARSET_STREAMING 1
+
+#else
 #error Unknown OS
+#endif
+
+#ifndef ZOWE_HAVE_CONVERT_CHARSET_STREAMING
+/* Portable convertCharsetStreaming for platforms whose branch above provides no
+ * native streaming converter (Windows, z/OS metal-C). There is no carry-forward
+ * here: this platform's convertCharset processes the whole input buffer in one
+ * shot, so we report the input fully consumed and leave nothing pending. This
+ * exists so httpserver.c's streamTextForFile2 can call one API on every
+ * platform; pre-#828 behavior on these platforms is unchanged. */
+int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
+                            char *output, int outputLength, int outputCCSID,
+                            int *conversionOutputLength, int *inputBytesConsumed,
+                            int *reasonCode){
+  *reasonCode = 0;
+  *conversionOutputLength = 0;
+  *inputBytesConsumed = 0;
+  char *outputArg = output;
+  int rc = convertCharset(input, inputLength, inputCCSID,
+                          CHARSET_OUTPUT_USE_BUFFER, &outputArg,
+                          outputLength, outputCCSID,
+                          NULL, conversionOutputLength, reasonCode);
+  if ((outputArg != output) && (*conversionOutputLength > 0) &&
+      (*conversionOutputLength <= outputLength)){
+    memcpy(output, outputArg, (size_t) *conversionOutputLength);
+  }
+  *inputBytesConsumed = inputLength;
+  return rc;
+}
 #endif
 
 

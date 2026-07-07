@@ -4798,64 +4798,73 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
     char *translation = safeMalloc((2*bufferSize)+4, "streamTextConvertBuffer"); /* UTF inflation tolerance */
     int encodedLength;
 
+    /* Carry-forward: a multibyte character can straddle a read boundary. Any
+     * incomplete trailing bytes that convertCharsetStreaming could not consume
+     * are held here and prepended to the next read, so no character is split or
+     * lost across buffer boundaries (part of the #828 fix). */
+    char pending[8];
+    int pendingLen = 0;
+
     while (!fileEOF(in)){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "WARNING: UTF8 might not be aligned properly: preserve 3 bytes for the next read cycle to fix UTF boundaries\n");
-      int bytesRead = fileRead(in,buffer,bufferSize,&returnCode,&reasonCode);
+      if (pendingLen > 0) {
+        memcpy(buffer, pending, pendingLen);
+      }
+      int bytesRead = fileRead(in, buffer + pendingLen, bufferSize - pendingLen,
+                               &returnCode, &reasonCode);
       if (bytesRead <= 0) {
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
                 "Text streaming has ended. (return = 0x%x, reason = 0x%x)\n",
                 returnCode, reasonCode);
         break;
       }
-      unsigned int inLen, outLen;
+      int inTotal = pendingLen + bytesRead;
+      pendingLen = 0;
+      unsigned int outLen;
       int rc;
-      char *inPtr, *outPtr;
+      char *outPtr;
 
       if (sourceCCSID == targetCCSID) {
         outPtr = buffer;
-        outLen = (unsigned int)bytesRead;
+        outLen = (unsigned int)inTotal;
       } else {
-        inPtr = buffer;
-        outPtr = translation;
-        inLen = (unsigned int)bytesRead;
-        outLen = (unsigned int) 2 * bytesRead;
-
-        /* TBD: I don't like this scheme.
-         * As mentioned in the warning above, if the encodings are not single-byte encodings, either 
-           the input or output buffers could break in the middle of a multi-byte character. The current
-           API for convertCharset doesn't let you restart in such cases.
-         * Every call to convertCharset will (in the current implementation) use iconv_open to get
-           a converter. That's expensive.
-         * If no conversion is necessary, Linuxland could use the sendfile(2) system call.
-        */
-
-        /* dumpbuffer(buffer,bytesRead); */
+        /* Streaming conversion with carry-forward and substitution.
+         * convertCharsetStreaming converts as much as it can, substitutes any
+         * character unmappable in the target instead of aborting to an empty
+         * body (#828), and reports how many input bytes it consumed. A trailing
+         * incomplete multibyte sequence is left unconsumed: we hold those bytes
+         * in `pending` and prepend them to the next read so the character is
+         * completed there rather than corrupted. Every call still does its own
+         * iconv_open (unchanged from before); if no conversion is necessary the
+         * sourceCCSID==targetCCSID fast path above skips this entirely. */
         int translationLength = 0;
-        int reasonCode = 0;
-        rc = convertCharset(inPtr,
-                            inLen,
-                            sourceCCSID,
-                            CHARSET_OUTPUT_USE_BUFFER,
-                            &outPtr,
-                            outLen,
-                            targetCCSID,
-                            NULL,
-                            &translationLength,
-                            &reasonCode);
+        int inputConsumed = 0;
+        int convReason = 0;
+        rc = convertCharsetStreaming(buffer,
+                                     inTotal,
+                                     sourceCCSID,
+                                     translation,
+                                     2 * bufferSize,
+                                     targetCCSID,
+                                     &translationLength,
+                                     &inputConsumed,
+                                     &convReason);
 
-        if (inLen != translationLength) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "streamTextForFile(%d (%s), %d (%s), %d, %d, %d, %d): "
-                 "after sending %d bytes got translation length error; expected %d, got %d\n",
-                 getSocketDebugID(socket), socket->debugName, 
-                 in->fd, in->pathname,
-                 encoding, sourceCCSID, targetCCSID, asB64, bytesSent, inLen, translationLength);
-        }
         if (TRACE_CHARSET_CONVERSION){
-          printf("convertCharset transLen=%d\n",translationLength);
+          printf("convertCharsetStreaming transLen=%d consumed=%d/%d rc=%d\n",
+                 translationLength, inputConsumed, inTotal, rc);
           dumpbuffer(translation,translationLength);
         }
         if (rc != 0){
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "iconv rc = %d, bytesRead=%d xlateLength=%d\n",rc,bytesRead,translationLength);
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                  "streamTextForFile charset stream rc=%d consumed=%d/%d xlateLength=%d\n",
+                  rc, inputConsumed, inTotal, translationLength);
+        }
+
+        int leftover = inTotal - inputConsumed;
+        if ((leftover > 0) && (leftover <= (int) sizeof(pending))) {
+          /* straddling tail -> carry to next read (dropped only at true EOF) */
+          memcpy(pending, buffer + inputConsumed, leftover);
+          pendingLen = leftover;
         }
 
         outPtr = translation;

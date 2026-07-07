@@ -110,8 +110,17 @@ int convertCharset(char *input,
                    int outputLength, 
                    int outputCCSID,
                    ShortLivedHeap *slh, // optional
-                   int *conversionOutputLength, 
+                   int *conversionOutputLength,
                    int *reasonCode);
+
+/* Streaming variant used by the file-content path: converts only COMPLETE
+ * characters, reports input bytes consumed so the caller can carry a partial
+ * multibyte sequence forward across read buffers, and substitutes unmappable
+ * characters instead of failing. See convertCharsetStreaming in charsets.c. */
+int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
+                            char *output, int outputLength, int outputCCSID,
+                            int *conversionOutputLength, int *inputBytesConsumed,
+                            int *reasonCode);
 
 /**
    Returns -1 if charsetName is not known.
