@@ -2525,9 +2525,10 @@ static char *getCookieValue(HttpRequest *request, char *cookieName){
       keyValuePairLength = semiPos-pos;
       nextPos = semiPos+1;
     }
-    int equalsPos = indexOf(cookieText, cookieTextLength, '=', pos);
+    int equalsPos = indexOf(cookieText, (semiPos == -1 ? cookieTextLength : semiPos), '=', pos);
     if ((equalsPos != -1) &&
-        !memcmp(cookieText+pos,cookieName,equalsPos-pos)){
+        (equalsPos-pos == cookieNameLength) &&
+        !memcmp(cookieText+pos,cookieName,cookieNameLength)){
       char *cookieValue = copyString(slh, &cookieText[equalsPos + 1],
           pos + keyValuePairLength - (equalsPos + 1));
       return cookieValue;
