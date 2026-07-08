@@ -47,92 +47,92 @@
  * "IBM-37").  Matching is case-insensitive (strupcase is applied first).
  */
 int getCharsetCode(const char *charsetName) {
+  static const struct { const char *name; int ccsid; } charsetCodes[] = {
+    {"ISO-8859-1", CCSID_ISO_8859_1},
+    {"ISO8859-1", CCSID_ISO_8859_1},
+    {"IBM-819", CCSID_ISO_8859_1},
+    {"UTF-8", CCSID_UTF_8},
+    {"UTF-16", CCSID_UTF_16},
+    {"UTF-16BE", CCSID_UTF_16_BE},
+    {"UTF-16LE", CCSID_UTF_16_LE},
+    {"IBM-37", 37},                   /* IBM037  EBCDIC US/Canada */
+    {"IBM-38", 38},                   /* IBM038  EBCDIC INT */
+    {"IBM-259", 259},                 /* IBM-Symbols presentation set */
+    {"IBM-273", 273},                 /* IBM273  EBCDIC German */
+    {"IBM-274", 274},                 /* IBM274  EBCDIC Belgian */
+    {"IBM-275", 275},                 /* IBM275  EBCDIC Brazilian */
+    {"IBM-277", 277},                 /* IBM277  EBCDIC Danish/Norwegian */
+    {"IBM-278", 278},                 /* IBM278  EBCDIC Finnish/Swedish */
+    {"IBM-280", 280},                 /* IBM280  EBCDIC Italian */
+    {"IBM-281", 281},                 /* IBM281  EBCDIC Japanese-E */
+    {"IBM-284", 284},                 /* IBM284  EBCDIC Spanish */
+    {"IBM-285", 285},                 /* IBM285  EBCDIC UK */
+    {"IBM-290", 290},                 /* IBM290  EBCDIC Japanese Katakana */
+    {"IBM-297", 297},                 /* IBM297  EBCDIC French */
+    {"IBM-367", 367},                 /* IBM367  US-ASCII (alias) */
+    {"IBM-420", 420},                 /* IBM420  EBCDIC Arabic */
+    {"IBM-423", 423},                 /* IBM423  EBCDIC Greek */
+    {"IBM-424", 424},                 /* IBM424  EBCDIC Hebrew */
+    {"IBM-437", 437},                 /* IBM437  PC US */
+    {"IBM-500", 500},                 /* IBM500  EBCDIC International */
+    {"IBM-775", 775},                 /* IBM775  PC Baltic */
+    {"IBM-838", 838},                 /* IBM-Thai presentation set */
+    {"IBM-850", 850},                 /* IBM850  PC Multilingual */
+    {"IBM-851", 851},                 /* IBM851 */
+    {"IBM-852", 852},                 /* IBM852  PC Latin-2 */
+    {"IBM-855", 855},                 /* IBM855  PC Cyrillic */
+    {"IBM-857", 857},                 /* IBM857  PC Turkish */
+    {"IBM-858", 858},                 /* IBM00858 PC Multilingual+euro */
+    {"IBM-860", 860},                 /* IBM860  PC Portuguese */
+    {"IBM-861", 861},                 /* IBM861  PC Icelandic */
+    {"IBM-862", 862},                 /* IBM862  PC Hebrew */
+    {"IBM-863", 863},                 /* IBM863  PC Canadian French */
+    {"IBM-864", 864},                 /* IBM864  PC Arabic */
+    {"IBM-865", 865},                 /* IBM865  PC Nordic */
+    {"IBM-866", 866},                 /* IBM866  PC Russian */
+    {"IBM-868", 868},                 /* IBM868  PC Urdu */
+    {"IBM-869", 869},                 /* IBM869  PC Greek */
+    {"IBM-870", 870},                 /* IBM870  EBCDIC Latin-2 */
+    {"IBM-871", 871},                 /* IBM871  EBCDIC Icelandic */
+    {"IBM-880", 880},                 /* IBM880  EBCDIC Cyrillic */
+    {"IBM-891", 891},                 /* IBM891 */
+    {"IBM-903", 903},                 /* IBM903 */
+    {"IBM-904", 904},                 /* IBM904 */
+    {"IBM-905", 905},                 /* IBM905  EBCDIC Turkish */
+    {"IBM-918", 918},                 /* IBM918  EBCDIC Arabic-2 */
+    {"IBM-924", 924},                 /* IBM00924 EBCDIC Latin-9+euro */
+    {"IBM-1026", 1026},               /* IBM1026 EBCDIC Turkish */
+    {"IBM-1047", CCSID_IBM1047},      /* EBCDIC Latin-1/Open Sys */
+    {"IBM1047", CCSID_IBM1047},       /* EBCDIC Latin-1/Open Sys */
+    {"IBM-1140", 1140},               /* IBM01140 EBCDIC US+euro */
+    {"IBM-1141", 1141},               /* IBM01141 EBCDIC German+euro */
+    {"IBM-1142", 1142},               /* IBM01142 EBCDIC Danish/Norwegian+euro */
+    {"IBM-1143", 1143},               /* IBM01143 EBCDIC Finnish/Swedish+euro */
+    {"IBM-1144", 1144},               /* IBM01144 EBCDIC Italian+euro */
+    {"IBM-1145", 1145},               /* IBM01145 EBCDIC Spanish+euro */
+    {"IBM-1146", 1146},               /* IBM01146 EBCDIC UK+euro */
+    {"IBM-1147", 1147},               /* IBM01147 EBCDIC French+euro */
+    {"IBM-1148", 1148},               /* IBM01148 EBCDIC International+euro */
+    {"IBM-1149", 1149},               /* IBM01149 EBCDIC Icelandic+euro */
+  };
+
   char localArray[CHARSETNAME_SIZE + 1] = {0};
 
-  /* Check for null pointer */
   if (charsetName == NULL) {
     return -1;
   }
-
-  /* Make sure last element is 0 */
   if (strlen(charsetName) > CHARSETNAME_SIZE) {
     return -1;
   }
-  strcpy( localArray, charsetName);
-  strupcase (localArray);
+  strcpy(localArray, charsetName);
+  strupcase(localArray);
 
-  if ((!strcmp(localArray, "ISO-8859-1"))  ||
-      (!strcmp(localArray, "ISO8859-1"))   ||
-      (!strcmp(localArray, "IBM-819"))) {    /* IBM819 is an alias for ISO-8859-1 */
-    return CCSID_ISO_8859_1;
+  for (int i = 0; i < (int)(sizeof(charsetCodes) / sizeof(charsetCodes[0])); i++) {
+    if (!strcmp(localArray, charsetCodes[i].name)) {
+      return charsetCodes[i].ccsid;
+    }
   }
-  else if (!strcmp(localArray, "UTF-8"))    { return CCSID_UTF_8;    }
-  else if (!strcmp(localArray, "UTF-16"))   { return CCSID_UTF_16;   }
-  else if (!strcmp(localArray, "UTF-16BE")) { return CCSID_UTF_16_BE; }
-  else if (!strcmp(localArray, "UTF-16LE")) { return CCSID_UTF_16_LE; }
-  /* IBM codepages from IANA character-sets registry (IBM-NNNN, no leading zeros) */
-  else if (!strcmp(localArray, "IBM-37"))   { return 37;   }  /* IBM037  EBCDIC US/Canada */
-  else if (!strcmp(localArray, "IBM-38"))   { return 38;   }  /* IBM038  EBCDIC INT */
-  else if (!strcmp(localArray, "IBM-259"))  { return 259;  }  /* IBM-Symbols presentation set */
-  else if (!strcmp(localArray, "IBM-273"))  { return 273;  }  /* IBM273  EBCDIC German */
-  else if (!strcmp(localArray, "IBM-274"))  { return 274;  }  /* IBM274  EBCDIC Belgian */
-  else if (!strcmp(localArray, "IBM-275"))  { return 275;  }  /* IBM275  EBCDIC Brazilian */
-  else if (!strcmp(localArray, "IBM-277"))  { return 277;  }  /* IBM277  EBCDIC Danish/Norwegian */
-  else if (!strcmp(localArray, "IBM-278"))  { return 278;  }  /* IBM278  EBCDIC Finnish/Swedish */
-  else if (!strcmp(localArray, "IBM-280"))  { return 280;  }  /* IBM280  EBCDIC Italian */
-  else if (!strcmp(localArray, "IBM-281"))  { return 281;  }  /* IBM281  EBCDIC Japanese-E */
-  else if (!strcmp(localArray, "IBM-284"))  { return 284;  }  /* IBM284  EBCDIC Spanish */
-  else if (!strcmp(localArray, "IBM-285"))  { return 285;  }  /* IBM285  EBCDIC UK */
-  else if (!strcmp(localArray, "IBM-290"))  { return 290;  }  /* IBM290  EBCDIC Japanese Katakana */
-  else if (!strcmp(localArray, "IBM-297"))  { return 297;  }  /* IBM297  EBCDIC French */
-  else if (!strcmp(localArray, "IBM-367"))  { return 367;  }  /* IBM367  US-ASCII (alias) */
-  else if (!strcmp(localArray, "IBM-420"))  { return 420;  }  /* IBM420  EBCDIC Arabic */
-  else if (!strcmp(localArray, "IBM-423"))  { return 423;  }  /* IBM423  EBCDIC Greek */
-  else if (!strcmp(localArray, "IBM-424"))  { return 424;  }  /* IBM424  EBCDIC Hebrew */
-  else if (!strcmp(localArray, "IBM-437"))  { return 437;  }  /* IBM437  PC US */
-  else if (!strcmp(localArray, "IBM-500"))  { return 500;  }  /* IBM500  EBCDIC International */
-  else if (!strcmp(localArray, "IBM-775"))  { return 775;  }  /* IBM775  PC Baltic */
-  else if (!strcmp(localArray, "IBM-838"))  { return 838;  }  /* IBM-Thai presentation set */
-  else if (!strcmp(localArray, "IBM-850"))  { return 850;  }  /* IBM850  PC Multilingual */
-  else if (!strcmp(localArray, "IBM-851"))  { return 851;  }  /* IBM851 */
-  else if (!strcmp(localArray, "IBM-852"))  { return 852;  }  /* IBM852  PC Latin-2 */
-  else if (!strcmp(localArray, "IBM-855"))  { return 855;  }  /* IBM855  PC Cyrillic */
-  else if (!strcmp(localArray, "IBM-857"))  { return 857;  }  /* IBM857  PC Turkish */
-  else if (!strcmp(localArray, "IBM-858"))  { return 858;  }  /* IBM00858 PC Multilingual+euro */
-  else if (!strcmp(localArray, "IBM-860"))  { return 860;  }  /* IBM860  PC Portuguese */
-  else if (!strcmp(localArray, "IBM-861"))  { return 861;  }  /* IBM861  PC Icelandic */
-  else if (!strcmp(localArray, "IBM-862"))  { return 862;  }  /* IBM862  PC Hebrew */
-  else if (!strcmp(localArray, "IBM-863"))  { return 863;  }  /* IBM863  PC Canadian French */
-  else if (!strcmp(localArray, "IBM-864"))  { return 864;  }  /* IBM864  PC Arabic */
-  else if (!strcmp(localArray, "IBM-865"))  { return 865;  }  /* IBM865  PC Nordic */
-  else if (!strcmp(localArray, "IBM-866"))  { return 866;  }  /* IBM866  PC Russian */
-  else if (!strcmp(localArray, "IBM-868"))  { return 868;  }  /* IBM868  PC Urdu */
-  else if (!strcmp(localArray, "IBM-869"))  { return 869;  }  /* IBM869  PC Greek */
-  else if (!strcmp(localArray, "IBM-870"))  { return 870;  }  /* IBM870  EBCDIC Latin-2 */
-  else if (!strcmp(localArray, "IBM-871"))  { return 871;  }  /* IBM871  EBCDIC Icelandic */
-  else if (!strcmp(localArray, "IBM-880"))  { return 880;  }  /* IBM880  EBCDIC Cyrillic */
-  else if (!strcmp(localArray, "IBM-891"))  { return 891;  }  /* IBM891 */
-  else if (!strcmp(localArray, "IBM-903"))  { return 903;  }  /* IBM903 */
-  else if (!strcmp(localArray, "IBM-904"))  { return 904;  }  /* IBM904 */
-  else if (!strcmp(localArray, "IBM-905"))  { return 905;  }  /* IBM905  EBCDIC Turkish */
-  else if (!strcmp(localArray, "IBM-918"))  { return 918;  }  /* IBM918  EBCDIC Arabic-2 */
-  else if (!strcmp(localArray, "IBM-924"))  { return 924;  }  /* IBM00924 EBCDIC Latin-9+euro */
-  else if (!strcmp(localArray, "IBM-1026")) { return 1026; }  /* IBM1026 EBCDIC Turkish */
-  else if ((!strcmp(localArray, "IBM-1047")) ||
-           (!strcmp(localArray, "IBM1047"))) { return CCSID_IBM1047; } /* EBCDIC Latin-1/Open Sys */
-  else if (!strcmp(localArray, "IBM-1140")) { return 1140; }  /* IBM01140 EBCDIC US+euro */
-  else if (!strcmp(localArray, "IBM-1141")) { return 1141; }  /* IBM01141 EBCDIC German+euro */
-  else if (!strcmp(localArray, "IBM-1142")) { return 1142; }  /* IBM01142 EBCDIC Danish/Norwegian+euro */
-  else if (!strcmp(localArray, "IBM-1143")) { return 1143; }  /* IBM01143 EBCDIC Finnish/Swedish+euro */
-  else if (!strcmp(localArray, "IBM-1144")) { return 1144; }  /* IBM01144 EBCDIC Italian+euro */
-  else if (!strcmp(localArray, "IBM-1145")) { return 1145; }  /* IBM01145 EBCDIC Spanish+euro */
-  else if (!strcmp(localArray, "IBM-1146")) { return 1146; }  /* IBM01146 EBCDIC UK+euro */
-  else if (!strcmp(localArray, "IBM-1147")) { return 1147; }  /* IBM01147 EBCDIC French+euro */
-  else if (!strcmp(localArray, "IBM-1148")) { return 1148; }  /* IBM01148 EBCDIC International+euro */
-  else if (!strcmp(localArray, "IBM-1149")) { return 1149; }  /* IBM01149 EBCDIC Icelandic+euro */
-  else {
-    return -1;
-  }
+  return -1;
 }
 
 #if defined(__ZOWE_OS_ZOS) || defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
