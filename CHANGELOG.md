@@ -9,6 +9,7 @@
 - Bugfix: improved check of schema and configuration path for `configmgr` commands [(#553)](https://github.com/zowe/zowe-common-c/pull/553)
 - Enhancement: take into account active PC callers during termination [(#569)](https://github.com/zowe/zowe-common-c/pull/569)
  Bugfix: Use "%.*s" version of snprintf to stop overreading in 'zosResolveSymbol()' which causes abend. [(#626)](https://github.com/zowe/zowe-common-c/pull/626)
+- Bugfix: fix recovery in 64-bit httpserver [(#622)](https://github.com/zowe/zowe-common-c/issues/622)
 
 
 ## `3.5.0`
