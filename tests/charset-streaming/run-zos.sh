@@ -55,6 +55,13 @@ if $CC -c $BASE_CFLAGS $MAIN_CHARSET_CFLAGS $MAIN_DEFS \
 else
   echo "  FAIL charset-streaming-test.c"; sed -n '1,6p' "$OUT/test.err"; rc=1
 fi
+if $CC -c $BASE_CFLAGS $MAIN_CHARSET_CFLAGS $MAIN_DEFS \
+      -I "$PR/h" -I "$PR/platform/posix" \
+      "$HERE/getcharsetcode-test.c" -o "$OUT/gcc.o" 2>"$OUT/gcc.err"; then
+  echo "  OK   getcharsetcode-test.c"
+else
+  echo "  FAIL getcharsetcode-test.c"; sed -n '1,6p' "$OUT/gcc.err"; rc=1
+fi
 # link-time LE stubs (getCAA/abortIfUnsupportedCAA are referenced by logging.o
 # but never called on the streaming path -- see zos-le-stub.c).
 if $CC -c $BASE_CFLAGS $MAIN_CHARSET_CFLAGS -I "$PR/h" \
@@ -71,17 +78,26 @@ if [ $rc != 0 ]; then
 fi
 echo "ALL COMPILED under ibm-clang64."
 echo
-echo "== linking + running the streaming test on real z/OS iconv =="
+echo "== linking + running the tests on real z/OS iconv =="
 # Link with just the codegen flags (-fasm/-mzos-asmlib are compile-only and warn
-# as unused at link); the objects are already assembled.
-if $CC -m64 -mzos-float-kind=ieee "$OUT"/*.o -o "$OUT/charset-streaming-test" 2>"$OUT/link.err"; then
-  # The test compiles EBCDIC (like charsets.c), so its printed messages are
-  # IBM-1047 -- transcode to UTF-8 for reading. All conversion DATA it checks is
-  # numeric, so pass/fail is char-mode independent. Substitute bytes are accepted
-  # as either 0x1A (z/OS iconv SUB) or 0x3F (WSL '?').
+# as unused at link); the objects are already assembled. Two drivers, each its
+# own main, sharing the library objects (do NOT glob *.o -- two mains collide).
+LIBOBJS="$OUT/charsets.o $OUT/alloc.o $OUT/utils.o $OUT/logging.o $OUT/timeutls.o $OUT/collections.o $OUT/zos-le-stub.o"
+# The tests compile EBCDIC (like charsets.c), so their printed messages are
+# IBM-1047 -- transcode to UTF-8 for reading. All conversion DATA they check is
+# numeric, so pass/fail is char-mode independent. Substitute bytes are accepted
+# as either 0x1A (z/OS iconv SUB) or 0x3F (WSL '?').
+if $CC -m64 -mzos-float-kind=ieee $LIBOBJS "$OUT/test.o" -o "$OUT/charset-streaming-test" 2>"$OUT/link.err"; then
+  echo "--- charset-streaming-test ---"
   "$OUT/charset-streaming-test" | iconv -f IBM-1047 -t UTF-8
 else
-  echo "  LINK FAILED:"; sed -n '1,8p' "$OUT/link.err"; rc=1
+  echo "  LINK FAILED (streaming):"; sed -n '1,8p' "$OUT/link.err"; rc=1
+fi
+if $CC -m64 -mzos-float-kind=ieee $LIBOBJS "$OUT/gcc.o" -o "$OUT/getcharsetcode-test" 2>"$OUT/link2.err"; then
+  echo "--- getcharsetcode-test (name->CCSID table on real z/OS EBCDIC) ---"
+  "$OUT/getcharsetcode-test" | iconv -f IBM-1047 -t UTF-8
+else
+  echo "  LINK FAILED (getcharsetcode):"; sed -n '1,8p' "$OUT/link2.err"; rc=1
 fi
 echo
 echo "DRY note: these flags are copied verbatim from build/build_cmgr_clang.sh."
