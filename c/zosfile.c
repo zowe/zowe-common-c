@@ -1380,7 +1380,7 @@ int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode){
     snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entryArray[i]);
 
     status    = fileInfo(pathBuffer, &info, &returnCode, &reasonCode);
-    symstatus = symbolicFileInfo(pathName, &syminfo, &returnCode, &reasonCode);
+    symstatus = symbolicFileInfo(pathBuffer, &syminfo, &returnCode, &reasonCode);
 
     if ((status == -1) && (symstatus == -1)){
       *retCode = returnCode;
@@ -1388,9 +1388,8 @@ int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode){
       return -1;
     }
 
-    /* If pathBuffer is directory, then recursively call.    */
-    /* Note: system marks symbolic as a directory            */
-    if ((status != -1 ) && fileInfoIsDirectory(&info)) {
+    /* If pathBuffer is "real" directory, then recursively call.    */
+    if ((status != -1 ) && fileInfoIsDirectory(&info) && !fileInfoIsSymbolicLink(&syminfo)) {
       status = directoryDeleteRecursive(pathBuffer, retCode, resCode);
       if (status == -1) {
         return -1;
