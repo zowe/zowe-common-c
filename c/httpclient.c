@@ -577,7 +577,7 @@ int httpClientContextInit(HttpClientSettings *settings, LoggingContext *logConte
       sts = HTTP_CLIENT_REQDSETTING_MISSING;
       break;
     }
-    serverAddr = getAddressByName(settings->host);
+    serverAddr = getAddressByName2(settings->host, ANSI_FALSE);  /* not IPv4 only; allow AF_INET6 addresses */
     if (NULL == serverAddr) {
       HTTP_CLIENT_TRACE_VERBOSE("%s (host lookup error)\n", HTTP_CLIENT_MSG_SESSION_ERR);
       sts = HTTP_CLIENT_LOOKUP_FAILED;
@@ -665,27 +665,37 @@ int httpClientSessionInitv2(HttpClientContext *ctx, HttpClientSession **outSessi
   HttpClientSession *session = NULL;
   ShortLivedHeap *slh = NULL;
 
+  char addrString[64] = {0};
+  int addrStringLen = sizeof(addrString);
+
+  
   do {
     if ((NULL == ctx) || (NULL == outSession)) {
       sts = HTTP_CLIENT_INVALID_ARGUMENT;
       break;
     }
 
+    int ansiStatus = SocketAddress_toString(ctx->serverAddress, addrString, &addrStringLen);
+    if (ANSI_FAILED == ansiStatus) {
+      HTTP_CLIENT_TRACE_VERBOSE("Error creating string from host socket address\n");
+      sts = HTTP_CLIENT_CONNECT_FAILED;
+      break;
+    }
+    
     Socket *socket = tcpClient2(ctx->serverAddress, 1000 * ctx->recvTimeoutSeconds, bpxrc, &bpxrsn);
     if ((*bpxrc != 0) || (NULL == socket)) {
 #ifdef __ZOWE_OS_ZOS
       HTTP_CLIENT_TRACE_VERBOSE("%s (rc=%d, rsn=0x%x, addr=0x%08x, port=%d)\n", HTTP_CLIENT_MSG_CONNECT_FAILED, *bpxrc,
-                                bpxrsn, ctx->serverAddress->v4Address, ctx->serverAddress->port);
+                                bpxrsn, addrString, ctx->serverAddress->port);
 #else
       HTTP_CLIENT_TRACE_VERBOSE("%s (rc=%d, rsn=0x%x, addr=0x%08x, port=%d)\n", HTTP_CLIENT_MSG_CONNECT_FAILED, *bpxrc,
-                                bpxrsn, ctx->serverAddress->internalAddress.v4Address, ctx->serverAddress->port);
+                                bpxrsn, addrString, ctx->serverAddress->port);
 #endif
       sts = HTTP_CLIENT_CONNECT_FAILED;
       break;
     } else {
 #ifdef __ZOWE_OS_ZOS
-      HTTP_CLIENT_TRACE_VERBOSE("Connected to peer addr=0x%08x, port=%d)\n", ctx->serverAddress->v4Address,
-                                ctx->serverAddress->port);
+      HTTP_CLIENT_TRACE_VERBOSE("Connected to peer addr=0x%08x, port=%d)\n", addrString, ctx->serverAddress->port);
 #else
       HTTP_CLIENT_TRACE_VERBOSE("Connected to peer port=%d)\n", ctx->serverAddress->port);
 #endif
@@ -740,7 +750,21 @@ int httpClientSessionStageRequest(HttpClientContext *ctx,
     req->slh = slh;
     req->method = slhDuplicateString(slh, method);
     req->uri = slhDuplicateString(slh, urlQuery);
-    requestStringHeader(req, TRUE, "Host", slhDuplicateString(slh, ctx->settings->host));
+    int ipv6ColonIndex = indexOf(ctx->settings->host, strlen(ctx->settings->host), ':', 0);
+    if (ctx->settings->port==80 || ctx->settings->port==443) {
+      int fullHostNameLen = strlen(ctx->settings->host) + 32;  /* buffer for "host:port" string */
+      char *fullHostName = (char*) SLHAlloc(slh, fullHostNameLen);
+      snprintf(fullHostName, fullHostNameLen, ipv6ColonIndex != -1 ? "[%s]:%d" : "%s:%d", 
+                                              ctx->settings->host, ctx->settings->port);
+      requestStringHeader(req, TRUE, "Host", fullHostName);
+    } else if (ipv6ColonIndex != -1){
+      int fullHostNameLen = strlen(ctx->settings->host) + 8;  /* buffer for "[ipv6]" string */
+      char *fullHostName = (char*) SLHAlloc(slh, fullHostNameLen);
+      snprintf(fullHostName, fullHostNameLen, "[%s]", ctx->settings->host);
+      requestStringHeader(req, TRUE, "Host", fullHostName);
+    } else {
+      requestStringHeader(req, TRUE, "Host", slhDuplicateString(slh, ctx->settings->host));
+    }
 
     /* compose basic auth header if userid and password are specified */
     if ((NULL != userid) && (NULL != password)) {

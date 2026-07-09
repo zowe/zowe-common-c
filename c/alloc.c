@@ -600,8 +600,12 @@ static void safeFree64Internal(char *data, int size, long long token){
 
 #if defined(METTLE) && defined(_LP64)
   freemain64(data,NULL,NULL);
+#elif defined(_LP64) /* LE case */
+  free(data);
+#elif defined(_MSC_VER) && defined(_M_X64) /* Windows 64 case */
+  free(data);
 #else
-  /* do nothing - because 64 bit allocation in LE is not ready */
+  /* Do nothing - because safeMalloc64Internal returns NULL for 31-bit */
 #endif
 }
 
@@ -660,14 +664,14 @@ static int getJobstepTCBToken(char *tcbToken) {
 
   __asm(ASM_PREFIX
 #ifdef _LP64
-        " SAM31                                       \n"
-        " SYSSTATE AMODE64=NO                         \n"
+        " SAM31\n"
+        " SYSSTATE AMODE64=NO\n"
 #endif
-        " TCBTOKEN TYPE=JOBSTEP,TTOKEN=%1,MF=(E,(%2)) \n"
-        " ST  15,%0                                   \n"
+        " TCBTOKEN TYPE=JOBSTEP,TTOKEN=%1,MF=(E,(%2))\n"
+        " ST  15,%0\n"
 #ifdef _LP64
-        " SAM64                                       \n"
-        " SYSSTATE AMODE64=YES                        \n"
+        " SAM64\n"
+        " SYSSTATE AMODE64=YES\n"
 #endif
         : "=m"(returnCode)
         : "m"(tcbTokenInternal), "r"(&plist)
@@ -693,7 +697,7 @@ static char* __ptr64 iarv64GetStorage(unsigned long long sizeInMegabytes,
 
   __asm(ASM_PREFIX
         " IARV64 REQUEST=GETSTOR,COND=NO,SEGMENTS=(%2),ORIGIN=(%3),TTOKEN=(%4),"
-        "RETCODE=%0,RSNCODE=%1,MF=(E,(%5))  \n"
+        "RETCODE=%0,RSNCODE=%1,MF=(E,(%5))\n"
         : "=m"(macroRetCode), "=m"(macroResCode)
         : "r"(&sizeInMegabytes), "r"(&data), "r"(tcbToken), "r"(&plist)
         : "r0", "r1", "r14", "r15");
@@ -719,7 +723,7 @@ static void iarv64Detach(char* __ptr64 data, char *tcbToken,
 
   __asm(ASM_PREFIX
         " IARV64 REQUEST=DETACH,COND=NO,MEMOBJSTART=(%2),OWNER=YES,TTOKEN=(%3),"
-        "RETCODE=%0,RSNCODE=%1,MF=(E,(%4))  \n"
+        "RETCODE=%0,RSNCODE=%1,MF=(E,(%4))\n"
         : "=m"(macroRetCode), "=m"(macroResCode)
         : "r"(&data), "r"(tcbToken), "r"(&plist)
         : "r0", "r1", "r14", "r15");
@@ -922,7 +926,7 @@ static char* __ptr64 iarv64GetStorageSingleOwner(
 
   __asm(ASM_PREFIX
         " IARV64 REQUEST=GETSTOR,COND=NO,SEGMENTS=(%2),ORIGIN=(%3),"
-        "RETCODE=%0,RSNCODE=%1,MF=(E,(%4))  \n"
+        "RETCODE=%0,RSNCODE=%1,MF=(E,(%4))\n"
         : "=m"(macroRetCode), "=m"(macroResCode)
         : "r"(&sizeInMegabytes), "r"(&data), "r"(&plist)
         : "r0", "r1", "r14", "r15");
@@ -949,7 +953,7 @@ static void iarv64DetachSingleOwner(char* __ptr64 data,
 
   __asm(ASM_PREFIX
         " IARV64 REQUEST=DETACH,COND=NO,MEMOBJSTART=(%2),OWNER=YES,"
-        "RETCODE=%0,RSNCODE=%1,MF=(E,(%3))  \n"
+        "RETCODE=%0,RSNCODE=%1,MF=(E,(%3))\n"
         : "=m"(macroRetCode), "=m"(macroResCode)
         : "r"(&data), "r"(&plist)
         : "r0", "r1", "r14", "r15");

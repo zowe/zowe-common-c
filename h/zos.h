@@ -13,6 +13,8 @@
 #ifndef __ZOS__
 #define __ZOS__  1
 
+#ifdef __ZOWE_OS_ZOS
+
 #ifdef METTLE
 #include <metal/stdarg.h>
 #else
@@ -471,6 +473,7 @@ typedef struct SymbTable1_tag{
 #define SYMBT_MAXSTATIC_TABLE_SIZE 32512
 
 #define RESOLVESYMBOL_RETURN_BAD_INPUT 1
+#define RESOLVESYMBOL_RETURN_ALLOC_FAILED 2
 
 typedef struct ecvt_tag{
   char  eyecatcher[4];
@@ -1687,7 +1690,9 @@ bool isCallerSRB(void);
  */
 bool isCallerCrossMemory(void);
 
-#endif
+#endif /* __ZOWE_OS_ZOS */
+
+#endif /* __ZOS__ */
 
 
 /*

@@ -54,6 +54,7 @@
 #pragma linkage(BPX4LST,OS)
 #pragma linkage(BPX4GGN,OS)
 #pragma linkage(BPX4GPN,OS)
+#pragma linkage(BPX4RDL,OS)
 
 #define BPXRED BPX4RED
 #define BPXOPN BPX4OPN
@@ -75,6 +76,7 @@
 #define BPXLST BPX4LST
 #define BPXGGN BPX4GGN
 #define BPXGPN BPX4GPN
+#define BPXRDL BPX4RDL
 
 #else
 
@@ -98,6 +100,7 @@
 #pragma linkage(BPX1LST,OS)
 #pragma linkage(BPX1GGN,OS)
 #pragma linkage(BPX1GPN,OS)
+#pragma linkage(BPX1RDL,OS)
 
 #define BPXRED BPX1RED
 #define BPXOPN BPX1OPN
@@ -119,29 +122,10 @@
 #define BPXLST BPX1LST
 #define BPXGGN BPX1GGN
 #define BPXGPN BPX1GPN
+#define BPXRDL BPX1RDL
 #endif
 
-/* Better compilers need these symbols to be declared as functions */
-int BPXRED();
-int BPXOPN();
-int BPXWRT();
-int BPXREN();
-int BPXCHR();
-int BPXCHM();
-int BPXCLO();
-int BPXLCO();
-int BPXSTA();
-int BPXUNL();
-int BPXOPD();
-int BPXMKD();
-int BPXRDD();
-int BPXRMD();
-int BPXCLD();
-int BPXUMK();
-int BPXFCT();
-int BPXLST();
-int BPXGGN();
-int BPXGPN();
+#include "zowe_bpx_prototypes.h"
 
 #define MAX_ENTRY_BUFFER_SIZE 2550
 #define MAX_NUM_ENTRIES       1000
@@ -200,7 +184,7 @@ UnixFile *fileOpen(const char *filename, int options, int mode,
 #endif
 
   BPXOPN(&len,
-         filename,
+         (char*)filename,
          &options,
          &mode,
          &returnValue,
@@ -506,7 +490,7 @@ int fileChangeTagPure(const char *fileName, int *returnCode, int *reasonCode,
   }
 
   BPXCHR(nameLength,
-         fileName,
+         (char*)fileName,
          attributeLength,
          &attributes,
          &returnValue,
@@ -551,7 +535,7 @@ int fileChangeMode(const char *fileName, int *returnCode, int *reasonCode, int m
 #endif
 
   BPXCHM(nameLength,
-         fileName,
+         (char*)fileName,
          mode,
          &returnValue,
          returnCode,
@@ -743,9 +727,9 @@ int fileRename(const char *oldFileName, const char *newFileName, int *returnCode
 #endif
 
   BPXREN(&oldLen,
-         oldFileName,
+         (char*)oldFileName,
          &newLen,
-         newFileName,
+         (char*)newFileName,
          &returnValue,
          returnCode,
          reasonCodePtr);
@@ -788,7 +772,7 @@ int fileDelete(const char *fileName, int *returnCode, int *reasonCode){
 #endif
 
   BPXUNL(&len,
-         fileName,
+         (char*)fileName,
          &returnValue,
          returnCode,
          reasonCodePtr);
@@ -831,7 +815,7 @@ int fileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int *reason
 #endif
 
   BPXSTA(&nameLength,
-         filename,
+         (char*)filename,
          &statsLength,
          stats,
          &returnValue,
@@ -876,7 +860,7 @@ int symbolicFileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int
 #endif
 
   BPXLST(&nameLength,
-         filename,
+         (char*)filename,
          &statsLength,
          stats,
          &returnValue,
@@ -908,6 +892,54 @@ int symbolicFileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int
   return returnValue;
 }
 
+int fileReadLink(char *fileName, char *buffer, int bufferSize, int *returnCode, int *reasonCode) {
+  int nameLength = strlen(fileName);
+  int *reasonCodePtr;
+  int returnValue = 0;
+
+#ifndef _LP64
+  reasonCodePtr = (int*) (0x80000000 | ((int)reasonCode));
+#else
+  reasonCodePtr = reasonCode;
+#endif
+
+  BPXRDL(&nameLength,
+         fileName,
+         &bufferSize,
+         &buffer,
+         &returnValue,
+         returnCode,
+         reasonCodePtr);
+
+  if (fileTrace) {
+    if (returnValue == -1) {
+#ifdef METTLE
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRDL (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+             fileName, returnValue, *returnCode, *reasonCode);
+#else
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRDL (%s) FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+             fileName, returnValue, *returnCode, *reasonCode, strerror(*returnCode));
+#endif
+    }
+    else {
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXRDL (%s) OK: returnVal: %d\n", fileName, returnValue);
+    }
+  }
+
+  if (returnValue == -1) {
+    return -1;
+  }
+
+  /* Null-terminate the result; returnValue is the number of bytes written */
+  if (returnValue < bufferSize) {
+    buffer[returnValue] = '\0';
+  }
+
+  *returnCode = 0;
+  *reasonCode = 0;
+  return returnValue;
+}
+
 int fileChangeOwner(const char *fileName, int *returnCode, int *reasonCode, 
                     int usrId, int grpId) {
   int nameLength = strlen(fileName);
@@ -922,7 +954,7 @@ int fileChangeOwner(const char *fileName, int *returnCode, int *reasonCode,
 #endif
 
   BPXLCO(&nameLength,
-         fileName,
+         (char*)fileName,
          usrId,
          grpId,
          &returnValue,
@@ -1016,7 +1048,7 @@ UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonC
 #endif
 
   BPXOPD(&nameLength,
-         directoryName,
+         (char*)directoryName,
          &fd,
          returnCode,
          reasonCodePtr);
@@ -1202,7 +1234,7 @@ int directoryMake(const char *pathName, int mode, int *returnCode, int *reasonCo
   #endif
 
   BPXMKD(&pathLength,
-         pathName,
+         (char*)pathName,
          &mode,
          &returnValue,
          returnCode,
@@ -1253,7 +1285,7 @@ int directoryDelete(const char *pathName, int *returnCode, int *reasonCode){
   #endif
 
   BPXRMD(&pathLength,
-         pathName,
+         (char*)pathName,
          &returnValue,
          returnCode,
          reasonCodePtr);
@@ -1863,14 +1895,14 @@ int fileSetLock(UnixFile *file, int *returnCode, int *reasonCode) {
 #endif
 
   int action = F_SET_LOCK;
-  F_LOCK flockdata;
+  FLock flockdata;
   flockdata.l_type = F_WRITE_LOCK;
   flockdata.l_whence = F_SEEK_SET;
   flockdata.l_start = 0;
   flockdata.l_len = F_WHENCE_TO_END;
   flockdata.l_pid = 0;
 
-  F_LOCK *fnctl_ptr = &flockdata;
+  FLock *fnctl_ptr = &flockdata;
 
   BPXFCT(&file->fd,
          &action,
@@ -1898,14 +1930,14 @@ int fileGetLock(UnixFile *file, int *returnCode, int *reasonCode, int *isLocked)
 #endif
 
   int action = F_GET_LOCK;
-  F_LOCK flockdata;
+  FLock flockdata;
   flockdata.l_type = F_WRITE_LOCK;
   flockdata.l_whence = F_SEEK_SET;
   flockdata.l_start = 0;
   flockdata.l_len = F_WHENCE_TO_END;
   flockdata.l_pid = 0;
 
-  F_LOCK *fnctl_ptr = &flockdata;
+  FLock *fnctl_ptr = &flockdata;
 
   BPXFCT(&file->fd,
          &action,
@@ -1937,14 +1969,14 @@ int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode) {
 #endif
 
   int action = F_SET_LOCK;
-  F_LOCK flockdata;
+  FLock flockdata;
   flockdata.l_type = F_UNLOCK;
   flockdata.l_whence = F_SEEK_SET;
   flockdata.l_start = 0;
   flockdata.l_len = F_WHENCE_TO_END;
   flockdata.l_pid = 0;
 
-  F_LOCK *fnctl_ptr = &flockdata;
+  FLock *fnctl_ptr = &flockdata;
 
   BPXFCT(&file->fd,
          &action,

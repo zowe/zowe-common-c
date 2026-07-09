@@ -59,6 +59,7 @@ echo "Compiling libraries"
 
 xlclang \
   -c \
+  ${ZWE_XLCLANG_FLAGS} \
   -q64 \
   -qascii \
   "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN')" \
@@ -70,6 +71,7 @@ xlclang \
   -D_OPEN_SYS_FILE_EXT=1 \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
+  -DCONFIG_BIGNUM=1 \
   -DCONFIG_VERSION=\"2021-03-27\" \
   -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
   -I "${DEPS_DESTINATION}/${QUICKJS}" \
@@ -85,6 +87,7 @@ xlclang \
   ${DEPS_DESTINATION}/${QUICKJS}/quickjs.c \
   ${DEPS_DESTINATION}/${QUICKJS}/quickjs-libc.c \
   ${DEPS_DESTINATION}/${QUICKJS}/libunicode.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/libbf.c \
   ${DEPS_DESTINATION}/${QUICKJS}/libregexp.c \
   ${DEPS_DESTINATION}/${QUICKJS}/porting/polyfill.c
 rc=$?
@@ -98,7 +101,10 @@ fi
 
 echo "Building configmgr"
 
+#   "-Wl,list,xref" \
+
 xlclang \
+  ${ZWE_XLCLANG_FLAGS} \
   -q64 \
   "-Wc,float(ieee),longname,langlvl(extc99),gonum,goff,ASM,asmlib('CEE.SCEEMAC','SYS1.MACLIB','SYS1.MODGEN')" \
   -D_OPEN_SYS_FILE_EXT=1 \
@@ -126,6 +132,7 @@ xlclang \
   quickjs.o \
   quickjs-libc.o \
   libunicode.o \
+  libbf.o \
   libregexp.o \
   polyfill.o \
   ${COMMON}/c/alloc.c \

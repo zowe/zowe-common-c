@@ -55,9 +55,20 @@ struct ipV6Data{
   int scopeId;
 };
 
+struct ipV4toipV6Data{
+  int flowInfo;
+  char addrZero[10];            /* Must be 0's         */
+  short int addrType;           /* Set to -1           */
+  int  addrData;                /* Set to IPv4 address */
+  int scopeId;
+};
+
+#define ADDR_TYPE_MAPPED -1
+
 union ipAddrData{
   struct ipV4Data data4;
   struct ipV6Data data6;
+  struct ipV4toipV6Data datamap;
 };
 
 typedef struct inetAddr_tag{
@@ -79,13 +90,22 @@ typedef struct socketAddr_tag{
       char reserved1[8];
     };
     struct {
+      char v4Addr[4];
+    };
+    struct {
       struct ipV6Data data6;
+    };
+    struct {
+      struct ipV4toipV6Data datamap;
     };
   };
 } SocketAddress;
 
 #define GET_V4_ADDR_FOR_SOCKET_AS_INT(SOCKET) \
   ((SOCKET).v4Address)
+
+#define GET_V4_ADDR_FOR_SOCKET(SOCKET) \
+  (SOCKET).v4Address
 
 
 ZOWE_PRAGMA_PACK_RESET
@@ -250,19 +270,34 @@ typedef struct socket_tag{
   TlsEnvironment *tlsEnvironment;
   TlsSocket *tlsSocket;
 #endif
+#if defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
+  /* POSIX experimental idle-timeout tracking (used by psxskt.c only).
+   * Not promoted to universal until the feature is ported to z/OS/Windows. */
+#define IDLE_TIMEOUT_DISABLED 0
+#define IDLE_TIMEOUT_ENABLED  1
+  SocketAddress lastDestination;
+  int           idleTimeoutFlags;
+  uint64_t      createTime;
+  uint64_t      readyTime;
+#endif
 } Socket;
 
 typedef struct SocketSet_tag{
   int highestAllowedSD;
   Socket **sockets;
+  int socketCount;   /* count of valid entries in sockets[]; usable on every
+                      * platform. Winsock additionally uses this as the
+                      * fd_count when packing allWindowsSockets into its
+                      * count-prefixed fd_set. */
 #ifdef __ZOWE_OS_WINDOWS
-  int     socketCount;
   SOCKET *allWindowsSockets;
 #elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
   fd_set allSDs;
   fd_set scratchReadMask;
   fd_set scratchWriteMask;
   fd_set scratchErrorMask;
+  /* POSIX experimental idle-timeout tracking (used by psxskt.c only). */
+  uint64_t idleTimeLimit;
 #elif defined(__ZOWE_OS_ZOS)
   int *allSDs;
   int *scratchReadMask;
@@ -286,6 +321,133 @@ typedef struct hostent_tag{
 /* Set socket tracing; returns prior value */
 int setSocketTrace(int toWhat); 
 
+#ifndef __RKT_OS_WINDOWS
+
+typedef void * AddrInfoList;
+
+/**
+ * @brief       Retrieve an opaque AddrInfoList for a host and/or service
+ *
+ * @detail      Calls the BPXnGAI service in a way that returns all available
+ *              address information for the specified host and/or service.
+ *
+ *              In environments that support IPv6, the AddrInfoList may
+ *              contain both IPv4 and IPv6 address information.
+ *
+ *              If a non-NULL destination address is passed in canonicalName
+ *              and the resolver returns a canonical name for the host,
+ *              a C-string copy is allocated in the caller's address space
+ *              and the copy's address is returned in canonicalName.
+ *
+ * @param[in]     nodeName        Host name or IP address as EBCDIC string
+ * @param[in]     serviceName     Service name or port number as EBCDIC string
+ * @param[in,out] canonicalName   Canonical hostname (optional)
+ * @param[out]    out_rc          Return code from BPXnGAI service
+ * @param[out]    out_rsn         Reason code from BPXnGAI service
+ *
+ * @return      A valid address on success, or NULL on failure
+ */
+AddrInfoList getAddressInfoList(const char* nodeName, const char* serviceName,
+                                char** out_canonicalName,
+                                int *out_rc, int *out_rsn);
+
+/**
+ * @brief       Count the AddrInfo entries in addrInfoList
+ *
+ * @detail      Walk the linked list to determine its length.
+ *              If addrInfoList is NULL, returns 0.
+ *              If addrInfoList is non-NULL, returns >= 1.
+ *              DO NOT pass an address that wasn't returned by getAddressInfoList.
+ *
+ * @param[in]     addrInfoList  A handle returned by getAddressInfoList
+ * @param[out]    v4mappable    The number of entries that are either AF_INET or
+ *                              mappable from AF_INET6 to AF_INET.
+ */
+int AddrInfoList_count(AddrInfoList addrInfoList, int *out_v4mappable);
+
+/**
+ * @brief       Return the AddrInfo handle at the specified index
+ *
+ * @detail      Walk the linked list to the specified index, and return
+ *              the associated AddrInfo handle
+ *
+ * @param[in]     addrInfoList    A handle returned by getAddressInfoList
+ * @param[in]     index           A value between 0 and count-1 (see AddrInfoList_count)
+ * @param[in,out] out_AddrInto    A pointer to an opaque AddrInfo is returned in this location.
+ *
+ * @return      ANSI_OK if an entry was found/returned from the specified index.
+ *              ANSI_FAILED if the index was >= the number of items in the list.
+ */
+int AddrInfoList_getAtIndex(AddrInfoList addrInfoList, int index,
+                            void* *out_AddrInfo);
+
+/**
+ * @brief       Convert an opaque AddrInfo handle to SocketAddress and/or InetAddr.
+ *              The returned SocketAddress and/or InetAddr could be AF_INET or AF_INET6.
+ *
+ * @param[in]     in_addrInfo       A handle output by AddrInfoList_getAtIndex
+ * @param[in/out] out_socketAddress If specified, a pointer to a new SocketAddress is output here.
+ * @param[in/out] out_inetAddr      If specified, a pointer to a new InetAddr is output here.
+ *
+ * @return      ANSI_OK if the handle was converted to at least one output.
+ *              ANSI_FAILED if handle is bad, validation fails, or no output specified.
+ */
+int AddrInfo_convert(const void *in_addrInfo,
+                     SocketAddress **out_socketAddress, InetAddr **out_inetAddr);
+
+/**
+ * @brief       Convert an AddrInfo to an AF_INET SocketAddress and/or InetAddr, if possible.
+ *
+ * @detail      See description of AddrInfo_convert.
+ *              If the specified AddrInfo is determined to be V4-mappable, any output
+ *              SocketAddress or InetAddr will be consistent with AF_INET format, even
+ *              if the source AddrInfo used AF_INET6 format internally.
+ *
+ * @return      ANSI_OK if the handle was V4-mappable and converted to at least one output.
+ *              ANSI_FAILED if handle is bad, not V4-mappable, or no output specified.
+ */
+int AddrInfo_convert_IPv4(const void *in_addrInfo,
+                          SocketAddress **out_socketAddress, InetAddr **out_inetAddr);
+
+
+/**
+ * @brief       Test whether an opaque AddrInfo can be used with AddrInfo_convert_IPv4
+ *
+ * @return      ANSI_FALSE if the AddrInfo is AF_INET6 and cannot be mapped.
+ *              ANSI_TRUE if the AddrInfo is AF_INET, or mappable from AF_INET6 to AF_INET.
+ */
+int AddrInfo_isV4mappable(const void *in_addrInfo);
+
+/**
+ * @brief       Free an AddrInfoList returned by getAddressInfoList
+ *
+ * @detail      Calls the BPXnFAI service
+ *
+ * @param[in]   addrInfoList    A handle returned by getAddressInfoList
+ */
+void freeAddressInfoList(AddrInfoList addrInfoList);
+
+/**
+ * @brief       Output a string representation of an IP address to a caller-supplied buffer.
+ *
+ * @param[in]     socketAddress A handle returned by getAddressInfoList
+ * @param[in,out] strbuf        Caller-supplied output buffer
+ * @param[in,out] len           Pointer to caller-supplied int.
+ *                                On input, specify available size in inout_strbuf.
+ *                                On output:
+ *                                  If ANSI_OK, length of output including null terminator
+ *                                  If ANSI_FAILED due to insufficient space, required length
+ *
+ * @return      ANSI_OK if a string was composed and output to the buffer.
+ *              ANSI_FAILED if a string was not composed or the output space was too small.
+ */
+int SocketAddress_toString(const SocketAddress *in_socketAddress,
+                           char* inout_strbuf, int* inout_len);
+
+#endif /* not Windows */
+
+
+
 int socketInit(char *uniqueName);
 
 /* handles named and numeric */
@@ -301,6 +463,11 @@ InetAddr* getLocalHostAddress(int *returnCode, int *reasonCode); /* AKA gethosti
 
 /* zero-terminated */
 InetAddr *getAddressByName(char *addressString);
+#ifndef __RKT_OS_WINDOWS 
+InetAddr *getAddressByName2(char* addressString, int ipv4only);
+void freeSocketAddr(SocketAddress *address);
+void freeInetAddr(InetAddr *inetAddr);
+#endif
 
 int getSocketName(Socket *socket, SocketAddress *socketAddress); /* AKA getsockname */
 int getSocketName2(Socket *socket, SocketAddress *socketAddress); /* AKA getpeername */
@@ -315,7 +482,7 @@ int getSocketOption(Socket *socket, int optionName, int *optionDataLength, char 
 #define tcpClient2 tcpclie2
 
 Socket *tcpClient2(SocketAddress *socketAddress,
-		   int timeoutInMillis,
+		   int connectTimeoutInMillis,
 		   int *returnCode, /* errnum */
 		   int *reasonCode); /* errnum - JR's */
 
@@ -327,10 +494,12 @@ Socket *tcpServer(InetAddr *addr, /* usually NULL/0 */
 #define tcpClient3 tcpclie3
 
 Socket *tcpClient3(SocketAddress *socketAddress,
-       int timeoutInMillis,
+       int connectTimeoutInMillis,
        int tlsFlags,
        int *returnCode,
        int *reasonCode);
+
+
 
 /* 
    * Create a TCP socket

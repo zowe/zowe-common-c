@@ -48,13 +48,41 @@
 #define dumpbuffer(area,len)
 #endif
 
+/* SUITE-AFTER pattern (ibm-clang64 only).
+ *
+ * xlc / xlclang concatenate every inline __asm body in a translation unit
+ * and hand the result to HLASM as one stream, so a DSECT macro referenced
+ * from one __asm body can be declared in a different __asm body elsewhere
+ * in the same TU and still resolve.  ibm-clang64 instead hands each __asm
+ * body to HLASM piecemeal -- one body at a time -- so every DSECT macro
+ * referenced inside a body must also be declared inside that same body.
+ *
+ * HLASM is a two-pass assembler: pass 1 builds the symbol table from
+ * forward-declared DSECTs, pass 2 resolves USING / symbolic references.
+ * The DSECT declarations can therefore sit AFTER the executable code in
+ * the body and code earlier in the body still resolves cleanly.  Putting
+ * the DSECTs BEFORE the code confuses the assembler's notion of which
+ * CSECT it is in and produces symbol-reference errors.  So we always
+ * append ZOS_DSECT_SUITE at the end of each affected __asm; on xlclang
+ * it expands to "" since the workaround is unnecessary. */
+#ifdef __ZOWE_COMP_CLANG
+#define ZOS_DSECT_SUITE \
+  "         CVT   DSECT=YES,LIST=NO\n" \
+  "         IEFJESCT\n" \
+  "         IHAPSA\n" \
+  "         IHAASCB\n" \
+  "         CSECT ,\n"
+#else
+#define ZOS_DSECT_SUITE ""
+#endif
+
 int testAuth(void)
 {
 // Perform TESTAUTH using __asm
   int rc;
   __asm(ASM_PREFIX
-        " TESTAUTH FCTN=1 \n"
-        " ST 15,%0 \n"
+        " TESTAUTH FCTN=1\n"
+        " ST 15,%0\n"
         :"=m"(rc)
         :
         :"r0","r1","r14","r15");
@@ -68,8 +96,8 @@ int testAuth(void)
 int extractPSW(void) {
   int highWord;
   __asm(ASM_PREFIX
-        " EPSW 0,0 \n"
-        " ST   0,%0 \n"
+        " EPSW 0,0\n"
+        " ST   0,%0\n"
         :"=m"(highWord)
         :
         :"r0");
@@ -85,7 +113,7 @@ int supervisorMode(int enable){
   if (enable){
     if (currentPSW & PROBLEM_STATE){
       __asm(ASM_PREFIX
-            " MODESET MODE=SUP \n"
+            " MODESET MODE=SUP\n"
             :
             :
             :"r0","r1","r15");
@@ -98,7 +126,7 @@ int supervisorMode(int enable){
       return TRUE;   /* do nothing, tell user was in problem state */
     } else{
       __asm(ASM_PREFIX
-            " MODESET MODE=PROB \n"
+            " MODESET MODE=PROB\n"
             :
             :
             :"r0","r1","r15");
@@ -110,10 +138,10 @@ int supervisorMode(int enable){
 int setKey(int key){
   int shiftedKey = key << 4;
   int oldKey;
-  __asm(" XR   2,2 \n"
-        " MODESET KEYREG=(%1),SAVEKEY=(2) \n"
-        " SRL  2,4 \n"
-        " ST   2,%0 \n"
+  __asm(" XR   2,2\n"
+        " MODESET KEYREG=(%1),SAVEKEY=(2)\n"
+        " SRL  2,4\n"
+        " ST   2,%0\n"
         :"=m"(oldKey)
         :"r"(shiftedKey)
         :"r2");
@@ -124,10 +152,10 @@ int64 getR12(void) {
   int64 value;
   __asm(ASM_PREFIX
 #ifdef _LP64
-        " STG 12,%0 \n"
+        " STG 12,%0\n"
 #else
-        " LLGTR 0,12 \n"
-        " STG 0,%0 \n"
+        " LLGTR 0,12\n"
+        " STG 0,%0\n"
 #endif
         :"=m"(value)
         :
@@ -139,10 +167,10 @@ int64 getR13(void) {
   int64 value;
   __asm(ASM_PREFIX
 #ifdef _LP64
-        " STG 13,%0 \n"
+        " STG 13,%0\n"
 #else
-        " LLGTR 0,13 \n"
-        " STG 0,%0 \n"
+        " LLGTR 0,13\n"
+        " STG 0,%0\n"
 #endif
         :"=m"(value)
         :
@@ -169,16 +197,17 @@ int ddnameExists(char *ddname){
 
   __asm(ASM_PREFIX
 #ifdef __XPLINK__
-        " LA 13,%4 \n"
+        " LA 13,%4\n"
 #endif
 #ifdef _LP64
-        " SAM31 , \n"
+        " SAM31 ,\n"
 #endif
-        " GETDSAB DDNAME=%3,DSABPTR=%1,LOC=ANY,MF=(E,%2,COMPLETE) \n"
+        " GETDSAB DDNAME=%3,DSABPTR=%1,LOC=ANY,MF=(E,%2,COMPLETE)\n"
 #ifdef _LP64
-        " SAM64 , \n"
+        " SAM64 ,\n"
 #endif
-        " ST 15,%0 \n"
+        " ST 15,%0\n"
+        ZOS_DSECT_SUITE
         :"=m"(rc),"=m"(below2G->dsab)
         :"m"(below2G->plist),"m"(below2G->ddname),"m"(below2G->saveArea)
         :
@@ -361,24 +390,24 @@ char *resolveSymbolBySyscall(const char *inputSymbol, int *rc, int *rsn) {
   below2G->symbfArguments.workAreaAddr = &below2G->workarea;
   
   int loadStatus = 0;
-  int symbfAddress = (int)loadByName("ASASYMBF",&loadStatus);
+  int symbfAddress = (int)(uint64)loadByName("ASASYMBF",&loadStatus);
 //  printf("symbf address at 0x%x, status=%d\n", symbfAddress, loadStatus);
 
   if (!loadStatus) {
     __asm(ASM_PREFIX
 #ifdef __XPLINK__
-         " LA 13,%[savearea] \n"
+         " LA 13,%[savearea]\n"
 #endif
-         " LLGF 15,%[symbfAddress] \n"
-         " LA 1,%[symbfArguments] \n"
+         " LLGF 15,%[symbfAddress]\n"
+         " LA 1,%[symbfArguments]\n"
 #ifdef _LP64
-         " SAM31 \n"
-         " SYSSTATE AMODE64=NO \n"
+         " SAM31\n"
+         " SYSSTATE AMODE64=NO\n"
 #endif
-         " BASR 14,15 \n"
+         " BASR 14,15\n"
 #ifdef _LP64
-         " SAM64 \n"
-         " SYSSTATE AMODE64=YES \n"
+         " SAM64\n"
+         " SYSSTATE AMODE64=YES\n"
 #endif
           :
           :[savearea]"m"(below2G->savearea),[symbfArguments]"m"(below2G->symbfArguments),[symbfAddress]"m"(symbfAddress)
@@ -396,19 +425,28 @@ char *resolveSymbolBySyscall(const char *inputSymbol, int *rc, int *rsn) {
     }
 
 //    printf("input '%s', output '%s'\n", below2G->input, below2G->output);
+    // We are not checking for return code here and therefore cannot differentiate between a blank and not found.
+    // For more info: https://www.ibm.com/docs/en/zos/2.2.0?topic=hsp-asasymbm-asasymbf-substitute-text-symbols
+    // printf("ASASYMBF return code %x\n", below2G->returnCode);
     int outputLen = strlen(below2G->output);
-    if (outputLen != 0){
-      char *result = safeMalloc(sizeof(below2G->output), "output");
-      snprintf(result, outputLen+1, "%s", below2G->output);
+    char *result = NULL;
+    if (outputLen > 0) {
+      result = safeMalloc(outputLen+1, "output");
+      if (result == NULL) {
+        *rc = RESOLVESYMBOL_RETURN_ALLOC_FAILED;
+      } else {
+        snprintf(result, outputLen+1, "%.*s", outputLen, below2G->output);
+      }
       FREE_STRUCT31(STRUCT31_NAME(below2G));
       return result;
-    } else{
-      FREE_STRUCT31(STRUCT31_NAME(below2G));
-      return NULL;
     }
 
+    FREE_STRUCT31(STRUCT31_NAME(below2G));
+    return NULL;
 
 }
+
+
 
 
 /*
@@ -453,38 +491,35 @@ char *resolveSymbol(const char *inputSymbol, int *rc, int *rsn) {
 
 
   SymbTableEntry *entry = firstEntry;
+  for (int i = 0; i < entryCount; i++, entry++) {
+    char *currentSymbol;
+    const char *subtextSrc;
+    int subtextLen;
 
-  for (int i = 0; i < entryCount; i++) {
     if (useEntryOffsets) {
-      //printf("firstEntry = 0x%p, symbol offset = 0x%x, length=%d, subtext offset = 0x%x, length=%d\n", firstEntry, entry->symbolOffset, entry->symbolLength, entry->subtextOffset, entry->subtextLength);
-      
-      char *currentSymbol = (char*)firstEntry + entry->symbolOffset;
-//      printf("Symbol=%.*s\n", entry->symbolLength, currentSymbol);
-
-      // extra '.' at end to account for
-      if ((inputLen+1 == entry->symbolLength) && (memcmp(currentSymbol, inputSymbol, inputLen) == 0) && currentSymbol[inputLen]=='.'){
-        char *result = (char*) safeMalloc(entry->subtextLength+1, "subtext");
-        snprintf(result, entry->subtextLength+1, "%s", (char*)firstEntry + entry->subtextOffset);
-        return result;
-      }
-
-      entry = entry+1;
-    } else{
-      char *currentSymbol = entry->symbolPtr;
-
-      printf("Symbol=%.*s\n", entry->symbolLength, currentSymbol);
-
-
-      // extra '.' at end to account for
-      if ((inputLen+1 == entry->symbolLength) && (memcmp(currentSymbol, inputSymbol, inputLen) == 0) && currentSymbol[inputLen]=='.'){
-        char *result = (char*) safeMalloc(entry->subtextLength+1, "subtext");
-        snprintf(result, entry->subtextLength+1, "%s", entry->subtextPtr);
-        return result;
-      }
+      currentSymbol = (char*)firstEntry + entry->symbolOffset;
+      subtextSrc    = (char*)firstEntry + entry->subtextOffset;
+      subtextLen    = entry->subtextLength;
+    } else {
+      if (entry->symbolPtr == NULL) continue;
+      currentSymbol = entry->symbolPtr;
+      subtextSrc    = entry->subtextPtr ? entry->subtextPtr : "";
+      subtextLen    = entry->subtextPtr ? entry->subtextLength : 0;
     }
- 
-     //printf("next entry at 0x%p\n", entry);
 
+    // extra '.' at end to account for
+    if ((inputLen+1 == entry->symbolLength) &&
+        (memcmp(currentSymbol, inputSymbol, inputLen) == 0) &&
+        currentSymbol[inputLen] == '.') {
+      char *result = (char*) safeMalloc(subtextLen+1, "subtext");
+      if (result == NULL) {
+        *rc = RESOLVESYMBOL_RETURN_ALLOC_FAILED;
+        return NULL;
+      }
+      // NOTE: For a blank subtext (offset mode: subtextLength == 0, pointer mode: subtextPtr == NULL), an empty string "" is returned.
+      snprintf(result, subtextLen+1, "%.*s", subtextLen, subtextSrc);
+      return result;
+    }
   }
 
   return resolveSymbolBySyscall(inputSymbol, rc, rsn);
@@ -780,18 +815,18 @@ static int SAF(safp * __ptr32 safwrapper, int useSupervisorMode)
 
   __asm (ASM_PREFIX
 #ifdef __XPLINK__
-          "         LA       13,%3 \n"
+          "         LA       13,%3\n"
 #endif
 #ifdef _LP64
-          "         SAM31 , \n"
+          "         SAM31 ,\n"
 #endif
-          "         LR       1,%1 \n"
-          "         LR       15,%2 \n"
-          "         BASR     14,15 \n"
+          "         LR       1,%1\n"
+          "         LR       15,%2\n"
+          "         BASR     14,15\n"
 #ifdef _LP64
-          "         SAM64 , \n"
+          "         SAM64 ,\n"
 #endif
-          "         ST       15,%0 \n"
+          "         ST       15,%0\n"
           :"=m"(returnCode)
           :"r"(safwrapper),"r"(safRouter),"m"(below2G->saveArea)
           :
@@ -864,7 +899,7 @@ static safp *makeSAFCallData(int requestNumber,
   safWrapper = (safp *) safeMalloc31(blankingSize, "varlen safWrapper");
   *allocatedSize = blankingSize; /* so we can deallocate properly later */
 
-  /* printf("blanking size 0x%x=%d, safp %d verify %d \n",blankingSize,blankingSize,sizeof(safp),specificDataSize); */
+  /* printf("blanking size 0x%x=%d, safp %d verify %d\n",blankingSize,blankingSize,sizeof(safp),specificDataSize); */
   memset(safWrapper,0,blankingSize);
 
   safWrapper->safppln = sizeof(safp);
@@ -891,16 +926,16 @@ int setTaskAcee(ACEE *acee){
     int userKey;
     // The original code issued MODESET MODE=SUP, saved the key, and then set it to 0
     __asm(ASM_PREFIX
-          " MODESET MODE=SUP \n"
-          " MODESET EXTKEY=ZERO,SAVEKEY=(2) \n"
-          " ST 2,%0 \n"
+          " MODESET MODE=SUP\n"
+          " MODESET EXTKEY=ZERO,SAVEKEY=(2)\n"
+          " ST 2,%0\n"
           :"=m"(userKey)
           :
           :"r1","r2","r15");
     *taskAceePtr = acee;
     __asm(ASM_PREFIX
-          " MODESET KEYREG=(%0) \n"
-          " MODESET MODE=PROB \n"
+          " MODESET KEYREG=(%0)\n"
+          " MODESET MODE=PROB\n"
           :
           :"r"(userKey)
           :"r1","r15");
@@ -1149,7 +1184,7 @@ static int safVerifyInternal(int options,
   ACEE * __ptr32  * __ptr32 ACEEPtr =  (ACEE * __ptr32 * __ptr32) safeMalloc31(4, "ACEE ptr");
   safVerifyRequest *verifyRequest = (safVerifyRequest*)(((char*)safWrapper)+ sizeof(safp));
   char *countedUserid = makeCountedString("userid", userid, 8, FALSE, &countedUserSize);
-  if (strlen (password) <= 8) {
+  if (!password || strlen (password) <= 8) {
     countedPassword = makeCountedString("password", password, 8, FALSE, &countedPasswordSize);
   }
   else {
@@ -1412,13 +1447,14 @@ int safStat(int options, char *safClass, char *copy, int copyLength, int *racfSt
   safp *safWrapper = makeSAFCallData(SAFPSTAT,useSupervisorMode,&safWrapperSize, 0);
   char *workArea = safeMalloc31(512, "safStat workArea");
   safStatRequest *statRequest = (safStatRequest*)(((char*)safWrapper)+ sizeof(safp));
-  char *classBuffer = safeMalloc31(12, "safStat classBuffer");
+  int classBufferSize = 12;
+  char *classBuffer = safeMalloc31(classBufferSize, "safStat classBuffer");
   int safStatus = 0x96;
   int classLength = strlen(safClass);
   if (safWrapper && workArea && statRequest && classBuffer && (classLength <= 8)){
     safWrapper->safpwa = workArea;
 
-    memset(classBuffer, ' ', sizeof(classBuffer));
+    memset(classBuffer, ' ', classBufferSize);
     memcpy(classBuffer, safClass, classLength);
     statRequest->className = classBuffer;
     statRequest->classCopy = copy;
@@ -1492,7 +1528,7 @@ void wtoMessage(const char *message){
   memcpy(below2G->text,message,len);
 
   __asm(ASM_PREFIX
-        " WTO MF=(E,(%[wtobuf])) \n"
+        " WTO MF=(E,(%[wtobuf]))\n"
         :
         :[wtobuf]"NR:r1"(&below2G->common)
         :"r0","r1","r15");
@@ -1583,8 +1619,8 @@ int locate(char *dsn, int *volserCount, char *firstVolser){
     */
 
   __asm(ASM_PREFIX
-        " LOCATE (%1) \n"
-        " ST     15,%0 \n"
+        " LOCATE (%1)\n"
+        " ST     15,%0\n"
         :"=m"(status)
         :"r"(&below2G->svc26Arg)
         :"r0","r1","r15");
@@ -1618,17 +1654,17 @@ int atomicIncrement(int *intPointer, int increment){
   // Use LAA if the architecture level allows it
   __asm(ASM_PREFIX
   #if (__ARCH__ >=9)   /* If LAA is supported */
-        "         LAA   %0,%1,0(%2)  Increment and update current value \n"
-        "         AR    %0,%1        Set the new value to return \n"
+        "         LAA   %0,%1,0(%2)  Increment and update current value\n"
+        "         AR    %0,%1        Set the new value to return\n"
   #else                /* If LAA is *not* supported */
-        "         LCLA  &ATI \n"
-        "&ATI     SETA  &ATI+1 \n"
-        "&ATILP   SETC  'ATINCR&ATI' \n"
-        "         L     0,0(,%2)     Get current value \n"
-        "&ATILP   LR    %0,0 \n"
-        "         AR    %0,%1        Set the new value to update and return \n"
-        "         CS    0,%0,0(%2)   Update current value \n"
-        "         JNZ   &ATILP       Repeat if compare failure \n"
+        "         LCLA  &ATI\n"
+        "&ATI     SETA  &ATI+1\n"
+        "&ATILP   SETC  'ATINCR&ATI'\n"
+        "         L     0,0(,%2)     Get current value\n"
+        "&ATILP   LR    %0,0\n"
+        "         AR    %0,%1        Set the new value to update and return\n"
+        "         CS    0,%0,0(%2)   Update current value\n"
+        "         JNZ   &ATILP       Repeat if compare failure\n"
   #endif
         :"=r"(newValue)      /* newValue returned in a register */
         :"r"(increment),     /* increment contained in a register */
@@ -1665,9 +1701,9 @@ static void *loadByNameInternal(char *moduleName, int *statusPtr,
   below2G->loadargs.options1 |= options1;
 
   __asm(ASM_PREFIX
-        " LOAD SF=(E,%2) \n"
-        " ST 15,%0 \n"
-        " ST 0,%1 \n"
+        " LOAD SF=(E,%2)\n"
+        " ST 15,%0\n"
+        " ST 0,%1\n"
         :"=m"(status),"=m"(entryPoint)
         :"m"(below2G->loadargs)
         :"r0","r1","r15");
@@ -1724,16 +1760,17 @@ DSAB *getDSAB(char *ddname){
 
   __asm(ASM_PREFIX
 #ifdef __XPLINK__
-        " LA 13,%4 \n"
+        " LA 13,%4\n"
 #endif
 #ifdef _LP64
-        " SAM31 \n"
+        " SAM31\n"
 #endif
-        " GETDSAB DDNAME=%3,DSABPTR=%1,LOC=ANY,MF=(E,%2,COMPLETE) \n"
+        " GETDSAB DDNAME=%3,DSABPTR=%1,LOC=ANY,MF=(E,%2,COMPLETE)\n"
 #ifdef _LP64
-        " SAM64 \n"
+        " SAM64\n"
 #endif
-        " ST 15,%0 \n"
+        " ST 15,%0\n"
+        ZOS_DSECT_SUITE
         :"=m"(rc),"=m"(below2G->dsab)
         :"m"(below2G->plist),"m"(below2G->ddname),"m"(below2G->saveArea)
         :
@@ -1785,18 +1822,19 @@ bool isCallerLocked(void) {
   __asm(
       ASM_PREFIX
 #ifdef _LP64
-      "         SAM31                                                          \n"
-      "         SYSSTATE AMODE64=NO                                            \n"
+      "         SAM31\n"
+      "         SYSSTATE AMODE64=NO\n"
 #endif
-      "         SETLOCK TEST,TYPE=CPU                                          \n"
+      "         SETLOCK TEST,TYPE=CPU\n"
 #ifdef _LP64
-      "         SAM64                                                          \n"
-      "         SYSSTATE AMODE64=YES                                           \n"
+      "         SAM64\n"
+      "         SYSSTATE AMODE64=YES\n"
 #endif
 #ifndef METTLE
-      "* Prevent LE compiler errors caused by the way XL C treats __asm        \n"
-      "         NOPR  0                                                        \n"
+      "* Prevent LE compiler errors caused by the way XL C treats __asm\n"
+      "         NOPR  0\n"
 #endif
+      ZOS_DSECT_SUITE
       : "=NR:r15"(rc)
       :
       : "r1"
@@ -1809,18 +1847,19 @@ bool isCallerLocked(void) {
   __asm(
       ASM_PREFIX
 #ifdef _LP64
-      "         SAM31                                                          \n"
-      "         SYSSTATE AMODE64=NO                                            \n"
+      "         SAM31\n"
+      "         SYSSTATE AMODE64=NO\n"
 #endif
-      "         SETLOCK TEST,TYPE=ALOCAL                                       \n"
+      "         SETLOCK TEST,TYPE=ALOCAL\n"
 #ifdef _LP64
-      "         SAM64                                                          \n"
-      "         SYSSTATE AMODE64=YES                                           \n"
+      "         SAM64\n"
+      "         SYSSTATE AMODE64=YES\n"
 #endif
 #ifndef METTLE
-      "* Prevent LE compiler errors caused by the way XL C treats __asm        \n"
-      "         NOPR  0                                                        \n"
+      "* Prevent LE compiler errors caused by the way XL C treats __asm\n"
+      "         NOPR  0\n"
 #endif
+      ZOS_DSECT_SUITE
       : "=NR:r15"(rc)
       :
       : "r1"
@@ -1851,41 +1890,42 @@ bool isCallerCrossMemory(void) {
   __asm(
       ASM_PREFIX
       /* generate unique branch labels */
-      "&LX      SETA  &LX+1                                                    \n"
-      "&LXMEM   SETC  'LXMEM&LX'                                               \n"
-      "&LEXIT   SETC  'LEXIT&LX'                                               \n"
-      "         PUSH  USING                                                    \n"
+      "&LX      SETA  &LX+1\n"
+      "&LXMEM   SETC  'LXMEM&LX'\n"
+      "&LEXIT   SETC  'LEXIT&LX'\n"
+      "         PUSH  USING\n"
       /* assume not cross-memory */
-      "         LA    15,0                                                     \n"
+      "         LA    15,0\n"
       /* get HASN */
-      "         USING PSA,0                                                    \n"
+      "         USING PSA,0\n"
 #ifdef _LP64
-      "         LLGT  1,PSAAOLD                                                \n"
+      "         LLGT  1,PSAAOLD\n"
 #else
-      "         L     1,PSAAOLD                                                \n"
+      "         L     1,PSAAOLD\n"
 #endif
-      "         USING ASCB,1                                                   \n"
-      "         LLH   1,ASCBASID                                               \n"
-      "         DROP  1                                                        \n"
+      "         USING ASCB,1\n"
+      "         LLH   1,ASCBASID\n"
+      "         DROP  1\n"
       /* get PASN and compare with HASN */
-      "         EPAR  2                                                        \n"
-      "         CLR   1,2                                                      \n"
-      "         JNE   &LXMEM                                                   \n"
+      "         EPAR  2\n"
+      "         CLR   1,2\n"
+      "         JNE   &LXMEM\n"
       /* get SASN and compare with HASN */
-      "         ESAR  2                                                        \n"
-      "         CLR   1,2                                                      \n"
-      "         JNE   &LXMEM                                                   \n"
+      "         ESAR  2\n"
+      "         CLR   1,2\n"
+      "         JNE   &LXMEM\n"
       /* we're not in xmem */
-      "         J     &LEXIT                                                   \n"
+      "         J     &LEXIT\n"
       /* exit */
-      "&LXMEM   DS    0H                                                       \n"
-      "         LA    15,1                                                     \n"
-      "&LEXIT   DS    0H                                                       \n"
-      "         POP   USING                                                    \n"
+      "&LXMEM   DS    0H\n"
+      "         LA    15,1\n"
+      "&LEXIT   DS    0H\n"
+      "         POP   USING\n"
 #ifndef METTLE
-      "* Prevent LE compiler errors caused by the way XL C treats __asm        \n"
-      "         NOPR  0                                                        \n"
+      "* Prevent LE compiler errors caused by the way XL C treats __asm\n"
+      "         NOPR  0\n"
 #endif
+      ZOS_DSECT_SUITE
       : "=NR:r15"(rc)
       :
       : "r1", "r2"
@@ -1905,10 +1945,10 @@ bool isCallerCrossMemory(void) {
 #pragma insert_asm(" IHAASCB  ") /* for the isCallerCrossMemory function */
 #else
 void gen_dsects_only_os_c(void) { // Required for __asm invoked macros to be able to compile
-  __asm(" CVT DSECT=YES,LIST=NO \n"
-        " IEFJESCT \n"
-        " IHAPSA   \n"
-        " IHAASCB  \n"
+  __asm(" CVT DSECT=YES,LIST=NO\n"
+        " IEFJESCT\n"
+        " IHAPSA\n"
+        " IHAASCB\n"
         );
 }
 #endif
