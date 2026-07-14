@@ -194,6 +194,15 @@ typedef struct CrossMemoryService_tag {
   PAD_LONG(1, void *serviceData);
 } CrossMemoryService;
 
+#pragma enum(1)
+typedef enum CMSSAFAccessLevel_tag {
+  CMS_SAF_ACCESS_LEVEL_READ = 0x02,
+  CMS_SAF_ACCESS_LEVEL_UPDATE = 0x04,
+  CMS_SAF_ACCESS_LEVEL_CONTROL = 0x08,
+  CMS_SAF_ACCESS_LEVEL_ALTER = 0x80,
+} CMSSAFAccessLevel;
+#pragma enum(reset)
+
 /*
  * TODO this version must not be incremented until the following gets addressed.
  *
@@ -438,6 +447,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define cmsGetGlobalArea CMGETGA
 #define cmsAddConfigParm CMADDPRM
 #define cmsTestAuth CMTSAUTH
+#define cmsTestAuth2 CMTSAUT2
 #define cmsCallService CMCMSRCS
 #define cmsCallService2 CMCALLS2
 #define cmsCallService3 CMCALLS3
@@ -511,6 +521,20 @@ bool cmsTestAuth(CrossMemoryServerGlobalArea *globalArea,
                  const char *className,
                  const char *entityName);
 
+/**
+ * Checks if the cross-memory caller has access to the provided class and
+ * entity.
+ *
+ * @param globalArea The global area of the server.
+ * @param className The class to be checked.
+ * @param entityName The entity to be checked.
+ * @param accessLevel The access level to be checked.
+ * @return True if the caller has access to the class/entity, otherwise false.
+ */
+bool cmsTestAuth2(CrossMemoryServerGlobalArea *globalArea,
+                  const char *className,
+                  const char *entityName,
+                  CMSSAFAccessLevel accessLevel);
 
 /* Use these inside your service functions if they need ECSA.
  * The number of allocated blocks is tracked in the CMS global area. */
