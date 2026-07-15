@@ -3776,9 +3776,9 @@ static void printDumpServiceMsg(CrossMemoryServerMsgQueueElement *dumpElement) {
     return;
   }
 
-  printf("%.*s"CMS_LOG_DUMP_MSG_ID" Dump of \'%s\' (%u bytes at 0x%p):\n",
+  printf("%.*s"CMS_LOG_DUMP_MSG_ID" Dump of \'%.*s\' (%u bytes at 0x%p):\n",
          sizeof(dumpParm->prefix.text), dumpParm->prefix.text,
-         dumpParm->descriptionNullTerm,
+         sizeof(dumpParm->descriptionNullTerm), dumpParm->descriptionNullTerm,
          dumpParm->originalSize, dumpParm->originalAddress);
 
   char workBuffer[4096];
