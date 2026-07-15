@@ -1083,14 +1083,18 @@ char *getTokenTypeString(int type) {
 static 
 char *jsonParserAlloc(JsonParser *parser, int size) {
   char *mem = SLHAlloc(parser->slh, size);
-  memset(mem, 0, size);
+  if (mem) {
+    memset(mem, 0, size);
+  }
   return mem;
 }
 
 static 
 char *jsonTokenizerAlloc(JsonTokenizer *tokenizer, int size) {
   char *mem = SLHAlloc(tokenizer->slh, size);
-  memset(mem, 0, size);
+  if (mem) {
+    memset(mem, 0, size);
+  }
   return mem;
 }
 
