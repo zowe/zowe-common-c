@@ -1924,6 +1924,8 @@ static int handleDumpService(CrossMemoryServer *server,
     return RC_CMS_STDSVC_PARM_BAD_EYECATCHER;
   }
 
+  localParm.dataLength = min(localParm.dataLength, sizeof(localParm.data));
+
   CrossMemoryServerMsgQueueElement *newElement = NULL;
   int allocRC = allocateMsgQueueElement(server, &newElement);
   if (allocRC != RC_CMS_OK) {
