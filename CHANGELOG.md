@@ -1,11 +1,15 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+- Bugfix: configmgr now runs the JavaScript asynchronous continuation loop (`js_std_loop`) after evaluating a script, so `os.signal` handlers, `os.sleepAsync` timers, and Promise jobs scheduled during eval are dispatched instead of silently dropped. This lets JS-based components (e.g. a launcher) catch `SIGTERM` for graceful shutdown; a purely synchronous script is unaffected (the loop returns immediately when nothing is pending). [(#631)](https://github.com/zowe/zowe-common-c/pull/631)
 - Bugfix: Internal Short Lived Heap allocation routine `SLHAlloc` checks the size [(#620)](https://github.com/zowe/zowe-common-c/issues/620)
 - Bugfix: Return code 414 (`HTTP_STATUS_URI_TOO_LONG`) for too long URI [(#597)](https://github.com/zowe/zowe-common-c/issues/597)
 - Bugfix: Various XML updates. [(#598)](https://github.com/zowe/zowe-common-c/pull/598)
 - Enhancement: made zowe-common-c compatible with clang/llvm on z/OS and Linux. [(#596)](https://github.com/zowe/zowe-common-c/pull/596)
 - Enhancement: take into account active PC callers during termination [(#569)](https://github.com/zowe/zowe-common-c/pull/569)
+ Bugfix: Use "%.*s" version of snprintf to stop overreading in 'zosResolveSymbol()' which causes abend. [(#626)](https://github.com/zowe/zowe-common-c/pull/626)
+- Bugfix: fix recovery in 64-bit httpserver [(#622)](https://github.com/zowe/zowe-common-c/issues/622)
+- Enhancement: add a new function (`cmsTestAuth2`) to test any SAF level in xmem; fix ALTER SAF enum value [(#635)](https://github.com/zowe/zowe-common-c/issues/635)
 
 ## `3.5.0`
 - Enhancement: YAML comment preservation tooling for the YAML-to-JSON-to-YAML round-trip pipeline. Comments are scanned separately from libyaml, attached to the JSON tree, and re-emitted with configurable alignment (none, fixed, original). Opt-in; not yet enabled in configmgr. [(#583)](https://github.com/zowe/zowe-common-c/issues/583)
