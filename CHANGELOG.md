@@ -1,6 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+- Bugfix: A YAML configuration with a duplicate top-level key (e.g. two `zowe:` blocks) is now reduced to a single value (first occurrence wins) with a warning, instead of producing a JSON object with duplicate properties. This makes `configmgr` and the launcher evaluate the same configuration identically; previously they resolved duplicate keys differently (first-match vs last-match), which could silently change values or abort template evaluation. [(#581)](https://github.com/zowe/zowe-common-c/issues/581)
 - Bugfix: configmgr now runs the JavaScript asynchronous continuation loop (`js_std_loop`) after evaluating a script, so `os.signal` handlers, `os.sleepAsync` timers, and Promise jobs scheduled during eval are dispatched instead of silently dropped. This lets JS-based components (e.g. a launcher) catch `SIGTERM` for graceful shutdown; a purely synchronous script is unaffected (the loop returns immediately when nothing is pending). [(#631)](https://github.com/zowe/zowe-common-c/pull/631)
 - Bugfix: Internal Short Lived Heap allocation routine `SLHAlloc` checks the size [(#620)](https://github.com/zowe/zowe-common-c/issues/620)
 - Bugfix: Return code 414 (`HTTP_STATUS_URI_TOO_LONG`) for too long URI [(#597)](https://github.com/zowe/zowe-common-c/issues/597)
