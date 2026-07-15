@@ -85,6 +85,14 @@ static JSValue zosResolveSymbol(JSContext *ctx, JSValueConst this_val,
   JS_FreeCString(ctx,symbol);
 
 #ifdef __ZOWE_OS_ZOS
+  if (result == NULL) {
+    if (rc != 0) {
+      return JS_ThrowReferenceError(ctx,
+                                    "resolveSymbol failed for '%s' (rc=%d, rsn=%d)",
+                                    symbolNative, rc, rsn);
+    }
+    return JS_NULL;
+  }
   return newJSStringFromNative(ctx, result, strlen(result));
 #else
   return JS_NewString(ctx, NULL);
