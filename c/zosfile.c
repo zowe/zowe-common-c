@@ -1377,7 +1377,16 @@ int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode){
 
   for (int i = 0; i < validEntries; i++) {
     char pathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
-    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entryArray[i]);
+    int n = snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entryArray[i]);
+    if (n < 0) {
+        *retCode = EINVAL;
+        *resCode = 0;
+        return -1;
+    } else if (n > sizeof(pathBuffer)) {
+        *retCode = ENAMETOOLONG;
+        *resCode = 0;
+        return -1;
+    }
 
     status    = fileInfo(pathBuffer, &info, &returnCode, &reasonCode);
     symstatus = symbolicFileInfo(pathBuffer, &syminfo, &returnCode, &reasonCode);
