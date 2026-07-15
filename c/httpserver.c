@@ -2408,7 +2408,13 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
           parser->state = HTTP_STATE_READING_CHUNK_TRAILER;
         } else {
           parser->contentTmp = parser->content;
-          parser->content = SLHAlloc(parser->slh, parser->specifiedContentLength + parser->chunkSize);
+          unsigned int newContentLength = (unsigned int) parser->specifiedContentLength + (unsigned int) parser->chunkSize;
+          if (newContentLength > INT_MAX) {
+            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "request body is too large: %u exceeds limit (%d)\n", newContentLength, INT_NAX);
+            parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
+            return 0;
+          }
+          parser->content = SLHAlloc(parser->slh, (int) newContentLength);
           if (parser->content == NULL) {
             /* allocation failure */
             parser->httpReasonCode = 500;
