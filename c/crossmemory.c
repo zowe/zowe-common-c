@@ -1924,6 +1924,8 @@ static int handleDumpService(CrossMemoryServer *server,
     return RC_CMS_STDSVC_PARM_BAD_EYECATCHER;
   }
 
+  localParm.dataLength = min(localParm.dataLength, sizeof(localParm.data));
+
   CrossMemoryServerMsgQueueElement *newElement = NULL;
   int allocRC = allocateMsgQueueElement(server, &newElement);
   if (allocRC != RC_CMS_OK) {
@@ -3776,9 +3778,9 @@ static void printDumpServiceMsg(CrossMemoryServerMsgQueueElement *dumpElement) {
     return;
   }
 
-  printf("%.*s"CMS_LOG_DUMP_MSG_ID" Dump of \'%s\' (%u bytes at 0x%p):\n",
+  printf("%.*s"CMS_LOG_DUMP_MSG_ID" Dump of \'%.*s\' (%u bytes at 0x%p):\n",
          sizeof(dumpParm->prefix.text), dumpParm->prefix.text,
-         dumpParm->descriptionNullTerm,
+         sizeof(dumpParm->descriptionNullTerm), dumpParm->descriptionNullTerm,
          dumpParm->originalSize, dumpParm->originalAddress);
 
   char workBuffer[4096];
