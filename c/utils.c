@@ -77,13 +77,36 @@ int parseInitialInt(const char *str, int start, int end){
   return x;
 }
 
+/* Null-terminates a fixed-width, blank-padded (EBCDIC 0x40) field in place.
+
+   Scans str[0..len-1] backward for the last byte that is neither a blank
+   nor a null, and writes a null right after it, so the buffer can be used
+   as a normal C string. If the whole field is blank/null, str[0] is set
+   to 0. If str is NULL or len <= 0, this is a no-op (aside from writing a
+   null at str[0] when str is non-NULL).
+
+   Returns the resulting string length (the index of the null byte written),
+   or -1 if str[len-1] itself holds real data: with no blank/null anywhere
+   in the field there is no spare byte to hold the terminator, so the
+   buffer is left untouched rather than overwriting that last byte of data. */
 int nullTerminate(char *str, int len){
   int i;
 
-  for (i=len-1; i>=0; i--){
-    if ((str[i] != 0x40) && (str[i] != 0)){
+  if (str == NULL || len <= 0) {
+    if (str) str[0] = 0;
+    return 0;
+  }
+
+  for (i = len - 1; i >= 0; i--) {
+    if ((str[i] != 0x40) && (str[i] != 0)) {
+      /* No extra byte available: the buffer is fully packed with data, so
+         terminating in place would either overflow it or overwrite real
+         data. Refuse instead of silently corrupting the caller's string. */
+      if (i == len - 1) {
+        return -1;
+      }
       str[i+1] = 0;
-      return i+1;
+      return i + 1;
     }
   }
   str[0] = 0;
