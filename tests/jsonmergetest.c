@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#ifndef __ZOWE_OS_WINDOWS
+#include <unistd.h>   /* STDOUT_FILENO */
+#endif
 
 #ifdef NDEBUG
 #undef NDEBUG
