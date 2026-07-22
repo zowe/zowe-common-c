@@ -62,6 +62,13 @@ if $CC -c $BASE_CFLAGS $MAIN_CHARSET_CFLAGS $MAIN_DEFS \
 else
   echo "  FAIL getcharsetcode-test.c"; sed -n '1,6p' "$OUT/gcc.err"; rc=1
 fi
+if $CC -c $BASE_CFLAGS $MAIN_CHARSET_CFLAGS $MAIN_DEFS \
+      -I "$PR/h" -I "$PR/platform/posix" \
+      "$HERE/error-paths-test.c" -o "$OUT/ep.o" 2>"$OUT/ep.err"; then
+  echo "  OK   error-paths-test.c"
+else
+  echo "  FAIL error-paths-test.c"; sed -n '1,6p' "$OUT/ep.err"; rc=1
+fi
 # link-time LE stubs (getCAA/abortIfUnsupportedCAA are referenced by logging.o
 # but never called on the streaming path -- see zos-le-stub.c).
 if $CC -c $BASE_CFLAGS $MAIN_CHARSET_CFLAGS -I "$PR/h" \
@@ -98,6 +105,12 @@ if $CC -m64 -mzos-float-kind=ieee $LIBOBJS "$OUT/gcc.o" -o "$OUT/getcharsetcode-
   "$OUT/getcharsetcode-test" | iconv -f IBM-1047 -t UTF-8
 else
   echo "  LINK FAILED (getcharsetcode):"; sed -n '1,8p' "$OUT/link2.err"; rc=1
+fi
+if $CC -m64 -mzos-float-kind=ieee $LIBOBJS "$OUT/ep.o" -o "$OUT/error-paths-test" 2>"$OUT/link3.err"; then
+  echo "--- error-paths-test (#630 review error paths on real z/OS iconv) ---"
+  "$OUT/error-paths-test" | iconv -f IBM-1047 -t UTF-8
+else
+  echo "  LINK FAILED (error-paths):"; sed -n '1,8p' "$OUT/link3.err"; rc=1
 fi
 echo
 echo "DRY note: these flags are copied verbatim from build/build_cmgr_clang.sh."

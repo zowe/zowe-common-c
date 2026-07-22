@@ -4515,9 +4515,6 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
         }
       }
 
-      writeHeader(response);
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Streaming %d for %s\n", ccsid, absolutePath);
-
       /* effectiveCCSID: the source CCSID used when sourceEncoding=auto.
        *
        * "auto" source resolution is a two-stage process that has already
@@ -4553,7 +4550,36 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
       bool tgtIsBinary = (callerTargetCCSID != 0 &&
                           (unsigned short)callerTargetCCSID == (unsigned short)CCSID_BINARY);
 
-      if (srcIsBinary || tgtIsBinary) {
+      /* Validate the RESOLVED conversion pair before the response status is
+       * committed. Discovering an unusable pair mid-stream is too late: the
+       * 200/chunked status is already on the wire and the only possible
+       * outcomes are an empty or truncated body -- the very zss#828 symptom
+       * this path exists to fix. So a pair the converter cannot open is
+       * handled here instead: a caller-forced pair with a 400, an auto pair
+       * (a file whose CCSID tag this build cannot convert) by falling back to
+       * faithful raw-binary streaming, with a warning. */
+      bool autoFallbackToBinary = FALSE;
+      if (!srcIsBinary && !tgtIsBinary) {
+        int resolvedSource = (callerSourceCCSID != 0) ? callerSourceCCSID : effectiveCCSID;
+        int resolvedTarget = (callerTargetCCSID != 0) ? callerTargetCCSID : webCodePage;
+        if (!isCharsetStreamingPairSupported(resolvedSource, resolvedTarget)) {
+          if ((callerSourceCCSID != 0) || (callerTargetCCSID != 0)) {
+            respondWithError(response, HTTP_STATUS_BAD_REQUEST,
+                             "sourceEncoding/targetEncoding pair is not supported for conversion.");
+            fileClose(in, &returnCode, &reasonCode);
+            return;
+          }
+          autoFallbackToBinary = TRUE;
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING,
+                  "file CCSID %d is not convertible to %d on this build; streaming %s as binary\n",
+                  resolvedSource, resolvedTarget, absolutePath);
+        }
+      }
+
+      writeHeader(response);
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Streaming %d for %s\n", ccsid, absolutePath);
+
+      if (srcIsBinary || tgtIsBinary || autoFallbackToBinary) {
         /* binary on either side: stream raw bytes without conversion */
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
                 "Streaming binary (caller-requested) for %s\n", absolutePath);
@@ -4768,11 +4794,44 @@ int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
   * when encoding is ENCODING_SIMPLE then socket is mandatory
   * when encoding is ENCODING_CHUNKED then response is mandatory
 */
+/* Emit one span of (possibly converted) bytes to the response, base64-encoding
+ * when requested. Factored out of streamTextForFile2 so the drain-and-recall
+ * conversion loop below can emit once per converter call, not just once per
+ * file read. */
+static void emitStreamData(ChunkedOutputStream *stream, Socket *socket, int encoding,
+                           bool asB64, char *data, unsigned int len, int *bytesSent){
+  if (len == 0){
+    return;
+  }
+  char *outPtr = data;
+  unsigned int outLen = len;
+  int allocSize = 0;
+  int encodedLength = 0;
+  char *encodedBuffer = NULL;
+  if (asB64) {
+    if (outLen % 3) {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
+    }
+    allocSize = ENCODE64_SIZE(outLen)+1;
+    encodedBuffer = encodeBase64(NULL, outPtr, outLen, &encodedLength, FALSE);
+    outPtr = encodedBuffer;
+    outLen = (unsigned int) encodedLength;
+  }
+  if (encoding == ENCODING_CHUNKED) {
+    writeBytes(stream, outPtr, (int) outLen, NO_TRANSLATE);
+  } else {
+    writeFully(socket, outPtr, (int) outLen);
+  }
+  if (NULL != encodedBuffer) safeFree31(encodedBuffer, allocSize);
+  *bytesSent += (int) outLen;
+}
+
 static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding,
                       int sourceCCSID, int targetCCSID, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
   int bytesSent = 0;
+  bool streamFailed = FALSE;
   ChunkedOutputStream *stream = NULL;
 
   /* Q: How do we find character encoding for unix file? 
@@ -4796,7 +4855,6 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
     int bufferSize = FILE_STREAM_BUFFER_SIZE - (FILE_STREAM_BUFFER_SIZE % 3);
     char *buffer = safeMalloc(bufferSize+4, "streamTextBuffer");
     char *translation = safeMalloc((2*bufferSize)+4, "streamTextConvertBuffer"); /* UTF inflation tolerance */
-    int encodedLength;
 
     /* Carry-forward: a multibyte character can straddle a read boundary. Any
      * incomplete trailing bytes that convertCharsetStreaming could not consume
@@ -4819,75 +4877,87 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
       }
       int inTotal = pendingLen + bytesRead;
       pendingLen = 0;
-      unsigned int outLen;
-      int rc;
-      char *outPtr;
 
       if (sourceCCSID == targetCCSID) {
-        outPtr = buffer;
-        outLen = (unsigned int)inTotal;
+        emitStreamData(stream, socket, encoding, asB64, buffer, (unsigned int) inTotal, &bytesSent);
       } else {
-        /* Streaming conversion with carry-forward and substitution.
-         * convertCharsetStreaming converts as much as it can, substitutes any
-         * character unmappable in the target instead of aborting to an empty
-         * body (#828), and reports how many input bytes it consumed. A trailing
-         * incomplete multibyte sequence is left unconsumed: we hold those bytes
-         * in `pending` and prepend them to the next read so the character is
-         * completed there rather than corrupted. Every call still does its own
-         * iconv_open (unchanged from before); if no conversion is necessary the
-         * sourceCCSID==targetCCSID fast path above skips this entirely. */
-        int translationLength = 0;
-        int inputConsumed = 0;
-        int convReason = 0;
-        rc = convertCharsetStreaming(buffer,
-                                     inTotal,
-                                     sourceCCSID,
-                                     translation,
-                                     2 * bufferSize,
-                                     targetCCSID,
-                                     &translationLength,
-                                     &inputConsumed,
-                                     &convReason);
-
-        if (TRACE_CHARSET_CONVERSION){
-          printf("convertCharsetStreaming transLen=%d consumed=%d/%d rc=%d\n",
-                 translationLength, inputConsumed, inTotal, rc);
-          dumpbuffer(translation,translationLength);
+        /* Streaming conversion with carry-forward, substitution, and draining.
+         * convertCharsetStreaming converts as much input as fits the output
+         * buffer, substitutes characters the target cannot represent instead
+         * of aborting to an empty body (#828), and reports how many input
+         * bytes it consumed. Per call there are three outcomes
+         * (zowe-common-c#630 review, issues 1 and 2):
+         *   SUCCESS      - all convertible input consumed; at most an
+         *                  incomplete trailing multibyte sequence remains,
+         *                  carried to the next read via `pending` so the
+         *                  character is completed there, not corrupted.
+         *   SHORT_BUFFER - the output buffer filled first: emit what was
+         *                  produced and call again on the remainder
+         *                  (drain-and-recall), so a target that expands
+         *                  beyond the 2x translation buffer cannot force
+         *                  silent truncation.
+         *   hard error   - deterministic converter failure (unknown CCSID,
+         *                  no converter). respondWithUnixFile2 validates the
+         *                  pair before committing the response status, so
+         *                  this is a backstop: log at SEVERE and stop rather
+         *                  than mask it and stream an empty or garbled body.
+         *                  The 200/chunked status is already on the wire; a
+         *                  short body plus a SEVERE log is the least bad
+         *                  option remaining at this point. */
+        int off = 0;
+        while (off < inTotal) {
+          int translationLength = 0;
+          int inputConsumed = 0;
+          int convReason = 0;
+          int rc = convertCharsetStreaming(buffer + off,
+                                           inTotal - off,
+                                           sourceCCSID,
+                                           translation,
+                                           2 * bufferSize,
+                                           targetCCSID,
+                                           &translationLength,
+                                           &inputConsumed,
+                                           &convReason);
+          if (TRACE_CHARSET_CONVERSION){
+            printf("convertCharsetStreaming transLen=%d consumed=%d/%d rc=%d\n",
+                   translationLength, inputConsumed, inTotal - off, rc);
+            dumpbuffer(translation,translationLength);
+          }
+          emitStreamData(stream, socket, encoding, asB64, translation,
+                         (unsigned int) translationLength, &bytesSent);
+          off += inputConsumed;
+          if (rc == CHARSET_CONVERSION_SUCCESS) {
+            break;
+          } else if ((rc == CHARSET_SHORT_BUFFER) && (inputConsumed > 0)) {
+            continue; /* drain: output emitted, now convert the rest of this read */
+          } else {
+            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
+                    "streamTextForFile2: conversion %d->%d failed rc=%d reason=%d consumed=%d/%d; aborting stream\n",
+                    sourceCCSID, targetCCSID, rc, convReason, off, inTotal);
+            streamFailed = TRUE;
+            break;
+          }
         }
-        if (rc != 0){
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
-                  "streamTextForFile charset stream rc=%d consumed=%d/%d xlateLength=%d\n",
-                  rc, inputConsumed, inTotal, translationLength);
+        if (streamFailed) {
+          break; /* leave the read loop; chunked output is finished below */
         }
-
-        int leftover = inTotal - inputConsumed;
-        if ((leftover > 0) && (leftover <= (int) sizeof(pending))) {
-          /* straddling tail -> carry to next read (dropped only at true EOF) */
-          memcpy(pending, buffer + inputConsumed, leftover);
-          pendingLen = leftover;
+        int leftover = inTotal - off;
+        if (leftover > 0) {
+          if (leftover <= (int) sizeof(pending)) {
+            /* straddling tail -> carry to next read (dropped only at true EOF) */
+            memcpy(pending, buffer + off, leftover);
+            pendingLen = leftover;
+          } else {
+            /* SUCCESS with a large unconsumed tail: that is not a partial
+               character. Refuse to silently drop it (the pre-fix behavior). */
+            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
+                    "streamTextForFile2: converter left %d bytes unconsumed; aborting stream\n",
+                    leftover);
+            streamFailed = TRUE;
+            break;
+          }
         }
-
-        outPtr = translation;
-        outLen = (unsigned int) translationLength;
       }
-      int allocSize = 0;
-      char *encodedBuffer = NULL;
-      if (asB64) {
-        if (outLen % 3) { 
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
-        }
-        allocSize = ENCODE64_SIZE(outLen)+1;
-        encodedBuffer = encodeBase64(NULL, outPtr, outLen, &encodedLength, FALSE);
-        outPtr = encodedBuffer;
-        outLen = encodedLength;
-      }
-      if (encoding == ENCODING_CHUNKED) {
-        writeBytes(stream, outPtr, (int) outLen, NO_TRANSLATE);
-      } else {
-        writeFully(socket,outPtr,(int) outLen);
-      }
-      if (NULL != encodedBuffer) safeFree31(encodedBuffer, allocSize);
-      bytesSent += encodedLength;
     }
     if (encoding == ENCODING_CHUNKED) {
       /* finish the chunked output here because finishResponse will not flush this stream's data */
@@ -4907,7 +4977,7 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
            in->fd, in->pathname,
            encoding, sourceCCSID, targetCCSID, asB64, bytesSent);
   }
-  return 1;
+  return streamFailed ? -1 : 1;
 }
 
 int streamTextForFile(Socket *socket, UnixFile *in, int encoding,

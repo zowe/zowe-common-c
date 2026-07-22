@@ -525,6 +525,17 @@ int convertCharset(char *input,
         already-opened converters and reuse them.
  */
 
+/* getCharsetName maps a CCSID to a codeset name that iconv_open() accepts on
+ * EVERY platform this branch serves; z/OS iconv and glibc disagree on
+ * spellings, so each entry below is one verified to work on both. It is
+ * intentionally much smaller than getCharsetCode's table: that table parses
+ * caller-supplied NAMES into CCSIDs, while this one gates which CCSIDs the
+ * iconv-based converters can actually open. NULL means "no verified converter
+ * name", and callers must treat it as not-convertible-here (see
+ * isCharsetStreamingPairSupported), not as an internal error. To extend
+ * conversion coverage, add an entry verified against both iconvs -- and for a
+ * target that can expand output more than 2x (e.g. IBM-838 Thai -> UTF-8),
+ * rely on streamTextForFile2's drain-and-recall to keep long inputs whole. */
 static const char *getCharsetName(int ibmCode){
   switch (ibmCode){
   case CCSID_ISO_8859_1:
@@ -544,7 +555,32 @@ static const char *getCharsetName(int ibmCode){
   }
 }
 
-int convertCharset(char *input, 
+/* Can convertCharsetStreaming handle this source->target pair on this build?
+ * TRUE for the identity pair (the caller streams it without a converter), else
+ * both CCSIDs must have verified iconv names AND the converter must actually
+ * open (trial iconv_open/iconv_close; cheap next to the per-chunk opens the
+ * stream itself performs). Lets a caller reject an unusable pair BEFORE
+ * committing an HTTP response status, instead of discovering it mid-stream
+ * where the only outcomes are an empty or truncated body. */
+bool isCharsetStreamingPairSupported(int sourceCCSID, int targetCCSID){
+  if (sourceCCSID == targetCCSID){
+    return TRUE;
+  }
+  const char *inputCharset = getCharsetName(sourceCCSID);
+  const char *outputCharset = getCharsetName(targetCCSID);
+  if ((inputCharset == NULL) || (outputCharset == NULL)){
+    return FALSE;
+  }
+  iconv_t probe = iconv_open(outputCharset, inputCharset);
+  if (probe == (iconv_t) -1){
+    return FALSE;
+  }
+  iconv_close(probe);
+  return TRUE;
+}
+#define ZOWE_HAVE_CHARSET_PAIR_CHECK 1
+
+int convertCharset(char *input,
                    int inputLength, 
                    int inputCCSID,
                    int outputMode,
@@ -768,6 +804,18 @@ int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
   }
   *inputBytesConsumed = inputLength;
   return rc;
+}
+#endif
+
+#ifndef ZOWE_HAVE_CHARSET_PAIR_CHECK
+/* Portable pair check for platforms without the iconv streaming converter
+ * (Windows, z/OS metal-C). Deliberately permissive: the converters on these
+ * platforms take numeric CCSIDs directly (e.g. CUNLCNV on metal z/OS handles
+ * far more pairs than the small iconv name table), so refusing here would
+ * regress conversions that actually work. An unconvertible pair still fails at
+ * conversion time with a nonzero rc, which streamTextForFile2 now surfaces. */
+bool isCharsetStreamingPairSupported(int sourceCCSID, int targetCCSID){
+  return TRUE;
 }
 #endif
 

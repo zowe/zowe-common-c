@@ -58,6 +58,18 @@
 bool isMultiByteCCSID(int ccsid);
 
 /**
+ * Returns TRUE if convertCharsetStreaming can handle the given
+ * source->target pair on this build: the identity pair always can (it is
+ * streamed without a converter), otherwise both CCSIDs must resolve to
+ * converter names and the converter must open (verified by a trial open on
+ * iconv builds). Lets callers reject an unusable pair up front - e.g. with an
+ * HTTP 400 - instead of discovering it mid-stream, where the response status
+ * is already committed. On builds whose converter takes numeric CCSIDs
+ * directly (Windows, z/OS metal-C) this is permissively TRUE.
+ */
+bool isCharsetStreamingPairSupported(int sourceCCSID, int targetCCSID);
+
+/**
  * Parses an encoding value that may be either a charset name string
  * (e.g. "IBM-1047", "UTF-8", "binary") or a decimal CCSID integer
  * string (e.g. "1047", "819", "65535").

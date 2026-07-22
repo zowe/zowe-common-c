@@ -22,15 +22,21 @@ for f in charsets alloc utils logging timeutls collections; do
 done
 LIB="$OUT/charsets.o $OUT/alloc.o $OUT/utils.o $OUT/logging.o $OUT/timeutls.o $OUT/collections.o"
 
-# Two independent drivers (each has its own main), sharing the library objects:
+# Three independent drivers (each has its own main), sharing the library objects:
 #   charset-streaming-test -- convertCharsetStreaming carry-forward/substitution
 #   getcharsetcode-test    -- getCharsetCode() name->CCSID table contract
+#   error-paths-test       -- #630-review error paths: pair guard, hard-error
+#                             surfacing, SHORT_BUFFER drain-and-recall
 $CLANG $FLAGS $INC -c "$HERE/charset-streaming-test.c" -o "$OUT/charset-streaming-test.o"
 $CLANG $FLAGS $LIB "$OUT/charset-streaming-test.o" -lpthread -lm -ldl -o "$OUT/charset-streaming-test"
 $CLANG $FLAGS $INC -c "$HERE/getcharsetcode-test.c" -o "$OUT/getcharsetcode-test.o"
 $CLANG $FLAGS $LIB "$OUT/getcharsetcode-test.o" -lpthread -lm -ldl -o "$OUT/getcharsetcode-test"
+$CLANG $FLAGS $INC -c "$HERE/error-paths-test.c" -o "$OUT/error-paths-test.o"
+$CLANG $FLAGS $LIB "$OUT/error-paths-test.o" -lpthread -lm -ldl -o "$OUT/error-paths-test"
 
 echo "--- running charset-streaming-test ---"
 ASAN_OPTIONS=detect_leaks=0 "$OUT/charset-streaming-test"
 echo "--- running getcharsetcode-test ---"
 ASAN_OPTIONS=detect_leaks=0 "$OUT/getcharsetcode-test"
+echo "--- running error-paths-test ---"
+ASAN_OPTIONS=detect_leaks=0 "$OUT/error-paths-test"
