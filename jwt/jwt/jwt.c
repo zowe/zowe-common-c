@@ -54,6 +54,7 @@ const char *RSJWT_ERROR_DESCRIPTIONS[] = {
   [RC_JWT_UNKNOWN_CONTEXT_TYPE] = "unknown JWT context type",
   [RC_JWT_NOT_CONFIGURED] = "JWT not configured",
   [RC_JWT_INSECURE] = "JWT is insecure",
+  [RC_JWT_KEY_ALG_MISMATCH] = "key and algorithm mismatch",
 };
 
 #ifdef __ZOWE_EBCDIC
@@ -279,6 +280,29 @@ static int checkSignature(JwsAlgorithm algorithm,
   if (keyHandle != NULL && jwtTrace) {
     dumpbuffer((void*)keyHandle, sizeof(ICSFP11_HANDLE_T));
   }
+
+  if (JWS_ALGORITHM_HS256 <= algorithm && algorithm < JWS_ALGORITHM_RS256) {
+    if (keyType != CKO_SECRET_KEY) {
+      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_SEVERE, "public key type (%d) mismatches with HS-series signature, validation rejected!\n", keyType);
+      return RC_JWT_KEY_ALG_MISMATCH;
+    }
+  } else if (JWS_ALGORITHM_RS256 <= algorithm && algorithm < JWS_ALGORITHM_ES256) {
+    if (keyType != CKO_PUBLIC_KEY) {
+      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_SEVERE, "public key type (%d) mismatches with RS-series signature, validation rejected!\n", keyType);
+      return RC_JWT_KEY_ALG_MISMATCH;
+    }
+  } /* uncomment below part when ES and PS algorithms are supported. They are all asymetric so they all require CKO_PUBLIC_KEY
+  else if (JWS_ALGORITHM_ES256 <= algorithm && algorithm < JWS_ALGORITHM_PS256) {
+    if (keyType != CKO_PUBLIC_KEY) {
+      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_SEVERE, "public key type (%d) mismatches with ES-series signature, validation rejected!\n", keyType);
+      return RC_JWT_KEY_ALG_MISMATCH;
+    }
+  } else if(JWS_ALGORITHM_PS256 <= algorithm) {
+    if (keyType != CKO_PUBLIC_KEY) {
+      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_SEVERE, "public key type (%d) mismatches with PS-series signature, validation rejected!\n", keyType);
+      return RC_JWT_KEY_ALG_MISMATCH;
+    }
+  } */
   
   int sts = RC_JWT_OK;
   int p11rc=0, p11rsn=0;
@@ -295,11 +319,6 @@ static int checkSignature(JwsAlgorithm algorithm,
     case JWS_ALGORITHM_RS256: {
       zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature JWS_ALGORITHM_RS256\n");
       zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "message:\n");
-      if (keyType != CKO_PUBLIC_KEY) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_SEVERE, "public key type (%d) mismatches with RS256 signature, validation rejected!\n", keyType);
-        sts = RC_JWT_UNSUPPORTED_ALG;
-        break;
-      }
       if (jwtTrace) {
         dumpbuffer(message, msgLen);
       }
@@ -324,11 +343,6 @@ static int checkSignature(JwsAlgorithm algorithm,
     case JWS_ALGORITHM_HS256: {
       zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature JWS_ALGORITHM_HS256\n");
       zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "message:\n");
-      if (keyType != CKO_SECRET_KEY) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_SEVERE, "public key type (%d) mismatches with HS256 signature, validation rejected!\n", keyType);
-        sts = RC_JWT_UNSUPPORTED_ALG;
-        break;
-      }
       if (sigLen != ICSFP11_SHA256_HASHLEN) {
         zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "saw HS256 sig alg with unexpected signature length\n");
         sts = RC_JWT_INVALID_SIGLEN;
@@ -365,11 +379,6 @@ static int checkSignature(JwsAlgorithm algorithm,
     case JWS_ALGORITHM_HS384: {
       zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature JWS_ALGORITHM_HS384\n");
       zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "message:\n");
-      if (keyType != CKO_SECRET_KEY) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_SEVERE, "public key type (%d) mismatches with HS384 signature, validation rejected!\n", keyType);
-        sts = RC_JWT_UNSUPPORTED_ALG;
-        break;
-      }
       if (sigLen != ICSFP11_SHA384_HASHLEN) {
         zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "saw HS256 sig alg with unexpected signature length\n");
         sts = RC_JWT_INVALID_SIGLEN;
@@ -407,11 +416,6 @@ static int checkSignature(JwsAlgorithm algorithm,
     case JWS_ALGORITHM_HS512: {
       zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature JWS_ALGORITHM_HS512\n");
       zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "message:\n");
-      if (keyType != CKO_SECRET_KEY) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_SEVERE, "public key type (%d) mismatches with HS512 signature, validation rejected!\n", keyType);
-        sts = RC_JWT_UNSUPPORTED_ALG;
-        break;
-      }
       if (sigLen != ICSFP11_SHA512_HASHLEN) {
         zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "saw HS256 sig alg with unexpected signature length\n");
         sts = RC_JWT_INVALID_SIGLEN;
