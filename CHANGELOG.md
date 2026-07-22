@@ -1,6 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+- Bugfix: configmgr now runs the JavaScript asynchronous continuation loop (`js_std_loop`) after evaluating a script, so `os.signal` handlers, `os.sleepAsync` timers, and Promise jobs scheduled during eval are dispatched instead of silently dropped. This lets JS-based components (e.g. a launcher) catch `SIGTERM` for graceful shutdown; a purely synchronous script is unaffected (the loop returns immediately when nothing is pending). [(#631)](https://github.com/zowe/zowe-common-c/pull/631)
 - Bugfix: Internal Short Lived Heap allocation routine `SLHAlloc` checks the size [(#620)](https://github.com/zowe/zowe-common-c/issues/620)
 - Bugfix: Return code 414 (`HTTP_STATUS_URI_TOO_LONG`) for too long URI [(#597)](https://github.com/zowe/zowe-common-c/issues/597)
 - Bugfix: Various XML updates. [(#598)](https://github.com/zowe/zowe-common-c/pull/598)
@@ -16,6 +17,7 @@
 - Bugfix: `respondWithUnixFile2()` no longer serves an empty or truncated body when a multibyte character straddles a read buffer or is unmappable in the target. New `convertCharsetStreaming()` carries the straddling bytes to the next read and substitutes unmappable characters instead of aborting; `getCharsetName()` uses `"ISO8859-1"` (z/OS `iconv_open` rejects the dashed spelling, errno 121). [(zss#828)](https://github.com/zowe/zss/issues/828)
 - Bugfix: `/unixfile` requests that force a `sourceEncoding`/`targetEncoding` pair the server cannot convert are rejected with 400 before the response starts, instead of returning 200 with an empty body; a default GET of a file whose CCSID tag cannot be converted falls back to raw binary streaming with a warning; and the streaming loop drains conversions that outgrow the translation buffer instead of truncating. [(#630)](https://github.com/zowe/zowe-common-c/pull/630)
 - Bugfix: charset conversion under ibm-clang64 (Open XL) now uses the iconv path. ibm-clang64 is `__ZOWE_COMP_CLANG`, not `__ZOWE_COMP_XLCLANG`, so `charsets.c` was routing it to the metal/CUNLCNV branch and mishandling multibyte and streaming conversion. [(zss#828)](https://github.com/zowe/zss/issues/828)
+- Enhancement: add a new function (`cmsTestAuth2`) to test any SAF level in xmem; fix ALTER SAF enum value [(#635)](https://github.com/zowe/zowe-common-c/issues/635)
 
 ## `3.5.0`
 - Enhancement: YAML comment preservation tooling for the YAML-to-JSON-to-YAML round-trip pipeline. Comments are scanned separately from libyaml, attached to the JSON tree, and re-emitted with configurable alignment (none, fixed, original). Opt-in; not yet enabled in configmgr. [(#583)](https://github.com/zowe/zowe-common-c/issues/583)
