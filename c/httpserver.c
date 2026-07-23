@@ -4545,10 +4545,10 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 #error Unknown OS
 #endif
 
-      bool srcIsBinary = (callerSourceCCSID != 0 &&
-                          (unsigned short)callerSourceCCSID == (unsigned short)CCSID_BINARY);
-      bool tgtIsBinary = (callerTargetCCSID != 0 &&
-                          (unsigned short)callerTargetCCSID == (unsigned short)CCSID_BINARY);
+      /* CCSID_BINARY is (short)0xFFFF, so the cast comparison alone suffices:
+         0 (auto) can never equal it (review simplification). */
+      bool srcIsBinary = ((short)callerSourceCCSID == CCSID_BINARY);
+      bool tgtIsBinary = ((short)callerTargetCCSID == CCSID_BINARY);
 
       /* Validate the RESOLVED conversion pair before the response status is
        * committed. Discovering an unusable pair mid-stream is too late: the
