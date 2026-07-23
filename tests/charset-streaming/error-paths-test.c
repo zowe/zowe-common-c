@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "zowetypes.h"
+#include "utils.h"
 #include "charsets.h"
 
 static int fails = 0;
@@ -125,6 +126,19 @@ int main(void){
      "pair (UTF-8 -> 819) reported supported");
   OK(isCharsetStreamingPairSupported(code37, code37),
      "identity pair (37 -> 37) supported: streamed without opening a converter");
+
+  printf("\n== review follow-up: strict numeric parsing of encoding values ==\n");
+  {
+    /* sscanf("%d") accepted trailing junk ("1047foo" -> 1047); the strict
+       parser and parseEncodingValue must reject anything but a whole int. */
+    int v = 0;
+    OK(parseIntSafely("1047", &v) == 0 && v == 1047, "parseIntSafely accepts a plain integer");
+    OK(parseIntSafely("1047foo", &v) == -1, "parseIntSafely rejects trailing junk");
+    OK(parseIntSafely("", &v) == -1, "parseIntSafely rejects empty");
+    OK(parseIntSafely("99999999999", &v) == -1, "parseIntSafely rejects int overflow");
+    OK(parseEncodingValue("1047") == 1047, "parseEncodingValue still accepts a plain CCSID");
+    OK(parseEncodingValue("1047foo") == -1, "parseEncodingValue rejects '1047foo' (was 1047 via sscanf)");
+  }
 
   printf("\n== issue 1: hard converter errors are surfaced, not masked ==\n");
   {

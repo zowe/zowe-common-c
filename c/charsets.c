@@ -182,9 +182,11 @@ int parseEncodingValue(const char *value) {
     return code;
   }
 
-  /* Fall back to decimal integer string (e.g. "1047", "819") */
+  /* Fall back to decimal integer string (e.g. "1047", "819"). Strict parse:
+     the whole value must be one well-formed integer -- sscanf("%d") accepted
+     trailing junk like "1047foo" (review finding on #630). */
   int n = 0;
-  if (sscanf(value, "%d", &n) == 1 && n >= 1 && n <= 65535) {
+  if (parseIntSafely(value, &n) == 0 && n >= 1 && n <= 65535) {
     return n;
   }
 
