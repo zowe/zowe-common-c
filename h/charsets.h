@@ -125,10 +125,55 @@ int convertCharset(char *input,
                    int *conversionOutputLength,
                    int *reasonCode);
 
-/* Streaming variant used by the file-content path: converts only COMPLETE
- * characters, reports input bytes consumed so the caller can carry a partial
- * multibyte sequence forward across read buffers, and substitutes unmappable
- * characters instead of failing. See convertCharsetStreaming in charsets.c. */
+/**
+ * @brief Streaming charset conversion for the file-content path (USE_BUFFER only).
+ *
+ * Converts as much of @p input (up to @p inputLength bytes) as forms complete
+ * characters into the caller's output buffer, reporting both how much output was
+ * produced and how much input was consumed.
+ *
+ * A trailing incomplete multibyte sequence (iconv @c EINVAL) is intentionally
+ * left unconsumed and is not treated as an error: the caller carries those
+ * leftover bytes (@p inputLength minus @p *inputBytesConsumed) forward and
+ * prepends them to the next read, which fixes multibyte characters split across
+ * a read-buffer boundary.
+ *
+ * Characters the target cannot represent are substituted rather than aborting
+ * the whole response (the issue #828 silent empty body): the @c //TRANSLIT
+ * suffix handles characters unmappable in the target encoding, and a '?' in
+ * the TARGET's own encoding (see getSubstituteBytes in charsets.c) is emitted
+ * for bytes that are invalid in the source encoding, so a single bad byte
+ * cannot stall the stream.
+ *
+ * @param[in]  input                   Bytes to convert.
+ * @param[in]  inputLength             Number of bytes available in @p input.
+ * @param[in]  inputCCSID              CCSID of the source encoding.
+ * @param[out] output                  Buffer receiving the converted bytes.
+ * @param[in]  outputLength            Capacity of @p output in bytes.
+ * @param[in]  outputCCSID             CCSID of the target encoding.
+ * @param[out] conversionOutputLength  Number of bytes written to @p output.
+ * @param[out] inputBytesConsumed      Number of bytes consumed from @p input.
+ * @param[out] reasonCode              Receives the underlying errno on converter
+ *                                     open failure; 0 otherwise.
+ *
+ * @retval CHARSET_CONVERSION_SUCCESS       (0)  Conversion progressed; a trailing
+ *         incomplete multibyte sequence left unconsumed is reported here, not as
+ *         an error.
+ * @retval CHARSET_SHORT_BUFFER             (8)  Output buffer was filled before
+ *         all input was consumed; drain @p output and call again.
+ * @retval CHARSET_INTERNAL_ERROR           (12) iconv reported an unexpected errno.
+ * @retval CHARSET_CONVERSION_UNIMPLEMENTED (20) Converter could not be opened;
+ *         @p reasonCode holds the errno.
+ * @retval CHARSET_UNKNOWN_CCSID            (24) @p inputCCSID or @p outputCCSID
+ *         is not recognized.
+ *
+ * @note On platforms without a native iconv streaming converter, the portable
+ *       fallback delegates to convertCharset and may additionally return
+ *       CHARSET_INTERNAL_ERROR (12) or CHARSET_CONVERSION_ROUTINE_FAILURE (16).
+ *       That fallback reports all input as consumed (no carry-forward).
+ *
+ * @return One of the CHARSET_* status codes above.
+ */
 int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
                             char *output, int outputLength, int outputCCSID,
                             int *conversionOutputLength, int *inputBytesConsumed,
