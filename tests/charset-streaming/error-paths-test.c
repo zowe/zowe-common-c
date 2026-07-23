@@ -186,6 +186,50 @@ int main(void){
     OK(parseEncodingValue("-819") == -1, "parseEncodingValue rejects negatives");
   }
 
+  printf("\n== review follow-up: substitute bytes are encoded for the TARGET ==\n");
+  {
+    /* An invalid source byte is substituted with '?' AS THE TARGET ENCODES IT:
+       0x6F in IBM-1047 (0x3F there is the invisible SUB control), and a whole
+       two-byte code unit in UTF-16 -- a lone byte would shift the rest of the
+       stream off its code-unit boundary and garble everything after it. The
+       neighbors around the substitute prove the stream stays aligned. */
+    unsigned char in[] = {0x61, 0xFF, 0x62};   /* 'a', invalid UTF-8, 'b' */
+    {
+      unsigned char out[16];
+      unsigned char expect[] = {0x81, 0x6F, 0x82};   /* 1047: a, '?', b */
+      int o = 0;
+      int c = 0;
+      int r = 0;
+      int rc = convertCharsetStreaming((char*)in, 3, CCSID_UTF_8, (char*)out, sizeof(out),
+                                       CCSID_IBM1047, &o, &c, &r);
+      OK(rc == 0 && o == 3 && memcmp(out, expect, 3) == 0,
+         "1047 target: substitute is EBCDIC '?' 0x6F, neighbors intact (rc=%d o=%d b1=0x%02x)",
+         rc, o, o > 1 ? out[1] : 0);
+    }
+    {
+      unsigned char out[16];
+      unsigned char expect[] = {0x00,0x61, 0x00,0x3F, 0x00,0x62};   /* UTF-16BE */
+      int o = 0;
+      int c = 0;
+      int r = 0;
+      int rc = convertCharsetStreaming((char*)in, 3, CCSID_UTF_8, (char*)out, sizeof(out),
+                                       CCSID_UTF_16_BE, &o, &c, &r);
+      OK(rc == 0 && o == 6 && memcmp(out, expect, 6) == 0,
+         "UTF-16BE target: two-byte substitute keeps code units aligned (rc=%d o=%d)", rc, o);
+    }
+    {
+      unsigned char out[16];
+      unsigned char expect[] = {0x61,0x00, 0x3F,0x00, 0x62,0x00};   /* UTF-16LE */
+      int o = 0;
+      int c = 0;
+      int r = 0;
+      int rc = convertCharsetStreaming((char*)in, 3, CCSID_UTF_8, (char*)out, sizeof(out),
+                                       CCSID_UTF_16_LE, &o, &c, &r);
+      OK(rc == 0 && o == 6 && memcmp(out, expect, 6) == 0,
+         "UTF-16LE target: two-byte substitute keeps code units aligned (rc=%d o=%d)", rc, o);
+    }
+  }
+
   printf("\n== issue 1: hard converter errors are surfaced, not masked ==\n");
   {
     unsigned char in[] = {0x61, 0x62, 0x63};

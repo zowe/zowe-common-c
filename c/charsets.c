@@ -557,6 +557,40 @@ static const char *getCharsetName(int ibmCode){
   }
 }
 
+/* The byte sequence encoding '?' in a target charset, for substituting bytes
+ * that are invalid in the SOURCE (iconv EILSEQ). A substitute must be a VALID
+ * code sequence in the target: a lone 0x3F is only that for ASCII-family
+ * single-byte targets; in IBM-1047 '?' is 0x6F (0x3F there is the SUB control
+ * character, which renders invisibly); and UTF-16 needs a whole two-byte code
+ * unit -- injecting a single byte would shift the rest of the stream off its
+ * code-unit boundary, garbling everything after it. UTF-16 (1200) gets
+ * big-endian, Unicode's default byte order absent a BOM and the z/OS
+ * convention; glibc's "UTF-16" converter emits native-endian with a BOM, so a
+ * forced 1200 target on a little-endian build may mis-order this one
+ * substitute -- the 1201/1202 variants are exact everywhere. Extend this
+ * switch whenever getCharsetName learns a new family. */
+static int getSubstituteBytes(int ccsid, const unsigned char **bytes){
+  static const unsigned char QUESTION_ASCII[1]   = { 0x3F };
+  static const unsigned char QUESTION_EBCDIC[1]  = { 0x6F };
+  static const unsigned char QUESTION_UTF16BE[2] = { 0x00, 0x3F };
+  static const unsigned char QUESTION_UTF16LE[2] = { 0x3F, 0x00 };
+  switch (ccsid){
+  case CCSID_IBM1047:
+    *bytes = QUESTION_EBCDIC;
+    return 1;
+  case CCSID_UTF_16:
+  case CCSID_UTF_16_BE:
+    *bytes = QUESTION_UTF16BE;
+    return 2;
+  case CCSID_UTF_16_LE:
+    *bytes = QUESTION_UTF16LE;
+    return 2;
+  default: /* ISO-8859-1, UTF-8: ASCII-family single-byte */
+    *bytes = QUESTION_ASCII;
+    return 1;
+  }
+}
+
 /* Can convertCharsetStreaming handle this source->target pair on this build?
  * TRUE for the identity pair (the caller streams it without a converter), else
  * both CCSIDs must have verified iconv names AND the converter must actually
@@ -739,6 +773,8 @@ int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
   char  *outPtr = output;
   size_t outLeft = (size_t) outputLength;
   int result = CHARSET_CONVERSION_SUCCESS;
+  const unsigned char *subBytes = NULL;
+  int subLen = getSubstituteBytes(outputCCSID, &subBytes);
 
   while (inLeft > 0){
     size_t status = iconv(converter, &inPtr, &inLeft, &outPtr, &outLeft);
@@ -752,12 +788,13 @@ int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
       break;
     } else if (errno == EILSEQ){
       /* byte not valid in the source encoding: substitute and skip it so a
-         single bad byte cannot stall the whole stream. */
-      if (outLeft == 0){ result = CHARSET_SHORT_BUFFER; break; }
-      *outPtr++ = 0x3F; /* '?' as a numeric byte: correct in ASCII-family targets
-                           (UTF-8, 819). The char literal '?' would be EBCDIC 0x6F
-                           under -fexec-charset=IBM-1047 and render 'o' in a 819 stream. */
-      outLeft--;
+         single bad byte cannot stall the whole stream. The substitute is the
+         TARGET's encoding of '?' -- see getSubstituteBytes; a one-byte 0x3F
+         is only correct for ASCII-family single-byte targets. */
+      if (outLeft < (size_t) subLen){ result = CHARSET_SHORT_BUFFER; break; }
+      memcpy(outPtr, subBytes, (size_t) subLen);
+      outPtr += subLen;
+      outLeft -= (size_t) subLen;
       inPtr++;
       inLeft--;
       continue;
