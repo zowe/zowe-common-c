@@ -527,9 +527,13 @@ int convertCharset(char *input,
         already-opened converters and reuse them.
  */
 
-/* getCharsetName maps a CCSID to a codeset name that iconv_open() accepts on
- * EVERY platform this branch serves; z/OS iconv and glibc disagree on
- * spellings, so each entry below is one verified to work on both. It is
+/* getCharsetName maps a CCSID to a codeset name for iconv_open(). z/OS iconv
+ * and glibc disagree on spellings: 819/1047/UTF-8 below are verified on both,
+ * but the UTF-16 spellings open only on glibc -- z/OS iconv_open rejects them
+ * (found by tests/charset-streaming on Marist). The runtime arbiter is
+ * isCharsetStreamingPairSupported's trial open: a row that fails to open on a
+ * platform degrades to a clean 400 there, never a silent empty body. Fixing
+ * the z/OS UTF-16 spellings is part of the charset-extension follow-up. It is
  * intentionally much smaller than getCharsetCode's table: that table parses
  * caller-supplied NAMES into CCSIDs, while this one gates which CCSIDs the
  * iconv-based converters can actually open. NULL means "no verified converter

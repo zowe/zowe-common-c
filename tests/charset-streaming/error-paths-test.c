@@ -206,6 +206,11 @@ int main(void){
          "1047 target: substitute is EBCDIC '?' 0x6F, neighbors intact (rc=%d o=%d b1=0x%02x)",
          rc, o, o > 1 ? out[1] : 0);
     }
+    /* The UTF-16 spellings in getCharsetName open on glibc but are REJECTED by
+       z/OS iconv_open (found by this very test on Marist). Platform-honest
+       assertion: where the pair opens, the two-byte substitute must keep the
+       code units aligned; where it does not, the pair guard must report it
+       (so the server answers 400 -- never the pre-fix silent empty body). */
     {
       unsigned char out[16];
       unsigned char expect[] = {0x00,0x61, 0x00,0x3F, 0x00,0x62};   /* UTF-16BE */
@@ -214,8 +219,13 @@ int main(void){
       int r = 0;
       int rc = convertCharsetStreaming((char*)in, 3, CCSID_UTF_8, (char*)out, sizeof(out),
                                        CCSID_UTF_16_BE, &o, &c, &r);
-      OK(rc == 0 && o == 6 && memcmp(out, expect, 6) == 0,
-         "UTF-16BE target: two-byte substitute keeps code units aligned (rc=%d o=%d)", rc, o);
+      if (isCharsetStreamingPairSupported(CCSID_UTF_8, CCSID_UTF_16_BE)){
+        OK(rc == 0 && o == 6 && memcmp(out, expect, 6) == 0,
+           "UTF-16BE target: two-byte substitute keeps code units aligned (rc=%d o=%d)", rc, o);
+      } else {
+        OK(rc == CHARSET_CONVERSION_UNIMPLEMENTED && o == 0,
+           "UTF-16BE unopenable on this iconv: guard+rc surface it, nothing emitted (rc=%d o=%d)", rc, o);
+      }
     }
     {
       unsigned char out[16];
@@ -225,8 +235,13 @@ int main(void){
       int r = 0;
       int rc = convertCharsetStreaming((char*)in, 3, CCSID_UTF_8, (char*)out, sizeof(out),
                                        CCSID_UTF_16_LE, &o, &c, &r);
-      OK(rc == 0 && o == 6 && memcmp(out, expect, 6) == 0,
-         "UTF-16LE target: two-byte substitute keeps code units aligned (rc=%d o=%d)", rc, o);
+      if (isCharsetStreamingPairSupported(CCSID_UTF_8, CCSID_UTF_16_LE)){
+        OK(rc == 0 && o == 6 && memcmp(out, expect, 6) == 0,
+           "UTF-16LE target: two-byte substitute keeps code units aligned (rc=%d o=%d)", rc, o);
+      } else {
+        OK(rc == CHARSET_CONVERSION_UNIMPLEMENTED && o == 0,
+           "UTF-16LE unopenable on this iconv: guard+rc surface it, nothing emitted (rc=%d o=%d)", rc, o);
+      }
     }
   }
 
