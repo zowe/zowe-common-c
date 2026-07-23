@@ -724,12 +724,12 @@ int convertCharset(char *input,
 }
 
 /* Streaming charset conversion for the file-content path (USE_BUFFER only).
- * Converts as much of [input, inputLength] as forms COMPLETE characters into
- * the caller's output buffer, and reports BOTH how much output was produced
+ * Converts as much of [input, inputLength] as forms complete characters into
+ * the caller's output buffer, and reports both how much output was produced
  * (*conversionOutputLength) and how much input was consumed (*inputBytesConsumed).
  *
  * A trailing incomplete multibyte sequence (iconv EINVAL) is intentionally left
- * unconsumed and is NOT an error: the caller carries those leftover bytes
+ * unconsumed and is not an error: the caller carries those leftover bytes
  * (inputLength - *inputBytesConsumed) forward and prepends them to the next read,
  * which is what fixes multi-byte characters split across a read-buffer boundary.
  *
