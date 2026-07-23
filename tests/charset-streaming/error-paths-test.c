@@ -33,6 +33,7 @@
  */
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 #include "zowetypes.h"
 #include "utils.h"
 #include "charsets.h"
@@ -130,14 +131,59 @@ int main(void){
   printf("\n== review follow-up: strict numeric parsing of encoding values ==\n");
   {
     /* sscanf("%d") accepted trailing junk ("1047foo" -> 1047); the strict
-       parser and parseEncodingValue must reject anything but a whole int. */
+       parser and parseEncodingValue must reject anything but a whole int.
+       Table-driven abuse of every edge: signs, both exact int boundaries
+       (the negative guard depends on C99 truncation-toward-zero division),
+       whitespace in every position, doubled signs, leading zeros, non-digit
+       high bytes. expectRc 0 rows also pin the parsed value. */
+    static const struct { const char *in; int expectRc; int expectVal; } CASES[] = {
+      { "1047",        0, 1047        },
+      { "0",           0, 0           },
+      { "007",         0, 7           },  /* leading zeros: digits, so accepted */
+      { "+1047",       0, 1047        },
+      { "-1",          0, -1          },
+      { "2147483647",  0, INT_MAX     },  /* INT_MAX exactly */
+      { "-2147483648", 0, INT_MIN     },  /* INT_MIN exactly */
+      { "2147483648",  -1, 0 },  /* INT_MAX + 1 */
+      { "-2147483649", -1, 0 },  /* INT_MIN - 1 */
+      { "99999999999", -1, 0 },  /* far overflow */
+      { "",            -1, 0 },
+      { "+",           -1, 0 },  /* bare sign */
+      { "-",           -1, 0 },
+      { "--1",         -1, 0 },
+      { "+-1",         -1, 0 },
+      { " 1047",       -1, 0 },  /* leading whitespace (strtol would accept) */
+      { "1047 ",       -1, 0 },
+      { "10 47",       -1, 0 },
+      { "1047foo",     -1, 0 },
+      { "foo",         -1, 0 },
+      { "12.5",        -1, 0 },
+      { "0x10",        -1, 0 },
+      { "1-",          -1, 0 },
+      { "\xFF\xFE",    -1, 0 },  /* high bytes: & 0xff path, must not misparse */
+    };
+    int n = (int)(sizeof(CASES) / sizeof(CASES[0]));
+    for (int i = 0; i < n; i++){
+      int v = 12345;
+      int rc = parseIntSafely(CASES[i].in, &v);
+      if (CASES[i].expectRc == 0){
+        OK(rc == 0 && v == CASES[i].expectVal,
+           "parseIntSafely(\"%s\") == %d (rc=%d v=%d)", CASES[i].in, CASES[i].expectVal, rc, v);
+      } else {
+        OK(rc == -1, "parseIntSafely(\"%s\") rejected (rc=%d v=%d)", CASES[i].in, rc, v);
+      }
+    }
     int v = 0;
-    OK(parseIntSafely("1047", &v) == 0 && v == 1047, "parseIntSafely accepts a plain integer");
-    OK(parseIntSafely("1047foo", &v) == -1, "parseIntSafely rejects trailing junk");
-    OK(parseIntSafely("", &v) == -1, "parseIntSafely rejects empty");
-    OK(parseIntSafely("99999999999", &v) == -1, "parseIntSafely rejects int overflow");
+    OK(parseIntSafely(NULL, &v) == -1, "parseIntSafely(NULL, out) rejected");
+    OK(parseIntSafely("1", NULL) == -1, "parseIntSafely(str, NULL) rejected");
+
+    /* the user-facing contract in parseEncodingValue (range 1-65535 on top) */
     OK(parseEncodingValue("1047") == 1047, "parseEncodingValue still accepts a plain CCSID");
     OK(parseEncodingValue("1047foo") == -1, "parseEncodingValue rejects '1047foo' (was 1047 via sscanf)");
+    OK(parseEncodingValue("65535") == 65535, "parseEncodingValue accepts 65535 (top of range)");
+    OK(parseEncodingValue("65536") == -1, "parseEncodingValue rejects 65536 (over range)");
+    OK(parseEncodingValue("0") == -1, "parseEncodingValue rejects 0 (under range)");
+    OK(parseEncodingValue("-819") == -1, "parseEncodingValue rejects negatives");
   }
 
   printf("\n== issue 1: hard converter errors are surfaced, not masked ==\n");
