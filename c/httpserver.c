@@ -4782,35 +4782,93 @@ int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
   * when encoding is ENCODING_SIMPLE then socket is mandatory
   * when encoding is ENCODING_CHUNKED then response is mandatory
 */
-/* Emit one span of (possibly converted) bytes to the response, base64-encoding
- * when requested. Factored out of streamTextForFile2 so the conversion loop can
- * emit once per converter call, not just once per file read. */
-static void emitStreamData(ChunkedOutputStream *stream, Socket *socket, int encoding,
-                           bool asB64, char *data, unsigned int len, int *bytesSent){
+/* Base64 pads any group shorter than 3 bytes with '=', which is only legal
+ * at the very end of a body, so every emitted segment before the last must be
+ * a multiple of 3 bytes. Reads being multiples of 3 no longer guarantees
+ * that: converter output length is arbitrary and the drain loop can emit
+ * several spans per read. The base64 path therefore holds back 0-2 trailing
+ * bytes per emit and flushes them, with the body's only padding, at end of
+ * stream. */
+typedef struct B64AlignCarry_tag {
+  char bytes[2];
+  int  len;
+} B64AlignCarry;
+
+static void writeStreamSpan(ChunkedOutputStream *stream, Socket *socket, int encoding,
+                            char *data, unsigned int len, int *bytesSent){
   if (len == 0){
     return;
   }
-  char *outPtr = data;
-  unsigned int outLen = len;
-  int allocSize = 0;
-  int encodedLength = 0;
-  char *encodedBuffer = NULL;
-  if (asB64) {
-    if (outLen % 3) {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
-    }
-    allocSize = ENCODE64_SIZE(outLen)+1;
-    encodedBuffer = encodeBase64(NULL, outPtr, outLen, &encodedLength, FALSE);
-    outPtr = encodedBuffer;
-    outLen = (unsigned int) encodedLength;
-  }
   if (encoding == ENCODING_CHUNKED) {
-    writeBytes(stream, outPtr, (int) outLen, NO_TRANSLATE);
+    writeBytes(stream, data, (int) len, NO_TRANSLATE);
   } else {
-    writeFully(socket, outPtr, (int) outLen);
+    writeFully(socket, data, (int) len);
   }
-  if (NULL != encodedBuffer) safeFree31(encodedBuffer, allocSize);
-  *bytesSent += (int) outLen;
+  *bytesSent += (int) len;
+}
+
+static void writeStreamSpanB64(ChunkedOutputStream *stream, Socket *socket, int encoding,
+                               char *data, unsigned int len, int *bytesSent){
+  if (len == 0){
+    return;
+  }
+  int allocSize = ENCODE64_SIZE(len)+1;
+  int encodedLength = 0;
+  char *encodedBuffer = encodeBase64(NULL, data, len, &encodedLength, FALSE);
+  if (encodedBuffer == NULL){
+    return;
+  }
+  writeStreamSpan(stream, socket, encoding, encodedBuffer, (unsigned int) encodedLength, bytesSent);
+  safeFree31(encodedBuffer, allocSize);
+}
+
+/* Emit one span to the response. With base64 on, only the 3-aligned prefix of
+ * carry+data is sent; the 0-2 byte tail waits in the carry (see above).
+ * Callers invoke flushStreamData once after the last emit. */
+static void emitStreamData(ChunkedOutputStream *stream, Socket *socket, int encoding,
+                           bool asB64, B64AlignCarry *carry,
+                           char *data, unsigned int len, int *bytesSent){
+  if (len == 0){
+    return;
+  }
+  if (!asB64){
+    writeStreamSpan(stream, socket, encoding, data, len, bytesSent);
+    return;
+  }
+  unsigned int consumed = 0;
+  if (carry->len > 0){
+    /* assemble a full 3-byte group from the carry plus leading data bytes */
+    char head[3];
+    unsigned int need = (unsigned int)(3 - carry->len);
+    if (len < need){
+      /* still not enough for a group: extend the carry and wait */
+      memcpy(carry->bytes + carry->len, data, len);
+      carry->len += (int) len;
+      return;
+    }
+    memcpy(head, carry->bytes, carry->len);
+    memcpy(head + carry->len, data, need);
+    writeStreamSpanB64(stream, socket, encoding, head, 3, bytesSent);
+    consumed = need;
+    carry->len = 0;
+  }
+  unsigned int remaining = len - consumed;
+  unsigned int alignedLen = (remaining / 3) * 3;
+  writeStreamSpanB64(stream, socket, encoding, data + consumed, alignedLen, bytesSent);
+  unsigned int tail = remaining - alignedLen;
+  if (tail > 0){
+    memcpy(carry->bytes, data + consumed + alignedLen, tail);
+    carry->len = (int) tail;
+  }
+}
+
+/* End of stream: emit the held-back 0-2 bytes; '=' padding is legal here. */
+static void flushStreamData(ChunkedOutputStream *stream, Socket *socket, int encoding,
+                            bool asB64, B64AlignCarry *carry, int *bytesSent){
+  if (asB64 && carry->len > 0){
+    writeStreamSpanB64(stream, socket, encoding, carry->bytes, (unsigned int) carry->len, bytesSent);
+    carry->len = 0;
+  }
 }
 
 static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding,
@@ -4849,6 +4907,7 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
      * lost across buffer boundaries. */
     char pending[8];
     int pendingLen = 0;
+    B64AlignCarry b64Carry = { {0, 0}, 0 };
 
     while (!fileEOF(in)){
       if (pendingLen > 0) {
@@ -4866,7 +4925,7 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
       pendingLen = 0;
 
       if (sourceCCSID == targetCCSID) {
-        emitStreamData(stream, socket, encoding, asB64, buffer, (unsigned int) inTotal, &bytesSent);
+        emitStreamData(stream, socket, encoding, asB64, &b64Carry, buffer, (unsigned int) inTotal, &bytesSent);
       } else {
         /* Streaming conversion with carry-forward, substitution, and draining.
          * convertCharsetStreaming converts as much input as fits the output
@@ -4898,7 +4957,7 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
                    translationLength, inputConsumed, inTotal - off, rc);
             dumpbuffer(translation,translationLength);
           }
-          emitStreamData(stream, socket, encoding, asB64, translation,
+          emitStreamData(stream, socket, encoding, asB64, &b64Carry, translation,
                          (unsigned int) translationLength, &bytesSent);
           off += inputConsumed;
           if (rc == CHARSET_CONVERSION_SUCCESS) {
@@ -4934,6 +4993,9 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
         }
       }
     }
+    /* end of stream (or abort): release the base64 alignment tail so the
+       final group carries the only padding in the body */
+    flushStreamData(stream, socket, encoding, asB64, &b64Carry, &bytesSent);
     if (encoding == ENCODING_CHUNKED) {
       /* finish the chunked output here because finishResponse will not flush this stream's data */
       finishChunkedOutput(stream, NO_TRANSLATE);
