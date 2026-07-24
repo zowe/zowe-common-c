@@ -51,31 +51,42 @@
 #define CCSID_BINARY          (short)0xFFFF
 
 /**
- * Returns TRUE if the given CCSID uses a multi-byte encoding (e.g. UTF-8,
- * UTF-16, or EBCDIC MIX), and FALSE if it is single-byte.
- * Returns FALSE for unrecognised or special values (0, -1, 0xFFFF).
+ * @brief Reports whether a CCSID uses a multi-byte encoding.
+ *
+ * @param[in] ccsid CCSID to test.
+ * @return TRUE for multi-byte encodings (e.g. UTF-8, UTF-16, EBCDIC MIX);
+ *         FALSE for single-byte encodings and for unrecognised or special
+ *         values (0, -1, 0xFFFF).
  */
 bool isMultiByteCCSID(int ccsid);
 
 /**
- * Returns TRUE if convertCharsetStreaming can handle the given
- * source->target pair on this build: the identity pair always can (it is
- * streamed without a converter), otherwise both CCSIDs must resolve to
- * converter names and the converter must open (verified by a trial open on
- * iconv builds). Lets callers reject an unusable pair up front - e.g. with an
- * HTTP 400 - instead of discovering it mid-stream, where the response status
- * is already committed. On builds whose converter takes numeric CCSIDs
- * directly (Windows, z/OS metal-C) this is permissively TRUE.
+ * @brief Reports whether convertCharsetStreaming can handle a source->target
+ *        pair on this build.
+ *
+ * The identity pair is always supported (streamed without a converter).
+ * Otherwise both CCSIDs must resolve to converter names and the converter must
+ * open (verified by a trial open on iconv builds). Lets callers reject an
+ * unusable pair up front - e.g. with an HTTP 400 - instead of discovering it
+ * mid-stream, where the response status is already committed. On builds whose
+ * converter takes numeric CCSIDs directly (Windows, z/OS metal-C) this is
+ * permissively TRUE.
+ *
+ * @param[in] sourceCCSID CCSID of the source encoding.
+ * @param[in] targetCCSID CCSID of the target encoding.
+ * @return TRUE if the pair can be converted, FALSE otherwise.
  */
 bool isCharsetStreamingPairSupported(int sourceCCSID, int targetCCSID);
 
 /**
- * Parses an encoding value that may be either a charset name string
- * (e.g. "IBM-1047", "UTF-8", "binary") or a decimal CCSID integer
- * string (e.g. "1047", "819", "65535").
- * Returns the CCSID on success, or -1 if the value cannot be parsed
- * or is not in the valid range 1-65535.
- * Note: "binary" / "BINARY" returns CCSID_BINARY (0xFFFF).
+ * @brief Parses an encoding value into a CCSID.
+ *
+ * Accepts either a charset name string (e.g. "IBM-1047", "UTF-8", "binary") or
+ * a decimal CCSID integer string (e.g. "1047", "819", "65535").
+ *
+ * @param[in] value Encoding name or decimal CCSID string.
+ * @return The CCSID on success; CCSID_BINARY (0xFFFF) for "binary"/"BINARY";
+ *         -1 if the value cannot be parsed or is outside the range 1-65535.
  */
 int parseEncodingValue(const char *value);
 
@@ -139,11 +150,10 @@ int convertCharset(char *input,
  * a read-buffer boundary.
  *
  * Characters the target cannot represent are substituted rather than aborting
- * the whole response (the issue #828 silent empty body): the @c //TRANSLIT
- * suffix handles characters unmappable in the target encoding, and a '?' in
- * the TARGET's own encoding (see getSubstituteBytes in charsets.c) is emitted
- * for bytes that are invalid in the source encoding, so a single bad byte
- * cannot stall the stream.
+ * the whole response: the @c //TRANSLIT suffix handles characters unmappable in
+ * the target encoding, and a '?' in the target's own encoding (see
+ * getSubstituteBytes in charsets.c) is emitted for bytes that are invalid in
+ * the source encoding.
  *
  * @param[in]  input                   Bytes to convert.
  * @param[in]  inputLength             Number of bytes available in @p input.

@@ -4515,33 +4515,19 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
         }
       }
 
-      /* effectiveCCSID: the source CCSID used when sourceEncoding=auto.
-       *
-       * "auto" source resolution is a two-stage process that has already
-       * partially run before we reach this block:
-       *
-       *   Stage 1 (above, via getMimeType2 + the isBinary check):
-       *     The file's CCSID tag and extension are used to determine whether
-       *     the file is binary.  If the tag is -1 (binary tag) or the
-       *     extension implies binary with no overriding text tag, the file
-       *     is streamed as raw bytes and this block is never reached.
-       *
-       *   Stage 2 (here):
-       *     We are in the text path.  The source CCSID is the file's tag
-       *     if one was set (ccsid > 0), or NATIVE_CODEPAGE as a last-resort
-       *     fallback for untagged files (ccsid == 0).  There is no further
-       *     per-extension CCSID guess at this stage; extension-based guessing
-       *     already governed the binary/text decision in Stage 1. */
+      /* Source CCSID used when sourceEncoding=auto. We are already past the
+       * binary/text decision (a binary tag or extension streams raw bytes
+       * before reaching here), so on the text path the source is the file's
+       * tag when set (ccsid > 0), or NATIVE_CODEPAGE for untagged files. */
       int effectiveCCSID = (ccsid == 0) ? NATIVE_CODEPAGE : ccsid;
 
-      /* The RESOLVED source: the caller's explicit sourceEncoding when given,
-         else the file's effective CCSID. When the caller overrides the source
-         they are telling us the tag's testimony is wrong or missing, so every
-         downstream decision -- including auto target selection below -- must
-         follow the override, not the tag (review finding on #630). */
+      /* The resolved source: the caller's explicit sourceEncoding when given,
+         else the file's effective CCSID. An override means the tag's testimony
+         is wrong or missing, so every downstream decision -- including auto
+         target selection below -- follows the override, not the tag. */
       int resolvedSourceCCSID = (callerSourceCCSID != 0) ? callerSourceCCSID : effectiveCCSID;
 
-      /* Choose the target web encoding from the RESOLVED source CCSID.
+      /* Choose the target web encoding from the resolved source CCSID.
          Single-byte sources (e.g. IBM-1047, ISO-8859-1) map to ISO-8859-1 (819).
          Multi-byte sources (UTF-8, UTF-16, EBCDIC MIX) map to UTF-8 (1208).
          Auto-auto requests are unchanged (resolved == effective). */
@@ -4553,19 +4539,14 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 #error Unknown OS
 #endif
 
-      /* CCSID_BINARY is (short)0xFFFF, so the cast comparison alone suffices:
-         0 (auto) can never equal it (review simplification). */
       bool srcIsBinary = ((short)callerSourceCCSID == CCSID_BINARY);
       bool tgtIsBinary = ((short)callerTargetCCSID == CCSID_BINARY);
 
-      /* Validate the RESOLVED conversion pair before the response status is
-       * committed. Discovering an unusable pair mid-stream is too late: the
-       * 200/chunked status is already on the wire and the only possible
-       * outcomes are an empty or truncated body -- the very zss#828 symptom
-       * this path exists to fix. So a pair the converter cannot open is
-       * handled here instead: a caller-forced pair with a 400, an auto pair
-       * (a file whose CCSID tag this build cannot convert) by falling back to
-       * faithful raw-binary streaming, with a warning. */
+      /* Validate the resolved conversion pair before the response status is
+       * committed, since discovering an unusable pair mid-stream is too late:
+       * the 200/chunked status is already on the wire. A caller-forced pair the
+       * converter cannot open gets a 400; an auto pair (a file whose CCSID tag
+       * this build cannot convert) falls back to raw-binary streaming. */
       bool autoFallbackToBinary = FALSE;
       if (!srcIsBinary && !tgtIsBinary) {
         int resolvedTarget = (callerTargetCCSID != 0) ? callerTargetCCSID : webCodePage;
@@ -4802,9 +4783,8 @@ int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
   * when encoding is ENCODING_CHUNKED then response is mandatory
 */
 /* Emit one span of (possibly converted) bytes to the response, base64-encoding
- * when requested. Factored out of streamTextForFile2 so the drain-and-recall
- * conversion loop below can emit once per converter call, not just once per
- * file read. */
+ * when requested. Factored out of streamTextForFile2 so the conversion loop can
+ * emit once per converter call, not just once per file read. */
 static void emitStreamData(ChunkedOutputStream *stream, Socket *socket, int encoding,
                            bool asB64, char *data, unsigned int len, int *bytesSent){
   if (len == 0){
@@ -4866,7 +4846,7 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
     /* Carry-forward: a multibyte character can straddle a read boundary. Any
      * incomplete trailing bytes that convertCharsetStreaming could not consume
      * are held here and prepended to the next read, so no character is split or
-     * lost across buffer boundaries (part of the #828 fix). */
+     * lost across buffer boundaries. */
     char pending[8];
     int pendingLen = 0;
 
@@ -4890,27 +4870,15 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
       } else {
         /* Streaming conversion with carry-forward, substitution, and draining.
          * convertCharsetStreaming converts as much input as fits the output
-         * buffer, substitutes characters the target cannot represent instead
-         * of aborting to an empty body (#828), and reports how many input
-         * bytes it consumed. Per call there are three outcomes
-         * (zowe-common-c#630 review, issues 1 and 2):
-         *   SUCCESS      - all convertible input consumed; at most an
-         *                  incomplete trailing multibyte sequence remains,
-         *                  carried to the next read via `pending` so the
-         *                  character is completed there, not corrupted.
-         *   SHORT_BUFFER - the output buffer filled first: emit what was
-         *                  produced and call again on the remainder
-         *                  (drain-and-recall), so a target that expands
-         *                  beyond the 2x translation buffer cannot force
-         *                  silent truncation.
-         *   hard error   - deterministic converter failure (unknown CCSID,
-         *                  no converter). respondWithUnixFile2 validates the
-         *                  pair before committing the response status, so
-         *                  this is a backstop: log at SEVERE and stop rather
-         *                  than mask it and stream an empty or garbled body.
-         *                  The 200/chunked status is already on the wire; a
-         *                  short body plus a SEVERE log is the least bad
-         *                  option remaining at this point. */
+         * buffer and reports how many input bytes it consumed. Per call:
+         *   SUCCESS      - all convertible input consumed; at most an incomplete
+         *                  trailing multibyte sequence remains, carried to the
+         *                  next read via `pending`.
+         *   SHORT_BUFFER - output buffer filled first: emit what was produced
+         *                  and call again on the remainder (drain-and-recall).
+         *   hard error   - deterministic converter failure. The pair was
+         *                  validated before the response status was committed,
+         *                  so this is a backstop: log at SEVERE and stop. */
         int off = 0;
         while (off < inTotal) {
           int translationLength = 0;
@@ -4956,7 +4924,7 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
             pendingLen = leftover;
           } else {
             /* SUCCESS with a large unconsumed tail: that is not a partial
-               character. Refuse to silently drop it (the pre-fix behavior). */
+               character. Refuse to silently drop it. */
             zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
                     "streamTextForFile2: converter left %d bytes unconsumed; aborting stream\n",
                     leftover);

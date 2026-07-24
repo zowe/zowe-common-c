@@ -140,10 +140,10 @@ int getCharsetCode(const char *charsetName) {
 bool isMultiByteCCSID(int ccsid) {
   switch (ccsid) {
     /* Unicode multi-byte encodings */
-    case CCSID_UTF_8:      /* 1208 */
-    case CCSID_UTF_16:     /* 1200 */
-    case CCSID_UTF_16_BE:  /* 1201 */
-    case CCSID_UTF_16_LE:  /* 1202 */
+    case CCSID_UTF_8:
+    case CCSID_UTF_16:
+    case CCSID_UTF_16_BE:
+    case CCSID_UTF_16_LE:
     /* EBCDIC MIX (SBCS+DBCS) code pages */
     case 930:   /* IBM930  - EBCDIC MIX Japanese */
     case 933:   /* IBM933  - EBCDIC MIX Korean */
@@ -167,7 +167,7 @@ int parseEncodingValue(const char *value) {
     return -1;
   }
 
-  /* "binary" is a special sentinel meaning CCSID_BINARY (0xFFFF) */
+  /* "binary" is a sentinel for CCSID_BINARY */
   if (strlen(value) <= CHARSETNAME_SIZE) {
     strcpy(localArray, value);
     strupcase(localArray);
@@ -176,15 +176,12 @@ int parseEncodingValue(const char *value) {
     }
   }
 
-  /* Try named charset first (e.g. "IBM-1047", "UTF-8") */
   int code = getCharsetCode(value);
   if (code != -1) {
     return code;
   }
 
-  /* Fall back to decimal integer string (e.g. "1047", "819"). Strict parse:
-     the whole value must be one well-formed integer -- sscanf("%d") accepted
-     trailing junk like "1047foo" (review finding on #630). */
+  /* decimal CCSID string, e.g. "1047" */
   int n = 0;
   if (parseIntSafely(value, &n) == 0 && n >= 1 && n <= 65535) {
     return n;
@@ -310,10 +307,8 @@ int convertCharset(char *input,
 
 
 #elif defined(__ZOWE_OS_ZOS) && !defined(__ZOWE_COMP_XLCLANG) && !defined(__ZOWE_COMP_CLANG)
-/* z/OS metal / non-clang (old xlc) only. ibm-clang64 (__ZOWE_COMP_CLANG) is an
- * LE clang compiler and belongs on the iconv branch below with xlclang -- it was
- * previously falling in here via !__ZOWE_COMP_XLCLANG and using CUNLCNV, which
- * broke convertCharsetStreaming (metal semantics, not POSIX iconv). */
+/* z/OS metal / old xlc only. ibm-clang64 (__ZOWE_COMP_CLANG) is an LE clang
+ * compiler and belongs on the iconv branch below with xlclang, not here. */
 
 /*
 
@@ -527,25 +522,17 @@ int convertCharset(char *input,
         already-opened converters and reuse them.
  */
 
-/* getCharsetName maps a CCSID to a codeset name for iconv_open(). z/OS iconv
- * and glibc disagree on spellings: 819/1047/UTF-8 below are verified on both,
- * but the UTF-16 spellings open only on glibc -- z/OS iconv_open rejects them
- * (found by tests/charset-streaming on Marist). The runtime arbiter is
- * isCharsetStreamingPairSupported's trial open: a row that fails to open on a
- * platform degrades to a clean 400 there, never a silent empty body. Fixing
- * the z/OS UTF-16 spellings is part of the charset-extension follow-up. It is
- * intentionally much smaller than getCharsetCode's table: that table parses
- * caller-supplied NAMES into CCSIDs, while this one gates which CCSIDs the
- * iconv-based converters can actually open. NULL means "no verified converter
- * name", and callers must treat it as not-convertible-here (see
- * isCharsetStreamingPairSupported), not as an internal error. To extend
- * conversion coverage, add an entry verified against both iconvs -- and for a
- * target that can expand output more than 2x (e.g. IBM-838 Thai -> UTF-8),
- * rely on streamTextForFile2's drain-and-recall to keep long inputs whole. */
+/* Maps a CCSID to a codeset name for iconv_open(). z/OS iconv and glibc differ
+ * on spellings: 819/1047/UTF-8 are accepted by both; the UTF-16 names open only
+ * on glibc. Intentionally smaller than getCharsetCode's table, which parses
+ * caller-supplied names into CCSIDs; this one only names CCSIDs the iconv
+ * converters can open. NULL means no known converter name, and callers must
+ * treat it as not-convertible-here (see isCharsetStreamingPairSupported), not
+ * as an error. */
 static const char *getCharsetName(int ibmCode){
   switch (ibmCode){
   case CCSID_ISO_8859_1:
-    return "ISO8859-1"; /* NO dash after ISO: z/OS iconv rejects "ISO-8859-1" (errno 121); glibc accepts both */
+    return "ISO8859-1"; /* no dash: z/OS iconv rejects "ISO-8859-1" (errno 121); glibc accepts both */
   case CCSID_IBM1047:
     return "IBM-1047";
   case CCSID_UTF_8:
@@ -561,18 +548,15 @@ static const char *getCharsetName(int ibmCode){
   }
 }
 
-/* The byte sequence encoding '?' in a target charset, for substituting bytes
- * that are invalid in the SOURCE (iconv EILSEQ). A substitute must be a VALID
- * code sequence in the target: a lone 0x3F is only that for ASCII-family
- * single-byte targets; in IBM-1047 '?' is 0x6F (0x3F there is the SUB control
- * character, which renders invisibly); and UTF-16 needs a whole two-byte code
- * unit -- injecting a single byte would shift the rest of the stream off its
- * code-unit boundary, garbling everything after it. UTF-16 (1200) gets
- * big-endian, Unicode's default byte order absent a BOM and the z/OS
- * convention; glibc's "UTF-16" converter emits native-endian with a BOM, so a
+/* Returns the target charset's own encoding of '?', used to substitute a byte
+ * that is invalid in the source (iconv EILSEQ). The substitute must be a valid
+ * code sequence in the target: 0x3F for ASCII-family single-byte targets, 0x6F
+ * for IBM-1047 (0x3F there is the SUB control), and a full two-byte code unit
+ * for UTF-16 (a single byte would break code-unit alignment). UTF-16 (1200) is
+ * treated as big-endian; glibc's "UTF-16" emits native-endian with a BOM, so a
  * forced 1200 target on a little-endian build may mis-order this one
- * substitute -- the 1201/1202 variants are exact everywhere. Extend this
- * switch whenever getCharsetName learns a new family. */
+ * substitute; the 1201/1202 variants are exact. Extend when getCharsetName
+ * gains a new family. */
 static int getSubstituteBytes(int ccsid, const unsigned char **bytes){
   static const unsigned char QUESTION_ASCII[1]   = { 0x3F };
   static const unsigned char QUESTION_EBCDIC[1]  = { 0x6F };
@@ -596,12 +580,10 @@ static int getSubstituteBytes(int ccsid, const unsigned char **bytes){
 }
 
 /* Can convertCharsetStreaming handle this source->target pair on this build?
- * TRUE for the identity pair (the caller streams it without a converter), else
- * both CCSIDs must have verified iconv names AND the converter must actually
- * open (trial iconv_open/iconv_close; cheap next to the per-chunk opens the
- * stream itself performs). Lets a caller reject an unusable pair BEFORE
- * committing an HTTP response status, instead of discovering it mid-stream
- * where the only outcomes are an empty or truncated body. */
+ * TRUE for the identity pair (streamed without a converter), else both CCSIDs
+ * must have iconv names and the converter must actually open (trial
+ * iconv_open/iconv_close). Lets a caller reject an unusable pair before
+ * committing an HTTP response status rather than discovering it mid-stream. */
 bool isCharsetStreamingPairSupported(int sourceCCSID, int targetCCSID){
   if (sourceCCSID == targetCCSID){
     return TRUE;
@@ -733,12 +715,11 @@ int convertCharset(char *input,
  * A trailing incomplete multibyte sequence (iconv EINVAL) is intentionally left
  * unconsumed and is not an error: the caller carries those leftover bytes
  * (inputLength - *inputBytesConsumed) forward and prepends them to the next read,
- * which is what fixes multi-byte characters split across a read-buffer boundary.
+ * so a multi-byte character split across a read boundary is completed, not lost.
  *
  * Characters the target cannot represent are substituted rather than aborting
- * the whole response (the #828 silent empty body): //TRANSLIT handles
- * unmappable-in-target, and an explicit '?' is emitted for bytes that are
- * invalid in the source encoding, so one bad byte can't stall the stream. */
+ * the response: //TRANSLIT handles unmappable-in-target, and an explicit '?' is
+ * emitted for bytes invalid in the source encoding. */
 int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
                             char *output, int outputLength, int outputCCSID,
                             int *conversionOutputLength, int *inputBytesConsumed,
@@ -753,20 +734,16 @@ int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
     return CHARSET_UNKNOWN_CCSID;
   }
 
-  /* "//TRANSLIT" is a glibc transliteration extension: on glibc it gives clean
+  /* "//TRANSLIT" is a glibc transliteration extension giving clean
    * per-character substitution for characters unmappable in the target. z/OS
-   * iconv does NOT implement it as a modifier -- it opens "NAME//TRANSLIT" as a
-   * distinct, malfunctioning converter (drops data, mishandles incomplete
-   * sequences) -- and z/OS iconv already substitutes unmappable characters
-   * natively (SUB, 0x1A). So attempt //TRANSLIT only on glibc; everywhere else
-   * use the plain converter, whose EILSEQ we substitute for ourselves below. */
+   * iconv does not implement it as a modifier -- it opens "NAME//TRANSLIT" as a
+   * distinct, malfunctioning converter -- and already substitutes unmappable
+   * characters natively (SUB, 0x1A). So attempt //TRANSLIT only on glibc;
+   * elsewhere use the plain converter, whose EILSEQ we substitute below. */
   iconv_t converter = (iconv_t) -1;
 #if defined(__ZOWE_OS_LINUX)
-  /* sizeof(TRANSLIT_OPT) counts the NUL, so this is
-     CHARSETNAME_SIZE + strlen(TRANSLIT_OPT) + 1 as a compile-time constant
-     (review suggestion; replaces an arbitrary 64). A negative or truncated
-     snprintf skips the TRANSLIT open and the plain converter below is used,
-     where the manual EILSEQ path still substitutes. */
+  /* On snprintf truncation, skip the TRANSLIT open and use the plain converter
+     below, whose manual EILSEQ path still substitutes. */
   char translitCharset[CHARSETNAME_SIZE + sizeof(TRANSLIT_OPT)];
   int translitLen = snprintf(translitCharset, sizeof(translitCharset),
                              "%s" TRANSLIT_OPT, outputCharset);
@@ -801,10 +778,9 @@ int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
       result = CHARSET_SHORT_BUFFER; /* output full; caller has what fit */
       break;
     } else if (errno == EILSEQ){
-      /* byte not valid in the source encoding: substitute and skip it so a
-         single bad byte cannot stall the whole stream. The substitute is the
-         TARGET's encoding of '?' -- see getSubstituteBytes; a one-byte 0x3F
-         is only correct for ASCII-family single-byte targets. */
+      /* byte not valid in the source encoding: substitute and skip it. The
+         substitute is the target's encoding of '?' (see getSubstituteBytes;
+         a one-byte 0x3F is only correct for ASCII-family single-byte targets). */
       if (outLeft < (size_t) subLen){ result = CHARSET_SHORT_BUFFER; break; }
       memcpy(outPtr, subBytes, (size_t) subLen);
       outPtr += subLen;
@@ -833,12 +809,11 @@ int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
 #endif
 
 #ifndef ZOWE_HAVE_CONVERT_CHARSET_STREAMING
-/* Portable convertCharsetStreaming for platforms whose branch above provides no
- * native streaming converter (Windows, z/OS metal-C). There is no carry-forward
- * here: this platform's convertCharset processes the whole input buffer in one
- * shot, so we report the input fully consumed and leave nothing pending. This
- * exists so httpserver.c's streamTextForFile2 can call one API on every
- * platform; pre-#828 behavior on these platforms is unchanged. */
+/* Portable convertCharsetStreaming for platforms with no native streaming
+ * converter (Windows, z/OS metal-C). There is no carry-forward here: this
+ * platform's convertCharset processes the whole input buffer in one shot, so we
+ * report the input fully consumed and leave nothing pending. This lets
+ * httpserver.c's streamTextForFile2 call one API on every platform. */
 int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
                             char *output, int outputLength, int outputCCSID,
                             int *conversionOutputLength, int *inputBytesConsumed,
@@ -866,7 +841,7 @@ int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
  * platforms take numeric CCSIDs directly (e.g. CUNLCNV on metal z/OS handles
  * far more pairs than the small iconv name table), so refusing here would
  * regress conversions that actually work. An unconvertible pair still fails at
- * conversion time with a nonzero rc, which streamTextForFile2 now surfaces. */
+ * conversion time with a nonzero rc. */
 bool isCharsetStreamingPairSupported(int sourceCCSID, int targetCCSID){
   return TRUE;
 }
