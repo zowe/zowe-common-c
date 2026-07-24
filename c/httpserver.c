@@ -3634,10 +3634,16 @@ static int handleHttpService(HttpServer *server,
     return handleServiceFailed(conversation, service, response);
   }
 
-  HTTPServiceABENDInfo abendInfo = {"RSHTTPAI", 0, 0};
+  ALLOC_STRUCT31(
+    STRUCT31_NAME(below2G),
+    STRUCT31_FIELDS(
+      HTTPServiceABENDInfo abendInfo;
+    )
+  );
+  below2G->abendInfo = (HTTPServiceABENDInfo){"RSHTTPAI"};
   int recoveryRC = recoveryPush(service->name,
                                 RCVR_FLAG_RETRY | RCVR_FLAG_SDWA_TO_LOGREC | RCVR_FLAG_DELETE_ON_RETRY,
-                                NULL, extractABENDInfo, &abendInfo, NULL, NULL);
+                                NULL, extractABENDInfo, &below2G->abendInfo, NULL, NULL);
 
   /*
      TODO this function needs a new argument about recording program state at time of abend
@@ -3652,12 +3658,13 @@ static int handleHttpService(HttpServer *server,
     }
     else if (recoveryRC == RC_RCV_ABENDED) {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "httpserver: ABEND %03X-%02X averted when handling %s\n",
-          abendInfo.completionCode, abendInfo.reasonCode, service->name);
+          below2G->abendInfo.completionCode, below2G->abendInfo.reasonCode, service->name);
     }
     else {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE, "httpserver: error running service %s unknown recovery code %d\n",
           service->name, recoveryRC);
     }
+    FREE_STRUCT31(below2G);
     return handleServiceFailed(conversation, service, response);
   }
 #endif
@@ -3730,6 +3737,7 @@ static int handleHttpService(HttpServer *server,
 
 #ifdef __ZOWE_OS_ZOS
   recoveryPop();
+  FREE_STRUCT31(below2G);
 #endif
 
   return HTTP_SERVICE_SUCCESS;
@@ -4494,7 +4502,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
 #endif
         ;
     char *forceEnabled = getQueryParam(response->request, "force");
-    if (ccsid == 0 && !strcmp(forceEnabled, "enable")) {
+    if (ccsid == 0 && forceEnabled && !strcmp(forceEnabled, "enable")) {
         char *sourceEncoding = getQueryParam(response->request, "source");
         char *targetEncoding = getQueryParam(response->request, "target");
         int sEncoding;
