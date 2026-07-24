@@ -5548,6 +5548,10 @@ static void upgradeToWebSocket(HttpConversation *conversation,
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "WebSocket version\n");
     respondWithError(response,HTTP_STATUS_BAD_REQUEST,"bad web socket version");
     // Response is finished on return
+  } else if (webSocketKey == NULL || webSocketKey->nativeValue == NULL){
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "missing WebSocket key\n");
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "missing web socket key");
+    // Response is finished on return
   } else{
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "building web socket response\n");
     setResponseStatus(response,HTTP_STATUS_SWITCHING_PROTOCOLS,"Switching to WebSockets");
