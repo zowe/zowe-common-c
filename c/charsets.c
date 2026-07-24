@@ -723,6 +723,8 @@ int convertCharset(char *input,
   return result;
 }
 
+#define TRANSLIT_OPT "//TRANSLIT" /* glibc transliteration suffix */
+
 /* Streaming charset conversion for the file-content path (USE_BUFFER only).
  * Converts as much of [input, inputLength] as forms complete characters into
  * the caller's output buffer, and reports both how much output was produced
@@ -760,9 +762,17 @@ int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
    * use the plain converter, whose EILSEQ we substitute for ourselves below. */
   iconv_t converter = (iconv_t) -1;
 #if defined(__ZOWE_OS_LINUX)
-  char translitCharset[64];
-  snprintf(translitCharset, sizeof(translitCharset), "%s//TRANSLIT", outputCharset);
-  converter = iconv_open (translitCharset, inputCharset);
+  /* sizeof(TRANSLIT_OPT) counts the NUL, so this is
+     CHARSETNAME_SIZE + strlen(TRANSLIT_OPT) + 1 as a compile-time constant
+     (review suggestion; replaces an arbitrary 64). A negative or truncated
+     snprintf skips the TRANSLIT open and the plain converter below is used,
+     where the manual EILSEQ path still substitutes. */
+  char translitCharset[CHARSETNAME_SIZE + sizeof(TRANSLIT_OPT)];
+  int translitLen = snprintf(translitCharset, sizeof(translitCharset),
+                             "%s" TRANSLIT_OPT, outputCharset);
+  if ((translitLen > 0) && (translitLen < (int) sizeof(translitCharset))){
+    converter = iconv_open(translitCharset, inputCharset);
+  }
 #endif
   if (converter == (iconv_t) -1){
     converter = iconv_open (outputCharset, inputCharset);
