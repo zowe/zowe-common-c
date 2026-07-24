@@ -4534,11 +4534,19 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
        *     already governed the binary/text decision in Stage 1. */
       int effectiveCCSID = (ccsid == 0) ? NATIVE_CODEPAGE : ccsid;
 
-      /* Choose the target web encoding based on the file's effective CCSID.
-         Single-byte CCSIDs (e.g. IBM-1047, ISO-8859-1) map to ISO-8859-1 (819).
-         Multi-byte CCSIDs (UTF-8, UTF-16, EBCDIC MIX) map to UTF-8 (1208). */
+      /* The RESOLVED source: the caller's explicit sourceEncoding when given,
+         else the file's effective CCSID. When the caller overrides the source
+         they are telling us the tag's testimony is wrong or missing, so every
+         downstream decision -- including auto target selection below -- must
+         follow the override, not the tag (review finding on #630). */
+      int resolvedSourceCCSID = (callerSourceCCSID != 0) ? callerSourceCCSID : effectiveCCSID;
+
+      /* Choose the target web encoding from the RESOLVED source CCSID.
+         Single-byte sources (e.g. IBM-1047, ISO-8859-1) map to ISO-8859-1 (819).
+         Multi-byte sources (UTF-8, UTF-16, EBCDIC MIX) map to UTF-8 (1208).
+         Auto-auto requests are unchanged (resolved == effective). */
 #ifdef __ZOWE_OS_ZOS
-      int webCodePage = isMultiByteCCSID(effectiveCCSID) ? CCSID_UTF_8 : CCSID_ISO_8859_1;
+      int webCodePage = isMultiByteCCSID(resolvedSourceCCSID) ? CCSID_UTF_8 : CCSID_ISO_8859_1;
 #elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_WINDOWS)
       int webCodePage = CCSID_UTF_8;
 #else
@@ -4560,9 +4568,8 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
        * faithful raw-binary streaming, with a warning. */
       bool autoFallbackToBinary = FALSE;
       if (!srcIsBinary && !tgtIsBinary) {
-        int resolvedSource = (callerSourceCCSID != 0) ? callerSourceCCSID : effectiveCCSID;
         int resolvedTarget = (callerTargetCCSID != 0) ? callerTargetCCSID : webCodePage;
-        if (!isCharsetStreamingPairSupported(resolvedSource, resolvedTarget)) {
+        if (!isCharsetStreamingPairSupported(resolvedSourceCCSID, resolvedTarget)) {
           if ((callerSourceCCSID != 0) || (callerTargetCCSID != 0)) {
             respondWithError(response, HTTP_STATUS_BAD_REQUEST,
                              "sourceEncoding/targetEncoding pair is not supported for conversion.");
@@ -4572,7 +4579,7 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
           autoFallbackToBinary = TRUE;
           zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING,
                   "file CCSID %d is not convertible to %d on this build; streaming %s as binary\n",
-                  resolvedSource, resolvedTarget, absolutePath);
+                  resolvedSourceCCSID, resolvedTarget, absolutePath);
         }
       }
 
