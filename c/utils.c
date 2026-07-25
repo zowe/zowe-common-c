@@ -77,6 +77,49 @@ int parseInitialInt(const char *str, int start, int end){
   return x;
 }
 
+/* Strict, overflow-checked parse of a whole NUL-terminated decimal string.
+   Unlike parseInt/parseInitialInt above (fixed ranges, no validation) and
+   unlike sscanf("%d") (which accepts trailing junk such as "1047foo"), this
+   fails unless the ENTIRE string is one well-formed int: an optional sign,
+   then digits only, no leading/trailing whitespace, value within int range.
+   Deliberately avoids strtol/errno so it also builds for Metal C. Returns 0
+   and stores the value on success; returns -1 on any malformation. */
+int parseIntSafely(const char *str, int *out){
+  if (str == NULL || out == NULL){
+    return -1;
+  }
+  int i = 0;
+  int negative = 0;
+  if (str[i] == '+' || str[i] == '-'){
+    negative = (str[i] == '-');
+    i++;
+  }
+  if (str[i] == '\0'){
+    return -1; /* empty, or a bare sign */
+  }
+  int value = 0;
+  for (; str[i] != '\0'; i++){
+    int c = str[i] & 0xff;
+    if (c < '0' || c > '9'){
+      return -1; /* embedded or trailing non-digit */
+    }
+    int digit = c - '0';
+    if (negative){
+      if (value < (INT_MIN + digit) / 10){
+        return -1; /* would underflow */
+      }
+      value = value * 10 - digit;
+    } else {
+      if (value > (INT_MAX - digit) / 10){
+        return -1; /* would overflow */
+      }
+      value = value * 10 + digit;
+    }
+  }
+  *out = value;
+  return 0;
+}
+
 int nullTerminate(char *str, int len){
   int i;
 
