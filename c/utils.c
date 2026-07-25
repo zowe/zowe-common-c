@@ -2297,6 +2297,21 @@ bool isPassPhrase(const char *password) {
   return strlen(password) > 8;
 }
 
+/* timingsafe_memcompare compares two memory regions for equality in a way that is safe against timing attacks. */
+/* returns 0 if the regions are equal, non-zero otherwise */
+int timingsafe_memcompare(const void *a, const void *b, size_t n) {
+  const unsigned char *pointer_a = (const unsigned char *)a;
+  const unsigned char *pointer_b = (const unsigned char *)b;
+  volatile unsigned char result = 0;
+
+  for (size_t i = 0; i < n; i++) {
+    unsigned char diff = pointer_a[i] ^ pointer_b[i];
+    __asm volatile("" : "+r"(diff));
+    result |= diff;
+  }
+
+  return result;
+}
 
 
 /*

@@ -2525,9 +2525,10 @@ static char *getCookieValue(HttpRequest *request, char *cookieName){
       keyValuePairLength = semiPos-pos;
       nextPos = semiPos+1;
     }
-    int equalsPos = indexOf(cookieText, cookieTextLength, '=', pos);
+    int equalsPos = indexOf(cookieText, (semiPos == -1 ? cookieTextLength : semiPos), '=', pos);
     if ((equalsPos != -1) &&
-        !memcmp(cookieText+pos,cookieName,equalsPos-pos)){
+        (equalsPos-pos == cookieNameLength) &&
+        !memcmp(cookieText+pos,cookieName,cookieNameLength)){
       char *cookieValue = copyString(slh, &cookieText[equalsPos + 1],
           pos + keyValuePairLength - (equalsPos + 1));
       return cookieValue;
@@ -5712,6 +5713,10 @@ static void upgradeToWebSocket(HttpConversation *conversation,
   if (!headerMatch(webSocketVersion,"13")){
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "WebSocket version\n");
     respondWithError(response,HTTP_STATUS_BAD_REQUEST,"bad web socket version");
+    // Response is finished on return
+  } else if (webSocketKey == NULL || webSocketKey->nativeValue == NULL){
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "missing WebSocket key\n");
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "missing web socket key");
     // Response is finished on return
   } else{
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "building web socket response\n");
