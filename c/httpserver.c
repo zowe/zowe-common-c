@@ -16,6 +16,7 @@
 #include <metal/stddef.h>
 #include <metal/stdio.h>
 #include <metal/stdlib.h>
+#include <metal/limits.h>
 #include <metal/string.h>
 #include <metal/stdarg.h>
 #include <metal/ctype.h>
@@ -23,6 +24,7 @@
 
 #else
 #include <stdio.h>
+#include <limits.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
