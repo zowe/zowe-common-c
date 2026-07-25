@@ -2408,9 +2408,9 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
           parser->state = HTTP_STATE_READING_CHUNK_TRAILER;
         } else {
           parser->contentTmp = parser->content;
-          unsigned int newContentLength = (unsigned int) parser->specifiedContentLength + (unsigned int) parser->chunkSize;
+          int64 newContentLength = (int64) parser->specifiedContentLength + (int64) parser->chunkSize;
           if (newContentLength > INT_MAX) {
-            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "request body is too large: %u exceeds limit (%d)\n", newContentLength, INT_NAX);
+            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "request body is too large: %lld exceeds limit (%d)\n", (long long) newContentLength, INT_MAX);
             parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
             return 0;
           }
