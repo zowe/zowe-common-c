@@ -2525,9 +2525,10 @@ static char *getCookieValue(HttpRequest *request, char *cookieName){
       keyValuePairLength = semiPos-pos;
       nextPos = semiPos+1;
     }
-    int equalsPos = indexOf(cookieText, cookieTextLength, '=', pos);
+    int equalsPos = indexOf(cookieText, (semiPos == -1 ? cookieTextLength : semiPos), '=', pos);
     if ((equalsPos != -1) &&
-        !memcmp(cookieText+pos,cookieName,equalsPos-pos)){
+        (equalsPos-pos == cookieNameLength) &&
+        !memcmp(cookieText+pos,cookieName,cookieNameLength)){
       char *cookieValue = copyString(slh, &cookieText[equalsPos + 1],
           pos + keyValuePairLength - (equalsPos + 1));
       return cookieValue;
@@ -4479,64 +4480,127 @@ void respondWithUnixFile2(HttpService* service, HttpResponse* response, char* ab
       
       streamBinaryForFile2(response, NULL, in, ENCODING_CHUNKED, asB64);
     } else {
-      writeHeader(response);
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Streaming %d for %s\n", ccsid, absolutePath);
+      /* Read caller-supplied encoding params. Accept both canonical names
+       * "sourceEncoding"/"targetEncoding" and legacy aliases "source"/"target".
+       * Both accept charset name strings (e.g. "IBM-1047", "UTF-8", "binary",
+       * "auto") and decimal CCSID integers (e.g. "1047", "819").
+       *
+       * Either param may be omitted or set to "auto":
+       *   sourceEncoding absent/auto  -> use the file's CCSID tag (or NATIVE_CODEPAGE if untagged)
+       *   targetEncoding absent/auto  -> use the auto-selected webCodePage
+       * If either is "binary", raw bytes are streamed without conversion. */
+      char *sourceParam = getQueryParam(response->request, "sourceEncoding");
+      char *targetParam = getQueryParam(response->request, "targetEncoding");
+      if (sourceParam == NULL) {
+        sourceParam = getQueryParam(response->request, "source");
+      }
+      if (targetParam == NULL) {
+        targetParam = getQueryParam(response->request, "target");
+      }
 
-      /* TBD: This isn't really an OS dependency, but this is what I had
-         to do to get this working on Linux. The problem is that there really
-         are some of the JavaScript files encoded as UTF-8, that contain characters 
-         outside the set representable ny ISO-8859-1. I'm not sure how this is 
-         working on z/OS; I suspect that the encoding function is more permissive.
-         I think we're going to need:
+      int callerSourceCCSID = 0; /* 0 = auto */
+      int callerTargetCCSID = 0; /* 0 = auto */
 
-           * A separate lookaside file on non-z/OS platforms to provide the file
-             encoding information available on z/OS through tagging.
-           * Tagging the files encoded as UTF-8 (using whatever platform-dependent
-             mechanism).
-           * Setting the Content-type header with the appropriate encoding.
-       */
+      if (sourceParam != NULL && strcasecmp(sourceParam, "auto") != 0) {
+        callerSourceCCSID = parseEncodingValue(sourceParam);
+        if (callerSourceCCSID == -1) {
+          respondWithError(response, HTTP_STATUS_BAD_REQUEST,
+                           "Unsupported or unrecognised sourceEncoding value.");
+          fileClose(in, &returnCode, &reasonCode);
+          return;
+        }
+      }
+      if (targetParam != NULL && strcasecmp(targetParam, "auto") != 0) {
+        callerTargetCCSID = parseEncodingValue(targetParam);
+        if (callerTargetCCSID == -1) {
+          respondWithError(response, HTTP_STATUS_BAD_REQUEST,
+                           "Unsupported or unrecognised targetEncoding value.");
+          fileClose(in, &returnCode, &reasonCode);
+          return;
+        }
+      }
 
-      int webCodePage = 
+      /* Source CCSID used when sourceEncoding=auto. We are already past the
+       * binary/text decision (a binary tag or extension streams raw bytes
+       * before reaching here), so on the text path the source is the file's
+       * tag when set (ccsid > 0), or NATIVE_CODEPAGE for untagged files. */
+      int effectiveCCSID = (ccsid == 0) ? NATIVE_CODEPAGE : ccsid;
+
+      /* The resolved source: the caller's explicit sourceEncoding when given,
+         else the file's effective CCSID. An override means the tag's testimony
+         is wrong or missing, so every downstream decision -- including auto
+         target selection below -- follows the override, not the tag. */
+      int resolvedSourceCCSID = (callerSourceCCSID != 0) ? callerSourceCCSID : effectiveCCSID;
+
+      /* Choose the target web encoding from the resolved source CCSID.
+         Single-byte sources (e.g. IBM-1047, ISO-8859-1) map to ISO-8859-1 (819).
+         Multi-byte sources (UTF-8, UTF-16, EBCDIC MIX) map to UTF-8 (1208).
+         Auto-auto requests are unchanged (resolved == effective). */
 #ifdef __ZOWE_OS_ZOS
-        CCSID_ISO_8859_1
+      int webCodePage = isMultiByteCCSID(resolvedSourceCCSID) ? CCSID_UTF_8 : CCSID_ISO_8859_1;
 #elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || defined(__ZOWE_OS_WINDOWS)
-        CCSID_UTF_8
+      int webCodePage = CCSID_UTF_8;
 #else
 #error Unknown OS
 #endif
-        ;
-    char *forceEnabled = getQueryParam(response->request, "force");
-    if (ccsid == 0 && forceEnabled && !strcmp(forceEnabled, "enable")) {
-        char *sourceEncoding = getQueryParam(response->request, "source");
-        char *targetEncoding = getQueryParam(response->request, "target");
-        int sEncoding;
-        int tEncoding;
-        if(sourceEncoding != NULL && targetEncoding != NULL) {
-           int sscanfSource = sscanf(sourceEncoding, "%d", &sEncoding);
-           int sscanfTarget = sscanf(targetEncoding, "%d", &tEncoding);
-           if (sscanfSource != 1 || sscanfTarget != 1) {
-             respondWithError(response, HTTP_STATUS_BAD_REQUEST, "source/target encoding value parsing error.");
-             return;
-           }
-	         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Sending with forced conversion between %d and %d\n", 
-                   sscanfSource, sscanfTarget);
-           streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, sEncoding, tEncoding, asB64);
+
+      bool srcIsBinary = ((short)callerSourceCCSID == CCSID_BINARY);
+      bool tgtIsBinary = ((short)callerTargetCCSID == CCSID_BINARY);
+
+      /* Validate the resolved conversion pair before the response status is
+       * committed, since discovering an unusable pair mid-stream is too late:
+       * the 200/chunked status is already on the wire. A caller-forced pair the
+       * converter cannot open gets a 400; an auto pair (a file whose CCSID tag
+       * this build cannot convert) falls back to raw-binary streaming. */
+      bool autoFallbackToBinary = FALSE;
+      if (!srcIsBinary && !tgtIsBinary) {
+        int resolvedTarget = (callerTargetCCSID != 0) ? callerTargetCCSID : webCodePage;
+        if (!isCharsetStreamingPairSupported(resolvedSourceCCSID, resolvedTarget)) {
+          if ((callerSourceCCSID != 0) || (callerTargetCCSID != 0)) {
+            respondWithError(response, HTTP_STATUS_BAD_REQUEST,
+                             "sourceEncoding/targetEncoding pair is not supported for conversion.");
+            fileClose(in, &returnCode, &reasonCode);
+            return;
+          }
+          autoFallbackToBinary = TRUE;
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING,
+                  "file CCSID %d is not convertible to %d on this build; streaming %s as binary\n",
+                  resolvedSourceCCSID, resolvedTarget, absolutePath);
         }
-        else {
-          respondWithError(response, HTTP_STATUS_BAD_REQUEST, "force encoding enabled make sure to pass all the requried params");
-          return;
-        }
-    }
-    else if(ccsid == 0) {
-	    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Sending with default conversion between %d and %d\n", 
-              NATIVE_CODEPAGE, webCodePage);
-      streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, NATIVE_CODEPAGE, webCodePage, asB64);
-    }
-    else {
-	    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Sending with tagged conversion between %d and %d\n", 
-              ccsid, webCodePage);
-      streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, ccsid, webCodePage, asB64);
-    }
+      }
+
+      writeHeader(response);
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Streaming %d for %s\n", ccsid, absolutePath);
+
+      if (srcIsBinary || tgtIsBinary || autoFallbackToBinary) {
+        /* binary on either side: stream raw bytes without conversion */
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                "Streaming binary (caller-requested) for %s\n", absolutePath);
+        streamBinaryForFile2(response, NULL, in, ENCODING_CHUNKED, asB64);
+      } else if (callerSourceCCSID != 0 && callerTargetCCSID != 0) {
+        /* both explicit: use caller's conversion directly */
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                "Streaming with caller-supplied conversion %d->%d for %s\n",
+                callerSourceCCSID, callerTargetCCSID, absolutePath);
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, callerSourceCCSID, callerTargetCCSID, asB64);
+      } else if (callerSourceCCSID != 0) {
+        /* source explicit, target auto: convert from caller source to webCodePage */
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                "Streaming with caller source %d->webCodePage %d for %s\n",
+                callerSourceCCSID, webCodePage, absolutePath);
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, callerSourceCCSID, webCodePage, asB64);
+      } else if (callerTargetCCSID != 0) {
+        /* source auto, target explicit: use file's CCSID, deliver to caller target */
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                "Streaming with file CCSID %d->caller target %d for %s\n",
+                effectiveCCSID, callerTargetCCSID, absolutePath);
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, effectiveCCSID, callerTargetCCSID, asB64);
+      } else {
+        /* both auto: standard conversion using file's CCSID and auto webCodePage */
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                "Streaming with auto conversion %d->%d for %s\n", effectiveCCSID, webCodePage, absolutePath);
+        streamTextForFile2(response, NULL, in, ENCODING_CHUNKED, effectiveCCSID, webCodePage, asB64);
+      }
 
 #ifdef USE_CONTINUE_RESPONSE_HACK
       /* See comments above */
@@ -4723,11 +4787,101 @@ int streamBinaryForFile(Socket *socket, UnixFile *in, bool asB64) {
   * when encoding is ENCODING_SIMPLE then socket is mandatory
   * when encoding is ENCODING_CHUNKED then response is mandatory
 */
+/* Base64 pads any group shorter than 3 bytes with '=', which is only legal
+ * at the very end of a body, so every emitted segment before the last must be
+ * a multiple of 3 bytes. Reads being multiples of 3 no longer guarantees
+ * that: converter output length is arbitrary and the drain loop can emit
+ * several spans per read. The base64 path therefore holds back 0-2 trailing
+ * bytes per emit and flushes them, with the body's only padding, at end of
+ * stream. */
+typedef struct B64AlignCarry_tag {
+  char bytes[2];
+  int  len;
+} B64AlignCarry;
+
+static void writeStreamSpan(ChunkedOutputStream *stream, Socket *socket, int encoding,
+                            char *data, unsigned int len, int *bytesSent){
+  if (len == 0){
+    return;
+  }
+  if (encoding == ENCODING_CHUNKED) {
+    writeBytes(stream, data, (int) len, NO_TRANSLATE);
+  } else {
+    writeFully(socket, data, (int) len);
+  }
+  *bytesSent += (int) len;
+}
+
+static void writeStreamSpanB64(ChunkedOutputStream *stream, Socket *socket, int encoding,
+                               char *data, unsigned int len, int *bytesSent){
+  if (len == 0){
+    return;
+  }
+  int allocSize = ENCODE64_SIZE(len)+1;
+  int encodedLength = 0;
+  char *encodedBuffer = encodeBase64(NULL, data, len, &encodedLength, FALSE);
+  if (encodedBuffer == NULL){
+    return;
+  }
+  writeStreamSpan(stream, socket, encoding, encodedBuffer, (unsigned int) encodedLength, bytesSent);
+  safeFree31(encodedBuffer, allocSize);
+}
+
+/* Emit one span to the response. With base64 on, only the 3-aligned prefix of
+ * carry+data is sent; the 0-2 byte tail waits in the carry (see above).
+ * Callers invoke flushStreamData once after the last emit. */
+static void emitStreamData(ChunkedOutputStream *stream, Socket *socket, int encoding,
+                           bool asB64, B64AlignCarry *carry,
+                           char *data, unsigned int len, int *bytesSent){
+  if (len == 0){
+    return;
+  }
+  if (!asB64){
+    writeStreamSpan(stream, socket, encoding, data, len, bytesSent);
+    return;
+  }
+  unsigned int consumed = 0;
+  if (carry->len > 0){
+    /* assemble a full 3-byte group from the carry plus leading data bytes */
+    char head[3];
+    unsigned int need = (unsigned int)(3 - carry->len);
+    if (len < need){
+      /* still not enough for a group: extend the carry and wait */
+      memcpy(carry->bytes + carry->len, data, len);
+      carry->len += (int) len;
+      return;
+    }
+    memcpy(head, carry->bytes, carry->len);
+    memcpy(head + carry->len, data, need);
+    writeStreamSpanB64(stream, socket, encoding, head, 3, bytesSent);
+    consumed = need;
+    carry->len = 0;
+  }
+  unsigned int remaining = len - consumed;
+  unsigned int alignedLen = (remaining / 3) * 3;
+  writeStreamSpanB64(stream, socket, encoding, data + consumed, alignedLen, bytesSent);
+  unsigned int tail = remaining - alignedLen;
+  if (tail > 0){
+    memcpy(carry->bytes, data + consumed + alignedLen, tail);
+    carry->len = (int) tail;
+  }
+}
+
+/* End of stream: emit the held-back 0-2 bytes; '=' padding is legal here. */
+static void flushStreamData(ChunkedOutputStream *stream, Socket *socket, int encoding,
+                            bool asB64, B64AlignCarry *carry, int *bytesSent){
+  if (asB64 && carry->len > 0){
+    writeStreamSpanB64(stream, socket, encoding, carry->bytes, (unsigned int) carry->len, bytesSent);
+    carry->len = 0;
+  }
+}
+
 static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *in, int encoding,
                       int sourceCCSID, int targetCCSID, bool asB64) {
   int returnCode = 0;
   int reasonCode = 0;
   int bytesSent = 0;
+  bool streamFailed = FALSE;
   ChunkedOutputStream *stream = NULL;
 
   /* Q: How do we find character encoding for unix file? 
@@ -4751,90 +4905,102 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
     int bufferSize = FILE_STREAM_BUFFER_SIZE - (FILE_STREAM_BUFFER_SIZE % 3);
     char *buffer = safeMalloc(bufferSize+4, "streamTextBuffer");
     char *translation = safeMalloc((2*bufferSize)+4, "streamTextConvertBuffer"); /* UTF inflation tolerance */
-    int encodedLength;
+
+    /* Carry-forward: a multibyte character can straddle a read boundary. Any
+     * incomplete trailing bytes that convertCharsetStreaming could not consume
+     * are held here and prepended to the next read, so no character is split or
+     * lost across buffer boundaries. */
+    char pending[8];
+    int pendingLen = 0;
+    B64AlignCarry b64Carry = { {0, 0}, 0 };
 
     while (!fileEOF(in)){
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "WARNING: UTF8 might not be aligned properly: preserve 3 bytes for the next read cycle to fix UTF boundaries\n");
-      int bytesRead = fileRead(in,buffer,bufferSize,&returnCode,&reasonCode);
+      if (pendingLen > 0) {
+        memcpy(buffer, pending, pendingLen);
+      }
+      int bytesRead = fileRead(in, buffer + pendingLen, bufferSize - pendingLen,
+                               &returnCode, &reasonCode);
       if (bytesRead <= 0) {
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
                 "Text streaming has ended. (return = 0x%x, reason = 0x%x)\n",
                 returnCode, reasonCode);
         break;
       }
-      unsigned int inLen, outLen;
-      int rc;
-      char *inPtr, *outPtr;
+      int inTotal = pendingLen + bytesRead;
+      pendingLen = 0;
 
       if (sourceCCSID == targetCCSID) {
-        outPtr = buffer;
-        outLen = (unsigned int)bytesRead;
+        emitStreamData(stream, socket, encoding, asB64, &b64Carry, buffer, (unsigned int) inTotal, &bytesSent);
       } else {
-        inPtr = buffer;
-        outPtr = translation;
-        inLen = (unsigned int)bytesRead;
-        outLen = (unsigned int) 2 * bytesRead;
-
-        /* TBD: I don't like this scheme.
-         * As mentioned in the warning above, if the encodings are not single-byte encodings, either 
-           the input or output buffers could break in the middle of a multi-byte character. The current
-           API for convertCharset doesn't let you restart in such cases.
-         * Every call to convertCharset will (in the current implementation) use iconv_open to get
-           a converter. That's expensive.
-         * If no conversion is necessary, Linuxland could use the sendfile(2) system call.
-        */
-
-        /* dumpbuffer(buffer,bytesRead); */
-        int translationLength = 0;
-        int reasonCode = 0;
-        rc = convertCharset(inPtr,
-                            inLen,
-                            sourceCCSID,
-                            CHARSET_OUTPUT_USE_BUFFER,
-                            &outPtr,
-                            outLen,
-                            targetCCSID,
-                            NULL,
-                            &translationLength,
-                            &reasonCode);
-
-        if (inLen != translationLength) {
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "streamTextForFile(%d (%s), %d (%s), %d, %d, %d, %d): "
-                 "after sending %d bytes got translation length error; expected %d, got %d\n",
-                 getSocketDebugID(socket), socket->debugName, 
-                 in->fd, in->pathname,
-                 encoding, sourceCCSID, targetCCSID, asB64, bytesSent, inLen, translationLength);
+        /* Streaming conversion with carry-forward, substitution, and draining.
+         * convertCharsetStreaming converts as much input as fits the output
+         * buffer and reports how many input bytes it consumed. Per call:
+         *   SUCCESS      - all convertible input consumed; at most an incomplete
+         *                  trailing multibyte sequence remains, carried to the
+         *                  next read via `pending`.
+         *   SHORT_BUFFER - output buffer filled first: emit what was produced
+         *                  and call again on the remainder (drain-and-recall).
+         *   hard error   - deterministic converter failure. The pair was
+         *                  validated before the response status was committed,
+         *                  so this is a backstop: log at SEVERE and stop. */
+        int off = 0;
+        while (off < inTotal) {
+          int translationLength = 0;
+          int inputConsumed = 0;
+          int convReason = 0;
+          int rc = convertCharsetStreaming(buffer + off,
+                                           inTotal - off,
+                                           sourceCCSID,
+                                           translation,
+                                           2 * bufferSize,
+                                           targetCCSID,
+                                           &translationLength,
+                                           &inputConsumed,
+                                           &convReason);
+          if (TRACE_CHARSET_CONVERSION){
+            printf("convertCharsetStreaming transLen=%d consumed=%d/%d rc=%d\n",
+                   translationLength, inputConsumed, inTotal - off, rc);
+            dumpbuffer(translation,translationLength);
+          }
+          emitStreamData(stream, socket, encoding, asB64, &b64Carry, translation,
+                         (unsigned int) translationLength, &bytesSent);
+          off += inputConsumed;
+          if (rc == CHARSET_CONVERSION_SUCCESS) {
+            break;
+          } else if ((rc == CHARSET_SHORT_BUFFER) && (inputConsumed > 0)) {
+            continue; /* drain: output emitted, now convert the rest of this read */
+          } else {
+            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
+                    "streamTextForFile2: conversion %d->%d failed rc=%d reason=%d consumed=%d/%d; aborting stream\n",
+                    sourceCCSID, targetCCSID, rc, convReason, off, inTotal);
+            streamFailed = TRUE;
+            break;
+          }
         }
-        if (TRACE_CHARSET_CONVERSION){
-          printf("convertCharset transLen=%d\n",translationLength);
-          dumpbuffer(translation,translationLength);
+        if (streamFailed) {
+          break; /* leave the read loop; chunked output is finished below */
         }
-        if (rc != 0){
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "iconv rc = %d, bytesRead=%d xlateLength=%d\n",rc,bytesRead,translationLength);
+        int leftover = inTotal - off;
+        if (leftover > 0) {
+          if (leftover <= (int) sizeof(pending)) {
+            /* straddling tail -> carry to next read (dropped only at true EOF) */
+            memcpy(pending, buffer + off, leftover);
+            pendingLen = leftover;
+          } else {
+            /* SUCCESS with a large unconsumed tail: that is not a partial
+               character. Refuse to silently drop it. */
+            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
+                    "streamTextForFile2: converter left %d bytes unconsumed; aborting stream\n",
+                    leftover);
+            streamFailed = TRUE;
+            break;
+          }
         }
-
-        outPtr = translation;
-        outLen = (unsigned int) translationLength;
       }
-      int allocSize = 0;
-      char *encodedBuffer = NULL;
-      if (asB64) {
-        if (outLen % 3) { 
-          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "buffer length not divisble by 3.  Base64Encode will fail if this is not the eof.\n");
-        }
-        allocSize = ENCODE64_SIZE(outLen)+1;
-        encodedBuffer = encodeBase64(NULL, outPtr, outLen, &encodedLength, FALSE);
-        outPtr = encodedBuffer;
-        outLen = encodedLength;
-      }
-      if (encoding == ENCODING_CHUNKED) {
-        writeBytes(stream, outPtr, (int) outLen, NO_TRANSLATE);
-      } else {
-        writeFully(socket,outPtr,(int) outLen);
-      }
-      if (NULL != encodedBuffer) safeFree31(encodedBuffer, allocSize);
-      bytesSent += encodedLength;
     }
+    /* end of stream (or abort): release the base64 alignment tail so the
+       final group carries the only padding in the body */
+    flushStreamData(stream, socket, encoding, asB64, &b64Carry, &bytesSent);
     if (encoding == ENCODING_CHUNKED) {
       /* finish the chunked output here because finishResponse will not flush this stream's data */
       finishChunkedOutput(stream, NO_TRANSLATE);
@@ -4853,7 +5019,7 @@ static int streamTextForFile2(HttpResponse *response, Socket *socket, UnixFile *
            in->fd, in->pathname,
            encoding, sourceCCSID, targetCCSID, asB64, bytesSent);
   }
-  return 1;
+  return streamFailed ? -1 : 1;
 }
 
 int streamTextForFile(Socket *socket, UnixFile *in, int encoding,
@@ -5551,6 +5717,10 @@ static void upgradeToWebSocket(HttpConversation *conversation,
   if (!headerMatch(webSocketVersion,"13")){
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "WebSocket version\n");
     respondWithError(response,HTTP_STATUS_BAD_REQUEST,"bad web socket version");
+    // Response is finished on return
+  } else if (webSocketKey == NULL || webSocketKey->nativeValue == NULL){
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "missing WebSocket key\n");
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "missing web socket key");
     // Response is finished on return
   } else{
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "building web socket response\n");
