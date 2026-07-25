@@ -2878,6 +2878,10 @@ int extractBasicAuth(HttpRequest *request, HttpHeader *authHeader){
     encodedAuthString[authLen] = 0;
     DANGEROUS_TRACE("encoded auth string\n");
     decodedLength = decodeBase64(encodedAuthString,authString);
+    if (decodedLength < 0){
+      AUTH_TRACE("failed to decode base64 basic auth string, returning FALSE\n");
+      return FALSE;
+    }
     authString[decodedLength] = 0;
     if (FALSE) {
       DANGEROUS_TRACE("decoded base 64, no unascify %s, len=%d\n",
@@ -2889,10 +2893,10 @@ int extractBasicAuth(HttpRequest *request, HttpHeader *authHeader){
     DANGEROUS_TRACE("encoded auth '%s' decoded '%s'\n",encodedAuthString,authString);
     char *password = SLHAlloc(slh,decodedLength);
     int colonPos = indexOf(authString,decodedLength,':',0);
-    if (colonPos){
+    if (colonPos != -1){
       request->username = authString;
       authString[colonPos] = 0;
-      memcpy(password,authString+colonPos+1,decodedLength-colonPos+1);
+      memcpy(password, authString+colonPos+1, decodedLength-colonPos);
       request->password = password;
       strupcase(request->username); /* upfold username */
       if (isLowerCasePasswordAllowed() || isPassPhrase(request->password)) {
