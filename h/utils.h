@@ -137,6 +137,7 @@ int tknLength(token *t);
 #define dumpbuffer2 DMPBFFR2
 #define dumpBufferToStream DMPBFFRS
 #define compareIgnoringCase CMPIGNCS
+#define compareStringsIgnoringCase CMPSTRNC
 #define strupcase STRUPCAS
 #endif
 
@@ -172,6 +173,7 @@ char *simpleHexPrintLower(char *buffer, char *data, int len);
 void hexdump(char *buffer, int length, int nominalStartAddress, int formatWidth, char *pad1, char *pad2);
 void dumpbuffer2(char *buffer, int length);
 int compareIgnoringCase(char *s1, char *s2, int len);
+int compareStringsIgnoringCase(char *s1, char *s2);
 char *strupcase(char *s);
 
 typedef struct ListElt_tag {
