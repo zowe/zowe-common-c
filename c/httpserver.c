@@ -1366,7 +1366,7 @@ HttpHeader *getHeaderLine(HttpRequest *request){
 HttpHeader *getHeader(HttpRequest *request, char *name){
   HttpHeader *headerChain = request->headerChain;
   while (headerChain){
-    if (!compareIgnoringCase(name, headerChain->nativeName, strlen(name))){
+    if (!compareStringsIgnoringCase(name, headerChain->nativeName)){
       return headerChain;
     }
     headerChain = headerChain->next;
@@ -1988,23 +1988,21 @@ static void addRequestHeader(HttpRequestParser *parser){
 
 
   /* pull out enough data for parsing the entity body */
-  if (!compareIgnoringCase(newHeader->nativeName,"Transfer-Encoding",parser->headerNameLength)){
-    if (!compareIgnoringCase(newHeader->nativeValue,"chunked",parser->headerValueLength)){
+  if (!compareStringsIgnoringCase(newHeader->nativeName,"Transfer-Encoding")){
+    if (!compareStringsIgnoringCase(newHeader->nativeValue,"chunked")){
       parser->isChunked = TRUE;
     }
-  } else if (!compareIgnoringCase(newHeader->nativeName,"Content-Length",parser->headerNameLength)){
+  } else if (!compareStringsIgnoringCase(newHeader->nativeName,"Content-Length")){
     parser->specifiedContentLength = atoi(newHeader->nativeValue);
-  } else if (!compareIgnoringCase(newHeader->nativeName,"Content-Type",parser->headerNameLength)){
+  } else if (!compareStringsIgnoringCase(newHeader->nativeName,"Content-Type")){
     parser->contentType = newHeader->nativeValue;
-  } else if (!compareIgnoringCase(newHeader->nativeName,"Upgrade",parser->headerNameLength)){
-    if (!compareIgnoringCase(newHeader->nativeValue,"websocket",parser->headerValueLength)){
+  } else if (!compareStringsIgnoringCase(newHeader->nativeName,"Upgrade")){
+    if (!compareStringsIgnoringCase(newHeader->nativeValue,"websocket")){
       parser->isWebSocket = TRUE;
     }
   }
-  else if (!compareIgnoringCase(newHeader->nativeName, "Connection",
-                                  parser->headerNameLength)) {
-    if (!compareIgnoringCase(newHeader->nativeValue, "Keep-Alive",
-                             parser->headerValueLength)) {
+  else if (!compareStringsIgnoringCase(newHeader->nativeName, "Connection")) {
+    if (!compareStringsIgnoringCase(newHeader->nativeValue, "Keep-Alive")) {
       parser->keepAlive = TRUE;
     }
   }
@@ -2350,7 +2348,13 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
         } else{
           zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "_____ END OF MESSAGE HEADER _________\n");
           parser->state = HTTP_STATE_READING_FIXED_BODY;
-          parser->content = SLHAlloc(parser->slh,parser->specifiedContentLength);
+          parser->content = SLHAlloc2(parser->slh,parser->specifiedContentLength,true);
+          if (parser->content == NULL) {
+            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "request refused because failed to allocate buffer for its content. length: %d\n", parser->specifiedContentLength);
+            /* allocation failure */
+            parser->httpReasonCode = 500;
+            return 0;
+          }
           parser->remainingContentLength = parser->specifiedContentLength;
         }
       } else{
@@ -2418,6 +2422,8 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
           }
           parser->content = SLHAlloc(parser->slh, (int) newContentLength);
           if (parser->content == NULL) {
+            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "request refused because failed to reallocate buffer for new content chunk. Received content length: %d, new chunk length: %d\n", 
+                parser->specifiedContentLength, parser->chunkSize);
             /* allocation failure */
             parser->httpReasonCode = 500;
             return 0;
