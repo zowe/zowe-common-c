@@ -38,6 +38,7 @@ extern "C" {
 #define isBlanks ISBLANKS
 #define hasText HASTEXT
 #define parseInt PARSEINT
+#define parseIntSafely PRSINTSF
 #endif
 
 char * strcopy_safe(char * dest, const char * source, int dest_size);
@@ -70,6 +71,15 @@ int isBlanks(char *data, int offset, int length);
 int hasText(char* data, int offset, int length);
 
 int parseInt(const char *str, int start, int end);
+
+/**
+ * Strict, overflow-checked parse of a whole NUL-terminated decimal string:
+ * optional sign, digits only, no whitespace, no trailing characters
+ * ("1047foo" fails), value within int range. Returns 0 and stores the value
+ * in *out on success; -1 on any malformation. Safe for Metal C (no
+ * strtol/errno). Prefer this over sscanf("%d") for validating user input.
+ */
+int parseIntSafely(const char *str, int *out);
 
 #ifndef __LONGNAME__
 #define parseInitialInt PSINTINT

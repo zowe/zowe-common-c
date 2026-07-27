@@ -119,15 +119,16 @@ build_one() {
   case "$WHICH" in clang|both)   build_clang "$TEST" "$EXTRA" ;; esac
 }
 
-build_one test_troo     ""
+build_one test_charconv ""
 build_one test_recovery ""
 build_one test_bpxnet   "$NET_C"
 build_one test_dynalloc "$DYN_C"
 build_one test_signalcontrol ""
 
-# ---- Optional: dump assembly for the two TUs whose inline-asm is under
-# investigation (c/charsets.c -> __troo, c/recovery.c -> storageObtain).
-# Enable with `ASM=1 sh build.sh`.
+# ---- Optional: dump assembly to inspect inline-asm codegen. NOTE: under a
+# clang compiler (xlclang or ibm-clang64) charsets.c now takes the iconv branch
+# and has NO __troo -- the __troo HLASM path is metal-C only. recovery.c ->
+# storageObtain still carries inline asm. Enable with `ASM=1 sh build.sh`.
 #
 # xlclang refuses -S outside Metal C mode (CCN0458 "-S invalid because
 # METAL not specified"). Its LE-mode equivalent is -Wc,asmlist which
@@ -179,7 +180,7 @@ fi
 
 echo
 echo "Built. Run with:"
-echo "  ./test_troo_xlc        ./test_troo_clang"
+echo "  ./test_charconv_xlc    ./test_charconv_clang"
 echo "  ./test_recovery_xlc    ./test_recovery_clang"
 echo "  ./test_bpxnet_xlc      ./test_bpxnet_clang"
 echo "  ./test_dynalloc_xlc    ./test_dynalloc_clang"
