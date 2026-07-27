@@ -120,7 +120,8 @@ int parseIntSafely(const char *str, int *out){
   return 0;
 }
 
-/* Null-terminates a fixed-width, blank-padded (EBCDIC 0x40) field in place.
+/* Null-terminates a fixed-width, blank-padded field in place. A blank is the
+   native space char ' ' (0x40 in EBCDIC, 0x20 in ASCII), as in trimRight.
 
    Scans str[0..len-1] backward for the last byte that is neither a blank
    nor a null, and writes a null right after it, so the buffer can be used
@@ -141,7 +142,7 @@ int nullTerminate(char *str, int len){
   }
 
   for (i = len - 1; i >= 0; i--) {
-    if ((str[i] != 0x40) && (str[i] != 0)) {
+    if ((str[i] != ' ') && (str[i] != 0)) {
       /* No extra byte available: the buffer is fully packed with data, so
          terminating in place would either overflow it or overwrite real
          data. Refuse instead of silently corrupting the caller's string. */
