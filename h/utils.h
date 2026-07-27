@@ -38,6 +38,7 @@ extern "C" {
 #define isBlanks ISBLANKS
 #define hasText HASTEXT
 #define parseInt PARSEINT
+#define parseIntSafely PRSINTSF
 #endif
 
 char * strcopy_safe(char * dest, const char * source, int dest_size);
@@ -70,6 +71,15 @@ int isBlanks(char *data, int offset, int length);
 int hasText(char* data, int offset, int length);
 
 int parseInt(const char *str, int start, int end);
+
+/**
+ * Strict, overflow-checked parse of a whole NUL-terminated decimal string:
+ * optional sign, digits only, no whitespace, no trailing characters
+ * ("1047foo" fails), value within int range. Returns 0 and stores the value
+ * in *out on success; -1 on any malformation. Safe for Metal C (no
+ * strtol/errno). Prefer this over sscanf("%d") for validating user input.
+ */
+int parseIntSafely(const char *str, int *out);
 
 #ifndef __LONGNAME__
 #define parseInitialInt PSINTINT
@@ -194,6 +204,7 @@ typedef struct ShortLivedHeap_tag{
 #define makeShortLivedHeap MAKESLH
 #define makeShortLivedHeap64 MAKSLH64
 #define SLHAlloc SLHALLOC
+#define SLHAlloc2 SLHALLC2
 #define SLHFree SLHFREE
 #define noisyMalloc NYMALLOC
 #define base32Encode DECODB32
@@ -222,10 +233,20 @@ ShortLivedHeap *makeShortLivedHeap64(int blockSize, int maxBlocks);
  *    \brief   This is the "malloc" of a short lived heap.
  *
  *    If the size is greater than the blockSize of the ShortLivedHeap a new block will be added to the heap
- *    with exactly this size.  
+ *    with exactly this size. If the heap is running out of space, it will trigger ABEND.
  */
 
 char *SLHAlloc(ShortLivedHeap *slh, int size);
+
+/**
+ *    \brief   This is the "malloc" of a short lived heap.
+ *
+ *    If the size is greater than the blockSize of the ShortLivedHeap a new block will be added to the heap
+ *    with exactly this size. If the heap is running out of space, it will return NULL if surpressAbend is
+ *    true, otherwise it will trigger ABEND.
+ */
+
+char *SLHAlloc2(ShortLivedHeap *slh, int size, bool suppressAbend);
 
 /**
  *    \brief   This will reclaim the whole heap.

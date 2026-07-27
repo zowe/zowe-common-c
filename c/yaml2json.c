@@ -691,7 +691,25 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
             convertToNative(keyNative, keyLength);
             yaml_node_t *valueNode = yaml_document_get_node(doc, pair->value);
             if (valueNode){
-              yaml2JSON1(b,jsonObject,keyNative,doc,valueNode,depth+2);
+              /* Duplicate mapping key handling (zowe/zowe-common-c#581). Left
+                 unchecked, a YAML mapping with a repeated key (e.g. two top-level
+                 `zowe:` blocks) produced a JSON object with duplicate properties.
+                 Consumers then diverged: the C accessors return the first match
+                 while the QuickJS template evaluator (used by the launcher) sees
+                 the last -- so `configmgr` and `launcher` evaluated the same YAML
+                 differently. Emit a single-valued key so every consumer agrees.
+                 PROTOTYPE SEMANTICS = FIRST-WINS (keep first, ignore later dupes);
+                 warn so a likely config mistake is never silent. Alternatives for
+                 the squad: last-wins (jsonObjectRemoveNode then add), deep-merge
+                 (jsonMerge), or hard error. */
+              if (jsonObjectHasKey(jsonAsObject(jsonObject), keyNative)){
+                fprintf(stderr,
+                        "*** WARNING *** duplicate key '%s' in YAML mapping; keeping"
+                        " the first value and ignoring later ones (zowe-common-c#581)\n",
+                        keyNative);
+              } else {
+                yaml2JSON1(b,jsonObject,keyNative,doc,valueNode,depth+2);
+              }
             } else{
               printf("*** WARNING *** dead end value\n");
             }

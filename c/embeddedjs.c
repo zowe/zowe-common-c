@@ -244,6 +244,15 @@ int ejsEvalFile(EmbeddedJS *ejs, const char *filename, int loadMode){
     else
         eval_flags = JS_EVAL_TYPE_GLOBAL;
     JSValue evalResult = ejsEvalBuffer1(ejs, buf, bufferLength, asciiFilename, eval_flags, &ret);
+    /* Run the JavaScript asynchronous continuation loop after top-level eval, to
+       fulfill the single-threaded event-loop contract. Without it, anything that
+       completes "later" -- os.signal() handlers, os.sleepAsync() timers, and
+       Promise jobs (incl. top-level await) scheduled during eval -- is never
+       dispatched, because the callbacks fire only inside js_os_poll(), reached
+       only via js_std_loop(). A purely synchronous script leaves nothing pending,
+       so this returns immediately; a script that registers a timer/handler (e.g.
+       a launcher waiting for SIGTERM) keeps spinning until it is idle again. */
+    js_std_loop(ejs->ctx);
     js_free(ejs->ctx, buf);
     JS_FreeValue(ejs->ctx, evalResult);
     return ret;

@@ -473,6 +473,7 @@ typedef struct SymbTable1_tag{
 #define SYMBT_MAXSTATIC_TABLE_SIZE 32512
 
 #define RESOLVESYMBOL_RETURN_BAD_INPUT 1
+#define RESOLVESYMBOL_RETURN_ALLOC_FAILED 2
 
 typedef struct ecvt_tag{
   char  eyecatcher[4];
@@ -1286,6 +1287,10 @@ typedef struct SSCT_tag{
   struct SSCT_tag *__ptr32 scta;  /* chain pointer */
   char sname[4];          /* 4 letter name */
   unsigned char flags;    /* equates */
+#define SSCTFLG1_SSCTSFOR 0x80
+#define SSCTFLG1_SSCTUPSS 0x40
+#define SSCTFLG1_SSCTARDR 0x20
+#define SSCTFLG1_SSCTLDEL 0x10
   unsigned char ssid;     /* JES2 or 3 */
   unsigned char reserved1[2];
   Addr31 ssvt;              /* SUBSYSTEM VECTOR TABLE POINTER */
