@@ -1,5 +1,8 @@
 # Zowe Common C Changelog
 
+## `2.18.7`
+-Bugfix: Fix potential ABEND in http client when receiving large http body. ([#704](https://github.com/zowe/zowe-common-c/pull/704))
+
 ## `2.18.5`
 - Bugfix: Use "%.*s" version of snprintf to stop overreading in 'zosResolveSymbol()' which causes abend.([#595](https://github.com/zowe/zowe-common-c/pull/595))
 
