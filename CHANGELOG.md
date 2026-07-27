@@ -1,5 +1,8 @@
 # Zowe Common C Changelog
 
+## `2.18.7`
+- Enhancement: stricter HTTP header key matching. ([#705](https://github.com/zowe/zowe-common-c/pull/705))
+
 ## `2.18.5`
 - Bugfix: Use "%.*s" version of snprintf to stop overreading in 'zosResolveSymbol()' which causes abend.([#595](https://github.com/zowe/zowe-common-c/pull/595))
 
