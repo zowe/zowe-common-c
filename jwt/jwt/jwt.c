@@ -341,7 +341,7 @@ static int checkSignature(JwsAlgorithm algorithm,
       if (jwtTrace) {
         dumpbuffer(hmacbuf, sizeof(hmacbuf));
       }
-      if (0 != memcmp(signature, hmacbuf, ICSFP11_SHA256_HASHLEN)) {
+      if (0 != timingsafe_memcompare(signature, hmacbuf, ICSFP11_SHA256_HASHLEN)) {
         zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature verification failed\n");
         sts = RC_JWT_SIG_MISMATCH;
         break;
@@ -352,7 +352,7 @@ static int checkSignature(JwsAlgorithm algorithm,
 
     case JWS_ALGORITHM_HS384: {
       if (sigLen != ICSFP11_SHA384_HASHLEN) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "saw HS256 sig alg with unexpected signature length\n");
+        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "saw HS384 sig alg with unexpected signature length\n");
         sts = RC_JWT_INVALID_SIGLEN;
         break;
       }
@@ -376,7 +376,7 @@ static int checkSignature(JwsAlgorithm algorithm,
       if (jwtTrace) {  
         dumpbuffer(hmacbuf, sizeof(hmacbuf));
       }
-      if (0 != memcmp(signature, hmacbuf, ICSFP11_SHA384_HASHLEN)) {
+      if (0 != timingsafe_memcompare(signature, hmacbuf, ICSFP11_SHA384_HASHLEN)) {
         zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature verification failed\n");
         sts = RC_JWT_SIG_MISMATCH;
         break;
@@ -387,7 +387,7 @@ static int checkSignature(JwsAlgorithm algorithm,
 
     case JWS_ALGORITHM_HS512: {
       if (sigLen != ICSFP11_SHA512_HASHLEN) {
-        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "saw HS256 sig alg with unexpected signature length\n");
+        zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "saw HS512 sig alg with unexpected signature length\n");
         sts = RC_JWT_INVALID_SIGLEN;
         break;
       }
@@ -409,7 +409,7 @@ static int checkSignature(JwsAlgorithm algorithm,
       if (jwtTrace) {
         dumpbuffer(hmacbuf, sizeof(hmacbuf));
       }
-      if (0 != memcmp(signature, hmacbuf, ICSFP11_SHA512_HASHLEN)) {
+      if (0 != timingsafe_memcompare(signature, hmacbuf, ICSFP11_SHA512_HASHLEN)) {
         zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "signature verification failed\n");
         sts = RC_JWT_SIG_MISMATCH;
         break;
