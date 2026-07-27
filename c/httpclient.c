@@ -154,7 +154,7 @@ static int pushCharToStatusReason(HttpResponseParser *hrp, char c) {
 }
 
 static int pushCharToHeaderName(HttpResponseParser *hrp, char c) {
-    if (hrp->headerNameLength >= sizeof(hrp->headerNameLength) - 1) {
+    if (hrp->headerNameLength >= sizeof(hrp->headerName) - 1) {
         zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "Header name is too long. Currently received: \"%s\", next char: '%c'\n", hrp->headerName, c);
         return 1;
     }
