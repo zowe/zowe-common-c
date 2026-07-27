@@ -202,6 +202,7 @@ typedef struct ShortLivedHeap_tag{
 #define makeShortLivedHeap MAKESLH
 #define makeShortLivedHeap64 MAKSLH64
 #define SLHAlloc SLHALLOC
+#define SLHAlloc2 SLHALLC2
 #define SLHFree SLHFREE
 #define noisyMalloc NYMALLOC
 #define base32Encode DECODB32
@@ -230,10 +231,20 @@ ShortLivedHeap *makeShortLivedHeap64(int blockSize, int maxBlocks);
  *    \brief   This is the "malloc" of a short lived heap.
  *
  *    If the size is greater than the blockSize of the ShortLivedHeap a new block will be added to the heap
- *    with exactly this size.  
+ *    with exactly this size. If the heap is running out of space, it will trigger ABEND.
  */
 
 char *SLHAlloc(ShortLivedHeap *slh, int size);
+
+/**
+ *    \brief   This is the "malloc" of a short lived heap.
+ *
+ *    If the size is greater than the blockSize of the ShortLivedHeap a new block will be added to the heap
+ *    with exactly this size. If the heap is running out of space, it will return NULL if surpressAbend is
+ *    true, otherwise it will trigger ABEND.
+ */
+
+char *SLHAlloc2(ShortLivedHeap *slh, int size, bool suppressAbend);
 
 /**
  *    \brief   This will reclaim the whole heap.
