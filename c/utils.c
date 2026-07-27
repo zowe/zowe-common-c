@@ -1499,6 +1499,9 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
 }
 
 char *SLHAlloc2(ShortLivedHeap *slh, int size, bool suppressAbend){
+  if (size <= 0) {
+    return NULL;
+  }
   /* expand for fullword alignment */
   int rem = size & 0x7;
   if (rem != 0){
