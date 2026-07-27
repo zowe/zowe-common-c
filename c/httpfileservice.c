@@ -49,6 +49,8 @@
 # endif
 #endif
 
+#define MAX_BASE64_CONTENT_LENGTH (256 * 1024 * 1024)
+
 #ifdef __ZOWE_OS_ZOS
 #define NATIVE_CODEPAGE CCSID_EBCDIC_1047
 #define DEFAULT_UMASK 0022
@@ -607,7 +609,7 @@ void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char 
 }
 
 /* Creates an empty unix file with no tag. This is
- * done by mimicing the touch command.
+ * done by mimicking the touch command.
  */
 static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
   int returnCode = 0, reasonCode = 0, status = 0;
@@ -619,7 +621,7 @@ static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
   }
 
   UnixFile *dest = fileOpen(absolutePath,
-                            FILE_OPTION_CREATE | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY,
+                            FILE_OPTION_CREATE_IF_NON_EXISTENT | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY,
                             0700,
                             0,
                             &returnCode,
@@ -823,7 +825,14 @@ int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLen
   int status = 0;
   int returnCode = 0;
   int reasonCode = 0;
-  int convertBufferSize = contentLength * 2;
+  int convertBufferSize;
+
+  if (contentLength > 0 && contentLength <= MAX_BASE64_CONTENT_LENGTH) {
+    convertBufferSize = 2 * contentLength;
+  } else {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING, "Content length is invalid or too large to process: %i\n", contentLength);
+    return -1;
+  }
 
   char *convertBuffer = safeMalloc(convertBufferSize, "CONVERT BUFFER");
   int conversionLength = 0;
@@ -892,7 +901,14 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
   int status = 0;
   int returnCode = 0;
   int reasonCode = 0;
-  int dataToWriteSize = contentLength * 2;
+  int dataToWriteSize;
+
+  if (contentLength > 0 && contentLength <= MAX_BASE64_CONTENT_LENGTH) {
+    dataToWriteSize = 2 * contentLength;
+  } else {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING, "Content length is invalid or too large to process: %i\n", contentLength);
+    return -1;
+  }
 
   char *dataToWrite = safeMalloc(dataToWriteSize, "CONVERT BUFFER");
   int dataSize = 0;
