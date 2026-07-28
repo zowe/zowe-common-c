@@ -1431,6 +1431,13 @@ int directoryMakeDirectoryRecursive(const char *pathName,
   path[0] = '\0';
   nextField = pathName;
 
+  if (pathName == NULL || strlen(pathName) >= (size_t)(PATH_MAX - 3)) {
+    if (message != NULL && messageLength > 0) {
+      message[0] = '\0';
+    }
+    return -1;
+  }
+
   /* Determine if absolute path or relative path */
   if (0 != strncmp (nextField,"/",1)) {
     strcat(path, "./");
