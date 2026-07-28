@@ -281,7 +281,7 @@ static char UTF8_ESCAPED_BACKSLASH[2]={ 0x5C, 0x5C};
 
 static ssize_t
 convertToUtf8(jsonPrinter *p, size_t len, char text[len], int inputCCSID) {
-  int convesionOutputLength = 0;
+  int conversionOutputLength = 0;
   int reasonCode = 0;
   int reallocLimit = 10;
   int convRc = 0;
@@ -304,9 +304,9 @@ convertToUtf8(jsonPrinter *p, size_t len, char text[len], int inputCCSID) {
     }
     convRc = convertCharset(text, len, inputCCSID, CHARSET_OUTPUT_USE_BUFFER,
         &p->_conversionBuffer, p->_conversionBufferSize, CCSID_UTF_8,
-        NULL, &convesionOutputLength, &reasonCode);
+        NULL, &conversionOutputLength, &reasonCode);
     if (convRc == CHARSET_CONVERSION_SUCCESS) {
-      return  convesionOutputLength;
+      return  conversionOutputLength;
     } else if (convRc != CHARSET_SHORT_BUFFER) {
       JSONERROR("JSON: conversion error, rc %d, reason %d\n", convRc,
               reasonCode);
@@ -371,13 +371,13 @@ writeBufferWithEscaping(jsonPrinter *p, size_t len, char text[len]) {
         if (SOURCE_CODE_CHARSET != CCSID_UTF_8) {
           char escapeUtf[ESCAPE_NATIVE_BUF_SIZE * 3];
           char *ptrToUtf8Buf = escapeUtf;
-          int convesionOutputLength = 0;
+          int conversionOutputLength = 0;
           int convRc = 0;
           int reasonCode = 0;
 
           convRc = convertCharset(escape, ESCAPE_LEN, SOURCE_CODE_CHARSET,
               CHARSET_OUTPUT_USE_BUFFER, &ptrToUtf8Buf, sizeof (escapeUtf),
-              CCSID_UTF_8, NULL, &convesionOutputLength, &reasonCode);
+              CCSID_UTF_8, NULL, &conversionOutputLength, &reasonCode);
           if (convRc != CHARSET_CONVERSION_SUCCESS) {
             JSONERROR("JSON: conversion error, rc %d, reason %d\n",
                     convRc, reasonCode);
@@ -1083,14 +1083,18 @@ char *getTokenTypeString(int type) {
 static 
 char *jsonParserAlloc(JsonParser *parser, int size) {
   char *mem = SLHAlloc(parser->slh, size);
-  memset(mem, 0, size);
+  if (mem) {
+    memset(mem, 0, size);
+  }
   return mem;
 }
 
 static 
 char *jsonTokenizerAlloc(JsonTokenizer *tokenizer, int size) {
   char *mem = SLHAlloc(tokenizer->slh, size);
-  memset(mem, 0, size);
+  if (mem) {
+    memset(mem, 0, size);
+  }
   return mem;
 }
 
@@ -2673,23 +2677,23 @@ Json *jsonParseUnterminatedUtf8String(ShortLivedHeap *slh, int outputCCSID,
                                       char *jsonUtf8String, int len,
                                       char* errorBufferOrNull, int errorBufferSize) {
   int convRc, convRsn;
-  int convesionOutputLength = 2 * len;
-  char *buffer;
+  int conversionOutputLength = 2 * len;
+  char *buffer = NULL;
 
-  buffer = SLHAlloc(slh, convesionOutputLength);
+  buffer = SLHAlloc(slh, conversionOutputLength);
   if (buffer == NULL) {
     snprintf(errorBufferOrNull, errorBufferSize, "not enough memory");
     return NULL;
   }
   convRc = convertCharset(jsonUtf8String, len, CCSID_UTF_8,
-      CHARSET_OUTPUT_USE_BUFFER, &buffer, convesionOutputLength, outputCCSID,
-      NULL, &convesionOutputLength, &convRsn);
+      CHARSET_OUTPUT_USE_BUFFER, &buffer, conversionOutputLength, outputCCSID,
+      NULL, &conversionOutputLength, &convRsn);
   if (convRc != 0) {
     snprintf(errorBufferOrNull, errorBufferSize, "could not convert from UTF8:"
         " conversion rc %d, reason %d", convRc, convRsn);
     return NULL;
   }
-  return jsonParseUnterminatedString(slh, buffer, convesionOutputLength,
+  return jsonParseUnterminatedString(slh, buffer, conversionOutputLength,
       errorBufferOrNull, errorBufferSize);
 }
 

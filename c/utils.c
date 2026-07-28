@@ -12,6 +12,7 @@
 
 #ifdef METTLE
 #include <metal/metal.h>
+#include <metal/limits.h>
 #include <metal/stddef.h>
 #include <metal/stdio.h>
 #include <metal/stdlib.h>
@@ -21,6 +22,7 @@
 #include "metalio.h"
 
 #else
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,6 +75,49 @@ int parseInitialInt(const char *str, int start, int end){
     }
   }
   return x;
+}
+
+/* Strict, overflow-checked parse of a whole NUL-terminated decimal string.
+   Unlike parseInt/parseInitialInt above (fixed ranges, no validation) and
+   unlike sscanf("%d") (which accepts trailing junk such as "1047foo"), this
+   fails unless the ENTIRE string is one well-formed int: an optional sign,
+   then digits only, no leading/trailing whitespace, value within int range.
+   Deliberately avoids strtol/errno so it also builds for Metal C. Returns 0
+   and stores the value on success; returns -1 on any malformation. */
+int parseIntSafely(const char *str, int *out){
+  if (str == NULL || out == NULL){
+    return -1;
+  }
+  int i = 0;
+  int negative = 0;
+  if (str[i] == '+' || str[i] == '-'){
+    negative = (str[i] == '-');
+    i++;
+  }
+  if (str[i] == '\0'){
+    return -1; /* empty, or a bare sign */
+  }
+  int value = 0;
+  for (; str[i] != '\0'; i++){
+    int c = str[i] & 0xff;
+    if (c < '0' || c > '9'){
+      return -1; /* embedded or trailing non-digit */
+    }
+    int digit = c - '0';
+    if (negative){
+      if (value < (INT_MIN + digit) / 10){
+        return -1; /* would underflow */
+      }
+      value = value * 10 - digit;
+    } else {
+      if (value > (INT_MAX - digit) / 10){
+        return -1; /* would overflow */
+      }
+      value = value * 10 + digit;
+    }
+  }
+  *out = value;
+  return 0;
 }
 
 int nullTerminate(char *str, int len){
@@ -260,20 +305,33 @@ static int upchar(char c){
   }
 }
 
+/*
+ * Performs a case-insensitive comparison of two strings.
+ *
+ * len specifies the maximum number of characters to compare. A negative value means no limit.
+ */
 int compareIgnoringCase(char *s1, char *s2, int len){
-  int i;
-
-  for (i=0; i<len; i++){
+  for (int i=0; len<0 || i<len; i++){
     int c1 = upchar(s1[i]);
     int c2 = upchar(s2[i]);
     int diff = c1-c2;
     if (diff){
       return diff;
     }
+    if (!c1) {
+      break;
+    }
   }
   return 0;
 }
-                                          
+
+/*
+ * Performs a case-insensitive comparison of two complete strings.
+*/
+int compareStringsIgnoringCase(char *s1, char *s2){
+    return compareIgnoringCase(s1, s2, -1);
+}
+
 int isCharAN(char c){
   char low = (char)(c & 0xf);
   char high = (char)(c &0xf0);
@@ -1493,10 +1551,21 @@ ShortLivedHeap *makeShortLivedHeap64(int blockSize, int maxBlocks){
 }
 
 char *SLHAlloc(ShortLivedHeap *slh, int size){
+    return SLHAlloc2(slh, size, false);
+}
+
+char *SLHAlloc2(ShortLivedHeap *slh, int size, bool suppressAbend){
+  if (size <= 0) {
+    return NULL;
+  }
   /* expand for fullword alignment */
   int rem = size & 0x7;
   if (rem != 0){
-    size += (8-rem);
+    int padding = 8 - rem;
+    if (size > INT_MAX - padding) {
+      return NULL; // Handle overflow error (out of memory range)
+    }
+    size += padding;
   }
   char *data;
   /* 
@@ -1508,8 +1577,10 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
     printf("SLH at 0x%p cannot allocate above block size %d > %d mxbl %d bkct %d bksz %d\n",
 	   slh,size,remainingHeapBytes,slh->maxBlocks,slh->blockCount,slh->blockSize);
     fflush(stdout);
-    char *mem = (char*)0;
-    mem[0] = 13;
+    if (!suppressAbend) {
+        char *mem = (char*)0;
+        mem[0] = 13;
+    }
     return NULL;
   } else if (size > slh->blockSize){
     char *bigBlock = (slh->is64 ? 
@@ -1560,7 +1631,7 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
   data = slh->activeBlock;
   slh->activeBlock += size;
   return (char *)data;
-  }
+}
 
 void SLHFree(ShortLivedHeap *slh){
   ListElt *chain = slh->blockChain;
@@ -1691,7 +1762,6 @@ char *stringListPrint(StringList *list, int start, int max, char *separator, cha
   /* printf("stringListPrint totalSize = %d listCount=%d buffer size %d, max=%d, slh=0x%x\n",
      list->totalSize,list->count,allocSize,max,list->slh); */
   out = SLHAlloc(list->slh, allocSize);
-  memcpy(out,"                        ",20);
   for (i=0; (i<start && elt); i++){
     elt = elt->next;
   }
@@ -2245,6 +2315,21 @@ bool isPassPhrase(const char *password) {
   return strlen(password) > 8;
 }
 
+/* timingsafe_memcompare compares two memory regions for equality in a way that is safe against timing attacks. */
+/* returns 0 if the regions are equal, non-zero otherwise */
+int timingsafe_memcompare(const void *a, const void *b, size_t n) {
+  const unsigned char *pointer_a = (const unsigned char *)a;
+  const unsigned char *pointer_b = (const unsigned char *)b;
+  volatile unsigned char result = 0;
+
+  for (size_t i = 0; i < n; i++) {
+    unsigned char diff = pointer_a[i] ^ pointer_b[i];
+    __asm volatile("" : "+r"(diff));
+    result |= diff;
+  }
+
+  return result;
+}
 
 
 /*
