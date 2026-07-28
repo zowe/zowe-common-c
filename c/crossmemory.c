@@ -1128,13 +1128,6 @@ typedef struct SAFEnityName_tag {
   char padding[7];
 } SAFEnityName;
 
-typedef enum SAFAccessAttribute_tag {
-  SAF_ACCESS_ATTRIBUTE_READ = 0x02,
-  SAF_ACCESS_ATTRIBUTE_UPDATE = 0x04,
-  SAF_ACCESS_ATTRIBUTE_CONTROL = 0x08,
-  SAF_ACCESS_ATTRIBUTE_ALTER = 0x08,
-  } SAFAccessAttribute;
-
 static void safEntityNameInit(SAFEnityName *string, char *cstring, char padChar) {
   memset(string->entityName, padChar, sizeof(string->entityName));
   unsigned int cstringLength = strlen(cstring);
@@ -1303,7 +1296,7 @@ static int racrouteLIST(char *className, int *racfRC, int *racfRSN) {
 
 __asm("GLBFSTAP RACROUTE REQUEST=FASTAUTH,MF=L" : "DS"(GLBFSTAP));
 
-static int racroutFASTAUTH(ACEE *acee, char *className, char *profileName, SAFAccessAttribute accessLevel,
+static int racroutFASTAUTH(ACEE *acee, char *className, char *profileName, CMSSAFAccessLevel accessLevel,
                            int *racfRC, int *racfRSN, int traceLevel) {
 
   __asm("GLBFSTAP RACROUTE REQUEST=FASTAUTH,MF=L" : "DS"(fastauthParmList));
@@ -1390,7 +1383,7 @@ static bool isCallerAuthorized(CrossMemoryServerGlobalArea *globalArea,
   }
 
   int racfRC = 0, racfRSN = 0;
-  int safRC = racroutFASTAUTH(callerACEEAddr, className, entityName, SAF_ACCESS_ATTRIBUTE_READ, &racfRC, &racfRSN, 0);
+  int safRC = racroutFASTAUTH(callerACEEAddr, className, entityName, CMS_SAF_ACCESS_LEVEL_READ, &racfRC, &racfRSN, 0);
   if (safRC != 0) {
     return FALSE;
   }
@@ -1410,12 +1403,32 @@ bool cmsTestAuth(CrossMemoryServerGlobalArea *globalArea,
   int racfRC = 0, racfRSN = 0;
   int safRC = racroutFASTAUTH(callerACEEAddr, (char *)className,
                               (char *)entityName,
-                              SAF_ACCESS_ATTRIBUTE_READ, &racfRC, &racfRSN, 0);
+                              CMS_SAF_ACCESS_LEVEL_READ, &racfRC, &racfRSN, 0);
   if (safRC != 0) {
     return FALSE;
   }
   return TRUE;
 
+}
+
+bool cmsTestAuth2(CrossMemoryServerGlobalArea *globalArea,
+                  const char *className,
+                  const char *entityName,
+                  CMSSAFAccessLevel accessLevel) {
+  ACEE callerACEE;
+  ACEE *callerACEEAddr = NULL;
+  cmGetCallerAddressSpaceACEE(&callerACEE, &callerACEEAddr);
+  if (callerACEEAddr == NULL) {
+    return FALSE;
+  }
+  int racfRC = 0, racfRSN = 0;
+  int safRC =
+      racroutFASTAUTH(callerACEEAddr, (char *)className, (char *)entityName,
+                      accessLevel, &racfRC, &racfRSN, 0);
+  if (safRC != 0) {
+    return FALSE;
+  }
+  return TRUE;
 }
 
 ZOWE_PRAGMA_PACK
@@ -1911,6 +1924,8 @@ static int handleDumpService(CrossMemoryServer *server,
     return RC_CMS_STDSVC_PARM_BAD_EYECATCHER;
   }
 
+  localParm.dataLength = min(localParm.dataLength, sizeof(localParm.data));
+
   CrossMemoryServerMsgQueueElement *newElement = NULL;
   int allocRC = allocateMsgQueueElement(server, &newElement);
   if (allocRC != RC_CMS_OK) {
@@ -2112,7 +2127,6 @@ static void extractServiceFunctionAbendInfo(RecoveryContext * __ptr32 context,
 static int handleUnsafeProgramCall(PCHandlerParmList *parmList,
                                    bool isSpaceSwitchPC) {
 
-  ABENDInfo abendInfo;
   LatentParmList *latentParmList = parmList->latentParmList;
   CrossMemoryServerGlobalArea *globalArea = latentParmList->parm1;
 
@@ -3764,9 +3778,9 @@ static void printDumpServiceMsg(CrossMemoryServerMsgQueueElement *dumpElement) {
     return;
   }
 
-  printf("%.*s"CMS_LOG_DUMP_MSG_ID" Dump of \'%s\' (%u bytes at 0x%p):\n",
+  printf("%.*s"CMS_LOG_DUMP_MSG_ID" Dump of \'%.*s\' (%u bytes at 0x%p):\n",
          sizeof(dumpParm->prefix.text), dumpParm->prefix.text,
-         dumpParm->descriptionNullTerm,
+         sizeof(dumpParm->descriptionNullTerm), dumpParm->descriptionNullTerm,
          dumpParm->originalSize, dumpParm->originalAddress);
 
   char workBuffer[4096];
@@ -5151,6 +5165,8 @@ static bool isModulePrivate(void) {
 #pragma linkage(BPX1QDB,OS)
 #define BPXQDB BPX1QDB
 #endif
+
+#include "zowe_bpx_prototypes.h"
 
 static bool isDubStatusOk(int *status, int *bpxRC, int *bpxRSN) {
 

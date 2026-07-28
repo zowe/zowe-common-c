@@ -35,45 +35,162 @@
 
 #define CHARSETNAME_SIZE 15
 
+/*
+ * getCharsetCode() maps charset name strings to CCSID integers.
+ *
+ * Name registry reference:
+ *   https://www.iana.org/assignments/character-sets/character-sets.xhtml
+ *
+ * IBM codepages from that registry use the naming convention "IBM-NNNN"
+ * where NNNN is the codepage number with no leading zeros (e.g. the IANA
+ * name "IBM01140" is represented here as "IBM-1140", and "IBM037" as
+ * "IBM-37").  Matching is case-insensitive (strupcase is applied first).
+ */
 int getCharsetCode(const char *charsetName) {
+  static const struct { const char *name; int ccsid; } charsetCodes[] = {
+    {"ISO-8859-1", CCSID_ISO_8859_1},
+    {"ISO8859-1", CCSID_ISO_8859_1},
+    {"IBM-819", CCSID_ISO_8859_1},
+    {"UTF-8", CCSID_UTF_8},
+    {"UTF-16", CCSID_UTF_16},
+    {"UTF-16BE", CCSID_UTF_16_BE},
+    {"UTF-16LE", CCSID_UTF_16_LE},
+    {"IBM-37", 37},                   /* IBM037  EBCDIC US/Canada */
+    {"IBM-38", 38},                   /* IBM038  EBCDIC INT */
+    {"IBM-259", 259},                 /* IBM-Symbols presentation set */
+    {"IBM-273", 273},                 /* IBM273  EBCDIC German */
+    {"IBM-274", 274},                 /* IBM274  EBCDIC Belgian */
+    {"IBM-275", 275},                 /* IBM275  EBCDIC Brazilian */
+    {"IBM-277", 277},                 /* IBM277  EBCDIC Danish/Norwegian */
+    {"IBM-278", 278},                 /* IBM278  EBCDIC Finnish/Swedish */
+    {"IBM-280", 280},                 /* IBM280  EBCDIC Italian */
+    {"IBM-281", 281},                 /* IBM281  EBCDIC Japanese-E */
+    {"IBM-284", 284},                 /* IBM284  EBCDIC Spanish */
+    {"IBM-285", 285},                 /* IBM285  EBCDIC UK */
+    {"IBM-290", 290},                 /* IBM290  EBCDIC Japanese Katakana */
+    {"IBM-297", 297},                 /* IBM297  EBCDIC French */
+    {"IBM-367", 367},                 /* IBM367  US-ASCII (alias) */
+    {"IBM-420", 420},                 /* IBM420  EBCDIC Arabic */
+    {"IBM-423", 423},                 /* IBM423  EBCDIC Greek */
+    {"IBM-424", 424},                 /* IBM424  EBCDIC Hebrew */
+    {"IBM-437", 437},                 /* IBM437  PC US */
+    {"IBM-500", 500},                 /* IBM500  EBCDIC International */
+    {"IBM-775", 775},                 /* IBM775  PC Baltic */
+    {"IBM-838", 838},                 /* IBM-Thai presentation set */
+    {"IBM-850", 850},                 /* IBM850  PC Multilingual */
+    {"IBM-851", 851},                 /* IBM851 */
+    {"IBM-852", 852},                 /* IBM852  PC Latin-2 */
+    {"IBM-855", 855},                 /* IBM855  PC Cyrillic */
+    {"IBM-857", 857},                 /* IBM857  PC Turkish */
+    {"IBM-858", 858},                 /* IBM00858 PC Multilingual+euro */
+    {"IBM-860", 860},                 /* IBM860  PC Portuguese */
+    {"IBM-861", 861},                 /* IBM861  PC Icelandic */
+    {"IBM-862", 862},                 /* IBM862  PC Hebrew */
+    {"IBM-863", 863},                 /* IBM863  PC Canadian French */
+    {"IBM-864", 864},                 /* IBM864  PC Arabic */
+    {"IBM-865", 865},                 /* IBM865  PC Nordic */
+    {"IBM-866", 866},                 /* IBM866  PC Russian */
+    {"IBM-868", 868},                 /* IBM868  PC Urdu */
+    {"IBM-869", 869},                 /* IBM869  PC Greek */
+    {"IBM-870", 870},                 /* IBM870  EBCDIC Latin-2 */
+    {"IBM-871", 871},                 /* IBM871  EBCDIC Icelandic */
+    {"IBM-880", 880},                 /* IBM880  EBCDIC Cyrillic */
+    {"IBM-891", 891},                 /* IBM891 */
+    {"IBM-903", 903},                 /* IBM903 */
+    {"IBM-904", 904},                 /* IBM904 */
+    {"IBM-905", 905},                 /* IBM905  EBCDIC Turkish */
+    {"IBM-918", 918},                 /* IBM918  EBCDIC Arabic-2 */
+    {"IBM-924", 924},                 /* IBM00924 EBCDIC Latin-9+euro */
+    {"IBM-1026", 1026},               /* IBM1026 EBCDIC Turkish */
+    {"IBM-1047", CCSID_IBM1047},      /* EBCDIC Latin-1/Open Sys */
+    {"IBM1047", CCSID_IBM1047},       /* EBCDIC Latin-1/Open Sys */
+    {"IBM-1140", 1140},               /* IBM01140 EBCDIC US+euro */
+    {"IBM-1141", 1141},               /* IBM01141 EBCDIC German+euro */
+    {"IBM-1142", 1142},               /* IBM01142 EBCDIC Danish/Norwegian+euro */
+    {"IBM-1143", 1143},               /* IBM01143 EBCDIC Finnish/Swedish+euro */
+    {"IBM-1144", 1144},               /* IBM01144 EBCDIC Italian+euro */
+    {"IBM-1145", 1145},               /* IBM01145 EBCDIC Spanish+euro */
+    {"IBM-1146", 1146},               /* IBM01146 EBCDIC UK+euro */
+    {"IBM-1147", 1147},               /* IBM01147 EBCDIC French+euro */
+    {"IBM-1148", 1148},               /* IBM01148 EBCDIC International+euro */
+    {"IBM-1149", 1149},               /* IBM01149 EBCDIC Icelandic+euro */
+  };
+
   char localArray[CHARSETNAME_SIZE + 1] = {0};
 
-  /* Check for null pointer */
   if (charsetName == NULL) {
     return -1;
   }
-
-  /* Make sure last element is 0 */
   if (strlen(charsetName) > CHARSETNAME_SIZE) {
     return -1;
   }
-  strcpy( localArray, charsetName);
-  strupcase (localArray);
+  strcpy(localArray, charsetName);
+  strupcase(localArray);
 
-  if ((!strcmp(localArray, "ISO-8859-1"))  ||
-      (!strcmp(localArray, "ISO8859-1"))) {
-    return CCSID_ISO_8859_1;
+  for (int i = 0; i < (int)(sizeof(charsetCodes) / sizeof(charsetCodes[0])); i++) {
+    if (!strcmp(localArray, charsetCodes[i].name)) {
+      return charsetCodes[i].ccsid;
+    }
   }
-  else if (!strcmp(localArray, "IBM-1047")) {
-    return CCSID_IBM1047;
-  }
-  else if (!strcmp(localArray, "UTF-8")) {
-    return CCSID_UTF_8;
-  }
-  else if (!strcmp(localArray, "UTF-16")) {
-    return CCSID_UTF_16;
-  }
-  else if (!strcmp(localArray, "UTF-16BE")) {
-    return CCSID_UTF_16_BE;
-  }
-  else if (!strcmp(localArray, "UTF-16LE")) {
-    return CCSID_UTF_16_LE;
-  }
-  else {
-    return -1;
+  return -1;
+}
+
+#if defined(__ZOWE_OS_ZOS) || defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
+
+bool isMultiByteCCSID(int ccsid) {
+  switch (ccsid) {
+    /* Unicode multi-byte encodings */
+    case CCSID_UTF_8:
+    case CCSID_UTF_16:
+    case CCSID_UTF_16_BE:
+    case CCSID_UTF_16_LE:
+    /* EBCDIC MIX (SBCS+DBCS) code pages */
+    case 930:   /* IBM930  - EBCDIC MIX Japanese */
+    case 933:   /* IBM933  - EBCDIC MIX Korean */
+    case 935:   /* IBM935  - EBCDIC MIX Simplified Chinese */
+    case 937:   /* IBM937  - EBCDIC MIX Traditional Chinese */
+    case 939:   /* IBM939  - EBCDIC MIX Japanese (Latin extension) */
+    case 1364:  /* IBM1364 - EBCDIC MIX Korean */
+    case 1388:  /* IBM1388 - EBCDIC MIX Simplified Chinese */
+    case 1390:  /* IBM1390 - EBCDIC MIX Japanese */
+    case 1399:  /* IBM1399 - EBCDIC MIX Japanese */
+      return TRUE;
+    default:
+      return FALSE;
   }
 }
 
+int parseEncodingValue(const char *value) {
+  char localArray[CHARSETNAME_SIZE + 1] = {0};
+
+  if (value == NULL) {
+    return -1;
+  }
+
+  /* "binary" is a sentinel for CCSID_BINARY */
+  if (strlen(value) <= CHARSETNAME_SIZE) {
+    strcpy(localArray, value);
+    strupcase(localArray);
+    if (!strcmp(localArray, "BINARY")) {
+      return (unsigned short)CCSID_BINARY;
+    }
+  }
+
+  int code = getCharsetCode(value);
+  if (code != -1) {
+    return code;
+  }
+
+  /* decimal CCSID string, e.g. "1047" */
+  int n = 0;
+  if (parseIntSafely(value, &n) == 0 && n >= 1 && n <= 65535) {
+    return n;
+  }
+
+  return -1;
+}
+
+#endif /* z/OS, Linux, AIX */
 
 #ifdef __ZOWE_OS_WINDOWS
 
@@ -189,7 +306,9 @@ int convertCharset(char *input,
 */
 
 
-#elif defined(__ZOWE_OS_ZOS) && !defined(__ZOWE_COMP_XLCLANG)
+#elif defined(__ZOWE_OS_ZOS) && !defined(__ZOWE_COMP_XLCLANG) && !defined(__ZOWE_COMP_CLANG)
+/* z/OS metal / old xlc only. ibm-clang64 (__ZOWE_COMP_CLANG) is an LE clang
+ * compiler and belongs on the iconv branch below with xlclang, not here. */
 
 /*
 
@@ -243,6 +362,37 @@ static const union {
 #else 
 #include "//'SYS1.SCUNHF(CUNHC)'"
 #endif
+
+
+/* Open XL (ibm-clang64) does not declare the __troo HLASM translate builtin
+ * in <builtins.h>  its clang path only wires up __stckf. xlclang provided
+ * the full family via #pragma linkage(__troo, builtin). Declare it here so
+ * the symbol resolves at link time against LE's C runtime. */
+#if defined(__ZOWE_COMP_CLANG)
+static int __troo(char *output, char *input, unsigned long inputLength,
+                    char *table, unsigned char testChar,
+                    unsigned char mask) {
+    int cc;
+    unsigned long gr0 = testChar;   /* low byte consumed by hardware */
+    __asm(
+        ASM_PREFIX
+        "         LG    0,%1 \n"        /* The test byte */
+        "         LG    1,%2 \n"        /* The translation table */
+        "         LG    8,%3 \n"        /* output */
+        "         LG    9,%5 \n"        /* input length */
+        "         LG    2,%4 \n"        /* input */
+        "         TROO  8,2,0\n"        /* M3=0: test before xlate */
+        "         BRC   1,*-4\n"        /* CC=3 => partial, retry */
+        "         IPM   15\n"
+        "         SRL   15,28\n"
+        "         ST    15,%0\n"
+        : "=m"(cc)
+        : "m"(gr0),"m"(table),"m"(output),"m"(input),"m"(inputLength)
+        : "cc", "memory");
+    return cc;
+  }
+#endif
+
 
 int convertCharset(char *input, 
                    int inputLength, 
@@ -355,7 +505,7 @@ int convertCharset(char *input,
 
 /* End of Traditional METAL and XLC cases, since linkage(OS64_NOSTACK) doesn't work in xlclang and clang 
    some C code goes through here, too.  We should short circuit easy special cases here some day */
-#elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || (defined(__ZOWE_OS_ZOS) && defined(__ZOWE_COMP_XLCLANG))
+#elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX) || (defined(__ZOWE_OS_ZOS) && (defined(__ZOWE_COMP_XLCLANG) || defined(__ZOWE_COMP_CLANG)))
 
 #include <iconv.h>
 #include <errno.h>
@@ -372,10 +522,17 @@ int convertCharset(char *input,
         already-opened converters and reuse them.
  */
 
+/* Maps a CCSID to a codeset name for iconv_open(). z/OS iconv and glibc differ
+ * on spellings: 819/1047/UTF-8 are accepted by both; the UTF-16 names open only
+ * on glibc. Intentionally smaller than getCharsetCode's table, which parses
+ * caller-supplied names into CCSIDs; this one only names CCSIDs the iconv
+ * converters can open. NULL means no known converter name, and callers must
+ * treat it as not-convertible-here (see isCharsetStreamingPairSupported), not
+ * as an error. */
 static const char *getCharsetName(int ibmCode){
   switch (ibmCode){
   case CCSID_ISO_8859_1:
-    return "ISO-8859-1";
+    return "ISO8859-1"; /* no dash: z/OS iconv rejects "ISO-8859-1" (errno 121); glibc accepts both */
   case CCSID_IBM1047:
     return "IBM-1047";
   case CCSID_UTF_8:
@@ -391,7 +548,61 @@ static const char *getCharsetName(int ibmCode){
   }
 }
 
-int convertCharset(char *input, 
+/* Returns the target charset's own encoding of '?', used to substitute a byte
+ * that is invalid in the source (iconv EILSEQ). The substitute must be a valid
+ * code sequence in the target: 0x3F for ASCII-family single-byte targets, 0x6F
+ * for IBM-1047 (0x3F there is the SUB control), and a full two-byte code unit
+ * for UTF-16 (a single byte would break code-unit alignment). UTF-16 (1200) is
+ * treated as big-endian; glibc's "UTF-16" emits native-endian with a BOM, so a
+ * forced 1200 target on a little-endian build may mis-order this one
+ * substitute; the 1201/1202 variants are exact. Extend when getCharsetName
+ * gains a new family. */
+static int getSubstituteBytes(int ccsid, const unsigned char **bytes){
+  static const unsigned char QUESTION_ASCII[1]   = { 0x3F };
+  static const unsigned char QUESTION_EBCDIC[1]  = { 0x6F };
+  static const unsigned char QUESTION_UTF16BE[2] = { 0x00, 0x3F };
+  static const unsigned char QUESTION_UTF16LE[2] = { 0x3F, 0x00 };
+  switch (ccsid){
+  case CCSID_IBM1047:
+    *bytes = QUESTION_EBCDIC;
+    return 1;
+  case CCSID_UTF_16:
+  case CCSID_UTF_16_BE:
+    *bytes = QUESTION_UTF16BE;
+    return 2;
+  case CCSID_UTF_16_LE:
+    *bytes = QUESTION_UTF16LE;
+    return 2;
+  default: /* ISO-8859-1, UTF-8: ASCII-family single-byte */
+    *bytes = QUESTION_ASCII;
+    return 1;
+  }
+}
+
+/* Can convertCharsetStreaming handle this source->target pair on this build?
+ * TRUE for the identity pair (streamed without a converter), else both CCSIDs
+ * must have iconv names and the converter must actually open (trial
+ * iconv_open/iconv_close). Lets a caller reject an unusable pair before
+ * committing an HTTP response status rather than discovering it mid-stream. */
+bool isCharsetStreamingPairSupported(int sourceCCSID, int targetCCSID){
+  if (sourceCCSID == targetCCSID){
+    return TRUE;
+  }
+  const char *inputCharset = getCharsetName(sourceCCSID);
+  const char *outputCharset = getCharsetName(targetCCSID);
+  if ((inputCharset == NULL) || (outputCharset == NULL)){
+    return FALSE;
+  }
+  iconv_t probe = iconv_open(outputCharset, inputCharset);
+  if (probe == (iconv_t) -1){
+    return FALSE;
+  }
+  iconv_close(probe);
+  return TRUE;
+}
+#define ZOWE_HAVE_CHARSET_PAIR_CHECK 1
+
+int convertCharset(char *input,
                    int inputLength, 
                    int inputCCSID,
                    int outputMode,
@@ -493,8 +704,147 @@ int convertCharset(char *input,
   }
   return result;
 }
-#else  
+
+#define TRANSLIT_OPT "//TRANSLIT" /* glibc transliteration suffix */
+
+/* Streaming charset conversion for the file-content path (USE_BUFFER only).
+ * Converts as much of [input, inputLength] as forms complete characters into
+ * the caller's output buffer, and reports both how much output was produced
+ * (*conversionOutputLength) and how much input was consumed (*inputBytesConsumed).
+ *
+ * A trailing incomplete multibyte sequence (iconv EINVAL) is intentionally left
+ * unconsumed and is not an error: the caller carries those leftover bytes
+ * (inputLength - *inputBytesConsumed) forward and prepends them to the next read,
+ * so a multi-byte character split across a read boundary is completed, not lost.
+ *
+ * Characters the target cannot represent are substituted rather than aborting
+ * the response: //TRANSLIT handles unmappable-in-target, and an explicit '?' is
+ * emitted for bytes invalid in the source encoding. */
+int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
+                            char *output, int outputLength, int outputCCSID,
+                            int *conversionOutputLength, int *inputBytesConsumed,
+                            int *reasonCode){
+  *reasonCode = 0;
+  *conversionOutputLength = 0;
+  *inputBytesConsumed = 0;
+
+  const char *inputCharset = getCharsetName(inputCCSID);
+  const char *outputCharset = getCharsetName(outputCCSID);
+  if ((inputCharset == NULL) || (outputCharset == NULL)){
+    return CHARSET_UNKNOWN_CCSID;
+  }
+
+  /* "//TRANSLIT" is a glibc transliteration extension giving clean
+   * per-character substitution for characters unmappable in the target. z/OS
+   * iconv does not implement it as a modifier -- it opens "NAME//TRANSLIT" as a
+   * distinct, malfunctioning converter -- and already substitutes unmappable
+   * characters natively (SUB, 0x1A). So attempt //TRANSLIT only on glibc;
+   * elsewhere use the plain converter, whose EILSEQ we substitute below. */
+  iconv_t converter = (iconv_t) -1;
+#if defined(__ZOWE_OS_LINUX)
+  /* On snprintf truncation, skip the TRANSLIT open and use the plain converter
+     below, whose manual EILSEQ path still substitutes. */
+  char translitCharset[CHARSETNAME_SIZE + sizeof(TRANSLIT_OPT)];
+  int translitLen = snprintf(translitCharset, sizeof(translitCharset),
+                             "%s" TRANSLIT_OPT, outputCharset);
+  if ((translitLen > 0) && (translitLen < (int) sizeof(translitCharset))){
+    converter = iconv_open(translitCharset, inputCharset);
+  }
+#endif
+  if (converter == (iconv_t) -1){
+    converter = iconv_open (outputCharset, inputCharset);
+  }
+  if (converter == (iconv_t) -1){
+    *reasonCode = errno;
+    return CHARSET_CONVERSION_UNIMPLEMENTED;
+  }
+
+  char  *inPtr  = input;
+  size_t inLeft = (size_t) inputLength;
+  char  *outPtr = output;
+  size_t outLeft = (size_t) outputLength;
+  int result = CHARSET_CONVERSION_SUCCESS;
+  const unsigned char *subBytes = NULL;
+  int subLen = getSubstituteBytes(outputCCSID, &subBytes);
+
+  while (inLeft > 0){
+    size_t status = iconv(converter, &inPtr, &inLeft, &outPtr, &outLeft);
+    if (status != (size_t) -1){
+      break; /* all remaining input consumed */
+    }
+    if (errno == EINVAL){
+      break; /* incomplete trailing sequence -> caller carries it forward */
+    } else if (errno == E2BIG){
+      result = CHARSET_SHORT_BUFFER; /* output full; caller has what fit */
+      break;
+    } else if (errno == EILSEQ){
+      /* byte not valid in the source encoding: substitute and skip it. The
+         substitute is the target's encoding of '?' (see getSubstituteBytes;
+         a one-byte 0x3F is only correct for ASCII-family single-byte targets). */
+      if (outLeft < (size_t) subLen){ result = CHARSET_SHORT_BUFFER; break; }
+      memcpy(outPtr, subBytes, (size_t) subLen);
+      outPtr += subLen;
+      outLeft -= (size_t) subLen;
+      inPtr++;
+      inLeft--;
+      continue;
+    } else {
+      result = CHARSET_INTERNAL_ERROR;
+      break;
+    }
+  }
+
+  iconv_close(converter);
+  *conversionOutputLength = (int) ((size_t) outputLength - outLeft);
+  *inputBytesConsumed     = (int) ((size_t) inputLength  - inLeft);
+  return result;
+}
+
+/* This build has a native streaming converter (iconv); suppress the portable
+ * fallback defined after the OS switch below. */
+#define ZOWE_HAVE_CONVERT_CHARSET_STREAMING 1
+
+#else
 #error Unknown OS
+#endif
+
+#ifndef ZOWE_HAVE_CONVERT_CHARSET_STREAMING
+/* Portable convertCharsetStreaming for platforms with no native streaming
+ * converter (Windows, z/OS metal-C). There is no carry-forward here: this
+ * platform's convertCharset processes the whole input buffer in one shot, so we
+ * report the input fully consumed and leave nothing pending. This lets
+ * httpserver.c's streamTextForFile2 call one API on every platform. */
+int convertCharsetStreaming(char *input, int inputLength, int inputCCSID,
+                            char *output, int outputLength, int outputCCSID,
+                            int *conversionOutputLength, int *inputBytesConsumed,
+                            int *reasonCode){
+  *reasonCode = 0;
+  *conversionOutputLength = 0;
+  *inputBytesConsumed = 0;
+  char *outputArg = output;
+  int rc = convertCharset(input, inputLength, inputCCSID,
+                          CHARSET_OUTPUT_USE_BUFFER, &outputArg,
+                          outputLength, outputCCSID,
+                          NULL, conversionOutputLength, reasonCode);
+  if ((outputArg != output) && (*conversionOutputLength > 0) &&
+      (*conversionOutputLength <= outputLength)){
+    memcpy(output, outputArg, (size_t) *conversionOutputLength);
+  }
+  *inputBytesConsumed = inputLength;
+  return rc;
+}
+#endif
+
+#ifndef ZOWE_HAVE_CHARSET_PAIR_CHECK
+/* Portable pair check for platforms without the iconv streaming converter
+ * (Windows, z/OS metal-C). Deliberately permissive: the converters on these
+ * platforms take numeric CCSIDs directly (e.g. CUNLCNV on metal z/OS handles
+ * far more pairs than the small iconv name table), so refusing here would
+ * regress conversions that actually work. An unconvertible pair still fails at
+ * conversion time with a nonzero rc. */
+bool isCharsetStreamingPairSupported(int sourceCCSID, int targetCCSID){
+  return TRUE;
+}
 #endif
 
 
