@@ -120,19 +120,19 @@ int parseIntSafely(const char *str, int *out){
   return 0;
 }
 
-/* Null-terminates a fixed-width, blank-padded field in place. A blank is the
-   native space char ' ' (0x40 in EBCDIC, 0x20 in ASCII), as in trimRight.
-
-   Scans str[0..len-1] backward for the last byte that is neither a blank
-   nor a null, and writes a null right after it, so the buffer can be used
-   as a normal C string. If the whole field is blank/null, str[0] is set
-   to 0. If str is NULL or len <= 0, this is a no-op (aside from writing a
-   null at str[0] when str is non-NULL).
-
-   Returns the resulting string length (the index of the null byte written),
-   or -1 if str[len-1] itself holds real data: with no blank/null anywhere
-   in the field there is no spare byte to hold the terminator, so the
-   buffer is left untouched rather than overwriting that last byte of data. */
+/**
+ * Null-terminate a blank-padded field in place. A null-terminator is written in
+ * the position after the last non-blank or non-null character in the string, or
+ * position 0 if none are found.
+ *
+ * @param[in,out] str the string to null-terminate; if @c NULL or there is no
+ * room for a null-terminator (no padding), the function does nothing the
+ * string.
+ * @param[in] len the length of the string; if the length <= 0, the function
+ * does nothing to the string.
+ * @returns the length of the resulting C-string or -1 if there was no room
+ * for a null-terminator or the length specified was <= 0.
+ * */
 int nullTerminate(char *str, int len){
   int i;
 
@@ -143,10 +143,7 @@ int nullTerminate(char *str, int len){
 
   for (i = len - 1; i >= 0; i--) {
     if ((str[i] != ' ') && (str[i] != 0)) {
-      /* No extra byte available: the buffer is fully packed with data, so
-         terminating in place would either overflow it or overwrite real
-         data. Refuse instead of silently corrupting the caller's string. */
-      if (i == len - 1) {
+      if (i == len - 1) {  // No room for a null-terminator; return an error code.
         return -1;
       }
       str[i+1] = 0;
