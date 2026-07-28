@@ -41,14 +41,6 @@
 #define ENOENT 129   
 #endif
 
-#ifndef PATH_MAX
-# ifdef _POSIX_PATH_MAX
-#   define PATH_MAX  _POSIX_PATH_MAX
-# else
-#   define PATH_MAX  256
-# endif
-#endif
-
 #define MAX_BASE64_CONTENT_LENGTH (256 * 1024 * 1024)
 
 #ifdef __ZOWE_OS_ZOS
@@ -770,7 +762,7 @@ void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
 
 void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
         char *user, char *group, char *Recursive, char *pattern) {
-# define RETURN_MESSAGE_SIZE (PATH_MAX + 50)
+# define RETURN_MESSAGE_SIZE (USS_MAX_PATH_LENGTH + 50)
 
   char message[RETURN_MESSAGE_SIZE] = {0};
   UserInfo  userInfo = {0};
