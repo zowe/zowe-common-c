@@ -29,7 +29,7 @@
 #include <windows.h>
 #endif
 
-#include <zosaccounts.h>
+#include "zosaccounts.h"
 
 /*
   "Unix" files are regular character-oriented files that
@@ -549,9 +549,8 @@ int directoryChangeModeRecursive(const char *pathName, int flag,
 UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonCode);
 int directoryRead(UnixFile *directory, char *entryBuffer, int entryBufferLength, int *returnCode, int *reasonCode);
 int directoryClose(UnixFile *directory, int *returnCode, int *reasonCode);
-int directoryChangeOwner(char * message, int messageLength, char *directory,
-            int userId, int groupId, bool recursion, char * pattern,
-            int *returnCode, int *reasonCode);
+int directoryChangeOwnerRecursive(char * message, int messageLength, const char *pathName, int userId, int groupId,
+    int recursive, char * pattern, int *retCode, int *resCode);
 
 
 int setUmask(int mask);
@@ -580,11 +579,14 @@ typedef struct
 {
   int numEntries;
   const char *entryArray[MAX_NUM_ENTRIES];
+  int entryLengthArray[MAX_NUM_ENTRIES];
+  char nameBuffer[USS_MAX_FILE_NAME + 1];
   char entryBuffer[MAX_ENTRY_BUFFER_SIZE];
 } UnixDirectoryEntries;
 
 /* Unrecursively retrieves the entries of a given directory. */
 int directoryListEntries(const char *path, UnixDirectoryEntries *entries, int *returnCode, int *reasonCode);
+const char* getEntryName(UnixDirectoryEntries *entries, int index);
 
 #endif
 
