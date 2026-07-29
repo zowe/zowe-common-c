@@ -905,7 +905,7 @@ int fileReadLink(const char *fileName, char *buffer, int bufferSize, int *return
 #endif
 
   BPXRDL(&nameLength,
-         fileName,
+         (char*)fileName,
          &bufferSize,
          &buffer,
          &returnValue,
@@ -989,13 +989,13 @@ int fileCreateSymlink(const char *from, const char *to, int *returnCode, int *re
   int returnValue = 0;
   *returnCode = *reasonCode = 0;
 
-  BPXSYM(fromLen,
-         from,
-         toLen,
-         to,
+  BPXSYM(&fromLen,
+         (char*)from,
+         &toLen,
+         (char*)to,
          &returnValue,
          returnCode,
-         &reasonCode);
+         reasonCode);
 
   if (fileTrace) {
     if (returnValue != 0) {
@@ -1360,7 +1360,7 @@ int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode){
 
   for (int i = 0; i < entries.numEntries; i++) {
     char pathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
-    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entries.entryArray[i]);
+    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, getEntryName(&entries, i));
     
     ReadLinkResult pathInfo;
     if (fileReadLink2(pathBuffer, &pathInfo, retCode, resCode)) {
@@ -1487,10 +1487,11 @@ int directoryCopy(const char *existingPathName, const char *newPathName, int *re
 
   for (int i = 0; i < entries.numEntries; i++) {
     char existingPathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
-    snprintf(existingPathBuffer, sizeof(existingPathBuffer), "%s/%s", existingPathName, entries.entryArray[i]);
+    const char *entryName = getEntryName(&entries, i);
+    snprintf(existingPathBuffer, sizeof(existingPathBuffer), "%s/%s", existingPathName, entryName);
     
     char newPathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
-    snprintf(newPathBuffer, sizeof(newPathBuffer), "%s/%s", newPathName, entries.entryArray[i]);
+    snprintf(newPathBuffer, sizeof(newPathBuffer), "%s/%s", newPathName, entryName);
 
     ReadLinkResult pathInfo;
     if (fileReadLink2(existingPathBuffer, &pathInfo, retCode, resCode) != 0) {
@@ -1515,8 +1516,8 @@ int directoryCopy(const char *existingPathName, const char *newPathName, int *re
     }
 
     if (status != 0) {
-    return -1;
-  }
+      return -1;
+    }
   }
 
   return 0;
@@ -1719,7 +1720,7 @@ int directoryChangeTagRecursive(const char *pathName, char *type,
   /* At this point, we know recursive is true.               */
   for (int i = 0; i < entries.numEntries; i++) {
     char pathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
-    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entries.entryArray[i]);
+    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, getEntryName(&entries, i));
 
     if (-1 == (fileInfo(pathBuffer, &info, &returnCode, &reasonCode))){
       returnValue = -1;
@@ -1968,6 +1969,7 @@ int directoryChangeModeRecursive(const char *pathName, int flag,
                int mode, const char * compare, int *retCode, int *resCode){
   int returnCode = 0, reasonCode = 0, status = 0;
   int returnValue = 0;
+  *retCode = *resCode = 0;
   FileInfo info = {0};
   status = fileInfo(pathName, &info, &returnCode, &reasonCode);
   if (status == -1){
@@ -2014,7 +2016,7 @@ int directoryChangeModeRecursive(const char *pathName, int flag,
 
   for (int i = 0; i < entries.numEntries; i++) {
     char pathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
-    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entries.entryArray[i]);
+    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, getEntryName(&entries, i));
 
     status = fileInfo(pathBuffer, &info, &returnCode, &reasonCode);
     if (status == -1){
@@ -2135,7 +2137,7 @@ int directoryChangeOwnerRecursive(char * message, int messageLength,
   /* At this point, we know recursive is true.               */
   for (int i = 0; i < entries.numEntries; i++) {
     char pathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
-    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entries.entryArray[i]);
+    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, getEntryName(&entries, i));
 
     if (-1 == (symbolicFileInfo(pathBuffer, &info, retCode, resCode))){
       goto ExitCodeError;
@@ -2199,17 +2201,18 @@ int fileReadLink2(const char *path, ReadLinkResult *result, int *returnCode, int
   return 0;
 }
 
-static int getValidDirectoryEntries(int entries, char *entryBuffer, const char **entryArray) {
+static int getValidDirectoryEntries(int entries, char *entryBuffer, const char **entryArray, int *entryLengthArray) {
   int entryOffset = 0;
   int validEntries = 0;
   for (int i = 0; i < entries; i++) {
     const DirectoryEntry *de = (const DirectoryEntry *) (entryBuffer + entryOffset);
-    if (strcmp(".", de->name) && strcmp("..", de->name) && strcmp("", de->name)) {
+    if (de->nameLength > 0 && strncmp(".", de->name, de->nameLength) && strncmp("..", de->name, de->nameLength)) {
       entryArray[validEntries] = de->name;
+      entryLengthArray[validEntries] = de->nameLength;
       validEntries++;
     }
     entryOffset += de->entryLength;
-  }  
+  }
   return validEntries;
 }
 
@@ -2231,9 +2234,22 @@ int directoryListEntries(const char *path, UnixDirectoryEntries *entries, int *r
     return -1;
   }
 
-  entries->numEntries = getValidDirectoryEntries(numEntries, entries->entryBuffer, entries->entryArray);
+  entries->numEntries = getValidDirectoryEntries(numEntries, entries->entryBuffer, entries->entryArray, entries->entryLengthArray);
   *returnCode = *reasonCode = 0;
   return 0;
+}
+
+const char* getEntryName(UnixDirectoryEntries *entries, int index) {
+  if (!entries || index < 0 || index >= entries->numEntries) {
+    return NULL;
+  }
+  int len = entries->entryLengthArray[index];
+  if (len > USS_MAX_FILE_NAME) {
+    len = USS_MAX_FILE_NAME;
+  }
+  memcpy(entries->nameBuffer, entries->entryArray[index], len);
+  entries->nameBuffer[len] = '\0';
+  return entries->nameBuffer;
 }
 
 /*
