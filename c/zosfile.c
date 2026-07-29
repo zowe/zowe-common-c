@@ -1414,7 +1414,6 @@ int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode){
   return 0;
 }
 
-#define PATH_MAX 256
 /* 
  * Recursively, make directory tree.
  */
@@ -1426,12 +1425,16 @@ int directoryMakeDirectoryRecursive(const char *pathName,
   const char * nextField, *tempField, *endField;
   FileInfo info = {0};
   int done = 0;
-  char Path[PATH_MAX];
+  /* Buffer holds an optional "./" prefix (2), the path (up to the z/OS USS
+   * maximum USS_MAX_PATH_LENGTH), a trailing "/" (1), and the null terminator (1). */
+  char Path[USS_MAX_PATH_LENGTH + 4];
   char *path = Path;
   path[0] = '\0';
   nextField = pathName;
 
-  if (pathName == NULL || strlen(pathName) >= (size_t)(PATH_MAX - 3)) {
+  /* Reject a path longer than z/OS supports before assembling it in the
+   * fixed-size stack buffer, to avoid a stack buffer overflow (0C4 ABEND). */
+  if (pathName == NULL || strlen(pathName) > USS_MAX_PATH_LENGTH) {
     if (message != NULL && messageLength > 0) {
       message[0] = '\0';
     }
