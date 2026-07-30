@@ -1325,10 +1325,11 @@ static char *getStringOption(int argc, char **argv, int *argxPtr, char *key){
 
 static bool getSwitch(int argc, char **argv, int *argxPtr, char *key) {
   int argx = *argxPtr;
+  if (argx >= argc) {
+    return false;
+  }
   if (strcmp(argv[argx], key) == 0) {
-    if (argx < argc) {
-      *argxPtr = argx + 1;
-    }
+    *argxPtr = argx + 1;
     return true;
   }
   return false;
@@ -1815,6 +1816,9 @@ static int simpleMain(int argc, char **argv){
     } else if (getSwitch(argc, argv, &argx, "-r")) {
       jqRaw = true;
     } else {
+      if (argx >= argc) { /* an empty option value advanced argx past the end */
+        break;
+      }
       char *nextArg = argv[argx];
       if (strlen(nextArg) && nextArg[0] == '-'){
         fprintf(traceOut,"\n *** unknown option *** '%s'\n",nextArg);
