@@ -155,14 +155,16 @@ void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath,
                       sizeof (message),recursive, forceCreate)) {
     strcpy(returnMessage, "Successfully created directory: ");
     if (strlen(message) != 0) {
-      strncat (returnMessage, message, MKDIR_RETURN_MESSAGE_SIZE);
+      strncat (returnMessage, message,
+               MKDIR_RETURN_MESSAGE_SIZE - strlen(returnMessage) - 1);
     }
     response200WithMessage(response, returnMessage);
   }
   else {
     strcpy(returnMessage, "Failed to create directory, Created: ");
     if (strlen(message) != 0) {
-      strncat (returnMessage, message, MKDIR_RETURN_MESSAGE_SIZE);
+      strncat (returnMessage, message,
+               MKDIR_RETURN_MESSAGE_SIZE - strlen(returnMessage) - 1);
     }
     respondWithJsonError(response, returnMessage, 500, "Internal Server Error");
   }
