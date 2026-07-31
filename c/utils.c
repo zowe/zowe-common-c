@@ -43,6 +43,77 @@
 #include "zos.h"
 #endif
 
+int strlenSafe(const char *s, int maxLength) {
+  int length = 0;
+  if (s == NULL || maxLength <= 0) {
+    return 0;
+  }
+  while (length < maxLength && s[length] != '\0') {
+    length++;
+  }
+  return length;
+}
+
+int strncpySafe(char *dest, int destSize, const char *source, int count) {
+  int length = 0;
+  if (dest == NULL || destSize <= 0) {
+    return -1;
+  }
+  dest[0] = '\0';
+  if (source == NULL || count <= 0) {
+    return 0;
+  }
+  while (length < count && length < destSize - 1 && source[length] != '\0') {
+    dest[length] = source[length];
+    length++;
+  }
+  dest[length] = '\0';
+  if (length < count && source[length] != '\0') {
+    /* dest ran out first: the caller asked for more than it can hold */
+    return -1;
+  }
+  return length;
+}
+
+int strcpySafe(char *dest, int destSize, const char *source) {
+  /* destSize as the count means "as much of source as can possibly fit", so
+   * the truncation test in strncpySafe still reports a source that is too
+   * long. */
+  return strncpySafe(dest, destSize, source, destSize);
+}
+
+int strncatSafe(char *dest, int destSize, const char *source, int count) {
+  int destLength = 0;
+  int length = 0;
+  if (dest == NULL || destSize <= 0) {
+    return -1;
+  }
+  destLength = strlenSafe(dest, destSize);
+  if (destLength >= destSize) {
+    /* dest holds no terminator within the size we were given, so we cannot
+     * find the end to append to without reading past it. Change nothing. */
+    return -1;
+  }
+  if (source == NULL || count <= 0) {
+    return destLength;
+  }
+  while (length < count &&
+         destLength + length < destSize - 1 &&
+         source[length] != '\0') {
+    dest[destLength + length] = source[length];
+    length++;
+  }
+  dest[destLength + length] = '\0';
+  if (length < count && source[length] != '\0') {
+    return -1;
+  }
+  return destLength + length;
+}
+
+int strcatSafe(char *dest, int destSize, const char *source) {
+  return strncatSafe(dest, destSize, source, destSize);
+}
+
 char * strcopy_safe(char * dest, const char * source, int dest_size) {
   if( dest_size == 0 )
     return dest;
