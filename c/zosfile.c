@@ -1425,9 +1425,7 @@ int directoryMakeDirectoryRecursive(const char *pathName,
   const char * nextField, *tempField, *endField;
   FileInfo info = {0};
   int done = 0;
-  /* Buffer holds an optional "./" prefix (2), the path (up to the z/OS USS
-   * maximum USS_MAX_PATH_LENGTH), a trailing "/" (1), and the null terminator (1). */
-  char Path[USS_MAX_PATH_LENGTH + 4];
+  char Path[USS_MKDIR_PATH_BUFFER_SIZE];
   char *path = Path;
   path[0] = '\0';
   nextField = pathName;
@@ -1438,6 +1436,14 @@ int directoryMakeDirectoryRecursive(const char *pathName,
     if (message != NULL && messageLength > 0) {
       message[0] = '\0';
     }
+    return -1;
+  }
+
+  /* A buffer too small to hold the deepest path would be filled with a
+   * truncated one, naming a directory that need not exist. Reject it here,
+   * before anything is created, so -1 unambiguously means nothing was done.
+   * message may be NULL when the caller does not want the path back. */
+  if (message != NULL && messageLength < USS_MKDIR_PATH_BUFFER_SIZE) {
     return -1;
   }
 
@@ -1478,9 +1484,13 @@ int directoryMakeDirectoryRecursive(const char *pathName,
       }
     }
 
-    /* Update pointers                       */
-    /* Copy directory name to return message */
-    strncpy (message, path, messageLength);
+    /* Update pointers                                                   */
+    /* Report the deepest path reached so far. messageLength was checked
+     * against USS_MKDIR_PATH_BUFFER_SIZE above, so path always fits and
+     * strncpy null-pads the remainder.                                  */
+    if (message != NULL) {
+      strncpy (message, path, messageLength);
+    }
     strcat (path, "/");
     nextField = endField + 1;
   }

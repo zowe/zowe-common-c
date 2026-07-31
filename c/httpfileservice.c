@@ -143,24 +143,26 @@ int createUnixDirectory(char *absolutePath, int forceCreate) {
 
 void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, 
             int recursive, int forceCreate) {
-# define RETURN_MESSAGE_SIZE (PATH_MAX + 50)
-  char message[PATH_MAX];
-  char returnMessage[RETURN_MESSAGE_SIZE];
-  strncpy(message,"", PATH_MAX);
+/* Sized from the constant the callee publishes: directoryMakeDirectoryRecursive
+ * rejects a buffer too small to hold the deepest path in full. */
+# define MKDIR_RETURN_MESSAGE_SIZE (USS_MKDIR_PATH_BUFFER_SIZE + 50)
+  char message[USS_MKDIR_PATH_BUFFER_SIZE];
+  char returnMessage[MKDIR_RETURN_MESSAGE_SIZE];
+  message[0] = '\0';
 
 
   if (!directoryMakeDirectoryRecursive(absolutePath, message, 
                       sizeof (message),recursive, forceCreate)) {
     strcpy(returnMessage, "Successfully created directory: ");
     if (strlen(message) != 0) {
-      strncat (returnMessage, message, RETURN_MESSAGE_SIZE);
+      strncat (returnMessage, message, MKDIR_RETURN_MESSAGE_SIZE);
     }
     response200WithMessage(response, returnMessage);
   }
   else {
     strcpy(returnMessage, "Failed to create directory, Created: ");
     if (strlen(message) != 0) {
-      strncat (returnMessage, message, RETURN_MESSAGE_SIZE);
+      strncat (returnMessage, message, MKDIR_RETURN_MESSAGE_SIZE);
     }
     respondWithJsonError(response, returnMessage, 500, "Internal Server Error");
   }
