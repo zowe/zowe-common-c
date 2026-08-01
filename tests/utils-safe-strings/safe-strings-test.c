@@ -108,27 +108,27 @@ static void testStrcpySafe(void) {
 
 static void testStrncatSafe(void) {
   char *b = exactBuffer(8);
-  strcpy(b, "ab");
+  strcpySafe(b, 8, "ab");
   check(strncatSafe(b, 8, "cd", 8) == 4 && strcmp(b, "abcd") == 0,
         "strncatSafe appends and terminates", NULL);
   free(b);
 
   b = exactBuffer(8);
-  strcpy(b, "ab");
+  strcpySafe(b, 8, "ab");
   check(strncatSafe(b, 8, "cdef", 2) == 4 && strcmp(b, "abcd") == 0,
         "strncatSafe honours count when dest has room",
         "stopping at count is the caller's request, not a failure");
   free(b);
 
   b = exactBuffer(5);
-  strcpy(b, "ab");
+  strcpySafe(b, 5, "ab");
   check(strncatSafe(b, 5, "cdef", 8) == -1 && strcmp(b, "abcd") == 0,
         "strncatSafe reports -1 when dest runs out first",
         "expected -1 with dest holding \"abcd\"");
   free(b);
 
   b = exactBuffer(5);
-  strcpy(b, "abcd");
+  strcpySafe(b, 5, "abcd");
   check(strncatSafe(b, 5, "e", 8) == -1 && strcmp(b, "abcd") == 0,
         "strncatSafe on a full dest appends nothing", NULL);
   free(b);
@@ -140,7 +140,7 @@ static void testStrncatSafe(void) {
   free(b);
 
   b = exactBuffer(8);
-  strcpy(b, "ab");
+  strcpySafe(b, 8, "ab");
   check(strncatSafe(b, 8, NULL, 8) == 2 && strcmp(b, "ab") == 0,
         "strncatSafe with NULL source leaves dest alone", NULL);
   free(b);
@@ -148,13 +148,13 @@ static void testStrncatSafe(void) {
 
 static void testStrcatSafe(void) {
   char *b = exactBuffer(8);
-  strcpy(b, "ab");
+  strcpySafe(b, 8, "ab");
   check(strcatSafe(b, 8, "cd") == 4 && strcmp(b, "abcd") == 0,
         "strcatSafe appends a whole string", NULL);
   free(b);
 
   b = exactBuffer(5);
-  strcpy(b, "ab");
+  strcpySafe(b, 5, "ab");
   check(strcatSafe(b, 5, "cdef") == -1 && strcmp(b, "abcd") == 0,
         "strcatSafe reports -1 on truncation and still terminates", NULL);
   free(b);
