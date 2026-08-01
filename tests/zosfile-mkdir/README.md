@@ -14,15 +14,19 @@ Four checks against `c/zosfile.c`, runnable on z/OS:
    anything is created, so -1 unambiguously means nothing was done.
 4. **a correctly sized buffer receives the complete, real path** -- the
    reported path equals the path that was asked for, and it exists on disk.
+5. **a recursive create really makes the tree** -- the happy path. Cases 1-4
+   deliberately avoid reaching `directoryMake`, so without this one nothing
+   would exercise the recursion or the real BPXMKD.
 
 Cases 3 and 4 are the pair that matters: together they say the function never
 reports a directory that isn't real, and never half-fills a caller's buffer.
 
-The test walks only directories that already exist and passes over-long or NULL
-paths that are rejected before any `BPXMKD`. **It creates no directories and
-writes nothing to the filesystem.** Every case prints the arguments it passed
-and the values it got back, so a reader can check the verdict rather than
-trust it.
+Cases 1-4 walk only directories that already exist, or pass paths rejected
+before any `BPXMKD`, so they write nothing. Case 5 creates
+`zosfile-mkdir-tmp/a/b/c` under the current directory and removes it again --
+it is the only case that touches the filesystem, and it cleans up even when it
+fails. Every case prints the arguments it passed and the values it got back, so
+a reader can check the verdict rather than trust it.
 
 ## Running
 

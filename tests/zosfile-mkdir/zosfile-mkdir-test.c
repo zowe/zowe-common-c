@@ -12,9 +12,10 @@
  * zosfile-mkdir-test.c -- directoryMakeDirectoryRecursive() path-length and
  * message-buffer behaviour.
  *
- * Runs entirely against directories that already exist, and passes over-long
- * or NULL paths that are rejected before any BPXMKD. It therefore CREATES NO
- * DIRECTORIES and writes nothing to the filesystem.
+ * Cases 1-4 run against directories that already exist, or pass paths that are
+ * rejected before any BPXMKD, so they create nothing. Case 5 is the exception:
+ * it creates a small tree under the current directory to exercise the
+ * recursion and the real BPXMKD, and removes it again.
  *
  * Every case prints the arguments it passed and the values it got back, so a
  * reader can check the verdict rather than trust it.
@@ -208,6 +209,65 @@ static void testCorrectBufferReportsRealPath(void) {
           "exist");
 }
 
+
+/* CASE 5 -- the happy path, which the other cases deliberately avoid: actually
+ * create a directory tree and confirm it exists.
+ *
+ * The cases above all pass recursive=0 against directories that already exist,
+ * so directoryMake() is never reached. This one exercises the recursion and
+ * the real BPXMKD, then removes what it made. It is the only case that writes
+ * to the filesystem, and it cleans up after itself even when it fails. */
+static void testCreatesRealTree(void) {
+  char base[USS_MKDIR_PATH_BUFFER_SIZE];
+  char root[USS_MKDIR_PATH_BUFFER_SIZE];
+  char target[USS_MKDIR_PATH_BUFFER_SIZE];
+  char message[USS_MKDIR_PATH_BUFFER_SIZE];
+  FileInfo info = {0};
+  int returnCode = 0;
+  int reasonCode = 0;
+  int rc = 0;
+  int created = 0;
+  int reported = 0;
+  int removed = 0;
+
+  printf("[5] a recursive create really makes the tree\n");
+
+  if (getcwd(base, sizeof(base)) == NULL) {
+    verdict(0, "getcwd() failed, cannot run this case");
+    return;
+  }
+
+  /* <cwd>/zosfile-mkdir-tmp/a/b/c -- three levels below a root we can delete */
+  strcpySafe(root, sizeof(root), base);
+  strcatSafe(root, sizeof(root), "/zosfile-mkdir-tmp");
+  strcpySafe(target, sizeof(target), root);
+  strcatSafe(target, sizeof(target), "/a/b/c");
+
+  memset(message, SENTINEL, sizeof(message));
+
+  printf("    pathName      : \"%s\"\n", target);
+  printf("    recursive     : 1    forceCreate: 0\n");
+
+  rc = directoryMakeDirectoryRecursive(target, message, sizeof(message), 1, 0);
+
+  created = (fileInfo(target, &info, &returnCode, &reasonCode) == 0);
+  reported = (firstNullWithin(message, sizeof(message)) >= 0) &&
+             (strcmp(message, target) == 0);
+
+  printf("    returned      : %d (expected 0)\n", rc);
+  printf("    tree on disk  : %s\n", created ? "yes" : "NO");
+  printf("    reported path : \"%s\"\n", reported ? message : "(wrong)");
+
+  /* Clean up whatever we made, then confirm it is gone. */
+  directoryDeleteRecursive(root, &returnCode, &reasonCode);
+  removed = (fileInfo(root, &info, &returnCode, &reasonCode) == -1);
+  printf("    cleaned up    : %s\n", removed ? "yes" : "NO -- remove it by hand");
+
+  verdict(rc == 0 && created && reported && removed,
+          "the recursive create did not produce the tree, did not report it, "
+          "or could not be cleaned up");
+}
+
 int main(int argc, char **argv) {
   printf("\n");
   printf("directoryMakeDirectoryRecursive -- path length and path-out buffer\n");
@@ -221,6 +281,7 @@ int main(int argc, char **argv) {
   testNullPathRejected();
   testShortBufferRejected();
   testCorrectBufferReportsRealPath();
+  testCreatesRealTree();
 
   printf("%d failure(s)\n", failures);
   return failures == 0 ? 0 : 1;
