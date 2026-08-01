@@ -4,8 +4,8 @@
 #
 # The test allocates every buffer at exactly the size it passes to the function
 # under test, so an off-by-one is a heap overflow the sanitizer reports rather
-# than a silent pass. The helpers are plain C with no platform dependencies;
-# z/OS compile coverage comes from utils.c being part of the normal build.
+# than a silent pass. Run run-zos.sh for the same cases on z/OS, which is where
+# EBCDIC char mode and the __LONGNAME__ name mappings are actually exercised.
 #
 #   sh tests/utils-safe-strings/run.sh
 set -eu
