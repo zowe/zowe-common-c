@@ -29,6 +29,7 @@
 
 #include "zowetypes.h"
 #include "unixfile.h"
+#include "utils.h"
 
 /* Deliberately small: any caller may pass a buffer smaller than the path being
  * assembled, and the function must still hand back a usable C string. */
@@ -88,7 +89,7 @@ static void testOverlongPathRejected(void) {
 
   printf("[1] over-long path is rejected\n");
   printf("    pathName      : \"/aaaa...\" %d chars (limit is %d)\n",
-         (int)strlen(longPath), USS_MAX_PATH_LENGTH);
+         strlenSafe(longPath, sizeof(longPath)), USS_MAX_PATH_LENGTH);
   printf("    message       : NULL, messageLength 0\n");
   printf("    recursive     : 0    forceCreate: 0\n");
 
@@ -139,7 +140,7 @@ static void testShortBufferRejected(void) {
   memset(message, SENTINEL, sizeof(message));
 
   printf("    pathName      : \"%s\" (%d chars, exists)\n",
-         cwd, (int)strlen(cwd));
+         cwd, strlenSafe(cwd, sizeof(cwd)));
   printf("    messageLength : %d  (minimum is %d)\n",
          SMALL_MESSAGE_LENGTH, USS_MKDIR_PATH_BUFFER_SIZE);
   printf("    buffer        : %d bytes, pre-filled with '%c'\n",
@@ -180,7 +181,7 @@ static void testCorrectBufferReportsRealPath(void) {
   memset(message, SENTINEL, sizeof(message));
 
   printf("    pathName      : \"%s\" (%d chars, exists)\n",
-         cwd, (int)strlen(cwd));
+         cwd, strlenSafe(cwd, sizeof(cwd)));
   printf("    messageLength : %d  (the published minimum)\n",
          USS_MKDIR_PATH_BUFFER_SIZE);
   printf("    recursive     : 0    forceCreate: 0   (nothing is created)\n");
@@ -200,7 +201,8 @@ static void testCorrectBufferReportsRealPath(void) {
   exists = (fileInfo(message, &info, &returnCode, &reasonCode) == 0);
 
   printf("    returned      : %d\n", rc);
-  printf("    reported path : \"%s\" (%d chars)\n", message, (int)strlen(message));
+  printf("    reported path : \"%s\" (%d chars)\n", message,
+         strlenSafe(message, sizeof(message)));
   printf("    equals input  : %s\n", matches ? "yes" : "NO");
   printf("    exists on disk: %s\n", exists ? "yes" : "NO");
   verdict(matches && exists,

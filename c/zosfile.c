@@ -1432,7 +1432,8 @@ int directoryMakeDirectoryRecursive(const char *pathName,
 
   /* Reject a path longer than z/OS supports before assembling it in the
    * fixed-size stack buffer, to avoid a stack buffer overflow (0C4 ABEND). */
-  if (pathName == NULL || strlen(pathName) > USS_MAX_PATH_LENGTH) {
+  if (pathName == NULL ||
+      strlenSafe(pathName, USS_MAX_PATH_LENGTH + 1) > USS_MAX_PATH_LENGTH) {
     if (message != NULL && messageLength > 0) {
       message[0] = '\0';
     }
