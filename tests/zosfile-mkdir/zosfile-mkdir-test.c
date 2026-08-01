@@ -52,8 +52,7 @@ static void verdict(int passed, const char *explanation) {
 
 /* Index of the first null within the first n bytes, or -1 if there is none. */
 static int firstNullWithin(const char *buffer, int n) {
-  int i;
-  for (i = 0; i < n; i++) {
+  for (int i = 0; i < n; i++) {
     if (buffer[i] == '\0') {
       return i;
     }
@@ -64,8 +63,7 @@ static int firstNullWithin(const char *buffer, int n) {
 /* True when every one of the first n bytes is still our fill byte, i.e. the
  * function wrote nothing at all. */
 static int stillAllSentinel(const char *buffer, int n) {
-  int i;
-  for (i = 0; i < n; i++) {
+  for (int i = 0; i < n; i++) {
     if (buffer[i] != SENTINEL) {
       return 0;
     }
@@ -78,10 +76,9 @@ static int stillAllSentinel(const char *buffer, int n) {
  * 0C4 (zss#2094) rather than returning. */
 static void testOverlongPathRejected(void) {
   char longPath[USS_MAX_PATH_LENGTH + 100];
-  int i = 0;
   int rc = 0;
 
-  for (i = 0; i < (int)sizeof(longPath) - 1; i++) {
+  for (int i = 0; i < (int)sizeof(longPath) - 1; i++) {
     longPath[i] = (i % 32 == 0) ? '/' : 'a';
   }
   longPath[0] = '/';
@@ -165,7 +162,8 @@ static void testCorrectBufferReportsRealPath(void) {
   char cwd[USS_MAX_PATH_LENGTH + 1];
   char message[USS_MKDIR_PATH_BUFFER_SIZE];
   FileInfo info = {0};
-  int returnCode = 0, reasonCode = 0;
+  int returnCode = 0;
+  int reasonCode = 0;
   int rc = 0;
   int exists = 0;
   int matches = 0;
