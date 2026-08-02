@@ -49,6 +49,8 @@
 # endif
 #endif
 
+#define MAX_BASE64_CONTENT_LENGTH (256 * 1024 * 1024)
+
 #ifdef __ZOWE_OS_ZOS
 #define NATIVE_CODEPAGE CCSID_EBCDIC_1047
 #define DEFAULT_UMASK 0022
@@ -141,24 +143,25 @@ int createUnixDirectory(char *absolutePath, int forceCreate) {
 
 void createUnixDirectoryAndRespond(HttpResponse *response, char *absolutePath, 
             int recursive, int forceCreate) {
-# define RETURN_MESSAGE_SIZE (PATH_MAX + 50)
-  char message[PATH_MAX];
-  char returnMessage[RETURN_MESSAGE_SIZE];
-  strncpy(message,"", PATH_MAX);
-
+/* Sized from the constant the callee publishes: directoryMakeDirectoryRecursive
+ * rejects a buffer too small to hold the deepest path in full. */
+# define MKDIR_RETURN_MESSAGE_SIZE (USS_MKDIR_PATH_BUFFER_SIZE + 50)
+  char message[USS_MKDIR_PATH_BUFFER_SIZE];
+  char returnMessage[MKDIR_RETURN_MESSAGE_SIZE];
+  message[0] = '\0';
 
   if (!directoryMakeDirectoryRecursive(absolutePath, message, 
                       sizeof (message),recursive, forceCreate)) {
-    strcpy(returnMessage, "Successfully created directory: ");
-    if (strlen(message) != 0) {
-      strncat (returnMessage, message, RETURN_MESSAGE_SIZE);
+    strcpySafe(returnMessage, MKDIR_RETURN_MESSAGE_SIZE, "Successfully created directory: ");
+    if (strlenSafe(message, sizeof(message)) != 0) {
+      strcatSafe(returnMessage, MKDIR_RETURN_MESSAGE_SIZE, message);
     }
     response200WithMessage(response, returnMessage);
   }
   else {
-    strcpy(returnMessage, "Failed to create directory, Created: ");
-    if (strlen(message) != 0) {
-      strncat (returnMessage, message, RETURN_MESSAGE_SIZE);
+    strcpySafe(returnMessage, MKDIR_RETURN_MESSAGE_SIZE, "Failed to create directory, Created: ");
+    if (strlenSafe(message, sizeof(message)) != 0) {
+      strcatSafe(returnMessage, MKDIR_RETURN_MESSAGE_SIZE, message);
     }
     respondWithJsonError(response, returnMessage, 500, "Internal Server Error");
   }
@@ -607,7 +610,7 @@ void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char 
 }
 
 /* Creates an empty unix file with no tag. This is
- * done by mimicing the touch command.
+ * done by mimicking the touch command.
  */
 static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
   int returnCode = 0, reasonCode = 0, status = 0;
@@ -619,7 +622,7 @@ static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
   }
 
   UnixFile *dest = fileOpen(absolutePath,
-                            FILE_OPTION_CREATE | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY,
+                            FILE_OPTION_CREATE_IF_NON_EXISTENT | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY,
                             0700,
                             0,
                             &returnCode,
@@ -823,7 +826,14 @@ int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLen
   int status = 0;
   int returnCode = 0;
   int reasonCode = 0;
-  int convertBufferSize = contentLength * 2;
+  int convertBufferSize;
+
+  if (contentLength > 0 && contentLength <= MAX_BASE64_CONTENT_LENGTH) {
+    convertBufferSize = 2 * contentLength;
+  } else {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING, "Content length is invalid or too large to process: %i\n", contentLength);
+    return -1;
+  }
 
   char *convertBuffer = safeMalloc(convertBufferSize, "CONVERT BUFFER");
   int conversionLength = 0;
@@ -892,7 +902,14 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
   int status = 0;
   int returnCode = 0;
   int reasonCode = 0;
-  int dataToWriteSize = contentLength * 2;
+  int dataToWriteSize;
+
+  if (contentLength > 0 && contentLength <= MAX_BASE64_CONTENT_LENGTH) {
+    dataToWriteSize = 2 * contentLength;
+  } else {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING, "Content length is invalid or too large to process: %i\n", contentLength);
+    return -1;
+  }
 
   char *dataToWrite = safeMalloc(dataToWriteSize, "CONVERT BUFFER");
   int dataSize = 0;
