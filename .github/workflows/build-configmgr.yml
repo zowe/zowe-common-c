@@ -131,9 +131,9 @@ jobs:
       - name: '[Dep 2] Quickjs'
         uses: actions/checkout@v3
         with:
-          repository: 1000turquoisepogs/quickjs-portable
+          repository: Martin-Zeithaml/quickjs-portable
           path: deps/configmgr/quickjs
-          ref: 'feature/update-2024-01-13'
+          ref: 'bugfix/mallocUsableSize'
 
       - name: '[Prep 2] Setup jFrog CLI'
         uses: jfrog/setup-jfrog-cli@v2
