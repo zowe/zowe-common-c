@@ -285,6 +285,8 @@ char *SLHAlloc(ShortLivedHeap *slh, int size);
  *    true, otherwise it will trigger ABEND.
  */
 
+#define SLHALLOC2_NO_ABEND true
+#define SLHALLOC2_MAY_ABEND false
 char *SLHAlloc2(ShortLivedHeap *slh, int size, bool suppressAbend);
 
 /**
