@@ -2348,7 +2348,7 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
         } else{
           zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "_____ END OF MESSAGE HEADER _________\n");
           parser->state = HTTP_STATE_READING_FIXED_BODY;
-          parser->content = SLHAlloc2(parser->slh,parser->specifiedContentLength,true);
+          parser->content = SLHAlloc2(parser->slh,parser->specifiedContentLength,SLHALLOC2_NO_ABEND);
           if (parser->content == NULL) {
             zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "request refused because failed to allocate buffer for its content. length: %d\n", parser->specifiedContentLength);
             /* allocation failure */
@@ -2420,7 +2420,7 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
             parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
             return 0;
           }
-          parser->content = SLHAlloc(parser->slh, (int) newContentLength);
+          parser->content = SLHAlloc2(parser->slh, (int) newContentLength, SLHALLOC2_NO_ABEND);
           if (parser->content == NULL) {
             zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "request refused because failed to reallocate buffer for new content chunk. Received content length: %d, new chunk length: %d\n", 
                 parser->specifiedContentLength, parser->chunkSize);
