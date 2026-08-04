@@ -922,15 +922,15 @@ ACEE *getTaskAcee(void){
 
 /* call this only when testAuth() == 0; cache the result of testAuth */
 int setTaskAcee(ACEE *acee){
-    ACEE * __ptr32 *taskAceePtr = (ACEE * __ptr32 *)&(getTCB()->tcbsenv);
-    int wasProblemState = supervisorMode(TRUE);
-    int oldKey = setKey(0);
-    *taskAceePtr = acee;
-    setKey(oldKey);
-    if (wasProblemState) {
-        supervisorMode(FALSE);
-    }
-    return 0;
+  ACEE * __ptr32 *taskAceePtr = (ACEE * __ptr32 *)&(getTCB()->tcbsenv);
+  int wasProblemState = supervisorMode(TRUE);
+  int oldKey = setKey(0);
+  *taskAceePtr = acee;
+  setKey(oldKey);
+  if (wasProblemState) {
+    supervisorMode(FALSE);
+  }
+  return 0;
 }
 
 /* modifications to TCBSENV (notes from the manual)
