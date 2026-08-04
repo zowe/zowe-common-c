@@ -32,6 +32,7 @@
 #define RC_JWT_KEY_NOT_FOUND     13
 #define RC_JWT_UNKNOWN_CONTEXT_TYPE 14
 #define RC_JWT_NOT_CONFIGURED    15
+#define RC_JWT_KEY_ALG_MISMATCH  16
 /*
  * RC_JWT_INSECURE is returned when a JWT is valid but has "alg": "none".
  * This is a source of security issues, so a distinct RC is needed.
@@ -51,6 +52,7 @@ extern const char *RSJWT_ERROR_DESCRIPTIONS[];
 #define JWT_ERROR_DESCRIPTION($rc) ((0 <= ($rc) && ($rc) <= MAX_JWT_RC)? \
     RSJWT_ERROR_DESCRIPTIONS[$rc] : NULL)
 
+/* NOTICE: Do not disrupt the grouping when adding new algorithms */
 #define WITH_JWT_ALGORITHMS($algHandler) \
   $algHandler(none)  /* No digital signature or MAC performed    Optional */ \
   $algHandler(HS256) /* HMAC using SHA-256              Required    */ \

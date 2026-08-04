@@ -54,6 +54,7 @@ const char *RSJWT_ERROR_DESCRIPTIONS[] = {
   [RC_JWT_UNKNOWN_CONTEXT_TYPE] = "unknown JWT context type",
   [RC_JWT_NOT_CONFIGURED] = "JWT not configured",
   [RC_JWT_INSECURE] = "JWT is insecure",
+  [RC_JWT_KEY_ALG_MISMATCH] = "key and algorithm mismatch",
 };
 
 #ifdef __ZOWE_EBCDIC
@@ -266,7 +267,7 @@ static int readClaims(char *jsonText, int len, ShortLivedHeap *slh, Jwt *jwt) {
 static int checkSignature(JwsAlgorithm algorithm,
                           int sigLen, const uint8_t signature[],
                           int msgLen, const uint8_t message[],
-                          ICSFP11_HANDLE_T *keyHandle) {
+                          ICSFP11_HANDLE_T *keyHandle, int keyType) {
   zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "Going to verify the signature of this message: \n");
   if (jwtTrace) {                            
     dumpbuffer(message, msgLen);
@@ -279,6 +280,29 @@ static int checkSignature(JwsAlgorithm algorithm,
   if (keyHandle != NULL && jwtTrace) {
     dumpbuffer((void*)keyHandle, sizeof(ICSFP11_HANDLE_T));
   }
+
+  if (JWS_ALGORITHM_HS256 <= algorithm && algorithm < JWS_ALGORITHM_RS256) {
+    if (keyType != CKO_SECRET_KEY) {
+      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_SEVERE, "public key type (%d) mismatches with HS-series signature, validation rejected!\n", keyType);
+      return RC_JWT_KEY_ALG_MISMATCH;
+    }
+  } else if (JWS_ALGORITHM_RS256 <= algorithm && algorithm < JWS_ALGORITHM_ES256) {
+    if (keyType != CKO_PUBLIC_KEY) {
+      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_SEVERE, "public key type (%d) mismatches with RS-series signature, validation rejected!\n", keyType);
+      return RC_JWT_KEY_ALG_MISMATCH;
+    }
+  } /* uncomment below part when ES and PS algorithms are supported. They are all asymetric so they all require CKO_PUBLIC_KEY
+  else if (JWS_ALGORITHM_ES256 <= algorithm && algorithm < JWS_ALGORITHM_PS256) {
+    if (keyType != CKO_PUBLIC_KEY) {
+      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_SEVERE, "public key type (%d) mismatches with ES-series signature, validation rejected!\n", keyType);
+      return RC_JWT_KEY_ALG_MISMATCH;
+    }
+  } else if(JWS_ALGORITHM_PS256 <= algorithm) {
+    if (keyType != CKO_PUBLIC_KEY) {
+      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_SEVERE, "public key type (%d) mismatches with PS-series signature, validation rejected!\n", keyType);
+      return RC_JWT_KEY_ALG_MISMATCH;
+    }
+  } */
   
   int sts = RC_JWT_OK;
   int p11rc=0, p11rsn=0;
@@ -317,6 +341,8 @@ static int checkSignature(JwsAlgorithm algorithm,
     }
 
     case JWS_ALGORITHM_HS256: {
+      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature JWS_ALGORITHM_HS256\n");
+      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "message:\n");
       if (sigLen != ICSFP11_SHA256_HASHLEN) {
         zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "saw HS256 sig alg with unexpected signature length\n");
         sts = RC_JWT_INVALID_SIGLEN;
@@ -351,6 +377,8 @@ static int checkSignature(JwsAlgorithm algorithm,
     }
 
     case JWS_ALGORITHM_HS384: {
+      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature JWS_ALGORITHM_HS384\n");
+      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "message:\n");
       if (sigLen != ICSFP11_SHA384_HASHLEN) {
         zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "saw HS384 sig alg with unexpected signature length\n");
         sts = RC_JWT_INVALID_SIGLEN;
@@ -386,6 +414,8 @@ static int checkSignature(JwsAlgorithm algorithm,
     }
 
     case JWS_ALGORITHM_HS512: {
+      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "checkSignature JWS_ALGORITHM_HS512\n");
+      zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "message:\n");
       if (sigLen != ICSFP11_SHA512_HASHLEN) {
         zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "saw HS512 sig alg with unexpected signature length\n");
         sts = RC_JWT_INVALID_SIGLEN;
@@ -433,6 +463,7 @@ struct JwtContext_tag {
   int type;
   ICSFP11_HANDLE_T *tokenHandle;
   ICSFP11_HANDLE_T *keyHandle;
+  int keyType; /* the class that rs_icsfp11_findObjectsByLabelAndClass uses to find the key */
   JwtCheckSignature *checkSignatureFn;
   void *userData;
 };
@@ -520,9 +551,8 @@ int jwtParse(const char *base64Text, bool ebcdic, const JwtContext *self,
    */
   zowelog(NULL, LOG_COMP_JWT, ZOWE_LOG_DEBUG, "calling checkSignature()...\n");
   if (self->type == JWT_CONTEXT_TYPE_PKCS11) {
-    ICSFP11_HANDLE_T *keyHandle = self->keyHandle;
     rc = checkSignature(j->header.algorithm, pLen[2], decodedParts[2],
-        prefixLen - 1, asciiBase64, keyHandle);
+        prefixLen - 1, asciiBase64, self->keyHandle, self->keyType);
   } else if (self->type == JWT_CONTEXT_TYPE_CUSTOM) {
     rc = self->checkSignatureFn(j->header.algorithm, pLen[2], decodedParts[2],
         prefixLen - 1, asciiBase64, self->userData);
@@ -955,6 +985,7 @@ JwtContext *makeJwtContextForKeyInToken(const char *in_tokenName,
   memcpy(keyHandle, &(foundHandles[0]), sizeof (foundHandles[0]));
   safeFree((void *)foundHandles, numfound * sizeof (foundHandles[0]));
   result->keyHandle = keyHandle;
+  result->keyType = class;
   *out_rc = RC_JWT_OK;
   return result;
 
