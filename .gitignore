@@ -19,6 +19,11 @@ tests/*.lst
 tests/*/*.o
 tests/*/*.dbg
 tests/*/*.lst
+# build output from per-test build scripts (objects, listings and the linked
+# executable, which has no extension). Anchored under tests/ on purpose: a bare
+# "build/" would also match the tracked top-level build/ directory.
+tests/*/build/
+tests/*/zbuild/
 
 # emacs
 *~

@@ -1389,7 +1389,6 @@ int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode){
   return directoryDelete(pathName, retCode, resCode);
 }
 
-#define PATH_MAX 256
 /* 
  * Recursively, make directory tree.
  */
@@ -1401,10 +1400,28 @@ int directoryMakeDirectoryRecursive(const char *pathName,
   const char * nextField, *tempField, *endField;
   FileInfo info = {0};
   int done = 0;
-  char Path[PATH_MAX];
+  char Path[USS_MKDIR_PATH_BUFFER_SIZE];
   char *path = Path;
   path[0] = '\0';
   nextField = pathName;
+
+  /* Reject a path longer than z/OS supports before assembling it in the
+   * fixed-size stack buffer, to avoid a stack buffer overflow (0C4 ABEND). */
+  if (pathName == NULL ||
+      strlenSafe(pathName, USS_MAX_PATH_LENGTH + 1) > USS_MAX_PATH_LENGTH) {
+    if (message != NULL && messageLength > 0) {
+      message[0] = '\0';
+    }
+    return -1;
+  }
+
+  /* A buffer too small to hold the deepest path would be filled with a
+   * truncated one, naming a directory that need not exist. Reject it here,
+   * before anything is created, so -1 unambiguously means nothing was done.
+   * message may be NULL when the caller does not want the path back. */
+  if (message != NULL && messageLength < USS_MKDIR_PATH_BUFFER_SIZE) {
+    return -1;
+  }
 
   /* Determine if absolute path or relative path */
   if (0 != strncmp (nextField,"/",1)) {
@@ -1443,9 +1460,13 @@ int directoryMakeDirectoryRecursive(const char *pathName,
       }
     }
 
-    /* Update pointers                       */
-    /* Copy directory name to return message */
-    strncpy (message, path, messageLength);
+    /* Update pointers                                                   */
+    /* Report the deepest path reached so far. messageLength was checked
+     * against USS_MKDIR_PATH_BUFFER_SIZE above, so path always fits and
+     * strncpy null-pads the remainder.                                  */
+    if (message != NULL) {
+      strncpy (message, path, messageLength);
+    }
     strcat (path, "/");
     nextField = endField + 1;
   }
