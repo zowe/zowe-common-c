@@ -19,6 +19,7 @@
 #include <metal/stdarg.h>
 #else
 #include <stdarg.h>
+#include <sys/types.h>
 #endif
 
 #ifndef __LONGNAME__
@@ -67,6 +68,10 @@
 #define isCallerCrossMemory   ZOSCXMEM
 
 #define getExternalSecurityManager GETESM
+
+#define spawnProcessInNewGroup ZOSSPNPG
+#define killProcessGroup       ZOSKLPG
+
 
 #endif
 
@@ -1671,6 +1676,38 @@ void *loadByName(char *moduleName, int *statusPtr);
 void *loadByNameLocally(char *moduleName, int *statusPtr);
 
 char *getASCBJobname(ASCB *ascb);
+
+/**
+ * @brief Spawn a process in a new process group.
+ *
+ * The child process is placed in its own process group so that the entire
+ * process tree it creates can later be terminated with:
+ *   kill(-pid, SIGTERM)  or  kill(-pid, SIGKILL)
+ *
+ * @param path       Absolute path of the executable to spawn.
+ * @param fd_count   Number of file descriptors in fd_map (typically 3).
+ * @param fd_map     Array of file descriptors mapped to stdin/stdout/stderr
+ *                   in the child.
+ * @param argc       Number of elements in argv (not counting the NULL
+ *                   terminator).
+ * @param argv       NULL-terminated argument vector for the child.
+ * @param envp       NULL-terminated environment vector for the child.
+ * @return           The PID of the spawned process on success, or -1 on
+ *                   failure (errno is set).
+ */
+int spawnProcessInNewGroup(const char *path, int fd_count, int *fd_map,  int argc, const char **argv, const char **envp);
+
+/**
+ * @brief Send a signal to a process and all members of its process group.
+ *
+ * This is a convenience wrapper around kill(-pid, sig).
+ *
+ * @param pid  The PID (and assumed PGID) of the target process group leader.
+ * @param sig  The signal number to send (e.g. SIGTERM, SIGKILL).
+ * @return     0 on success, -1 on failure (errno is set).
+ */
+int killProcessGroup(pid_t pid, int sig);
+
 
 /**
  * @brief Determine if the caller is in locked state.

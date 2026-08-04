@@ -37,6 +37,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <signal.h>
+#include <spawn.h>
+#include <unistd.h>
 
 #endif
 
@@ -463,6 +466,125 @@ static JSValue getStatvfs(JSContext *ctx, JSValueConst this_val, int argc, JSVal
   return ejsMakeObjectAndErrorArray(ctx, obj, err);
 }
 
+
+/*
+ * zos.spawnProcInNewGroup(path, argv, envp)
+ *
+ * Spawns a process in a new process group so the entire tree can be
+ * killed later with killProcessGroup().
+ *
+ * argv and envp are JS arrays of strings.
+ *
+ * Returns the PID (number) on success, or throws on failure.
+ */
+/*
+ * Convert a JS array of strings into a NULL-terminated native (EBCDIC on z/OS)
+ * C string array. Returns the array (caller must free with freeNativeCStringArray)
+ * and writes the element count to *outLen. Returns NULL on error.
+ */
+static const char **jsArrayToNativeCStrings(JSContext *ctx, JSValueConst jsArr,
+                                            int32_t *outLen, const char *tag) {
+  int32_t len = 0;
+  JSValue jsLen = JS_GetPropertyStr(ctx, jsArr, "length");
+  JS_ToInt32(ctx, &len, jsLen);
+  JS_FreeValue(ctx, jsLen);
+  if (len < 0) len = 0;
+
+  const char **arr = (const char **)safeMalloc((len + 1) * sizeof(char *), tag);
+  for (int i = 0; i < len; i++) {
+    JSValue elem = JS_GetPropertyUint32(ctx, jsArr, i);
+    size_t elemLen = 0;
+    const char *str = JS_ToCStringLen(ctx, &elemLen, elem);
+    JS_FreeValue(ctx, elem);
+    if (!str) {
+      arr[i] = NULL;
+      continue;
+    }
+    char *nativeStr = safeMalloc(elemLen + 1, tag);
+    memcpy(nativeStr, str, elemLen + 1);
+    convertToNative(nativeStr, elemLen);
+    JS_FreeCString(ctx, str);
+    arr[i] = nativeStr;
+  }
+  arr[len] = NULL;
+  *outLen = len;
+  return arr;
+}
+
+static void freeNativeCStringArray(const char **arr, int32_t len) {
+  if (!arr) return;
+  for (int i = 0; i < len; i++) {
+    if (arr[i]) {
+      safeFree((char *)arr[i], strlen(arr[i]) + 1);
+    }
+  }
+  safeFree((char *)arr, (len + 1) * sizeof(char *));
+}
+
+static JSValue jsSpawnProcessInNewGroup(JSContext *ctx, JSValueConst this_val,
+                                        int argc, JSValueConst *argv) {
+  size_t pathLen = 0;
+  const char *path = JS_ToCStringLen(ctx, &pathLen, argv[0]);
+  if (!path) {
+    return JS_EXCEPTION;
+  }
+  char pathNative[pathLen + 1];
+  memcpy(pathNative, path, pathLen + 1);
+  convertToNative(pathNative, pathLen);
+  JS_FreeCString(ctx, path);
+
+  int32_t argsLen = 0;
+  const char **c_args = jsArrayToNativeCStrings(ctx, argv[1], &argsLen, "spawnArgs");
+  int32_t envLen = 0;
+  const char **c_envp = jsArrayToNativeCStrings(ctx, argv[2], &envLen, "spawnEnvp");
+
+#ifdef __ZOWE_OS_ZOS
+  int fd_map[3] = { STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO };
+  pid_t pid = spawnProcessInNewGroup(pathNative, 3, fd_map,
+                                     argsLen, c_args, c_envp);
+#else
+  pid_t pid = -1;
+  errno = ENOSYS;
+#endif
+
+  freeNativeCStringArray(c_args, argsLen);
+  freeNativeCStringArray(c_envp, envLen);
+
+  if (pid == -1) {
+    return JS_ThrowInternalError(ctx, "spawnProcessInNewGroup failed: %s", strerror(errno));
+  }
+
+  return JS_NewInt64(ctx, (int64_t)pid);
+}
+
+/*
+ * zos.killProcessGroup(pid, signal)
+ *
+ * Sends a signal to the process group led by pid.
+ * Returns 0 on success, or throws on failure.
+ */
+static JSValue jsKillProcessGroup(JSContext *ctx, JSValueConst this_val,
+                                  int argc, JSValueConst *argv) {
+  int32_t pid = 0;
+  int32_t sig = 0;
+  JS_ToInt32(ctx, &pid, argv[0]);
+  JS_ToInt32(ctx, &sig, argv[1]);
+
+#ifdef __ZOWE_OS_ZOS
+  int rc = killProcessGroup((pid_t)pid, sig);
+#else
+  int rc = -1;
+  errno = ENOSYS;
+#endif
+
+  if (rc != 0) {
+    return JS_ThrowInternalError(ctx, "killProcessGroup failed for pid %d: %s",
+                                 pid, strerror(errno));
+  }
+
+  return JS_NewInt32(ctx, 0);
+}
+
 static const char changeTagASCII[10] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65,
 					0x54, 0x61, 0x67, 0x00};
 static const char changeExtAttrASCII[14] ={ 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65,
@@ -487,6 +609,25 @@ static const char resolveSymbolASCII[14] ={ 0x72, 0x65, 0x73, 0x6f, 0x6c, 0x76, 
 
 static const char getStatvfsASCII[11] = {0x67, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x76, 0x66, 0x73, 0x00};
 
+/* "spawnProcInNewGroup" in ASCII */
+static const char spawnProcInNewGroupASCII[20] = {
+  0x73, 0x70, 0x61, 0x77, 0x6e, 0x50, 0x72, 0x6f, 0x63, 0x49,
+  0x6e, 0x4e, 0x65, 0x77, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x00
+};
+
+/* "killProcessGroup" in ASCII */
+static const char killProcessGroupASCII[17] = {
+  0x6b, 0x69, 0x6c, 0x6c, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73,
+  0x73, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x00
+};
+
+/* "SIGTERM" in ASCII */
+static const char SIGTERM_ASCII[8] = {0x53, 0x49, 0x47, 0x54, 0x45, 0x52, 0x4d, 0x00};
+
+/* "SIGKILL" in ASCII */
+static const char SIGKILL_ASCII[8] = {0x53, 0x49, 0x47, 0x4b, 0x49, 0x4c, 0x4c, 0x00};
+
+
 #ifndef __ZOWE_OS_ZOS
 /* stub the constants that non-ZOS does not define */
 #define EXTATTR_SHARELIB 1
@@ -503,6 +644,10 @@ static const JSCFunctionListEntry zosFunctions[] = {
   JS_CFUNC_DEF(dslistASCII, 1, zosDatasetInfo),
   JS_CFUNC_DEF(resolveSymbolASCII, 1, zosResolveSymbol),
   JS_CFUNC_DEF(getStatvfsASCII, 1, getStatvfs),
+  JS_CFUNC_DEF(spawnProcInNewGroupASCII, 3, jsSpawnProcessInNewGroup),
+  JS_CFUNC_DEF(killProcessGroupASCII, 2, jsKillProcessGroup),
+  JS_PROP_INT32_DEF(SIGTERM_ASCII, SIGTERM, JS_PROP_CONFIGURABLE),
+  JS_PROP_INT32_DEF(SIGKILL_ASCII, SIGKILL, JS_PROP_CONFIGURABLE),
   JS_PROP_INT32_DEF(EXTATTR_SHARELIB_ASCII, EXTATTR_SHARELIB, JS_PROP_CONFIGURABLE ),
   JS_PROP_INT32_DEF(EXTATTR_PROGCTL_ASCII, EXTATTR_PROGCTL, JS_PROP_CONFIGURABLE ),
   /* ALSO, "cp" with magic ZOS-unix see fopen not fileOpen */

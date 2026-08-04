@@ -1937,6 +1937,32 @@ bool isCallerCrossMemory(void) {
 
   return false;
 }
+#ifndef METTLE
+
+#include <spawn.h>
+#include <signal.h>
+#include <unistd.h>
+#include <errno.h>
+
+int spawnProcessInNewGroup(const char *path, int fd_count, int *fd_map, int argc, const char **argv, const char **envp) {
+  struct inheritance inherit;
+  memset(&inherit, 0, sizeof(inherit));
+  inherit.flags = (short)SPAWN_SETGROUP;
+  inherit.pgroup = SPAWN_NEWPGROUP;
+
+  int pid = spawn(path, fd_count, fd_map, &inherit, argv, envp);
+  return pid;
+}
+
+int killProcessGroup(int pid, int sig) {
+  if (pid <= 0) {
+    errno = EINVAL;
+    return -1;
+  }
+  return kill(-pid, sig);
+}
+
+#endif /* not METTLE */
 
 #ifdef METTLE
 #pragma insert_asm(" CVT DSECT=YES,LIST=NO ")
