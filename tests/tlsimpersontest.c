@@ -1,3 +1,12 @@
+/*
+  This program and the accompanying materials are
+  made available under the terms of the Eclipse Public License v2.0 which accompanies
+  this distribution, and is available at https://www.eclipse.org/legal/epl-v20.html
+  
+  SPDX-License-Identifier: EPL-2.0
+  
+  Copyright Contributors to the Zowe Project.
+*/
 #define _XOPEN_SOURCE 600
 #include <stdio.h>
 #include <stdlib.h>
@@ -91,10 +100,12 @@ int main(int argc, char* argv[]) {
     supervisorMode(TRUE);
   }
 
+  /* If -s was specified, this should print "In supervisor state". */
   printState();
   puts("------------------------");
 
   puts("Before impersonation:");
+  /* This should print the name of the user who ran this program. */
   printAceeUserName();
   puts("------------------------");
 
@@ -104,14 +115,20 @@ int main(int argc, char* argv[]) {
   }
 
   puts("After impersonation:");
+  /* This should print the name of the user specified on the command line. */
   printAceeUserName();
   puts("------------------------");
 
   tlsImpersonate(p.user, p.password, 0, p.trace);
   puts("After ending impersonation:");
+  /* This should again print the name of the user who ran this program,
+     indicating that tlsImpersonate correctly stopped impersonation. */
   printAceeUserName();
   puts("------------------------");
 
+  /* If -s was specified, this should print "In supervisor state" again,
+     indicating that tlsImpersonate correctly restored the caller's
+     execution state. */
   printState();
 
   return 0;
