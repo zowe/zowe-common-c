@@ -2204,7 +2204,8 @@ int directoryListEntries(const char *path, UnixDirectoryEntries *entries, int *r
   int numEntries = directoryRead(dir, entries->entryBuffer, sizeof(entries->entryBuffer), returnCode, reasonCode);
   if (numEntries == -1) {
     /* the failure of directoryRead is more important for troubleshooting so ignore whatever directoryClose returns */
-    int rc, rsn;
+    int rc;
+    int rsn;
     directoryClose(dir, &rc, &rsn);
     return -1;
   }
@@ -2214,7 +2215,8 @@ int directoryListEntries(const char *path, UnixDirectoryEntries *entries, int *r
   }
 
   entries->numEntries = getValidDirectoryEntries(numEntries, entries->entryBuffer, entries->entryArray, entries->entryLengthArray);
-  *returnCode = *reasonCode = 0;
+  *returnCode = 0;
+  *reasonCode = 0;
   return 0;
 }
 
