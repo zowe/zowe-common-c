@@ -922,24 +922,15 @@ ACEE *getTaskAcee(void){
 
 /* call this only when testAuth() == 0; cache the result of testAuth */
 int setTaskAcee(ACEE *acee){
-    ACEE * __ptr32 *taskAceePtr = (ACEE * __ptr32 *)&(getTCB()->tcbsenv);
-    int userKey;
-    // The original code issued MODESET MODE=SUP, saved the key, and then set it to 0
-    __asm(ASM_PREFIX
-          " MODESET MODE=SUP\n"
-          " MODESET EXTKEY=ZERO,SAVEKEY=(2)\n"
-          " ST 2,%0\n"
-          :"=m"(userKey)
-          :
-          :"r1","r2","r15");
-    *taskAceePtr = acee;
-    __asm(ASM_PREFIX
-          " MODESET KEYREG=(%0)\n"
-          " MODESET MODE=PROB\n"
-          :
-          :"r"(userKey)
-          :"r1","r15");
-    return 0;
+  ACEE * __ptr32 *taskAceePtr = (ACEE * __ptr32 *)&(getTCB()->tcbsenv);
+  int wasProblemState = supervisorMode(TRUE);
+  int oldKey = setKey(0);
+  *taskAceePtr = acee;
+  setKey(oldKey);
+  if (wasProblemState) {
+    supervisorMode(FALSE);
+  }
+  return 0;
 }
 
 /* modifications to TCBSENV (notes from the manual)
