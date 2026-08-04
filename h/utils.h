@@ -39,9 +39,48 @@ extern "C" {
 #define hasText HASTEXT
 #define parseInt PARSEINT
 #define parseIntSafely PRSINTSF
+#define strcpySafe  STRCPYSF
+#define strncpySafe STRNCPSF
+#define strcatSafe  STRCATSF
+#define strncatSafe STRNCTSF
+#define strlenSafe  STRLENSF
 #endif
 
 char * strcopy_safe(char * dest, const char * source, int dest_size);
+
+/* Bounded string operations, shaped after the C11 Annex K "_s" functions --
+ * each buffer is followed immediately by its own size, so a call site cannot
+ * silently pair a pointer with the wrong length.
+ *
+ * They are deliberately NOT named "_s": Annex K is an optional feature that
+ * z/OS does not provide, those identifiers are reserved for it, and these do
+ * not implement its semantics (errno_t, rsize_t, constraint handlers).
+ *
+ * destSize/maxLength are always the SIZE OF THE BUFFER, terminator included.
+ * Nothing is read or written past it and the destination is always
+ * null-terminated. Unlike strncpy, no padding is written past the terminator.
+ *
+ * Each returns the resulting string length, or -1 if the destination was too
+ * small to hold the whole result -- it then holds a valid truncated string --
+ * or if the arguments are unusable. Stopping because the source ended, or
+ * because "count" was reached, is not an error. */
+
+/* Copy source into dest. */
+int strcpySafe(char *dest, int destSize, const char *source);
+
+/* Copy at most count characters from source into dest. */
+int strncpySafe(char *dest, int destSize, const char *source, int count);
+
+/* Append source to dest. */
+int strcatSafe(char *dest, int destSize, const char *source);
+
+/* Append at most count characters from source to dest. */
+int strncatSafe(char *dest, int destSize, const char *source, int count);
+
+/* Length of s examining at most maxLength bytes. Returns maxLength when no
+ * terminator appears within that many bytes, so a return equal to maxLength
+ * means "not a string of this size". */
+int strlenSafe(const char *s, int maxLength);
 
 int indexOf(char *str, int len, char c, int startPos);
 int lastIndexOf(const char *str, int len, char c);
@@ -246,6 +285,8 @@ char *SLHAlloc(ShortLivedHeap *slh, int size);
  *    true, otherwise it will trigger ABEND.
  */
 
+#define SLHALLOC2_NO_ABEND true
+#define SLHALLOC2_MAY_ABEND false
 char *SLHAlloc2(ShortLivedHeap *slh, int size, bool suppressAbend);
 
 /**
