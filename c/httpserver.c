@@ -16,6 +16,7 @@
 #include <metal/stddef.h>
 #include <metal/stdio.h>
 #include <metal/stdlib.h>
+#include <metal/limits.h>
 #include <metal/string.h>
 #include <metal/stdarg.h>
 #include <metal/ctype.h>
@@ -23,6 +24,7 @@
 
 #else
 #include <stdio.h>
+#include <limits.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -2346,7 +2348,7 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
         } else{
           zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "_____ END OF MESSAGE HEADER _________\n");
           parser->state = HTTP_STATE_READING_FIXED_BODY;
-          parser->content = SLHAlloc2(parser->slh,parser->specifiedContentLength,true);
+          parser->content = SLHAlloc2(parser->slh,parser->specifiedContentLength,SLHALLOC2_NO_ABEND);
           if (parser->content == NULL) {
             zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "request refused because failed to allocate buffer for its content. length: %d\n", parser->specifiedContentLength);
             /* allocation failure */
@@ -2412,7 +2414,13 @@ int processHttpFragment(HttpRequestParser *parser, char *data, int len){
           parser->state = HTTP_STATE_READING_CHUNK_TRAILER;
         } else {
           parser->contentTmp = parser->content;
-          parser->content = SLHAlloc2(parser->slh, parser->specifiedContentLength + parser->chunkSize,true);
+          int64 newContentLength = (int64) parser->specifiedContentLength + (int64) parser->chunkSize;
+          if (newContentLength > INT_MAX) {
+            zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "request body is too large: %lld exceeds limit (%d)\n", (long long) newContentLength, INT_MAX);
+            parser->httpReasonCode = HTTP_STATUS_BAD_REQUEST;
+            return 0;
+          }
+          parser->content = SLHAlloc2(parser->slh, (int) newContentLength, SLHALLOC2_NO_ABEND);
           if (parser->content == NULL) {
             zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "request refused because failed to reallocate buffer for new content chunk. Received content length: %d, new chunk length: %d\n", 
                 parser->specifiedContentLength, parser->chunkSize);
