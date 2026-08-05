@@ -201,15 +201,14 @@ int parseIntSafely(const char *str, int *out){
  * string.
  * @param[in] len the length of the string; if the length <= 0, the function
  * does nothing to the string.
- * @returns the length of the resulting C-string or -1 if there was no room
- * for a null-terminator or the length specified was <= 0.
+ * @returns the length of the resulting C-string or -1 if str is NULL or
+ * there was no room for a null-terminator or the length specified was <= 0.
  * */
 int nullTerminate(char *str, int len){
   int i;
 
   if (str == NULL || len <= 0) {
-    if (str) str[0] = 0;
-    return 0;
+    return -1;
   }
 
   for (i = len - 1; i >= 0; i--) {
