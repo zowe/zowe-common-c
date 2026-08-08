@@ -767,7 +767,6 @@ int getV4HostByName(char *string){
   int *reasonCodePtr;
   int len = strlen(string);
   char *hostEntPtr = NULL;
-  int status;
 
 #ifndef _LP64
   reasonCodePtr = (int*) (0x80000000 | ((int)&reasonCode));
@@ -795,16 +794,19 @@ int getV4HostByName(char *string){
   if (returnValue == 0) {
     if (hostEntPtr){
       Hostent *hostent = (Hostent*)hostEntPtr;
-      int i;
       int numericAddress = 0;
-      /* dumpbuffer((char*)hostent,20); */
-      for (i=0; i<hostent->length; i++){
-        if (socketTrace){
-          printf("  addr[%d] = 0x%p\n",i,hostent->addrList[i]);
-        }
-        if (hostent->addrList[i]){
-          numericAddress = *(hostent->addrList[i]);
-          break;
+      /* addrList is null-terminated. hostent->length is the width of a single
+         address (4 for IPv4), NOT how many there are, so it must not be used
+         as a loop bound. The first address wins, as before. */
+      if (hostent->addrList != NULL && hostent->addrList[0] != NULL){
+        numericAddress = *(hostent->addrList[0]);
+      }
+      if (socketTrace){
+        for (int i = 0; hostent->addrList != NULL && hostent->addrList[i] != NULL; i++){
+          unsigned char *octets = (unsigned char *)hostent->addrList[i];
+          printf("  addr[%d] = %d.%d.%d.%d (0x%08x)\n", i,
+                 octets[0], octets[1], octets[2], octets[3],
+                 *(hostent->addrList[i]));
         }
       }
       return numericAddress;
