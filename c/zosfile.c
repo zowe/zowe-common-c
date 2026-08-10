@@ -55,6 +55,7 @@
 #pragma linkage(BPX4GGN,OS)
 #pragma linkage(BPX4GPN,OS)
 #pragma linkage(BPX4RDL,OS)
+#pragma linkage(BPX4SYM,OS)
 
 #define BPXRED BPX4RED
 #define BPXOPN BPX4OPN
@@ -77,6 +78,7 @@
 #define BPXGGN BPX4GGN
 #define BPXGPN BPX4GPN
 #define BPXRDL BPX4RDL
+#define BPXSYM BPX4SYM
 
 #else
 
@@ -101,6 +103,7 @@
 #pragma linkage(BPX1GGN,OS)
 #pragma linkage(BPX1GPN,OS)
 #pragma linkage(BPX1RDL,OS)
+#pragma linkage(BPX1SYM,OS)
 
 #define BPXRED BPX1RED
 #define BPXOPN BPX1OPN
@@ -123,12 +126,10 @@
 #define BPXGGN BPX1GGN
 #define BPXGPN BPX1GPN
 #define BPXRDL BPX1RDL
+#define BPXSYM BPX1SYM
 #endif
 
 #include "zowe_bpx_prototypes.h"
-
-#define MAX_ENTRY_BUFFER_SIZE 2550
-#define MAX_NUM_ENTRIES       1000
 
 static int fileTrace = FALSE;
 
@@ -892,7 +893,7 @@ int symbolicFileInfo(const char *filename, BPXYSTAT *stats, int *returnCode, int
   return returnValue;
 }
 
-int fileReadLink(char *fileName, char *buffer, int bufferSize, int *returnCode, int *reasonCode) {
+int fileReadLink(const char *fileName, char *buffer, int bufferSize, int *returnCode, int *reasonCode) {
   int nameLength = strlen(fileName);
   int *reasonCodePtr;
   int returnValue = 0;
@@ -904,7 +905,7 @@ int fileReadLink(char *fileName, char *buffer, int bufferSize, int *returnCode, 
 #endif
 
   BPXRDL(&nameLength,
-         fileName,
+         (char*)fileName,
          &bufferSize,
          &buffer,
          &returnValue,
@@ -980,6 +981,38 @@ int fileChangeOwner(const char *fileName, int *returnCode, int *reasonCode,
     returnValue = -1;
   }
   return returnValue;
+}
+
+int fileCreateSymlink(const char *from, const char *to, int *returnCode, int *reasonCode) {
+  int fromLen = strlen(from);
+  int toLen = strlen(to);
+  int returnValue = 0;
+  *returnCode = *reasonCode = 0;
+
+  BPXSYM(&fromLen,
+         (char*)from,
+         &toLen,
+         (char*)to,
+         &returnValue,
+         returnCode,
+         reasonCode);
+
+  if (fileTrace) {
+    if (returnValue != 0) {
+#ifdef METTLE
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXSYM FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x\n",
+             returnValue, *returnCode, *reasonCode);
+#else
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXSYM FAILED: returnValue: %d, returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
+             returnValue, *returnCode, *reasonCode, strerror(*returnCode));
+#endif
+    }
+    else {
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "BPXSYM (%s,%s) OK: returnValue: %d\n\n", from, to, returnValue);
+    }
+  }
+
+  return returnValue == 0 ? 0 : -1;
 }
 
 int fileInfoIsDirectory(const FileInfo *info) {
@@ -1318,100 +1351,42 @@ int directoryDelete(const char *pathName, int *returnCode, int *reasonCode){
   }
   return returnValue;
 }
-
-static int getValidDirectoryEntries(int entries, char *entryBuffer, const char **entryArray) {
-  int entryOffset = 0;
-  int validEntries = 0;
-  for (int i = 0; i < entries; i++) {
-    const DirectoryEntry *de = (const DirectoryEntry *) (entryBuffer + entryOffset);
-    if (strcmp(".", de->name) && strcmp("..", de->name) && strcmp("", de->name)) {
-      entryArray[validEntries] = de->name;
-      validEntries++;
-    }
-    entryOffset += de->entryLength;
-  }  
-  return validEntries;
-}
   
 int directoryDeleteRecursive(const char *pathName, int *retCode, int *resCode){
-  int returnCode = 0, reasonCode = 0, status = 0, symstatus = 0;
-  FileInfo    info = {0};
-  FileInfo syminfo = {0};
- 
-  status = fileInfo(pathName, &info, &returnCode, &reasonCode);
-  if (status == -1) {
-    status = symbolicFileInfo(pathName, &info, &returnCode, &reasonCode);
-  }
-  if (status == -1){
-    *retCode = returnCode;
-    *resCode = reasonCode;
+  UnixDirectoryEntries entries;
+  if (directoryListEntries(pathName, &entries, retCode, resCode) != 0) {
     return -1;
   }
 
-  UnixFile *dir = directoryOpen(pathName, &returnCode, &reasonCode);
-  if (dir == NULL) {
-    *retCode = returnCode;
-    *resCode = reasonCode;    
-    return -1;
-  }
-
-  char entryBuffer[MAX_ENTRY_BUFFER_SIZE] = {0};
-  int entries = directoryRead(dir, entryBuffer, sizeof(entryBuffer), &returnCode, &reasonCode);
-  if (entries == -1) {
-    *retCode = returnCode;
-    *resCode = reasonCode;    
-    return -1;
-  }
-  
-  const char *entryArray[MAX_NUM_ENTRIES] = {0};
-  int validEntries = getValidDirectoryEntries(entries, entryBuffer, entryArray);
-  if (validEntries <  1) {
-    status = directoryDelete(pathName, &returnCode, &reasonCode);
-    if (status == -1) {
-      *retCode = returnCode;
-      *resCode = reasonCode;      
-      return -1;
-    }
-    return 0;
-  }
-
-  for (int i = 0; i < validEntries; i++) {
+  for (int i = 0; i < entries.numEntries; i++) {
     char pathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
-    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entryArray[i]);
-
-    status    = fileInfo(pathBuffer, &info, &returnCode, &reasonCode);
-    symstatus = symbolicFileInfo(pathName, &syminfo, &returnCode, &reasonCode);
-
-    if ((status == -1) && (symstatus == -1)){
-      *retCode = returnCode;
-      *resCode = reasonCode;
+    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, getEntryName(&entries, i));
+    
+    ReadLinkResult pathInfo;
+    if (fileReadLink2(pathBuffer, &pathInfo, retCode, resCode)) {
       return -1;
     }
 
-    /* If pathBuffer is directory, then recursively call.    */
-    /* Note: system marks symbolic as a directory            */
-    if ((status != -1 ) && fileInfoIsDirectory(&info)) {
+    int status;
+    switch (pathInfo.type)
+    {
+    case RL2_TypeRealDir:
       status = directoryDeleteRecursive(pathBuffer, retCode, resCode);
-      if (status == -1) {
+      break;
+    case RL2_TypeRealFile:
+    case RL2_TypeSymlink:
+      status = fileDelete(pathBuffer, retCode, resCode);
+      break;
+    default:
+      status = -1;
+    }
+
+    if (status != 0) {
         return -1;
       }
-    }
-    else {
-      status = fileDelete(pathBuffer, &returnCode, &reasonCode);
-      if (status == -1) {
-        *retCode = returnCode;
-        *resCode = reasonCode;
-        return -1;
-      }
-    }
   }
 
-  directoryDeleteRecursive(pathName, retCode, resCode);
-  if (status == -1) {
-    return -1;
-  }
-
-  return 0;
+  return directoryDelete(pathName, retCode, resCode);
 }
 
 /* 
@@ -1500,97 +1475,49 @@ ExitCode:
   return returnValue;
 }
 
-
 int directoryCopy(const char *existingPathName, const char *newPathName, int *retCode, int *resCode) {
-  int returnCode = 0, reasonCode = 0, status = 0;
-  FileInfo info = {0};
-
-  status = fileInfo(existingPathName, &info, &returnCode, &reasonCode);
-  if (status == -1) {
-    *retCode = returnCode;
-    *resCode = reasonCode;
+  UnixDirectoryEntries entries;
+  if (directoryListEntries(existingPathName, &entries, retCode, resCode) != 0) {
     return -1;
   }
 
-  UnixFile *existingDirectory = directoryOpen(existingPathName, &returnCode, &reasonCode);
-  if (existingDirectory == NULL) {
-    *retCode = returnCode;
-    *resCode = reasonCode;
+  if (directoryMake(newPathName, 0700, retCode, resCode) != 0) {
     return -1;
   }
 
-  char entryBuffer[MAX_ENTRY_BUFFER_SIZE] = {0};
-  int entries = directoryRead(existingDirectory, entryBuffer, sizeof(entryBuffer), &returnCode, &reasonCode);
-  if (entries == -1) {
-    *retCode = returnCode;
-    *resCode = reasonCode;    
-    return -1;
-  }
-  
-  const char *entryArray[MAX_NUM_ENTRIES] = {0};
-  int validEntries = getValidDirectoryEntries(entries, entryBuffer, entryArray);
-  if (validEntries <  1) {
-    
-  }
-  
-  status = directoryMake(newPathName,
-                         0700,
-                         &returnCode,
-                         &reasonCode);
-
-  if (status == -1) {
-    *retCode = returnCode;
-    *resCode = reasonCode;
-    return -1;
-  }
-
-  UnixFile *newDirectory = directoryOpen(newPathName, &returnCode, &reasonCode);
-  if (newDirectory == NULL) {
-    *retCode = returnCode;
-    *resCode = reasonCode;
-    return -1;
-  }
-
-  for (int i = 0; i < validEntries; i++) {
+  for (int i = 0; i < entries.numEntries; i++) {
     char existingPathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
-    snprintf(existingPathBuffer, sizeof(existingPathBuffer), "%s/%s", existingPathName, entryArray[i]);
+    const char *entryName = getEntryName(&entries, i);
+    snprintf(existingPathBuffer, sizeof(existingPathBuffer), "%s/%s", existingPathName, entryName);
     
     char newPathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
-    snprintf(newPathBuffer, sizeof(newPathBuffer), "%s/%s", newPathName, entryArray[i]);
+    snprintf(newPathBuffer, sizeof(newPathBuffer), "%s/%s", newPathName, entryName);
 
-    status = fileInfo(existingPathBuffer, &info, &returnCode, &reasonCode);
-    if (status == -1) {
-      *retCode = returnCode;
-      *resCode = reasonCode;
+    ReadLinkResult pathInfo;
+    if (fileReadLink2(existingPathBuffer, &pathInfo, retCode, resCode) != 0) {
       return -1;
     }
     
-    if (fileInfoIsDirectory(&info)) {
+    int status;
+    switch (pathInfo.type)
+    {
+    case RL2_TypeRealDir:
       status = directoryCopy(existingPathBuffer, newPathBuffer, retCode, resCode);
-      if (status == -1) {
-        return -1;
-      }
-    }
-    else {
+      break;
+    case RL2_TypeRealFile:
       status = fileCopy(existingPathBuffer, newPathBuffer, retCode, resCode);
-      if (status == -1) {
-        return -1;
-      }
+      break;
+    case RL2_TypeSymlink:
+      status = fileCreateSymlink(pathInfo.realPath, newPathBuffer, retCode, resCode);
+      break;
+    default:
+      status = -1;
+      break;
     }
-  }
 
-  status = directoryClose(existingDirectory, &returnCode, &reasonCode);
-  if (status == -1) {
-    *retCode = returnCode;
-    *resCode = reasonCode;
-    return -1;
-  }
-
-  status = directoryClose(newDirectory, &returnCode, &reasonCode);
-  if (status == -1) {
-    *retCode = returnCode;
-    *resCode = reasonCode;
-    return -1;
+    if (status != 0) {
+      return -1;
+    }
   }
 
   return 0;
@@ -1783,27 +1710,17 @@ int directoryChangeTagRecursive(const char *pathName, char *type,
   } 
 
   /* Get list of files in this directory */
-  const char *entryArray[MAX_NUM_ENTRIES] = {0};
-  char entryBuffer[MAX_ENTRY_BUFFER_SIZE] = {0};
-  UnixFile *dir = directoryOpen(pathName, &returnCode, &reasonCode);
-  if (dir == NULL) {
+  UnixDirectoryEntries entries;
+  if (directoryListEntries(pathName, &entries, &returnCode, &reasonCode) != 0) {
     goto ExitCodeError;
   }
 
-  int entries = directoryRead(dir, entryBuffer, sizeof(entryBuffer),
-                              &returnCode, &reasonCode);
-  if (entries == -1) {
-    goto ExitCodeError;
-  }
-
-  int validEntries = getValidDirectoryEntries(entries, entryBuffer, 
-                                              entryArray);
   /* Loop through all files in directory                     */
   /* If a subdirectory found, recursively call this function */
   /* At this point, we know recursive is true.               */
-  for (int i = 0; i < validEntries; i++) {
+  for (int i = 0; i < entries.numEntries; i++) {
     char pathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
-    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entryArray[i]);
+    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, getEntryName(&entries, i));
 
     if (-1 == (fileInfo(pathBuffer, &info, &returnCode, &reasonCode))){
       returnValue = -1;
@@ -1833,10 +1750,10 @@ ExitCode:
     *resCode = reasonCode;
   if (fileTrace) {
     if (returnValue  != 0) {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeModeRecursive: Failed\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeTagRecursive: Failed\n");
     }
     else {
-      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeModeRecursive: Passed\n");
+      zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG, "directoryChangeTagRecursive: Passed\n");
    }
   }
   return returnValue;
@@ -2052,6 +1969,7 @@ int directoryChangeModeRecursive(const char *pathName, int flag,
                int mode, const char * compare, int *retCode, int *resCode){
   int returnCode = 0, reasonCode = 0, status = 0;
   int returnValue = 0;
+  *retCode = *resCode = 0;
   FileInfo info = {0};
   status = fileInfo(pathName, &info, &returnCode, &reasonCode);
   if (status == -1){
@@ -2088,30 +2006,17 @@ int directoryChangeModeRecursive(const char *pathName, int flag,
     } 
   }
 
-  UnixFile *dir = directoryOpen(pathName, &returnCode, &reasonCode);
-  if (dir == NULL) {
+  UnixDirectoryEntries entries;
+  if (directoryListEntries(pathName, &entries, &returnCode, &reasonCode) != 0) {
     *retCode = returnCode;
     *resCode = reasonCode;    
     returnValue = -1;
     goto ExitCode;
   }
 
-  char entryBuffer[MAX_ENTRY_BUFFER_SIZE] = {0};
-  int entries = directoryRead(dir, entryBuffer, sizeof(entryBuffer), 
-                              &returnCode, &reasonCode);
-  if (entries == -1) {
-    *retCode = returnCode;
-    *resCode = reasonCode;    
-    returnValue = -1;
-    goto ExitCode;
-  }
-  
-  const char *entryArray[MAX_NUM_ENTRIES] = {0};
-  int validEntries = getValidDirectoryEntries(entries, entryBuffer, entryArray);
-
-  for (int i = 0; i < validEntries; i++) {
+  for (int i = 0; i < entries.numEntries; i++) {
     char pathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
-    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entryArray[i]);
+    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, getEntryName(&entries, i));
 
     status = fileInfo(pathBuffer, &info, &returnCode, &reasonCode);
     if (status == -1){
@@ -2222,28 +2127,17 @@ int directoryChangeOwnerRecursive(char * message, int messageLength,
   }
 
 /* Get list of files in this directory */
-  const char *entryArray[MAX_NUM_ENTRIES] = {0};
-  char entryBuffer[MAX_ENTRY_BUFFER_SIZE] = {0};
-  UnixFile *dir = directoryOpen(pathName, retCode, resCode);
-  if (dir == NULL) {
+  UnixDirectoryEntries entries;
+  if (directoryListEntries(pathName, &entries, retCode, resCode) != 0) {
     goto ExitCodeError;
   }
-  int entries = directoryRead(dir, entryBuffer, sizeof(entryBuffer),
-                              retCode, resCode);
 
-  /* Empty Directory.  Will be change on return */
-  if (entries == -1) {
-    goto ExitCode;
-  }
-
-  int validEntries = getValidDirectoryEntries(entries, entryBuffer,
-                                              entryArray);
   /* Loop through all files in directory                     */
   /* If a subdirectory found, recursively call this function */
   /* At this point, we know recursive is true.               */
-  for (int i = 0; i < validEntries; i++) {
+  for (int i = 0; i < entries.numEntries; i++) {
     char pathBuffer[USS_MAX_PATH_LENGTH + 1] = {0};
-    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, entryArray[i]);
+    snprintf(pathBuffer, sizeof(pathBuffer), "%s/%s", pathName, getEntryName(&entries, i));
 
     if (-1 == (symbolicFileInfo(pathBuffer, &info, retCode, resCode))){
       goto ExitCodeError;
@@ -2285,8 +2179,80 @@ ExitCode:
   }
   return returnValue;
 }
+
 #endif
 
+int fileReadLink2(const char *path, ReadLinkResult *result, int *returnCode, int *reasonCode) {
+  FileInfo fi = {0};
+  if (symbolicFileInfo(path, &fi, returnCode, reasonCode) == -1) {
+    return -1;
+  }
+  if (fileInfoIsSymbolicLink(&fi)) {
+    result->type = RL2_TypeSymlink;
+    int size = fileReadLink(path, result->realPath, sizeof(result->realPath), returnCode, reasonCode);
+    if (size >= sizeof(result->realPath)) {
+      *returnCode = ENAMETOOLONG;
+      *reasonCode = 0;
+      return -1;
+    }
+  } else {
+    result->type = fileInfoIsDirectory(&fi) ? RL2_TypeRealDir : RL2_TypeRealFile;
+  }  
+  return 0;
+}
+
+static int getValidDirectoryEntries(int entries, char *entryBuffer, const char **entryArray, int *entryLengthArray) {
+  int entryOffset = 0;
+  int validEntries = 0;
+  for (int i = 0; i < entries; i++) {
+    const DirectoryEntry *de = (const DirectoryEntry *) (entryBuffer + entryOffset);
+    if (de->nameLength > 0 && strncmp(".", de->name, de->nameLength) && strncmp("..", de->name, de->nameLength)) {
+      entryArray[validEntries] = de->name;
+      entryLengthArray[validEntries] = de->nameLength;
+      validEntries++;
+    }
+    entryOffset += de->entryLength;
+  }
+  return validEntries;
+}
+
+int directoryListEntries(const char *path, UnixDirectoryEntries *entries, int *returnCode, int *reasonCode) {
+  UnixFile *dir = directoryOpen(path, returnCode, reasonCode);
+  if (dir == NULL) {
+    return -1;
+  }
+
+  int numEntries = directoryRead(dir, entries->entryBuffer, sizeof(entries->entryBuffer), returnCode, reasonCode);
+  if (numEntries == -1) {
+    /* the failure of directoryRead is more important for troubleshooting so ignore whatever directoryClose returns */
+    int rc;
+    int rsn;
+    directoryClose(dir, &rc, &rsn);
+    return -1;
+  }
+
+  if (directoryClose(dir, returnCode, reasonCode) != 0) {
+    return -1;
+  }
+
+  entries->numEntries = getValidDirectoryEntries(numEntries, entries->entryBuffer, entries->entryArray, entries->entryLengthArray);
+  *returnCode = 0;
+  *reasonCode = 0;
+  return 0;
+}
+
+const char* getEntryName(UnixDirectoryEntries *entries, int index) {
+  if (!entries || index < 0 || index >= entries->numEntries) {
+    return NULL;
+  }
+  int len = entries->entryLengthArray[index];
+  if (len > USS_MAX_FILE_NAME) {
+    len = USS_MAX_FILE_NAME;
+  }
+  memcpy(entries->nameBuffer, entries->entryArray[index], len);
+  entries->nameBuffer[len] = '\0';
+  return entries->nameBuffer;
+}
 
 /*
   This program and the accompanying materials are
