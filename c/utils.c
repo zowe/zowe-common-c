@@ -191,13 +191,33 @@ int parseIntSafely(const char *str, int *out){
   return 0;
 }
 
+/**
+ * Null-terminate a blank-padded field in place. A null-terminator is written in
+ * the position after the last non-blank or non-null character in the string, or
+ * position 0 if none are found.
+ *
+ * @param[in,out] str the string to null-terminate; if @c NULL or there is no
+ * room for a null-terminator (no padding), the function does nothing the
+ * string.
+ * @param[in] len the length of the string; if the length <= 0, the function
+ * does nothing to the string.
+ * @returns the length of the resulting C-string or -1 if str is NULL or
+ * there was no room for a null-terminator or the length specified was <= 0.
+ * */
 int nullTerminate(char *str, int len){
   int i;
 
-  for (i=len-1; i>=0; i--){
-    if ((str[i] != 0x40) && (str[i] != 0)){
+  if (str == NULL || len <= 0) {
+    return -1;
+  }
+
+  for (i = len - 1; i >= 0; i--) {
+    if ((str[i] != ' ') && (str[i] != 0)) {
+      if (i == len - 1) {  // No room for a null-terminator; return an error code.
+        return -1;
+      }
       str[i+1] = 0;
-      return i+1;
+      return i + 1;
     }
   }
   str[0] = 0;
