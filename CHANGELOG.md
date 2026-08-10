@@ -10,6 +10,8 @@
 - Bugfix: Return code 414 (`HTTP_STATUS_URI_TOO_LONG`) for too long URI [(#597)](https://github.com/zowe/zowe-common-c/issues/597)
 - Bugfix: Various XML updates. [(#598)](https://github.com/zowe/zowe-common-c/pull/598)
 - Enhancement: made zowe-common-c compatible with clang/llvm on z/OS and Linux. [(#596)](https://github.com/zowe/zowe-common-c/pull/596)
+- Enhancement: move debug message to proper trace level [(#553)](https://github.com/zowe/zowe-common-c/pull/553)
+- Bugfix: improved check of schema and configuration path for `configmgr` commands [(#553)](https://github.com/zowe/zowe-common-c/pull/553)
 - Enhancement: take into account active PC callers during termination [(#569)](https://github.com/zowe/zowe-common-c/pull/569)
  Bugfix: Use "%.*s" version of snprintf to stop overreading in 'zosResolveSymbol()' which causes abend. [(#626)](https://github.com/zowe/zowe-common-c/pull/626)
 - Bugfix: fix recovery in 64-bit httpserver [(#622)](https://github.com/zowe/zowe-common-c/issues/622)
@@ -22,6 +24,7 @@
 - Bugfix: `/unixfile` requests that force a `sourceEncoding`/`targetEncoding` pair the server cannot convert are rejected with 400 before the response starts, instead of returning 200 with an empty body; a default GET of a file whose CCSID tag cannot be converted falls back to raw binary streaming with a warning; and the streaming loop drains conversions that outgrow the translation buffer instead of truncating. [(#630)](https://github.com/zowe/zowe-common-c/pull/630)
 - Bugfix: charset conversion under ibm-clang64 (Open XL) now uses the iconv path. ibm-clang64 is `__ZOWE_COMP_CLANG`, not `__ZOWE_COMP_XLCLANG`, so `charsets.c` was routing it to the metal/CUNLCNV branch and mishandling multibyte and streaming conversion. [(zss#828)](https://github.com/zowe/zss/issues/828)
 - Enhancement: add a new function (`cmsTestAuth2`) to test any SAF level in xmem; fix ALTER SAF enum value [(#635)](https://github.com/zowe/zowe-common-c/issues/635)
+
 
 ## `3.5.0`
 - Enhancement: YAML comment preservation tooling for the YAML-to-JSON-to-YAML round-trip pipeline. Comments are scanned separately from libyaml, attached to the JSON tree, and re-emitted with configurable alignment (none, fixed, original). Opt-in; not yet enabled in configmgr. [(#583)](https://github.com/zowe/zowe-common-c/issues/583)
@@ -58,7 +61,7 @@
 - Bugfix: removed "ByteOutputStream" debug message, which was part of the `zwe` command output (#491)
 - Bugfix: HEAPPOOLS and HEAPPOOLS64 no longer need to be set to OFF for configmgr (#497)
 - Enhancement: module registry (#405)
-- Enhancement:  Adding more arguments to httpClientSessionInit to allow passing back internal rc and
+- Enhancement: Adding more arguments to httpClientSessionInit to allow passing back internal rc and
   removing the reference from changelog in `3.0.0`. (#499).
 - Bugfix: make sure CEE3ERP is invoked in LE 31-bit XPLINK (#504)
 
@@ -83,7 +86,7 @@
 ## `2.16.0`
 - No yaml value converted to null (#442)
 - Added `zos.getZosVersion()` and `zos.getEsm()` calls for configmgr QJS (#429)
-- For correct base64 encoding scheme the buffer size is made to be divisble by 3 (#431). 
+- For correct base64 encoding scheme the buffer size is made to be divisible by 3 (#431).
 - Take into account leap seconds in xmem log messages' timestamps (#432, #433)
 - Using a temporary buffer pointer to avoid pointer corruption during file write (#437).
 
@@ -128,7 +131,7 @@
 
 ## `2.2.0`
 
-- Added a script 'dependencies.sh' which assists in managing external depedencies needed for project compilation
+- Added a script 'dependencies.sh' which assists in managing external dependencies needed for project compilation
 - Added a new build target, 'configmgr', which builds a tool that can be called to either load, validate, and print the zowe configuration, or load, validate, and run a JS script that is given the configuration.
 - Added an automated build for configmgr which is consumed by the zowe packaging
 
