@@ -4,12 +4,17 @@
 - Bugfix: `icsfDigestInit` in `icsf.c` contained a typo in the SHA-256 ICSF rule array keyword (`"SHA246"` instead of `"SHA256"`), causing SHA-256 hashing to fail. [(#594)](https://github.com/zowe/zowe-common-c/issues/594)
 - Bugfix: `ICSFDigest.hash` buffer in `icsf.h` was 32 bytes, too small for SHA-384 (48 bytes) and SHA-512 (64 bytes). Increased to 64 bytes to prevent buffer overflow. [(#594)](https://github.com/zowe/zowe-common-c/issues/594)
 - Enhancement: Added SHA-3 (Keccak) algorithm support to the ICSF digest wrapper: `ICSF_DIGEST_SHA3_224`, `ICSF_DIGEST_SHA3_256`, `ICSF_DIGEST_SHA3_384`, `ICSF_DIGEST_SHA3_512` with corresponding cases in `icsfDigestInit`, `icsfDigestUpdate`, and `icsfDigestFinish`. [(#594)](https://github.com/zowe/zowe-common-c/issues/594)
+- Bugfix: `directoryMakeDirectoryRecursive()` now publishes the required size of its path-out buffer as `USS_MKDIR_PATH_BUFFER_SIZE` and rejects a `messageLength` below it, returning -1 before anything is created. Previously an undersized buffer was filled with a truncated path, naming a directory that need not exist, and was left without a null terminator when the path was at least `messageLength` long -- which the caller then read as a string. [(zss#2094)](https://github.com/zowe/zss/issues/2094)
+- Bugfix: `directoryMakeDirectoryRecursive()` now sizes its internal buffer to the z/OS USS path maximum (`USS_MAX_PATH_LENGTH`, 1023) and only rejects paths that exceed that limit, instead of overrunning a fixed 256-byte stack buffer. This fixes a 0C4 ABEND (crash) when creating a directory with a path longer than 255 characters, while still accepting valid paths up to the z/OS maximum. [(zss#2094)](https://github.com/zowe/zss/issues/2094)
+- Enhancement: `utils.c` gains bounded string helpers `strcpySafe`, `strncpySafe`, `strcatSafe`, `strncatSafe` and `strlenSafe`. They follow the argument shape of the C11 Annex K `_s` functions, so each buffer is followed immediately by its own size, treat that size as the size of the buffer, always null-terminate, and return -1 when the destination was too small to hold the whole result. They are deliberately not named `_s`: Annex K is optional, z/OS does not provide it, those identifiers are reserved for it, and these do not implement its semantics (constraint handlers, `errno_t`, `rsize_t`).
 - Bugfix: A YAML configuration with a duplicate top-level key (e.g. two `zowe:` blocks) is now reduced to a single value (first occurrence wins) with a warning, instead of producing a JSON object with duplicate properties. This makes `configmgr` and the launcher evaluate the same configuration identically; previously they resolved duplicate keys differently (first-match vs last-match), which could silently change values or abort template evaluation. [(#581)](https://github.com/zowe/zowe-common-c/issues/581)
 - Bugfix: configmgr now runs the JavaScript asynchronous continuation loop (`js_std_loop`) after evaluating a script, so `os.signal` handlers, `os.sleepAsync` timers, and Promise jobs scheduled during eval are dispatched instead of silently dropped. This lets JS-based components (e.g. a launcher) catch `SIGTERM` for graceful shutdown; a purely synchronous script is unaffected (the loop returns immediately when nothing is pending). [(#631)](https://github.com/zowe/zowe-common-c/pull/631)
 - Bugfix: Internal Short Lived Heap allocation routine `SLHAlloc` checks the size [(#620)](https://github.com/zowe/zowe-common-c/issues/620)
 - Bugfix: Return code 414 (`HTTP_STATUS_URI_TOO_LONG`) for too long URI [(#597)](https://github.com/zowe/zowe-common-c/issues/597)
 - Bugfix: Various XML updates. [(#598)](https://github.com/zowe/zowe-common-c/pull/598)
 - Enhancement: made zowe-common-c compatible with clang/llvm on z/OS and Linux. [(#596)](https://github.com/zowe/zowe-common-c/pull/596)
+- Enhancement: move debug message to proper trace level [(#553)](https://github.com/zowe/zowe-common-c/pull/553)
+- Bugfix: improved check of schema and configuration path for `configmgr` commands [(#553)](https://github.com/zowe/zowe-common-c/pull/553)
 - Enhancement: take into account active PC callers during termination [(#569)](https://github.com/zowe/zowe-common-c/pull/569)
 - Bugfix: Use "%.*s" version of snprintf to stop overreading in 'zosResolveSymbol()' which causes abend. [(#626)](https://github.com/zowe/zowe-common-c/pull/626)
 - Bugfix: fix recovery in 64-bit httpserver [(#622)](https://github.com/zowe/zowe-common-c/issues/622)
@@ -22,6 +27,7 @@
 - Bugfix: `/unixfile` requests that force a `sourceEncoding`/`targetEncoding` pair the server cannot convert are rejected with 400 before the response starts, instead of returning 200 with an empty body; a default GET of a file whose CCSID tag cannot be converted falls back to raw binary streaming with a warning; and the streaming loop drains conversions that outgrow the translation buffer instead of truncating. [(#630)](https://github.com/zowe/zowe-common-c/pull/630)
 - Bugfix: charset conversion under ibm-clang64 (Open XL) now uses the iconv path. ibm-clang64 is `__ZOWE_COMP_CLANG`, not `__ZOWE_COMP_XLCLANG`, so `charsets.c` was routing it to the metal/CUNLCNV branch and mishandling multibyte and streaming conversion. [(zss#828)](https://github.com/zowe/zss/issues/828)
 - Enhancement: add a new function (`cmsTestAuth2`) to test any SAF level in xmem; fix ALTER SAF enum value [(#635)](https://github.com/zowe/zowe-common-c/issues/635)
+
 
 ## `3.5.0`
 - Enhancement: YAML comment preservation tooling for the YAML-to-JSON-to-YAML round-trip pipeline. Comments are scanned separately from libyaml, attached to the JSON tree, and re-emitted with configurable alignment (none, fixed, original). Opt-in; not yet enabled in configmgr. [(#583)](https://github.com/zowe/zowe-common-c/issues/583)
@@ -58,7 +64,7 @@
 - Bugfix: removed "ByteOutputStream" debug message, which was part of the `zwe` command output (#491)
 - Bugfix: HEAPPOOLS and HEAPPOOLS64 no longer need to be set to OFF for configmgr (#497)
 - Enhancement: module registry (#405)
-- Enhancement:  Adding more arguments to httpClientSessionInit to allow passing back internal rc and
+- Enhancement: Adding more arguments to httpClientSessionInit to allow passing back internal rc and
   removing the reference from changelog in `3.0.0`. (#499).
 - Bugfix: make sure CEE3ERP is invoked in LE 31-bit XPLINK (#504)
 
@@ -83,7 +89,7 @@
 ## `2.16.0`
 - No yaml value converted to null (#442)
 - Added `zos.getZosVersion()` and `zos.getEsm()` calls for configmgr QJS (#429)
-- For correct base64 encoding scheme the buffer size is made to be divisble by 3 (#431). 
+- For correct base64 encoding scheme the buffer size is made to be divisible by 3 (#431).
 - Take into account leap seconds in xmem log messages' timestamps (#432, #433)
 - Using a temporary buffer pointer to avoid pointer corruption during file write (#437).
 
@@ -128,7 +134,7 @@
 
 ## `2.2.0`
 
-- Added a script 'dependencies.sh' which assists in managing external depedencies needed for project compilation
+- Added a script 'dependencies.sh' which assists in managing external dependencies needed for project compilation
 - Added a new build target, 'configmgr', which builds a tool that can be called to either load, validate, and print the zowe configuration, or load, validate, and run a JS script that is given the configuration.
 - Added an automated build for configmgr which is consumed by the zowe packaging
 

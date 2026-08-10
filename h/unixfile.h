@@ -503,6 +503,13 @@ int fileUnlock(UnixFile *file, int *returnCode, int *reasonCode);
 #define USS_MAX_FILE_NAME   255
 #endif
 
+/* Buffer size directoryMakeDirectoryRecursive() assembles paths in, and the
+ * minimum size of the caller's buffer that receives the deepest path reached.
+ * Holds an optional "./" prefix (2), a maximal USS path, a trailing '/' (1),
+ * and the null terminator (1). Callers should declare their buffer with this
+ * rather than computing a size: a shorter one is rejected. */
+#define USS_MKDIR_PATH_BUFFER_SIZE (USS_MAX_PATH_LENGTH + 4)
+
 #ifndef __LONGNAME__ 
 
 #define fileInfoIsDirectory FNFOISDR 
