@@ -1454,7 +1454,12 @@ static int encodeSessionToken(ShortLivedHeap *slh,
   
 #else
 
-#error Session token encoding has been implemented for z/OS only
+  /* No native session-token crypto off-platform yet; M2 adds HS256 via the JWT
+     mint seam. Fail closed -- refuse rather than emit a forgeable token. Not
+     reached on the SERVICE_AUTH_NONE paths used to exercise #828. */
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING,
+          "session token encoding not implemented off-platform; refusing\n");
+  return -1;
 
 #endif /* __ZOWE_OS_ZOS */
 
@@ -1507,7 +1512,10 @@ static int decodeSessionToken(ShortLivedHeap *slh,
 
 #else
 
-#error Session token decoding has been implemented for z/OS only
+  /* See encodeSessionToken -- fail closed until M2's HS256 path lands. */
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_WARNING,
+          "session token decoding not implemented off-platform; refusing\n");
+  return -1;
 
 #endif /* __ZOWE_OS_ZOS */
 
@@ -2564,6 +2572,11 @@ int isLowerCasePasswordAllowed(){
 }
 #endif
 
+/* Relocated out of the __ZOWE_OS_ZOS block below so it is visible on all
+   platforms: singleUserTrace is used both by the z/OS-only single-user auth
+   code and by the cross-platform startImpersonating(). */
+static int singleUserTrace = 1;
+
 #ifdef __ZOWE_OS_ZOS
 
 /*
@@ -2599,8 +2612,6 @@ static ACEE *getACEE(){
   }
   return acee;
 }
-
-static int singleUserTrace = 1;
 
 #define MAX_USERID_LENGTH 32 /* very generous to be forward compatible */
 #define MAX_PASSWORD_LENGTH 64 /* very generous to be forward compatible */
@@ -2798,7 +2809,10 @@ static int startImpersonating(HttpService *service, HttpRequest *request) {
 #ifdef DEBUG_AUTH
       printf("*** ERROR *** impersonation not implemented for this platform\n");
 #endif
-      impersonating = FALSE;
+      /* No OS-level impersonation off-platform; treat as a successful no-op so
+         services flagged doImpersonation still run under the server identity
+         (dev/sandbox). Mirrors endImpersonating(), which already returns TRUE. */
+      impersonating = TRUE;
 #endif /*__ZOWE_OS_ZOS */
     } else {
 #ifdef DEBUG_AUTH
@@ -3036,6 +3050,7 @@ static int getUserSessionValidity(char *username, const HttpServerConfig *config
        return 0;
     }
   }
+#ifdef __ZOWE_OS_ZOS
   if (!*validitySec) {
     int groupCount = 0;
     int retVal = getGroupList(username, NULL, &groupCount, returnCode, reasonCode);
@@ -3066,6 +3081,14 @@ static int getUserSessionValidity(char *username, const HttpServerConfig *config
   } else {
     return 0;
   }
+#else
+  /* No SAF group-based session-timeout lookup off-platform; use the configured
+     default so authentication doesn't hinge on a RACF group query. */
+  if (!*validitySec) {
+    *validitySec = config->defaultTimeout ? config->defaultTimeout : SESSION_VALIDITY_IN_SECONDS;
+  }
+  return 0;
+#endif
 }
 
 static int sessionTokenStillValid(HttpService *service, HttpRequest *request, char *sessionTokenText, int *sessionValiditySec, uint64 *sessionTimeRemaining){
@@ -3219,6 +3242,11 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
     } 
   }
 
+  /* Client-certificate acquisition and SAF certificate-to-userid mapping are
+     z/OS-only (System SSL getClientCertificate + RACF getUseridByCertificate,
+     and socket_tag has no tlsSocket off-platform). On other platforms there is
+     no client certificate; skip and leave authDataFound unchanged. */
+#ifdef __ZOWE_OS_ZOS
 #define TLS_CLIENT_CERTIFICATE_MAX_LENGTH 65536
 
   char *userid = NULL; /* allocate on slh so we have for duration of request and response. */
@@ -3264,6 +3292,7 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
     safeFree(clientCertificate, TLS_CLIENT_CERTIFICATE_MAX_LENGTH);
     clientCertificate = NULL;
   }
+#endif /* __ZOWE_OS_ZOS - client certificate mapping */
 
   response->sessionCookie = NULL;
 
@@ -5194,7 +5223,7 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
             zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, 
                     "failed to obtain user name for uid=%d, returnCode: %d, reasonCode: 0x%08x\n",
                     fileInfoOwnerUID(&info), returnCode, reasonCode);
-            snprintf(owner, USER_NAME_LEN+1, "%d", info.ownerUID);
+            snprintf(owner, USER_NAME_LEN+1, "%d", fileInfoOwnerUID(&info)); /* accessor: st_uid on Linux, ownerUID on z/OS */
           }
           trimRight(owner, USER_NAME_LEN);
           
@@ -5204,12 +5233,18 @@ int makeJSONForDirectory(HttpResponse *response, char *dirname, int includeDotte
             zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, 
                     "failed to obtain group name for gid=%d, returnCode: %d, reasonCode: 0x%08x\n",
                     fileInfoOwnerGID(&info), returnCode, reasonCode);
-            snprintf(owner, GROUP_NAME_LEN+1, "%d", info.ownerGID);
+            snprintf(owner, GROUP_NAME_LEN+1, "%d", fileInfoOwnerGID(&info)); /* accessor: st_gid on Linux, ownerGID on z/OS */
           }
           trimRight(group, GROUP_NAME_LEN);
           
           /*          if(status == 0) { */
+            /* fileInfoIsSymbolicLink is implemented only on z/OS (zosfile.c);
+               no off-platform version exists, so treat as non-symlink there. */
+#ifdef __ZOWE_OS_ZOS
             int isSymlink = fileInfoIsSymbolicLink(&info);
+#else
+            int isSymlink = 0;
+#endif
             char symlinkTarget[USS_MAX_PATH_LENGTH + 1] = {0};
             int isDirectory = FALSE;
             if (isSymlink) {
@@ -5842,6 +5877,7 @@ static void doHttpResponseWork(HttpConversation *conversation)
           // Response is finished on return
           break;
         }
+#ifdef __ZOWE_OS_ZOS /* subtasks exist for per-request impersonation; off-platform run inline (single-threaded) */
         if (service->runInSubtask){
           /* response->runningInSubtask = TRUE; */
           conversation->task = makeRLETask(conversation->server->base->rleAnchor,
@@ -5863,6 +5899,7 @@ static void doHttpResponseWork(HttpConversation *conversation)
           startHttpTask(conversation->task);
           break;
         }
+#endif /* __ZOWE_OS_ZOS */
         handleHttpService(conversation->server,service,firstRequest,response);
         break;
       }
