@@ -35,3 +35,7 @@ tests/*/zbuild/
 # SPDX-License-Identifier: EPL-2.0
 # 
 # Copyright Contributors to the Zowe Project.
+
+# configmgr's external dependencies, cloned by build/dependencies.sh from
+# build/configmgr.proj.env. Source of another project, never ours to commit.
+deps/configmgr/
