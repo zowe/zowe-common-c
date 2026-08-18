@@ -114,7 +114,11 @@ static void *lookupDLLEntryPoint(char *libraryName, char *functionName){
   int reasonCode = 0;
   status = fileInfo(libraryName, &info, &returnCode, &reasonCode);
   if (status == 0) {
+#ifdef __ZOWE_OS_ZOS
     if (!(info.attributeFlags & BPXYSTAT_ATTR_PROGCTL)) {
+#else
+    if (0) { /* Program Control is a z/OS attribute; no equivalent off-platform, always load */
+#endif
       zowelog(NULL, LOG_COMP_DATASERVICE, ZOWE_LOG_WARNING,
               "FAILURE: Dataservice: %s does not have the Program Control attribute this may cause unexpected errors therefore will not be loaded\n",
               libraryName);

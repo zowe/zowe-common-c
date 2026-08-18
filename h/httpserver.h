@@ -582,6 +582,7 @@ void setConfiguredProperty(HttpServer *server, char *key, void *value);
  */
 
 void respondWithError(HttpResponse *response, int code, char *message);
+void respondWithJsonError(HttpResponse *response, char *error, int statusCode, char *statusMessage);
 void respondWithMessage(HttpResponse *response, int status,
                         const char *messageFormatString, ...);
 void setResponseStatus(HttpResponse *response, int status, char *message);

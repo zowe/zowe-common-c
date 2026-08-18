@@ -282,8 +282,21 @@ void showRTL(void);
 #define RLE_TASK_RECOVERABLE 0x0010
 #define RLE_TASK_DISPOSABLE  0x0020
 
+/* Off-platform equivalents of the z/OS-block definitions above, so common code
+   (le.c makeRLEAnchor/makeRLETask) and the pthread task shim in le.c compile. */
+#define RLE_ANCHOR_EYECATCHER "RLEANCHR"
+#define RLE_TASK_EYECATCHER   "RTSK"
+#define RLE_TASK_STATUS_THREAD_CREATED 0x00000001
+#define RLE_FLAGS_VERSIONED 0x0004
+#define RLE_ANCHOR_VERSION 2
+#define RLE_ANCHOR_VERSION_USER_APPL_ANCHOR_SUPPORT 2
+
 typedef struct RLEAnchor_tag{
-  char   eyecatcher[8]; /* RLEANCHR */
+  char      eyecatcher[8]; /* RLEANCHR */
+  int64     flags;
+  int32_t   version;
+  uint32_t  size;
+  void     *userApplicationAnchor; /* used by set/getRLEApplicationAnchor */
 } RLEAnchor;
 
 typedef struct RLETask_tag{
@@ -295,6 +308,11 @@ typedef struct RLETask_tag{
   void         * userPointer;
   RLEAnchor    * anchor;
   int           flags;
+
+  /* non-z/OS (pthread) execution state; see startRLETask in le.c */
+  int           statusIndicator;
+  int         (*userFunction)(struct RLETask_tag *task);
+  OSThread      threadData;
 
 #if 0
   char         *__ptr32 stack;               /* PTR 31 make it big, so never gets extended  */

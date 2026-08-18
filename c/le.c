@@ -93,7 +93,15 @@ LibraryFunction libraryFunctionTable[LIBRARY_FUNCTION_COUNT]
 char *getCAA(void){
   char *realCAA = NULL;
 
-#if !defined(METTLE) && defined(_LP64)
+#ifndef __ZOWE_OS_ZOS
+  /* No Language Environment / CAA off-platform. The z/OS branch below walks
+     LAA->LCA->CAA through low storage (abs 0x04B8), which would segfault here.
+     Nothing on the non-z/OS path dereferences CAA fields (logging's CAA use is
+     z/OS-guarded), but getCAA must return a valid, non-crashing pointer, so
+     give each thread its own zeroed block. */
+  static __thread char threadCAA[0x400]; /* > z/OS CAA_SIZE (0x318) */
+  realCAA = threadCAA;
+#elif !defined(METTLE) && defined(_LP64)
   char *laa = *(char * __ptr32 * __ptr32)0x04B8;
   char *lca = *(char **)(laa + 88);
   realCAA = *(char **)(lca + 8);
@@ -262,12 +270,43 @@ RLETask *makeRLETask(RLEAnchor *anchor,
   memcpy(task->eyecatcher,RLE_TASK_EYECATCHER,4);
   task->flags = taskFlags;
   task->anchor = anchor;
+  task->userFunction = functionPointer; /* z/OS stashes this via its trampoline;
+                                           off-platform we keep it in the task */
   return task;
 }
 
 void deleteRLETask(RLETask *task) {
   safeFree31((char *)task, sizeof(RLETask));
   task = NULL;
+}
+
+/* pthread trampoline mirroring scheduling.c's executeRLETask contract:
+   run the user function, then self-delete if the task is DISPOSABLE. */
+static void *rleTaskTrampoline(void *arg) {
+  RLETask *task = (RLETask *)arg;
+  if (task->userFunction != NULL) {
+    task->userFunction(task);
+  }
+  if (task->flags & RLE_TASK_DISPOSABLE) {
+    deleteRLETask(task);
+  }
+  return NULL;
+}
+
+/* Off-platform startRLETask. The z/OS version (scheduling.c) can attach a TCB
+   and post completionECB; here we run the task on a detached pthread. The ECB
+   layer is z/OS-only (stcbase uses eventSockets off-platform), so a non-NULL
+   completionECB is accepted for signature compatibility but not posted. */
+int startRLETask(RLETask *task, int *completionECB) {
+  OSThread *osThread = &task->threadData; /* threadCreate/Detach want a pointer var */
+  int createStatus = threadCreate(osThread, rleTaskTrampoline, task);
+  if (createStatus != 0) {
+    perror("pthread_create() error");
+    return createStatus;
+  }
+  task->statusIndicator |= RLE_TASK_STATUS_THREAD_CREATED;
+  threadDetach(osThread); /* fire-and-forget; nothing joins these */
+  return createStatus;
 }
 #endif
 

@@ -69,7 +69,7 @@ typedef pthread_mutex_t Mutex;
 #define mutexCreate(x) pthread_mutex_init(&(x), NULL);
 
 #define threadCreate(osThread,mainFunction,data) pthread_create(&(osThread->threadID), NULL, mainFunction, data)
-#define threadDetach(osThread) pthread_detach(&((osThread)->threadID))
+#define threadDetach(osThread) pthread_detach((osThread)->threadID)
 
 #elif defined(__ZOWE_OS_ZOS) && !defined(METTLE)  /* the mainframe POSIX stuff is weird */
 

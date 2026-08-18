@@ -56,6 +56,7 @@ static int copyUnixFile(char *oldAbsolutePath, char *newAbsolutePath, int forceC
 void copyUnixFileAndRespond(HttpResponse *response, char *oldAbsolutePath, char *newAbsolutePath, int forceCopy);
 
 void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath);
+void respondWithUnixFileNotFound(HttpResponse* response, int jsonMode);
 
 static int writeEmptyUnixFile(char *absolutePath, int forceWrite);
 void writeEmptyUnixFileAndRespond(HttpResponse *response, char *absolutePath, int forceWrite);

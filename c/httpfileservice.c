@@ -652,7 +652,12 @@ int directoryChangeDeleteTagAndRespond(HttpResponse *response, char *file,
             char *type, char *codepage, char *Recursive, char *pattern) {
 
   int ccsid;
+#ifdef __ZOWE_OS_ZOS
   ccsid =  findCcsidId(codepage);
+#else
+  /* z/OS-only USS CCSID lookup; not supported on this platform */
+  ccsid = 0;
+#endif
   if (codepage != NULL){
     respondWithJsonError(response, "DELETE request with codeset", 400, "Bad Request");
     return 0;
@@ -674,11 +679,17 @@ int directoryChangeTagAndRespond(HttpResponse *response, char *file,
     recursive = 1;
   }
 
+#ifdef __ZOWE_OS_ZOS
   if (-1 ==  patternChangeTagTest(message, sizeof (message),
                      type, codepage, &pure, &ccsid)){
     respondWithJsonError(response, message, 400, "Bad Request");
     return 0;
   }
+#else
+  /* z/OS-only USS file-tag operation; not supported on this platform */
+  respondWithJsonError(response, "File tagging not supported on this platform", 400, "Bad Request");
+  return 0;
+#endif
 
   /* Call recursive change mode */
   if (!directoryChangeTagRecursive(file, type, codepage, recursive, pattern,
@@ -729,22 +740,22 @@ void respondWithUnixFileMetadata(HttpResponse *response, char *absolutePath) {
     convertUnixToISO(unixTime, &timeStamp);
 
     char owner[USER_NAME_LEN+1] = {0};
-    status = userGetName(info.ownerUID, owner, &returnCode, &reasonCode);
+    status = userGetName(fileInfoOwnerUID(&info), owner, &returnCode, &reasonCode);
     if (status != 0) {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, 
              "failed to obtain user name for uid=%d, returnCode: %d, reasonCode: 0x%08x\n",
-             info.ownerUID, returnCode, reasonCode);
-      snprintf(owner, USER_NAME_LEN+1, "%d", info.ownerUID);
+             fileInfoOwnerUID(&info), returnCode, reasonCode);
+      snprintf(owner, USER_NAME_LEN+1, "%d", fileInfoOwnerUID(&info));
     }
     trimRight(owner, USER_NAME_LEN);
 
     char group[GROUP_NAME_LEN+1] = {0};
-    status = groupGetName(info.ownerGID, group, &returnCode, &reasonCode);
+    status = groupGetName(fileInfoOwnerGID(&info), group, &returnCode, &reasonCode);
     if (status != 0) {
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, 
              "failed to obtain group name for gid=%d, returnCode: %d, reasonCode: 0x%08x\n",
-             info.ownerGID, returnCode, reasonCode);
-      snprintf(owner, GROUP_NAME_LEN+1, "%d", info.ownerGID);
+             fileInfoOwnerGID(&info), returnCode, reasonCode);
+      snprintf(owner, GROUP_NAME_LEN+1, "%d", fileInfoOwnerGID(&info));
     }
     trimRight(group, GROUP_NAME_LEN);
 
@@ -801,6 +812,7 @@ void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
   }
 
   /* Call recursive change mode */
+#ifdef __ZOWE_OS_ZOS
   if (!directoryChangeOwnerRecursive( message, sizeof(message),
       path, userId, groupId, recursive, pattern,
       &returnCode, &reasonCode )) {
@@ -811,9 +823,14 @@ void directoryChangeOwnerAndRespond(HttpResponse *response, char *path,
     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG,
             "Failed to change file owner %s, (returnCode = 0x%x, reasonCode = 0x% x)\n",
             path, returnCode, reasonCode);
-    respondWithJsonError(response, "Failed to Change Owner", 500, 
+    respondWithJsonError(response, "Failed to Change Owner", 500,
                "Internal Server Error");
   }
+#else
+  /* z/OS-only recursive USS chown; not supported on this platform */
+  respondWithJsonError(response, "Change owner not supported on this platform", 500,
+               "Internal Server Error");
+#endif
 }
 
 
@@ -936,10 +953,15 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
      /* Disable automatic conversion to prevent any wacky
       * problems that may arise from auto convert.
       */
+#ifdef __ZOWE_OS_ZOS
      status = fileDisableConversion(file, &returnCode, &reasonCode);
      if (status != 0) {
        zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_DEBUG, "Failed to disable automatic conversion. Unexpected results may occur.\n");
      }
+#else
+     /* z/OS-only USS auto-conversion disable; no-op on this platform */
+     status = 0;
+#endif
      status = convertCharset(resultBuffer,
                              decodedLength,
                              sourceEncoding,
