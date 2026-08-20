@@ -1387,7 +1387,7 @@ char* getV4HostEntByName(char *string, int* rc, int* rsn){
   int returnValue = 0;
   int *reasonCodePtr;
   int len = strlen(string);
-  char *hostEntPtr;
+  char *hostEntPtr = NULL;
   int status;
 
 #ifndef _LP64
@@ -1402,7 +1402,7 @@ char* getV4HostEntByName(char *string, int* rc, int* rsn){
                   rc,
                   reasonCodePtr);
   if (socketTrace){
-    printf("hostent addr = %x\n",*((int*)hostEntPtr));
+    printf("hostent addr = %p\n", hostEntPtr);
   }
 
   return hostEntPtr;
@@ -1414,8 +1414,7 @@ int getV4HostByName(char *string){
   int reasonCode = 0;
   int *reasonCodePtr;
   int len = strlen(string);
-  char *hostEntPtr;
-  int status;
+  char *hostEntPtr = NULL;
 
 #ifndef _LP64
   reasonCodePtr = (int*) (0x80000000 | ((int)&reasonCode));
@@ -1428,26 +1427,41 @@ int getV4HostByName(char *string){
          &returnValue,
          &returnCode,
          reasonCodePtr);
-  /* TBD: Check return codes */
+  /* TODO: handle significant return codes */
+  /*
+    rc possible values:
+    HOST_NOT_FOUND
+    TRY_AGAIN
+    NO_RECOVERY
+    NO_DATA
+   */
   if (socketTrace){
-    printf("hostent addr = %x\n",*((int*)hostEntPtr));
+    printf("hostent addr = %p\n", hostEntPtr);
+    printf("BPXGHN rc=0x%x, rsn=0x%x\n", returnCode, *reasonCodePtr);
   }
-  if (hostEntPtr){
-    Hostent *hostent = (Hostent*)hostEntPtr;
-    int i;
-    int numericAddress = 0;
-    /* dumpbuffer((char*)hostent,20); */
-    for (i=0; i<hostent->length; i++){
+  if (returnValue == 0) {
+    if (hostEntPtr){
+      Hostent *hostent = (Hostent*)hostEntPtr;
+      int numericAddress = 0;
+      /* addrList is null-terminated. hostent->length is the width of a single
+         address (4 for IPv4), NOT how many there are, so it must not be used
+         as a loop bound. The first address wins, as before. */
+      if (hostent->addrList != NULL && hostent->addrList[0] != NULL){
+        numericAddress = *(hostent->addrList[0]);
+      }
       if (socketTrace){
-        printf("  addr[%d] = 0x%p\n",i,hostent->addrList[i]);
+        for (int i = 0; hostent->addrList != NULL && hostent->addrList[i] != NULL; i++){
+          unsigned char *octets = (unsigned char *)hostent->addrList[i];
+          printf("  addr[%d] = %d.%d.%d.%d (0x%08x)\n", i,
+                 octets[0], octets[1], octets[2], octets[3],
+                 *(hostent->addrList[i]));
+        }
       }
-      if (hostent->addrList[i]){
-        numericAddress = *(hostent->addrList[i]);
-        break;
-      }
+      return numericAddress;
+    } else{
+      return 0;
     }
-    return numericAddress;
-  } else{
+  } else {
     return 0;
   }
 }
