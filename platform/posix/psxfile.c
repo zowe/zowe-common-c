@@ -210,6 +210,20 @@ int fileInfoOwnerUID(const FileInfo *info) {
   return info ? (int)info->st_uid : 0;
 }
 
+/* File serial number. The declared return type is int because BPXYSTAT's inode
+ * field is an int; ino_t is wider than that on most POSIX hosts, so this
+ * narrows. Callers use the value as a hash input or as one half of an identity
+ * pair with the device ID, never as something to hand back to the filesystem,
+ * so the narrowing costs uniqueness rather than correctness. */
+int fileGetINode(const FileInfo *info) {
+  return info ? (int)info->st_ino : 0;
+}
+
+/* Device number the file lives on. Narrows from dev_t for the same reason. */
+int fileGetDeviceID(const FileInfo *info) {
+  return info ? (int)info->st_dev : 0;
+}
+
 /* Returns number of bytes written to dirname (not counting trailing NUL).
  * POSIX dirname(3) mutates its argument, so we stage on a scratch copy. */
 int fileDirname(const char *path, char *dirname_out) {
