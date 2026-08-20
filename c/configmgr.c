@@ -40,6 +40,8 @@
 #include <stdint.h> 
 #include <stdbool.h> 
 #include <errno.h>
+#include <grp.h>
+#include <pwd.h>
 #include <math.h>
 
 #endif
@@ -64,6 +66,7 @@
 #include "configmgr.h"
 #ifdef __ZOWE_OS_ZOS
 #include "pdsutil.h"
+#include "zosaccounts.h"
 #endif 
 
 #ifdef __ZOWE_OS_WINDOWS
@@ -1610,10 +1613,58 @@ static void copyValidityException(JsonBuilder *b, Json *parent, char *key, Valid
   }
 }
 
+/* Semantic validator: checks that a string property value refers to an existing file.
+   Returns true if the path exists as a file (or directory), false otherwise. */
+static bool validateFileExists(const char *path){
+  struct stat st;
+  return (stat(path, &st) == 0);
+}
+
+/* Semantic validator: checks that a string property value refers to an existing directory.
+   Returns true if the path exists and is a directory, false otherwise. */
+static bool validateDirectoryExists(const char *path){
+  struct stat st;
+  return (stat(path, &st) == 0) && S_ISDIR(st.st_mode);
+}
+
+#ifdef __ZOWE_OS_ZOS
+/* Semantic validator: checks that a string property value is a valid z/OS user ID.
+   Returns true if the user exists in the system security database, false otherwise. */
+static bool validateUserExists(const char *userName){
+  int returnCode = 0;
+  int reasonCode = 0;
+  return (userIdGet((char *)userName, &returnCode, &reasonCode) != -1);
+}
+
+/* Semantic validator: checks that a string property value is a valid z/OS group name.
+   Returns true if the group exists in the system security database, false otherwise. */
+static bool validateGroupExists(const char *groupName){
+  int returnCode = 0;
+  int reasonCode = 0;
+  return (groupIdGet((char *)groupName, &returnCode, &reasonCode) != -1);
+}
+#else
+/* Semantic validator: checks that a string property value is a valid user name.
+   Returns true if the user exists in the system user database, false otherwise. */
+static bool validateUserExists(const char *userName){
+  return (getpwnam(userName) != NULL);
+}
+
+/* Semantic validator: checks that a string property value is a valid group name.
+   Returns true if the group exists in the system group database, false otherwise. */
+static bool validateGroupExists(const char *groupName){
+  return (getgrnam(groupName) != NULL);
+}
+#endif
+
 static int validateWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
   const char *configName = NULL;
   ejsStringArg(invocation,0,&configName);
   JsonValidator *validator = makeJsonValidator();
+  validator->fileExistsValidator = validateFileExists;
+  validator->directoryExistsValidator = validateDirectoryExists;
+  validator->groupExistsValidator = validateGroupExists;
+  validator->userExistsValidator = validateUserExists;
   EmbeddedJS *ejs = ejsGetEnvironment(invocation);
   JsonBuilder *builder = ejsMakeJsonBuilder(ejs);
   validator->traceLevel = mgr->traceLevel;
@@ -1893,6 +1944,10 @@ static int simpleMain(int argc, char **argv){
       jsonPrettyPrint(mgr, cfgGetConfigData(mgr,configName));
     }
     JsonValidator *validator = makeJsonValidator();
+    validator->fileExistsValidator = validateFileExists;
+    validator->directoryExistsValidator = validateDirectoryExists;
+    validator->groupExistsValidator = validateGroupExists;
+    validator->userExistsValidator = validateUserExists;
     validator->traceLevel = mgr->traceLevel;
     trace(mgr,DEBUG,"Before Validate\n");
     int validateStatus = cfgValidate(mgr,validator,configName);

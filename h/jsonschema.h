@@ -94,6 +94,10 @@ typedef struct ValidityException_tag {
 
 #define MAX_VALIDATOR_MATCHES 8
 
+/* Semantic validator function pointer type used for custom Zowe validation rules.
+   Returns true if the value is considered valid, false otherwise. */
+typedef bool (*ZoweSemanticValidator)(const char *value);
+
 typedef struct JsonValidator_tag {
   JsonSchema  *topSchema;
   /* Other schemas that are referred to by the top and each other can be loaded into
@@ -118,6 +122,14 @@ typedef struct JsonValidator_tag {
   jmp_buf     recoveryData;
   ShortLivedHeap *evalHeap;
   bool        allowStringToBeNull;
+  /* Optional semantic validator called when a string property has "zoweValidate": "fileExists" */
+  ZoweSemanticValidator fileExistsValidator;
+  /* Optional semantic validator called when a string property has "zoweValidate": "directoryExists" */
+  ZoweSemanticValidator directoryExistsValidator;
+  /* Optional semantic validator called when a string property has "zoweValidate": "userExists" */
+  ZoweSemanticValidator userExistsValidator;
+  /* Optional semantic validator called when a string property has "zoweValidate": "groupExists" */
+  ZoweSemanticValidator groupExistsValidator;
 } JsonValidator;
 
 #define JSON_SCHEMA_DRAFT_4 400
