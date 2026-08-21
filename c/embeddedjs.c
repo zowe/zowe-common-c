@@ -67,6 +67,7 @@ typedef int64_t ssize_t;
 #ifdef __ZOWE_OS_ZOS
 
 #include "porting/polyfill.h"
+#include "zos.h"
 
 #endif
 
@@ -1913,7 +1914,30 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
 
 #define MAX_TEMPLATE_PASSES 16
 
-Json *evaluateJsonTemplates(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
+#ifdef __ZOWE_OS_ZOS
+
+typedef struct TemplateEvalPrivilege_tag {
+  int oldKey;
+  int wasAlreadyProblemState;
+} TemplateEvalPrivilege;
+
+static TemplateEvalPrivilege dropToUnauthorizedState(void){
+  TemplateEvalPrivilege saved;
+  saved.oldKey = setKey(8);
+  saved.wasAlreadyProblemState = supervisorMode(FALSE);
+  return saved;
+}
+
+static void restoreAuthorizedState(TemplateEvalPrivilege saved){
+  if (!saved.wasAlreadyProblemState){
+    supervisorMode(TRUE);
+  }
+  setKey(saved.oldKey);
+}
+
+#endif /* __ZOWE_OS_ZOS */
+
+static Json *evaluateJsonTemplatesUnprotected(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
   if (!jsonIsObject(json)) {
     return NULL;
   }
@@ -1962,6 +1986,17 @@ Json *evaluateJsonTemplates(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
          "circular or excessively nested reference?\n",
          MAX_TEMPLATE_PASSES, evalContext.markersSeen);
   return NULL;
+}
+
+Json *evaluateJsonTemplates(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
+#ifdef __ZOWE_OS_ZOS
+  TemplateEvalPrivilege savedPrivilege = dropToUnauthorizedState();
+#endif
+  Json *result = evaluateJsonTemplatesUnprotected(ejs, slh, json);
+#ifdef __ZOWE_OS_ZOS
+  restoreAuthorizedState(savedPrivilege);
+#endif
+  return result;
 }
 
 EmbeddedJS *allocateEmbeddedJS(EmbeddedJS *sharedRuntimeEJS /* can be NULL */){
