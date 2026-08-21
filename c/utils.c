@@ -374,6 +374,12 @@ int indexOfStringInsensitive(char *str, int len, char *searchString, int startPo
 }
 
 static int upchar(char c){
+#ifndef __ZOWE_EBCDIC
+  /* The bands below are EBCDIC code points, so on an ASCII build they match
+     nothing and this would return every letter unchanged. Fold with the
+     library, which knows the execution character set. */
+  return toupper((unsigned char)c);
+#else
   char low = (char)(c & 0xf);
   char high = (char)(c &0xf0);
                                           
@@ -394,6 +400,7 @@ static int upchar(char c){
   default:
     return c&0xff;
   }
+#endif
 }
 
 /*
@@ -424,6 +431,11 @@ int compareStringsIgnoringCase(char *s1, char *s2){
 }
 
 int isCharAN(char c){
+#ifndef __ZOWE_EBCDIC
+  /* As upchar(): EBCDIC bands below, so an ASCII build would call every
+     letter and digit non-alphanumeric. */
+  return isalnum((unsigned char)c) ? 1 : 0;
+#else
   char low = (char)(c & 0xf);
   char high = (char)(c &0xf0);
                                           
@@ -441,6 +453,7 @@ int isCharAN(char c){
   default:
     return 0;                             
   }                                       
+#endif
 }
 
 void freeToken(token *t){
