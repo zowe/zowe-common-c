@@ -1,6 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+- Bugfix: Embedded JavaScript always running in key 8 and problem state. [(#670)](https://github.com/zowe/zowe-common-c/pull/670)
 - Bugfix: The logging component-ID walk in `logConfigureComponent()` and `getComponent()` now tests its loop bound before indexing, instead of reading `id[4]` two bytes past the `uint64` component ID. Unreachable on z/OS with the component IDs currently defined, but triggered on every call on a little-endian host. [(#667)](https://github.com/zowe/zowe-common-c/pull/667)
 - Bugfix: `fileGetINode()` and `fileGetDeviceID()` are now implemented on POSIX hosts, and `fileGetDeviceID()` on Windows. Both are declared in `h/unixfile.h` for every platform and `fileGetINode()` is called from `httpserver.c`'s ETag computation, but only the z/OS implementations existed, so any build off z/OS that reached a file's identity failed to link. The z/OS implementations are unchanged. [(#666)](https://github.com/zowe/zowe-common-c/pull/666)
 - Bugfix: `directoryMakeDirectoryRecursive()` now publishes the required size of its path-out buffer as `USS_MKDIR_PATH_BUFFER_SIZE` and rejects a `messageLength` below it, returning -1 before anything is created. Previously an undersized buffer was filled with a truncated path, naming a directory that need not exist, and was left without a null terminator when the path was at least `messageLength` long -- which the caller then read as a string. [(zss#2094)](https://github.com/zowe/zss/issues/2094)
