@@ -1914,7 +1914,7 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
 
 #define MAX_TEMPLATE_PASSES 16
 
-static Json *evaluateJsonTemplatesUnprotected(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
+Json *evaluateJsonTemplates(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
   if (!jsonIsObject(json)) {
     return NULL;
   }
@@ -1965,18 +1965,17 @@ static Json *evaluateJsonTemplatesUnprotected(EmbeddedJS *ejs, ShortLivedHeap *s
   return NULL;
 }
 
-Json *evaluateJsonTemplates(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
+EmbeddedJS *allocateEmbeddedJS(EmbeddedJS *sharedRuntimeEJS /* can be NULL */){
 #ifdef __ZOWE_OS_ZOS
   if (!isKey8ProblemState()){
-    printf("template evaluator: refusing to run embedded JavaScript outside key 8/problem state\n");
+    wtoMessage("allocateEmbeddedJS: embedded JavaScript requires PSW key 8 and problem state");
+    return NULL;
+  }
+  if (isCallerSRB() || isCallerCrossMemory() || isCallerLocked()){
+    wtoMessage("allocateEmbeddedJS: embedded JavaScript cannot run under an SRB, in cross-memory mode or with a lock held");
     return NULL;
   }
 #endif
-  Json *result = evaluateJsonTemplatesUnprotected(ejs, slh, json);
-  return result;
-}
-
-EmbeddedJS *allocateEmbeddedJS(EmbeddedJS *sharedRuntimeEJS /* can be NULL */){
   EmbeddedJS *embeddedJS = (EmbeddedJS*)safeMalloc(sizeof(EmbeddedJS),"EmbeddedJS");
   memset(embeddedJS,0,sizeof(EmbeddedJS));
   if (sharedRuntimeEJS){
@@ -2137,10 +2136,13 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
 bool configureEmbeddedJS(EmbeddedJS *embeddedJS, 
                          EJSNativeModule **nativeModules, int nativeModuleCount,
                          int argc, char **argv){
-  /* 
+  /*
      JS_SetMemoryLimit(rt, memory_limit);
      JS_SetMaxStackSize(rt, stack_size);
   */
+  if (embeddedJS == NULL){ /* allocateEmbeddedJS refused or failed */
+    return false;
+  }
   js_std_set_worker_new_context_func(makeEmbeddedJSContext);
   js_std_init_handlers(embeddedJS->rt);
   JS_SetMaxStackSize(embeddedJS->rt, 1048576);

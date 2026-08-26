@@ -89,7 +89,7 @@ int testAuth(void)
   return rc;
 }
 
-/* returns whether was in problem state */
+#define PROBLEM_STATE 0x00010000
 
 int extractPSW(void) {
   int highWord;
