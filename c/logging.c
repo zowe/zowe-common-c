@@ -499,7 +499,7 @@ void logConfigureComponent(LoggingContext *context, uint64 compID, char *compNam
     LoggingComponentTable **componentTableHandle = (LoggingComponentTable **)&component->subcomponents;
     LoggingComponentTable *componentTable = component->subcomponents;
 
-    for (int i = 1; id[i] != 0 && i < 4; i++) {
+    for (int i = 1; i < 4 && id[i] != 0; i++) {
       if (componentTable == NULL || componentTable->componentCount <= id[i]) {
         componentTable = reallocComponentTable(componentTable, min(id[i] * 2 + 1, 0xFFFF));
         *componentTableHandle = componentTable;
@@ -526,7 +526,7 @@ void logConfigureComponent(LoggingContext *context, uint64 compID, char *compNam
     LoggingHashTable **componentTableHandle = (LoggingHashTable **)&component->subcomponents;
     LoggingHashTable *componentTable = component->subcomponents;
 
-    for (int i = 1; id[i] != 0 && i < 4; i++) {
+    for (int i = 1; i < 4 && id[i] != 0; i++) {
       LoggingComponent localLoggingComponent;
       memset(&localLoggingComponent, 0, sizeof(LoggingComponent));
       if (componentTable == NULL) {
@@ -580,7 +580,7 @@ static LoggingComponent *getComponent(LoggingContext *context, uint64 compID, in
     maxLevel = component->currentDetailLevel > maxLevel ? component->currentDetailLevel : maxLevel;
 
     unsigned short *id = (unsigned short *)&compID;
-    for (int i = 1; id[i] != 0 && i < 4; i++) {
+    for (int i = 1; i < 4 && id[i] != 0; i++) {
       if (componentTable != NULL && id[i] < componentTable->componentCount) {
         component = &componentTable->components[id[i]];
         maxLevel = component->currentDetailLevel > maxLevel ? component->currentDetailLevel : maxLevel;
@@ -603,7 +603,7 @@ static LoggingComponent *getComponent(LoggingContext *context, uint64 compID, in
     maxLevel = component->currentDetailLevel > maxLevel ? component->currentDetailLevel : maxLevel;
 
     unsigned short *id = (unsigned short *)&compID;
-    for (int i = 1; id[i] != 0 && i < 4; i++) {
+    for (int i = 1; i < 4 && id[i] != 0; i++) {
       component = componentTable != NULL ? logHTGet(componentTable, id[i]) : NULL;
       if (component != NULL) {
         maxLevel = component->currentDetailLevel > maxLevel ? component->currentDetailLevel : maxLevel;
