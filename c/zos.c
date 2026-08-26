@@ -91,8 +91,6 @@ int testAuth(void)
 
 /* returns whether was in problem state */
 
-#define PROBLEM_STATE 0x00010000
-
 int extractPSW(void) {
   int highWord;
   __asm(ASM_PREFIX
@@ -146,6 +144,13 @@ int setKey(int key){
         :"r"(shiftedKey)
         :"r2");
   return oldKey;
+}
+
+bool isKey8ProblemState(void){
+  uint32 currentPSW = extractPSW();
+  uint32 currentKey = (currentPSW >> 20) & 0x0000000F;
+  bool isProblemState = (currentPSW & PROBLEM_STATE) ? true : false;
+  return (currentKey == 8) && isProblemState;
 }
 
 int64 getR12(void) {

@@ -70,10 +70,12 @@
 
 #endif
 
+#define PROBLEM_STATE 0x00010000
 
 int extractPSW(void);
 int supervisorMode(int enable);
 int setKey(int key);
+bool isKey8ProblemState(void);
 int ddnameExists(char *ddname);
 int atomicIncrement(int *intPointer, int increment);
 
