@@ -1,6 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+- Bugfix: `getV4HostByName()` in `c/psxskt.c` and `c/winskt.c` no longer dereferences the `hostent` pointer returned by `gethostbyname()` before the null check below it. `gethostbyname()` returns NULL for any name that fails to resolve, so turning on `socketTrace` while chasing a resolution problem segfaulted the process instead of tracing it. [(#663)](https://github.com/zowe/zowe-common-c/issues/663)
 - Bugfix: `icsfDigestInit` in `icsf.c` contained a typo in the SHA-256 ICSF rule array keyword (`"SHA246"` instead of `"SHA256"`), causing SHA-256 hashing to fail. [(#594)](https://github.com/zowe/zowe-common-c/issues/594)
 - Bugfix: `ICSFDigest.hash` buffer in `icsf.h` was 32 bytes, too small for SHA-384 (48 bytes) and SHA-512 (64 bytes). Increased to 64 bytes to prevent buffer overflow. [(#594)](https://github.com/zowe/zowe-common-c/issues/594)
 - Enhancement: Added SHA-3 (Keccak) algorithm support to the ICSF digest wrapper: `ICSF_DIGEST_SHA3_224`, `ICSF_DIGEST_SHA3_256`, `ICSF_DIGEST_SHA3_384`, `ICSF_DIGEST_SHA3_512` with corresponding cases in `icsfDigestInit`, `icsfDigestUpdate`, and `icsfDigestFinish`. [(#594)](https://github.com/zowe/zowe-common-c/issues/594)
