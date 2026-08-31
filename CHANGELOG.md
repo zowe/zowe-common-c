@@ -51,6 +51,7 @@
 - Enhancement: Support STRICT and NONSTRICT mode in TLS HTTP client. [(#616)](https://github.com/zowe/zowe-common-c/pull/616)
 
 - Bugfix: Fixed memory leaks in CSI-related functions. [(#711)](https://github.com/zowe/zowe-common-c/pull/711) and [(#712)](https://github.com/zowe/zowe-common-c/pull/712)
+- Bugfix: A single unmappable character no longer truncates the whole JSON response. Data-conversion failures now use a separate flag from real IO errors, so output continues instead of being suppressed. [(#675)](https://github.com/zowe/zowe-common-c/pull/675)
 
 ## `3.5.0`
 - Enhancement: YAML comment preservation tooling for the YAML-to-JSON-to-YAML round-trip pipeline. Comments are scanned separately from libyaml, attached to the JSON tree, and re-emitted with configurable alignment (none, fixed, original). Opt-in; not yet enabled in configmgr. [(#583)](https://github.com/zowe/zowe-common-c/issues/583)
