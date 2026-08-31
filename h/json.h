@@ -383,6 +383,7 @@ void jsonSetIOErrorFlag(jsonPrinter *p);
  */
 void jsonSetDataConversionErrorFlag(jsonPrinter *p);
 int jsonCheckDataConversionErrorFlag(jsonPrinter *p);
+void jsonClearDataConversionErrorFlag(jsonPrinter *p);
 
 JsonBuffer *makeJsonBuffer(void);
 void jsonBufferTerminateString(JsonBuffer *buffer);
