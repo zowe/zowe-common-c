@@ -116,6 +116,8 @@ void jsonPrinterReset(jsonPrinter *p){
   p->_conversionBufferSize = 0;
   p->_conversionBuffer = NULL;
   p->mode = JSON_MODE_NATIVE_CHARSET;
+  p->ioErrorFlag = FALSE;
+  p->dataConversionErrorFlag = FALSE;
 }
 
 jsonPrinter *makeJsonPrinter(int fd) {
@@ -415,9 +417,10 @@ void jsonConvertAndWriteBuffer(jsonPrinter *p, char *text, size_t len,
       DUMPBUF(text, len);
       newLen = convertToUtf8(p, len, text, inputCCSID);
       if (newLen < 0) {
-        JSONERROR("jsonConvertAndWriteBuffer() error: newLen = %d\n",
+        JSONERROR("jsonConvertAndWriteBuffer() conversion error: newLen = %d\n",
                   (int)newLen);
-        jsonSetIOErrorFlag(p);
+        jsonSetDataConversionErrorFlag(p);   // data, not IO: do not gate all output
+        jsonWriteBufferInternal(p, "", 0);   // placeholder so string isn't left half-open
         return;
       }
       JSON_DEBUG("utf8, len %d:\n", newLen);
@@ -886,6 +889,14 @@ void jsonAddDouble(jsonPrinter *p, char *keyOrNull, double value) {
 
 void jsonSetIOErrorFlag(jsonPrinter *p) {
   p->ioErrorFlag = TRUE;
+}
+
+void jsonSetDataConversionErrorFlag(jsonPrinter *p) {
+  p->dataConversionErrorFlag = TRUE;
+}
+
+int jsonCheckDataConversionErrorFlag(jsonPrinter *p) {
+  return p->dataConversionErrorFlag;
 }
 
 int jsonShouldStopWriting(jsonPrinter *p) {
