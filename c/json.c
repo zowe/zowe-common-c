@@ -1,5 +1,3 @@
-
-
 /*
   This program and the accompanying materials are
   made available under the terms of the Eclipse Public License v2.0 which accompanies
@@ -897,6 +895,10 @@ void jsonSetDataConversionErrorFlag(jsonPrinter *p) {
 
 int jsonCheckDataConversionErrorFlag(jsonPrinter *p) {
   return p->dataConversionErrorFlag;
+}
+
+void jsonClearDataConversionErrorFlag(jsonPrinter *p) {
+  p->dataConversionErrorFlag = FALSE;
 }
 
 int jsonShouldStopWriting(jsonPrinter *p) {
