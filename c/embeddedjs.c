@@ -2186,7 +2186,7 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
     const char *source = "import * as std from 'std';\n"
       "import * as os from 'os';\n"
 #ifdef __ZOWE_OS_ZOS
-      "import * as zos from 'zos';\n"
+      "import { changeStreamCCSID, zstat, getZosVersion, getEsm, resolveSymbol, getStatvfs } from 'zos';\n"
 #endif
       /*  "import * as experiment from 'experiment';\n" */
       /*       "import * as FFI1 from 'FFI1';\n" */
