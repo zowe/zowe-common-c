@@ -30,6 +30,7 @@
 - Bugfix: `/unixfile` requests that force a `sourceEncoding`/`targetEncoding` pair the server cannot convert are rejected with 400 before the response starts, instead of returning 200 with an empty body; a default GET of a file whose CCSID tag cannot be converted falls back to raw binary streaming with a warning; and the streaming loop drains conversions that outgrow the translation buffer instead of truncating. [(#630)](https://github.com/zowe/zowe-common-c/pull/630)
 - Bugfix: charset conversion under ibm-clang64 (Open XL) now uses the iconv path. ibm-clang64 is `__ZOWE_COMP_CLANG`, not `__ZOWE_COMP_XLCLANG`, so `charsets.c` was routing it to the metal/CUNLCNV branch and mishandling multibyte and streaming conversion. [(zss#828)](https://github.com/zowe/zss/issues/828)
 - Enhancement: add a new function (`cmsTestAuth2`) to test any SAF level in xmem; fix ALTER SAF enum value [(#635)](https://github.com/zowe/zowe-common-c/issues/635)
+- Bugfix: A single unmappable character no longer truncates the whole JSON response. Data-conversion failures now use a separate flag from real IO errors, so output continues instead of being suppressed. [(#675)](https://github.com/zowe/zowe-common-c/pull/675)
 
 
 ## `3.5.0`
