@@ -2193,7 +2193,14 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
       "globalThis.std = std;\n"
       "globalThis.os = os;\n"
 #ifdef __ZOWE_OS_ZOS
-      "globalThis.zos = zos;\n"
+      "globalThis.zos = {\n"
+      "  changeStreamCCSID,\n"
+      "  zstat,\n"
+      "  getZosVersion,\n"
+      "  getEsm,\n"
+      "  resolveSymbol,\n"
+      "  getStatvfs\n"
+      "};\n"
 #endif
       /* "globalThis.experiment = experiment;\n"; */
       ;
