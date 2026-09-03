@@ -199,8 +199,8 @@ extern LoggingContext *theLoggingContext;
 ({ \
   CAA *caa = NULL; \
   char *laa = *(char * __ptr32 * __ptr32)0x04B8; \
-  char *lca = *(char **)(laa + 88); \
-  caa = *(CAA **)(lca + 8); \
+  char *lca = *(char **)(laa + 0x58); \
+  caa = *(CAA **)(lca + 0x08); \
   caa->loggingContext; \
 })
 

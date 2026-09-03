@@ -1998,10 +1998,10 @@ static void ensureLE64(){
   char *laa = *(char * __ptr32 * __ptr32)0x04B8;
   printf("LAA at 0x%p\n",laa);
   dumpbuffer((char*)laa,0x180);
-  char *lca = *(char **)(laa + 88);
-  printf("LCA at 0%p\n",lca);
+  char *lca = *(char **)(laa + 0x58);
+  printf("LCA at 0x%p\n",lca);
   dumpbuffer((char*)lca,0x358);
-  realCAA = *(char **)(lca + 8);
+  realCAA = *(char **)(lca + 0x08);
   printf("realCAA = 0x%p\n",realCAA);
   dumpbuffer(realCAA,0x450);
   /*
