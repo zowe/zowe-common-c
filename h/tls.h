@@ -145,6 +145,11 @@ typedef struct TlsSettings_tag {
   char *minTls;
   // certificate label for client connections; when NULL, label is used for both server and client
   char *clientLabel;
+  /* how server certificate should be verified */
+#define TLS_CERTVERIFY_DISABLED  0 /* disable certificate validation */
+#define TLS_CERTVERIFY_NONSTRICT 1 /* validate if the certificate is trusted but does not validate CN/SAN domains */
+#define TLS_CERTVERIFY_STRICT    2 /* validate if the certificate is trusted and also validate CN/SAN domains */
+  int certVerify;
 } TlsSettings;
 
 typedef struct TlsEnvironment_tag {
