@@ -674,6 +674,12 @@ int cfgSetConfigPath(ConfigManager *mgr, const char *configName, char *configPat
     return ZCFG_UNKNOWN_CONFIG_NAME;
   }
 
+  /* Set, not append: a second call replaces the path rather than merging the
+     two lists and duplicating every array member on load (#571). The
+     elements live in the manager's short-lived heap, so dropping the list
+     head is all that is needed. */
+  config->configPath = NULL;
+
   trace(mgr,DEBUG,"before build config path\n");
   if (buildConfigPath(mgr,config,configPathArg)){
     fprintf(mgr->traceOut,"built config path failed\n");fflush(mgr->traceOut);
