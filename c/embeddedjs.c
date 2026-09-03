@@ -1208,6 +1208,11 @@ static JSValue ejsNativeConstructorDispatcher(JSContext *ctx, JSValueConst new_t
   memset(&invocation,0,sizeof(EJSNativeInvocation));
   nativeStruct = nativeClass->nativeConstructor(nativeClass->userData, &invocation);
   if (!nativeStruct){
+    /* A constructor that returns NULL (makeConfigManager() does since #674)
+       must surface as a real JS exception. Returning JS_EXCEPTION with
+       nothing thrown leaves the script with an exception that has no value
+       (#676). */
+    JS_ThrowInternalError(ctx, "native constructor for class %s failed", nativeClass->name);
     goto fail;
   }
   if (ejs->traceLevel >= 1){
