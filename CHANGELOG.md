@@ -1,6 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+- Bugfix: `configmgr -script` reports a script that throws at top level and exits with `ZCFG_EVAL_FAILURE` (2) instead of silently exiting 0. Since QuickJS 2024-01-13 a module's evaluation returns a promise that rejects on a top-level throw; the embedding now settles it and surfaces the rejection. [(#585)](https://github.com/zowe/zowe-common-c/issues/585) [(zowe-install-packaging#3639)](https://github.com/zowe/zowe-install-packaging/issues/3639)
 - Chore: the configmgr-rexx build (`ZWERXCFG`) now uses the same QuickJS as configmgr, `1000turquoisepogs/quickjs-portable` at `feature/update-2024-01-13`; it had stayed on `joenemo/quickjs-portable` `main` (engine 2021-03-27) when configmgr moved in March 2026, so the two shipped different engines and diverged at compile time.
 - Bugfix: schema validation messages for `enum` and `const` mismatches name the schema's type; a property without a `type` keyword (as in the `zowe.setup.certificate` alternatives) was reported as `integer`. [(#563)](https://github.com/zowe/zowe-common-c/issues/563)
 - Bugfix: `cfgSetConfigPath()` replaces the configuration path instead of appending to it, so calling it twice no longer merges both paths and duplicates array members on load. [(#571)](https://github.com/zowe/zowe-common-c/issues/571)

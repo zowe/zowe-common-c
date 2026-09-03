@@ -2045,6 +2045,9 @@ int main(int argc, char **argv){
     */
     int evalStatus = ejsEvalFile(ejs,filename,loadMode);
     /* printf("Done with EJS: File eval returns %d_______________________________________________\n",evalStatus); */
+    /* A script that could not be loaded or that threw at top level must not
+       exit 0 (#585, zowe-install-packaging#3639): callers use the exit status. */
+    return evalStatus ? ZCFG_EVAL_FAILURE : ZCFG_SUCCESS;
   } else {
     return simpleMain(argc,argv);
   }
