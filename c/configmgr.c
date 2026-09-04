@@ -2045,6 +2045,8 @@ int main(int argc, char **argv){
     */
     int evalStatus = ejsEvalFile(ejs,filename,loadMode);
     /* printf("Done with EJS: File eval returns %d_______________________________________________\n",evalStatus); */
+    /* Callers use the exit status: a failed or throwing script must not exit 0 */
+    return evalStatus ? ZCFG_EVAL_FAILURE : ZCFG_SUCCESS;
   } else {
     return simpleMain(argc,argv);
   }
