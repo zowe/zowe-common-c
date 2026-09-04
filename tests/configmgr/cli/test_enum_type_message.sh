@@ -21,4 +21,11 @@ case "$LAST_STDOUT" in
   *) echo "  PASS  no message claims type 'integer'" ;;
 esac
 
+
+run_case "typed integer enum and string const" \
+  "$CONFIGMGR" -s "$FX/typed_int_enum_schema.json" -p "FILE($FX/typed_int_enum_bad.yaml)" validate
+assert_exit "invalid config exits 99" 99
+assert_contains "integer enum still says integer" "expecting one of values '[7554, 7555, 7556]' of type 'integer'" "$LAST_STDOUT"
+assert_contains "string const says string" "expecting value 'STANDARD' of type 'string'" "$LAST_STDOUT"
+
 end_suite
