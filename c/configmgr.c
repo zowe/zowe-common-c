@@ -674,6 +674,9 @@ int cfgSetConfigPath(ConfigManager *mgr, const char *configName, char *configPat
     return ZCFG_UNKNOWN_CONFIG_NAME;
   }
 
+  /* Assigning NULL is not a leak because path is in the SLH */
+  config->configPath = NULL;
+
   trace(mgr,DEBUG,"before build config path\n");
   if (buildConfigPath(mgr,config,configPathArg)){
     fprintf(mgr->traceOut,"built config path failed\n");fflush(mgr->traceOut);
