@@ -164,12 +164,7 @@ static JSValue ejsEvalBuffer1(EmbeddedJS *ejs,
     if (!JS_IsException(val)) {
       js_module_set_import_meta(ctx, val, TRUE, TRUE);
       val = JS_EvalFunction(ctx, val);
-      /* Since QuickJS 2024-01-13 evaluating a module returns a promise. A
-         throw at module top level rejects that promise instead of coming
-         back as JS_EXCEPTION, so uncaught script errors were dropped without
-         a message and the process exited 0 (#585,
-         zowe-install-packaging#3639). Settle the promise the way upstream's
-         js_std_await does, then surface a rejection as the exception it is. */
+      /* Module evaluation returns a promise since QuickJS 2024-01-13; settle it like js_std_await */
       for (;;) {
         JSPromiseStateEnum state = JS_PromiseState(ctx, val);
         if (state == JS_PROMISE_FULFILLED) {
@@ -190,8 +185,7 @@ static JSValue ejsEvalBuffer1(EmbeddedJS *ejs,
             ejsDumpError(jobContext, jobException);
             JS_FreeValue(jobContext, jobException);
           } else if (jobStatus == 0) {
-            /* no runnable job: give timers and handlers a turn, then stop
-               if the module is genuinely waiting on the outside world */
+            /* No runnable job: run timers and handlers, stop if still pending */
             js_std_loop(ctx);
             if (JS_PromiseState(ctx, val) == JS_PROMISE_PENDING) {
               break;
