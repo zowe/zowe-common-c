@@ -1,6 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+- Bugfix: the logging component-ID walk extracts the ID's four shorts with shifts instead of aliasing the 64-bit value, which read the levels in reverse on little-endian hosts and, in `logShouldTraceInternal()`, made the vendor check read the low short. On Linux a level-1 component's configuration landed on the root and every zowe component started tracing. No change on z/OS. Comes with `tests/logging`. [(#668)](https://github.com/zowe/zowe-common-c/issues/668)
 - Chore: the configmgr-rexx build (`ZWERXCFG`) now uses the same QuickJS as configmgr, `1000turquoisepogs/quickjs-portable` at `feature/update-2024-01-13`; it had stayed on `joenemo/quickjs-portable` `main` (engine 2021-03-27) when configmgr moved in March 2026, so the two shipped different engines and diverged at compile time.
 - Bugfix: schema validation messages for `enum` and `const` mismatches name the schema's type; a property without a `type` keyword (as in the `zowe.setup.certificate` alternatives) was reported as `integer`. [(#563)](https://github.com/zowe/zowe-common-c/issues/563)
 - Bugfix: `cfgSetConfigPath()` replaces the configuration path instead of appending to it, so calling it twice no longer merges both paths and duplicates array members on load. [(#571)](https://github.com/zowe/zowe-common-c/issues/571)
