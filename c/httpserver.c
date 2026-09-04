@@ -1380,8 +1380,7 @@ typedef struct SessionTokenKey_tag {
   char value[HTTPSERVER_SESSION_TOKEN_KEY_SIZE];
 } SessionTokenKey;
 
-/* returnCode/reasonCode receive the ICSF codes on failure so the caller's
-   startup message can show them (zowe/zss#810 printed 0/0 here). */
+/* Pass the ICSF codes back so the startup message can show them */
 static int initSessionTokenKey(SessionTokenKey *key, int *returnCode, int *reasonCode) {
 
 #ifdef __ZOWE_OS_ZOS
