@@ -222,6 +222,11 @@ int ejsEvalFile(EmbeddedJS *ejs, const char *filename, int loadMode){
       SLHFree(ejs->fileEvalHeap);
     }
     ejs->fileEvalHeap = makeShortLivedHeap(0x10000,0x100); /* hacky constants, I know */
+    if (ejs->fileEvalHeap == NULL) {
+      /* out of memory before the script could even be loaded (#685) */
+      fprintf(stderr, "%s: cannot allocate the evaluation heap\n", filename);
+      return -1;
+    }
     size_t sourceLen = strlen(filename);
     char asciiFilename[sourceLen + 1];
     snprintf (asciiFilename, sourceLen + 1, "%.*s", (int)sourceLen, filename);

@@ -2018,6 +2018,12 @@ static void ensureLE64(){
 #ifdef CMGRTEST
 int main(int argc, char **argv){
   LoggingContext *logContext = makeLoggingContext();
+  if (logContext == NULL) {
+    /* the first allocation the program makes; without it nothing else can
+       even report (#686) */
+    fprintf(stderr, "configmgr: cannot allocate the logging context\n");
+    return ZCFG_BAD_ENVIRONMENT;
+  }
   logConfigureStandardDestinations(logContext);
   if (argc >= 3 && 
       (!strcmp("-script",argv[1]) ||
