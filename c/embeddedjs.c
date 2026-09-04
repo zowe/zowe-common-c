@@ -67,6 +67,7 @@ typedef int64_t ssize_t;
 #ifdef __ZOWE_OS_ZOS
 
 #include "porting/polyfill.h"
+#include "zos.h"
 
 #endif
 
@@ -1965,6 +1966,16 @@ Json *evaluateJsonTemplates(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
 }
 
 EmbeddedJS *allocateEmbeddedJS(EmbeddedJS *sharedRuntimeEJS /* can be NULL */){
+#ifdef __ZOWE_OS_ZOS
+  if (!isKey8ProblemState()){
+    wtoMessage("allocateEmbeddedJS: embedded JavaScript requires PSW key 8 and problem state");
+    return NULL;
+  }
+  if (isCallerSRB() || isCallerCrossMemory() || isCallerLocked()){
+    wtoMessage("allocateEmbeddedJS: embedded JavaScript cannot run under an SRB, in cross-memory mode or with a lock held");
+    return NULL;
+  }
+#endif
   EmbeddedJS *embeddedJS = (EmbeddedJS*)safeMalloc(sizeof(EmbeddedJS),"EmbeddedJS");
   memset(embeddedJS,0,sizeof(EmbeddedJS));
   if (sharedRuntimeEJS){
@@ -2125,10 +2136,13 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
 bool configureEmbeddedJS(EmbeddedJS *embeddedJS, 
                          EJSNativeModule **nativeModules, int nativeModuleCount,
                          int argc, char **argv){
-  /* 
+  /*
      JS_SetMemoryLimit(rt, memory_limit);
      JS_SetMaxStackSize(rt, stack_size);
   */
+  if (embeddedJS == NULL){ /* allocateEmbeddedJS refused or failed */
+    return false;
+  }
   js_std_set_worker_new_context_func(makeEmbeddedJSContext);
   js_std_init_handlers(embeddedJS->rt);
   JS_SetMaxStackSize(embeddedJS->rt, 1048576);

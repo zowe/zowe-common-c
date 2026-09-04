@@ -2892,17 +2892,23 @@ static void deleteJson(Json *base, const char *deleteKey) {
         }
       } else {
         // If we have format like [a.b.c], ensure the jsonTok is [a.b.c], and not [a.b.c
-        memset(workStr, 0x00, sizeof(char)*MAX_JSON_KEY);
+        memset(workStr, 0x00, sizeof(workStr));
         if (jsonTok && jsonTok[0] == '[') {
-          strncpy(workStr, jsonTok, strlen(jsonTok));
-          while (workStr[strlen(workStr)-1] != ']') {
+          int n = snprintf(workStr, sizeof(workStr), "%s", jsonTok);
+          if (n < 0 || (size_t)n >= sizeof(workStr)) {
+            break;
+          }
+          while (workStr[0] != '\0' && workStr[strlen(workStr)-1] != ']') {
             char* nextTok = strtok(NULL, ".");
             if (!nextTok) {
               // end of string, unmatched '['
               break;
             }
-            strcat(workStr, ".");
-            strcat(workStr, nextTok);
+            size_t curLen = strlen(workStr);
+            int appended = snprintf(workStr + curLen, sizeof(workStr) - curLen, ".%s", nextTok);
+            if (appended < 0 || (size_t)appended >= sizeof(workStr) - curLen) {
+              break;
+            }
           }
           // strip the first and last brackets if they're present
           if (workStr[0]== '[' && workStr[strlen(workStr)-1]== ']') {
