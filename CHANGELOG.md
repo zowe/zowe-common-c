@@ -1,6 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+- Bugfix: when ICSF random-number generation fails at HTTP server start, `initSessionTokenKey()` in `httpserver.c` logs at SEVERE and hands the ICSF return and reason codes back through `makeHttpServerInner()`, so the ZSS startup failure message shows the real codes instead of 0/0. [(zowe/zss#810)](https://github.com/zowe/zss/issues/810)
 - Chore: the configmgr-rexx build (`ZWERXCFG`) now uses the same QuickJS as configmgr, `1000turquoisepogs/quickjs-portable` at `feature/update-2024-01-13`; it had stayed on `joenemo/quickjs-portable` `main` (engine 2021-03-27) when configmgr moved in March 2026, so the two shipped different engines and diverged at compile time.
 - Bugfix: schema validation messages for `enum` and `const` mismatches name the schema's type; a property without a `type` keyword (as in the `zowe.setup.certificate` alternatives) was reported as `integer`. [(#563)](https://github.com/zowe/zowe-common-c/issues/563)
 - Bugfix: `cfgSetConfigPath()` replaces the configuration path instead of appending to it, so calling it twice no longer merges both paths and duplicates array members on load. [(#571)](https://github.com/zowe/zowe-common-c/issues/571)
