@@ -853,9 +853,7 @@ int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLen
                           &reasonCode);
 
   if (status == 0) {
-   /* divide first: the multiply wraps for lengths above INT_MAX/3 and the
-      buffer comes out undersized (#641); decodeBase64 rejects lengths that
-      are not a multiple of 4, so this is exact */
+   /* Avoid overflows by dividing first */
    resultBufferSize = (conversionLength / 4) * 3;
    resultBuffer = safeMalloc(resultBufferSize, "ResultBuffer");
    int dataSize = decodeBase64(convertBuffer, resultBuffer);
@@ -932,7 +930,7 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
                           &reasonCode);
 
   if (status == 0) {
-   resultBufferSize = (dataSize / 4) * 3; /* divide first, see above (#641) */
+   resultBufferSize = (dataSize / 4) * 3; /* Avoid overflows by dividing first */
    resultBuffer = safeMalloc(resultBufferSize, "ResultBuffer");
    int decodedLength = decodeBase64(dataToWrite, resultBuffer);
    if (decodedLength > 0) {
