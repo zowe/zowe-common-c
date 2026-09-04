@@ -674,10 +674,7 @@ int cfgSetConfigPath(ConfigManager *mgr, const char *configName, char *configPat
     return ZCFG_UNKNOWN_CONFIG_NAME;
   }
 
-  /* Set, not append: a second call replaces the path rather than merging the
-     two lists and duplicating every array member on load (#571). The
-     elements live in the manager's short-lived heap, so dropping the list
-     head is all that is needed. */
+  /* Assigning NULL is not a leak because path is in the SLH */
   config->configPath = NULL;
 
   trace(mgr,DEBUG,"before build config path\n");
