@@ -1625,9 +1625,7 @@ static ListElt *cons64(void *data, ListElt *list){
 static ShortLivedHeap *makeShortLivedHeapInternal(int blockSize, int maxBlocks, int is64){
   ShortLivedHeap *heap = (ShortLivedHeap*)safeMalloc(sizeof(ShortLivedHeap),"ShortLivedHeap");
   if (heap == NULL) {
-    /* safeMalloc returns NULL when memory runs out; writing the eyecatcher
-       through it was a segfault on Linux and a low-core store on z/OS (#685).
-       Report failure the way SLHAlloc already does. */
+    /* safeMalloc returned NULL: report the failure as SLHAlloc does */
     return NULL;
   }
   memcpy(heap->eyecatcher,"SLH SLH ",8);
@@ -1715,8 +1713,7 @@ char *SLHAlloc2(ShortLivedHeap *slh, int size, bool suppressAbend){
                                   cons64(bigBlock,blockTail) :
                                   cons(bigBlock,blockTail));
       if (newChainElement == NULL) {
-        /* no memory for the chain link: give the block back and fail
-           cleanly rather than leak it or lose the chain (#685) */
+        /* No memory for the chain link: return the block and fail cleanly */
         if (slh->is64) {
           safeFree64(bigBlock-4,size+4);
         } else {
@@ -1761,8 +1758,7 @@ char *SLHAlloc2(ShortLivedHeap *slh, int size, bool suppressAbend){
                                 cons64(data,slh->blockChain) :
                                 cons(data,slh->blockChain) );
     if (newChainElement == NULL) {
-      /* chain link failed: the block is not reachable from the heap, so
-         return it and leave the heap exactly as it was (#685) */
+      /* Chain link failed: return the block, leave the heap unchanged */
       if (slh->is64) {
         safeFree64(data-4,slh->blockSize+4);
       } else {
