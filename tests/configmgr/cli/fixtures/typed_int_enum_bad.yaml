@@ -1,0 +1,3 @@
+zowe:
+  port: 9
+  mode: OTHER
