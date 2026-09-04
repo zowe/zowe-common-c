@@ -194,6 +194,37 @@ typedef struct JSValueSpec_tag {
   struct JSValueSpec_tag *parent;
 } JSValueSpec;
 
+/* Type names for validation messages.
+
+   A spec's `type` is meaningful only when the schema names exactly one type.
+   A property without a "type" keyword is built with every type name in
+   turn, so its `type` is merely the last one assigned ("integer") while its
+   typeMask has every bit set; reporting that word made a string enum look
+   like an integer one (#563). When the schema does not pin a single type,
+   describe the value the schema itself supplies instead. */
+static char *jsonValueTypeName(Json *value){
+  if (value == NULL){
+    return "unknown";
+  }
+  switch (value->type){
+  case JSON_TYPE_STRING:  return "string";
+  case JSON_TYPE_NUMBER:
+  case JSON_TYPE_DOUBLE:  return "number";
+  case JSON_TYPE_INT64:   return "integer";
+  case JSON_TYPE_BOOLEAN: return "boolean";
+  case JSON_TYPE_NULL:    return "null";
+  case JSON_TYPE_OBJECT:  return "object";
+  case JSON_TYPE_ARRAY:   return "array";
+  default:                return "unknown";
+  }
+}
+
+static char *specTypeNameForMessage(JSValueSpec *spec, Json *sample){
+  int mask = spec->typeMask;
+  bool exactlyOneType = (mask != 0) && ((mask & (mask - 1)) == 0);
+  return exactlyOneType ? getJSTypeName(spec->type) : jsonValueTypeName(sample);
+}
+
 typedef struct AccessPathUnion_tag {
   int dummy;
 } AccessPathUnion;
@@ -1385,10 +1416,12 @@ static VResult validateJSON(JsonValidator *validator,
     if (!eq){
       if (jsonIsString(valueSpec->constValue)) {
         return simpleFailure(validator,"unequal constant value at %s; expecting value '%s' of type '%s'",
-                             validatorAccessPath(validator), jsonAsString(valueSpec->constValue), getJSTypeName(valueSpec->type));
+                             validatorAccessPath(validator), jsonAsString(valueSpec->constValue),
+                             specTypeNameForMessage(valueSpec, valueSpec->constValue));
       } else if (jsonIsNumber(valueSpec->constValue)) {
         return simpleFailure(validator,"unequal constant value at %s; expecting value '%d' of type '%s'",
-                             validatorAccessPath(validator), jsonAsNumber(valueSpec->constValue), getJSTypeName(valueSpec->type));
+                             validatorAccessPath(validator), jsonAsNumber(valueSpec->constValue),
+                             specTypeNameForMessage(valueSpec, valueSpec->constValue));
       } else {
         return simpleFailure(validator,"unequal constant value at %s",
                              validatorAccessPath(validator));
@@ -1457,7 +1490,8 @@ static VResult validateJSON(JsonValidator *validator,
     if (!matched){
       if (validValues && strlen(validValues) > 0) {
         return simpleFailure(validator,"no matching enum value at %s; expecting one of values '[%s]' of type '%s'",
-                             validatorAccessPath(validator), validValues, getJSTypeName(valueSpec->type));
+                             validatorAccessPath(validator), validValues,
+                             specTypeNameForMessage(valueSpec, valueSpec->enumeratedValues[0]));
       } else {
         return simpleFailure(validator,"no matching enum value at %s",
                              validatorAccessPath(validator));

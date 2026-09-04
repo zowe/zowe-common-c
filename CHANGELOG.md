@@ -1,6 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+- Bugfix: schema validation messages for `enum` and `const` mismatches name the schema's type; a property without a `type` keyword (as in the `zowe.setup.certificate` alternatives) was reported as `integer`. [(#563)](https://github.com/zowe/zowe-common-c/issues/563)
 - Bugfix: `cfgSetConfigPath()` replaces the configuration path instead of appending to it, so calling it twice no longer merges both paths and duplicates array members on load. [(#571)](https://github.com/zowe/zowe-common-c/issues/571)
 - Bugfix: Embedded JS is expected to run in key 8 and problem state. [(#674)](https://github.com/zowe/zowe-common-c/pull/674)
 - Bugfix: `icsfDigestInit` in `icsf.c` contained a typo in the SHA-256 ICSF rule array keyword (`"SHA246"` instead of `"SHA256"`), causing SHA-256 hashing to fail. [(#594)](https://github.com/zowe/zowe-common-c/issues/594)
