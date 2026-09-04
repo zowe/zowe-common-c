@@ -2,6 +2,7 @@
 
 ## `3.6.0`
 - Chore: the configmgr-rexx build (`ZWERXCFG`) now uses the same QuickJS as configmgr, `1000turquoisepogs/quickjs-portable` at `feature/update-2024-01-13`; it had stayed on `joenemo/quickjs-portable` `main` (engine 2021-03-27) when configmgr moved in March 2026, so the two shipped different engines and diverged at compile time.
+- Bugfix: `cfgSetConfigPath()` replaces the configuration path instead of appending to it, so calling it twice no longer merges both paths and duplicates array members on load. [(#571)](https://github.com/zowe/zowe-common-c/issues/571)
 - Bugfix: Embedded JS is expected to run in key 8 and problem state. [(#674)](https://github.com/zowe/zowe-common-c/pull/674)
 - Bugfix: `icsfDigestInit` in `icsf.c` contained a typo in the SHA-256 ICSF rule array keyword (`"SHA246"` instead of `"SHA256"`), causing SHA-256 hashing to fail. [(#594)](https://github.com/zowe/zowe-common-c/issues/594)
 - Bugfix: `ICSFDigest.hash` buffer in `icsf.h` was 32 bytes, too small for SHA-384 (48 bytes) and SHA-512 (64 bytes). Increased to 64 bytes to prevent buffer overflow. [(#594)](https://github.com/zowe/zowe-common-c/issues/594)
