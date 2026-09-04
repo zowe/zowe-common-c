@@ -853,7 +853,8 @@ int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLen
                           &reasonCode);
 
   if (status == 0) {
-   resultBufferSize = (conversionLength * 3) / 4;
+   /* Avoid overflows by dividing first */
+   resultBufferSize = (conversionLength / 4) * 3;
    resultBuffer = safeMalloc(resultBufferSize, "ResultBuffer");
    int dataSize = decodeBase64(convertBuffer, resultBuffer);
    if (dataSize > 0) {
@@ -929,7 +930,7 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
                           &reasonCode);
 
   if (status == 0) {
-   resultBufferSize = (dataSize * 3) / 4;
+   resultBufferSize = (dataSize / 4) * 3; /* Avoid overflows by dividing first */
    resultBuffer = safeMalloc(resultBufferSize, "ResultBuffer");
    int decodedLength = decodeBase64(dataToWrite, resultBuffer);
    if (decodedLength > 0) {
