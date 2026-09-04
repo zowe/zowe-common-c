@@ -489,9 +489,7 @@ void logConfigureComponent(LoggingContext *context, uint64 compID, char *compNam
   }
 
   unsigned int vendorID = (compID >> 48) & 0xFFFF;
-  /* The ID is four big-endian shorts: vendor, then up to three component
-     levels. Shifts keep the walk independent of the host's byte order (#668);
-     aliasing the 64-bit value read them in reverse on little-endian hosts. */
+  /* Four big-endian shorts: shifts keep this independent of host byte order */
   unsigned short id[4] = { (unsigned short)(compID >> 48), (unsigned short)(compID >> 32),
                            (unsigned short)(compID >> 16), (unsigned short)compID };
 
