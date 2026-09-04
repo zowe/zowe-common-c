@@ -53,6 +53,7 @@ xlclang \
   -D_OPEN_SYS_FILE_EXT=1 \
   -D_XOPEN_SOURCE=600 \
   -D_OPEN_THREADS=1 \
+  -DCONFIG_BIGNUM=1 \
   -DCONFIG_VERSION=\"2024-01-13\" \
   -DNEW_CAA_LOCATIONS=1 \
   -I "${DEPS_DESTINATION}/${LIBYAML}/include" \
@@ -69,6 +70,7 @@ xlclang \
   ${DEPS_DESTINATION}/${QUICKJS}/quickjs.c \
   ${DEPS_DESTINATION}/${QUICKJS}/quickjs-libc.c \
   ${DEPS_DESTINATION}/${QUICKJS}/libunicode.c \
+  ${DEPS_DESTINATION}/${QUICKJS}/libbf.c \
   ${DEPS_DESTINATION}/${QUICKJS}/libregexp.c \
   ${DEPS_DESTINATION}/${QUICKJS}/porting/debugutil.c \
   ${DEPS_DESTINATION}/${QUICKJS}/porting/polyfill.c
@@ -133,6 +135,7 @@ xlc \
   quickjs.o \
   quickjs-libc.o \
   libunicode.o \
+  libbf.o \
   libregexp.o \
   polyfill.o \
   debugutil.o \
