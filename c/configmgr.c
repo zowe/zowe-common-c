@@ -2019,8 +2019,7 @@ static void ensureLE64(){
 int main(int argc, char **argv){
   LoggingContext *logContext = makeLoggingContext();
   if (logContext == NULL) {
-    /* the first allocation the program makes; without it nothing else can
-       even report (#686) */
+    /* First allocation the program makes; nothing else can report without it */
     fprintf(stderr, "configmgr: cannot allocate the logging context\n");
     return ZCFG_BAD_ENVIRONMENT;
   }
