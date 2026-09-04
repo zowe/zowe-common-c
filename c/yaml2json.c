@@ -60,6 +60,15 @@ static int convertFromNative(char *buf, size_t size) {
   return 0;
 }
 
+/* The key is still in the YAML input encoding; convert a copy for the message */
+static void warnKeyTooLong(const yaml_char_t *value) {
+  char shown[MAX_JSON_KEY + 1];
+  memcpy(shown, value, MAX_JSON_KEY);
+  shown[MAX_JSON_KEY] = 0;
+  convertToNative(shown, MAX_JSON_KEY);
+  printf("*** WARNING *** key too long '%s...'\n", shown);
+}
+
 static char *tokenTypeName(yaml_token_type_t type){
   switch (type){
   case YAML_NO_TOKEN: return "NO_TOKEN";
@@ -677,8 +686,7 @@ static Json *yaml2JSON1(JsonBuilder *b, Json *parent, char *parentKey,
               size_t dataLen = keyNode->data.scalar.length;
               keyLength = (int)dataLen;
               if (keyLength > MAX_JSON_KEY){
-                printf("*** WARNING *** key too long '%*.*s...'\n",
-                       MAX_JSON_KEY,MAX_JSON_KEY,keyNode->data.scalar.value);
+                warnKeyTooLong(keyNode->data.scalar.value);
               } else {
                 key = (char*)keyNode->data.scalar.value;
               }
@@ -909,8 +917,7 @@ static void yaml2JS1(ByteOutputStream *bos,
             size_t dataLen = keyNode->data.scalar.length;
             keyLength = (int)dataLen;
             if (keyLength > MAX_JSON_KEY){
-              printf("*** WARNING *** key too long '%*.*s...'\n",
-                     MAX_JSON_KEY,MAX_JSON_KEY,keyNode->data.scalar.value);
+              warnKeyTooLong(keyNode->data.scalar.value);
             } else {
                 key = (char*)keyNode->data.scalar.value;
             }
