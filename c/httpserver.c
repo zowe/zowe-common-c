@@ -1380,16 +1380,25 @@ typedef struct SessionTokenKey_tag {
   char value[HTTPSERVER_SESSION_TOKEN_KEY_SIZE];
 } SessionTokenKey;
 
-static int initSessionTokenKey(SessionTokenKey *key) {
+/* returnCode/reasonCode receive the ICSF codes on failure so the caller's
+   startup message can show them (zowe/zss#810 printed 0/0 here). */
+static int initSessionTokenKey(SessionTokenKey *key, int *returnCode, int *reasonCode) {
 
 #ifdef __ZOWE_OS_ZOS
 
   int icsfRSN = 0;
   int icsfRC = icsfGenerateRandomNumber(key, sizeof(SessionTokenKey), &icsfRSN);
   if (icsfRC != 0) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
-            "Error: ICSF generation of random number failed. Session token key not generated, RC = %d, RSN = %d\n",
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
+            "ICSF random number generation failed, session token key not generated, RC = %d, RSN = %d "
+            "(the server user needs access to the CSFRNG service)\n",
             icsfRC, icsfRSN);
+    if (returnCode) {
+      *returnCode = icsfRC;
+    }
+    if (reasonCode) {
+      *reasonCode = icsfRSN;
+    }
     return -1;
   }
 
@@ -1526,7 +1535,7 @@ HttpServer *makeHttpServerInner(STCBase *base,
   /* if "noTCP" is true, this server only receives IO thru tunnelling */
   bool noTCP = false;
   SessionTokenKey sessionTokenKey = {0};
-  if (initSessionTokenKey(&sessionTokenKey) != 0) {
+  if (initSessionTokenKey(&sessionTokenKey, returnCode, reasonCode) != 0) {
     return NULL;
   }
   if (addr != NULL && port != HTTP_DISABLE_TCP_PORT){
