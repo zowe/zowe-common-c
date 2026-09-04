@@ -137,7 +137,7 @@ static char truststoreASCII[11] ={0x74, 0x72, 0x75, 0x73, 0x74, 0x73, 0x74, 0x6f
 static char passwordASCII[9] ={0x70, 0x61, 0x73, 0x73, 0x77, 0x6f, 0x72, 0x64,  0x00};
 static char stashASCII[6] ={0x73, 0x74, 0x61, 0x73, 0x68,  0x00};
 static char labelASCII[6] ={0x6c, 0x61, 0x62, 0x65, 0x6c,  0x00};
-
+static char certVerifyASCII[6] ={0x63, 0x65, 0x72, 0x74, 0x56, 0x65, 0x72, 0x69, 0x66, 0x79, 0x00};
 
 static JSValue netTLSClientConfig(JSContext *ctx, JSValueConst this_val,
 			       int argc, JSValueConst *argv){
@@ -146,6 +146,7 @@ static JSValue netTLSClientConfig(JSContext *ctx, JSValueConst this_val,
   JSValueConst password = JS_GetPropertyStr(ctx, settings, passwordASCII);
   JSValueConst stash = JS_GetPropertyStr(ctx, settings, stashASCII);
   JSValueConst label = JS_GetPropertyStr(ctx, settings, labelASCII);
+  JSValueConst certVerify = JS_GetPropertyStr(ctx, settings, certVerifyASCII);
   if (JS_IsUndefined(truststore)){
     return JS_EXCEPTION;
   }
@@ -155,7 +156,8 @@ static JSValue netTLSClientConfig(JSContext *ctx, JSValueConst this_val,
   if (!JS_IsString(truststore) ||
       (!JS_IsUndefined(password) && !JS_IsString(password)) ||
       (!JS_IsUndefined(stash) && !JS_IsString(stash)) ||
-      (!JS_IsUndefined(label) && !JS_IsString(label)) ){
+      (!JS_IsUndefined(label) && !JS_IsString(label)) ||
+      (!JS_IsUndefined(certVerify) && !JS_IsString(certVerify)) ){
     return JS_EXCEPTION;
   }
   if (defaultTLSSettings == NULL){
@@ -170,6 +172,15 @@ static JSValue netTLSClientConfig(JSContext *ctx, JSValueConst this_val,
   }
   if (!JS_IsUndefined(label)){
     defaultTLSSettings->label = nativeString(ctx,label,NULL);
+  }
+  defaultTLSSettings->certVerify = TLS_CERTVERIFY_DISABLED;
+  if (!JS_IsUndefined(certVerify)){
+    const char* certVerifyText = nativeString(ctx,certVerify,NULL);
+    if (certVerifyText && 0 == strcmp(certVerifyText, "strict")) {
+        defaultTLSSettings->certVerify = TLS_CERTVERIFY_STRICT;
+    } else if if (certVerifyText && 0 == strcmp(certVerifyText, "nonstrict")) {
+        defaultTLSSettings->certVerify = TLS_CERTVERIFY_NONSTRICT;
+    }
   }
   return JS_NewInt64(ctx,(int64_t)0);
 }
