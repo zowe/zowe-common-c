@@ -489,7 +489,9 @@ void logConfigureComponent(LoggingContext *context, uint64 compID, char *compNam
   }
 
   unsigned int vendorID = (compID >> 48) & 0xFFFF;
-  unsigned short *id = (unsigned short *)&compID;
+  /* Four big-endian shorts: shifts keep this independent of host byte order */
+  unsigned short id[4] = { (unsigned short)(compID >> 48), (unsigned short)(compID >> 32),
+                           (unsigned short)(compID >> 16), (unsigned short)compID };
 
   if (vendorID == LOG_ZOWE_VENDOR_ID) {
 
@@ -579,7 +581,8 @@ static LoggingComponent *getComponent(LoggingContext *context, uint64 compID, in
     LoggingComponentTable *componentTable = component->subcomponents;
     maxLevel = component->currentDetailLevel > maxLevel ? component->currentDetailLevel : maxLevel;
 
-    unsigned short *id = (unsigned short *)&compID;
+    unsigned short id[4] = { (unsigned short)(compID >> 48), (unsigned short)(compID >> 32),
+                             (unsigned short)(compID >> 16), (unsigned short)compID }; /* #668 */
     for (int i = 1; i < 4 && id[i] != 0; i++) {
       if (componentTable != NULL && id[i] < componentTable->componentCount) {
         component = &componentTable->components[id[i]];
@@ -602,7 +605,8 @@ static LoggingComponent *getComponent(LoggingContext *context, uint64 compID, in
     LoggingHashTable *componentTable = component->subcomponents;
     maxLevel = component->currentDetailLevel > maxLevel ? component->currentDetailLevel : maxLevel;
 
-    unsigned short *id = (unsigned short *)&compID;
+    unsigned short id[4] = { (unsigned short)(compID >> 48), (unsigned short)(compID >> 32),
+                             (unsigned short)(compID >> 16), (unsigned short)compID }; /* #668 */
     for (int i = 1; i < 4 && id[i] != 0; i++) {
       component = componentTable != NULL ? logHTGet(componentTable, id[i]) : NULL;
       if (component != NULL) {
@@ -765,7 +769,8 @@ bool logShouldTraceInternal(LoggingContext *context, uint64 componentID, int lev
     context = getLoggingContext();
   }
 
-  unsigned short *id = (unsigned short *)&componentID;
+  unsigned short id[4] = { (unsigned short)(componentID >> 48), (unsigned short)(componentID >> 32),
+                           (unsigned short)(componentID >> 16), (unsigned short)componentID }; /* #668 */
   bool shouldTrace = FALSE;
   if (id[0] == LOG_ZOWE_VENDOR_ID) {
     LoggingComponent *component = &context->zoweAnchor->topLevelComponent;
