@@ -1,0 +1,9 @@
+zowe:
+  runtimeDirectory: "/u/users/robot/pullRequests/pr4459/longPathToZoweRuntimeDirectoryToTestSplitFeatureAndPrintWarning"
+  description: "a value with spaces that also runs far past the record length of an eighty byte parmlib member line and keeps going"
+  escaped: "tab\there quote\"inside backslash\\ok and a run of xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  spaceAtBreak: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa   bbb   ccc"
+  items:
+    - "/first/long/list/member/that/does/not/fit/the/record/length/at/all/really/not"
+    - short
+  port: 7554

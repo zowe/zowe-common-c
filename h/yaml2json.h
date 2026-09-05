@@ -10,8 +10,13 @@ Json *yaml2JSON(yaml_document_t *document, ShortLivedHeap *slh);
 
 #define YAML_SUCCESS 0
 #define YAML_GENERAL_FAILURE 12
+#define YAML_LINE_TOO_LONG 20
 
 int json2Yaml2Buffer(Json *json, char **buffer, int *bufferLen);
+/* Same, but no output line exceeds maxWidth bytes (0 = no limit): long
+   double-quoted values are folded with escaped line breaks. Returns
+   YAML_LINE_TOO_LONG when a line cannot be folded within the width. */
+int json2Yaml2BufferWithWidth(Json *json, char **buffer, int *bufferLen, int maxWidth);
 int json2Yaml2File(Json *json, FILE *out);
 
 /* ---- Comment-preserving YAML round-trip ---- */
