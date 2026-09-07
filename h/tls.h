@@ -146,7 +146,7 @@ typedef struct TlsSettings_tag {
   // certificate label for client connections; when NULL, label is used for both server and client
   char *clientLabel;
   /* how server certificate should be verified */
-#define TLS_CERTVERIFY_DISABLED  0 /* disable certificate validation */
+#define TLS_CERTVERIFY_DISABLED  0 /* disable certificate validation */ /* NOTICE: THIS MODE IS NOT IMPLEMENTED BECAUSE GSK DOESN'T SUPPORT IT ON Z/OS. */
 #define TLS_CERTVERIFY_NONSTRICT 1 /* validate if the certificate is trusted but does not validate CN/SAN domains */
 #define TLS_CERTVERIFY_STRICT    2 /* validate if the certificate is trusted and also validate CN/SAN domains */
   int certVerify;
@@ -269,6 +269,7 @@ const char *tlsStrError(int rc);
 int getClientCertificate(gsk_handle soc_handle, char *clientCertificate, unsigned int clientCertificateBufferSize, unsigned int *clientCertificateLength);
 
 #define TLS_ALLOC_ERROR (-1)
+#define TLS_CERTVERIFY_PARM_ERROR (-2)
 
 #endif // __TLS_H__
 

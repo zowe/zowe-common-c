@@ -116,6 +116,15 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   if (!env) {
     return TLS_ALLOC_ERROR;
   }
+
+  if (settings->certVerify == TLS_CERTVERIFY_STRICT || settings->certVerify == TLS_CERTVERIFY_NONSTRICT) {
+    /* implemented in tlsSocketInit2() */
+  } else if (settings->certVerify == TLS_CERTVERIFY_DISABLED) {
+    return TLS_CERTVERIFY_PARM_ERROR;
+  } else {
+    return TLS_CERTVERIFY_PARM_ERROR;
+  }
+
   env->settings = settings;
   rc = rc || gsk_environment_open(&env->envHandle);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_SSLV2, GSK_PROTOCOL_SSLV2_OFF);
@@ -146,10 +155,6 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
 
 #ifdef DEV_DO_NOT_VALIDATE_CLIENT_CERTIFICATES
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_CLIENT_AUTH_TYPE, GSK_CLIENT_AUTH_PASSTHRU_TYPE);
-#else
-  /* tlsSocketInit2 will further handle TLS_SRVCERT_VERIFY_NONSTRICT and TLS_SRVCERT_VERIFY_STRICT */
-  rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_CLIENT_AUTH_TYPE, 
-    settings->certVerify == TLS_CERTVERIFY_DISABLED ? GSK_CLIENT_AUTH_PASSTHRU_TYPE : GSK_CLIENT_AUTH_FULL_TYPE);
 #endif
 
   rc = rc || gsk_attribute_set_buffer(env->envHandle, GSK_KEYRING_FILE, settings->keyring, 0);
@@ -266,8 +271,6 @@ int tlsSocketInit2(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSe
     }
   }
   rc = rc || gsk_attribute_set_callback(socket->socketHandle, GSK_IO_CALLBACK, &ioCallbacks);
-  /* certificate verification is enabled/disabled in tlsInit by setting the GSK_CLIENT_AUTH_TYPE env.
-     here we only configure the target domain name */
   if (!isServer && env->settings->certVerify == TLS_CERTVERIFY_STRICT && peerHost) {
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_REFERENCE_ID_DNS, peerHost, 0);
     rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_REFERENCE_ID_CN, peerHost, 0);
