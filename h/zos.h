@@ -358,11 +358,15 @@ typedef struct ASVT_tag{
   /* variable number of ASCB pointers */
 } ASVT;
 
-#define CURRENT_TCB      0x21C                
-#define CURRENT_ASCB     0x224               
+#define CURRENT_TCB      0x21C
+#define CURRENT_ASCB     0x224
 #define ATCVT_ADDRESS    0x408
-#define ASCB_CSCB_OFFSET  0x38            
-#define CSCB_ACTIVITY_FLAGS_OFFSET 0x7   
+#define ASCB_CSCB_OFFSET  0x38
+#define CSCB_ACTIVITY_FLAGS_OFFSET 0x7
+
+#define LAA_ADDRESS      0x4B8
+#define LAA_LCA_OFFSET   0x58
+#define LCA_CAA_OFFSET   0x08
 
 typedef struct PSA_tag{
   int a;

@@ -36,6 +36,10 @@
 #include "logging.h"
 #include "pdsutil.h"
 
+#ifdef __ZOWE_OS_ZOS
+#include "zos.h"
+#endif
+
 static char pdsEndName[9] ={ 0xff, 0xff, 0xff, 0xff, 
 			     0xff, 0xff, 0xff, 0xff, 0x0};
 
@@ -242,45 +246,6 @@ StringList *getPDSMembers(char *pdsName){
   return list;
 }
 #endif
-
-#define GETDSAB_PLIST_LENGTH 16
-
-
-
-typedef struct DSAB_tag{
-  char eyecatcher[4];
-  int   dsabfchn;
-  int   dsabbchn;
-  short dsablnth; /* length */
-  short dsabopct; /* OPEN DCB COUNT FOR TIOT DD ENTRY */
-  int   dsabtiot; 
-  int   dsabssva; /* only low 24bits used SWA VIRTUAL ADDRESS OF SIOT    */
-  int   dsabxsva; /* only low 24 - SVA of XSIOT                */
-  int   dsabanmp; /* &NAME OR GDG-ALL DSNAME PTR, 0 IF NONE */
-  char dsaborg1;
-  char dsaborg2;
-  char dsabflg1;
-  char dsabflg2;
-  char dsabflg3;
-  char dsabflg4;
-  short dsabdext; /*     INDEX TO DEXT TABLE   */
-  int  dsabtcbp; /* tcb under which set in-use */
-  int  dsabpttr; /* relative TTR of data set password */
-  char dsabssnm[4]; /* subsystem name */
-  int  dsabsscm;    /* subsystem communication area */
-  char dsabdcbm[6]; /* bit map of DCB fields */
-  short dsabtctl;   /* offset of lookup entry from beginning of TCTIOT 
-                       If DSABATCT is on, use DSABTCT2 instead               */
-  int  dsabsiot;    /* SIOT incore address */
-  
-  int dsabtokn;    /* DD Token */
-  int dsabtct2;    /* offset of lookup entry from beg of TCTIOT, always valid */
-  int dsabsiox;    /* virtual address of SIOTX */
-  int dsabfcha;
-  int dsabbcha;
-  char dsabflg5;
-  char reserved[7];
-} DSAB;
 
 typedef struct TIOT_tag{
   char tiocnjob[8];
