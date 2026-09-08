@@ -25,11 +25,10 @@
 #ifdef __ZOWE_OS_ZOS
 #include "zos.h"
 #endif
-
 /** \file
  *  \brief logging.h defines a platform-independent logging facility that echoes some of Java logging.
  *  
- *  This logging faclity supports a formal relation between producers and consumers along with (component X level)
+ *  This logging facility supports a formal relation between producers and consumers along with (component X level)
  *  dynamic selectivity.  
  */
 
