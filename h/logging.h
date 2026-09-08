@@ -22,6 +22,10 @@
 #include "collections.h"
 #include "le.h"
 
+#ifdef __ZOWE_OS_ZOS
+#include "zos.h"
+#endif
+
 /** \file
  *  \brief logging.h defines a platform-independent logging facility that echoes some of Java logging.
  *  
@@ -198,9 +202,9 @@ extern LoggingContext *theLoggingContext;
 #define GET_LOGGING_CONTEXT() \
 ({ \
   CAA *caa = NULL; \
-  char *laa = *(char * __ptr32 * __ptr32)0x04B8; \
-  char *lca = *(char **)(laa + 0x58); \
-  caa = *(CAA **)(lca + 0x08); \
+  char *laa = *(char * __ptr32 * __ptr32)LAA_ADDRESS; \
+  char *lca = *(char **)(laa + LAA_LCA_OFFSET); \
+  caa = *(CAA **)(lca + LCA_CAA_OFFSET); \
   caa->loggingContext; \
 })
 
