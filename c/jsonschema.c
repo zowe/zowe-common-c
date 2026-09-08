@@ -194,6 +194,24 @@ typedef struct JSValueSpec_tag {
   struct JSValueSpec_tag *parent;
 } JSValueSpec;
 
+/* Type word for enum/const messages, taken from the schema's own value */
+static const char *jsonValueTypeName(const Json *value){
+  if (value == NULL){
+    return "unknown";
+  }
+  switch (value->type){
+  case JSON_TYPE_STRING:  return "string";
+  case JSON_TYPE_NUMBER:
+  case JSON_TYPE_INT64:   return "integer";
+  case JSON_TYPE_DOUBLE:  return "number";
+  case JSON_TYPE_BOOLEAN: return "boolean";
+  case JSON_TYPE_NULL:    return "null";
+  case JSON_TYPE_OBJECT:  return "object";
+  case JSON_TYPE_ARRAY:   return "array";
+  default:                return "unknown";
+  }
+}
+
 typedef struct AccessPathUnion_tag {
   int dummy;
 } AccessPathUnion;
@@ -1385,10 +1403,12 @@ static VResult validateJSON(JsonValidator *validator,
     if (!eq){
       if (jsonIsString(valueSpec->constValue)) {
         return simpleFailure(validator,"unequal constant value at %s; expecting value '%s' of type '%s'",
-                             validatorAccessPath(validator), jsonAsString(valueSpec->constValue), getJSTypeName(valueSpec->type));
+                             validatorAccessPath(validator), jsonAsString(valueSpec->constValue),
+                             jsonValueTypeName(valueSpec->constValue));
       } else if (jsonIsNumber(valueSpec->constValue)) {
         return simpleFailure(validator,"unequal constant value at %s; expecting value '%d' of type '%s'",
-                             validatorAccessPath(validator), jsonAsNumber(valueSpec->constValue), getJSTypeName(valueSpec->type));
+                             validatorAccessPath(validator), jsonAsNumber(valueSpec->constValue),
+                             jsonValueTypeName(valueSpec->constValue));
       } else {
         return simpleFailure(validator,"unequal constant value at %s",
                              validatorAccessPath(validator));
@@ -1457,7 +1477,8 @@ static VResult validateJSON(JsonValidator *validator,
     if (!matched){
       if (validValues && strlen(validValues) > 0) {
         return simpleFailure(validator,"no matching enum value at %s; expecting one of values '[%s]' of type '%s'",
-                             validatorAccessPath(validator), validValues, getJSTypeName(valueSpec->type));
+                             validatorAccessPath(validator), validValues,
+                             jsonValueTypeName(valueSpec->enumeratedValues[0]));
       } else {
         return simpleFailure(validator,"no matching enum value at %s",
                              validatorAccessPath(validator));
