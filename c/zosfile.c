@@ -1221,13 +1221,13 @@ int directoryClose(UnixFile *directory, int *returnCode, int *reasonCode){
               "BPXCLD (fd=%d, path=%s) FAILED: returnValue: %d, "
               "returnCode: %d, reasonCode: 0x%08x\n",
               directory->fd, (directory->pathname ? directory->pathname : "unknown"), returnValue,
-              returnValue, *returnCode, *reasonCode);
+              *returnCode, *reasonCode);
 #else
       zowelog(NULL, LOG_COMP_ZOS, ZOWE_LOG_DEBUG,
               "BPXCLD (fd=%d, path=%s) FAILED: returnValue: %d, "
               "returnCode: %d, reasonCode: 0x%08x, strError: (%s)\n",
               directory->fd, (directory->pathname ? directory->pathname : "unknown"), returnValue,
-              returnValue, *returnCode, *reasonCode, strerror(*returnCode));
+              *returnCode, *reasonCode, strerror(*returnCode));
 #endif
     }
     else {
@@ -2225,7 +2225,8 @@ int directoryListEntries(const char *path, UnixDirectoryEntries *entries, int *r
   int numEntries = directoryRead(dir, entries->entryBuffer, sizeof(entries->entryBuffer), returnCode, reasonCode);
   if (numEntries == -1) {
     /* the failure of directoryRead is more important for troubleshooting so ignore whatever directoryClose returns */
-    int rc, rsn;
+    int rc;
+    int rsn;
     directoryClose(dir, &rc, &rsn);
     return -1;
   }
@@ -2235,7 +2236,8 @@ int directoryListEntries(const char *path, UnixDirectoryEntries *entries, int *r
   }
 
   entries->numEntries = getValidDirectoryEntries(numEntries, entries->entryBuffer, entries->entryArray, entries->entryLengthArray);
-  *returnCode = *reasonCode = 0;
+  *returnCode = 0;
+  *reasonCode = 0;
   return 0;
 }
 

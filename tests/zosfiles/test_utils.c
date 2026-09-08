@@ -14,7 +14,7 @@ int valcomp_memcmp(const void *arrayItem, const void *value, int size) {
 }
 
 int valcomp_strcmp(const void *arrayItem, const void *value, int size) {
-  return strcmp(*((char**)arrayItem), value);
+  return strcmp(*((const char**)arrayItem), value);
 }
 
 int array_contains(const void *array, const void *value, int array_length, int value_size, int (*comp)(const void *, const void *, int)) {
@@ -60,7 +60,8 @@ int captureCommandOutput(const char *cmd, char *buffer, size_t bufferSize) {
     if (fp == NULL) {
       return -1;
     }
-    size_t total = 0, n;
+    size_t total = 0;
+    size_t n;
     while (total < bufferSize - 1 &&
           (n = fread(buffer + total, 1, bufferSize - 1 - total, fp)) > 0) {
       total += n;

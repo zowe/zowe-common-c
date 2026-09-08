@@ -6,7 +6,8 @@
 #include "test_utils.h"
 
 int directoryListEntries_should_return_expected_entry_list(void) {
-  int rc, rsn;
+  int rc;
+  int rsn;
   UnixDirectoryEntries entries;
   directoryListEntries("dir2", &entries, &rc, &rsn);
   EXPECT_INTEGER_EQUAL(rc, 0);
@@ -19,7 +20,8 @@ int directoryListEntries_should_return_expected_entry_list(void) {
 }
 
 int fileReadLink2_should_return_expected_type(void) {
-  int rc, rsn;
+  int rc;
+  int rsn;
   ReadLinkResult result;
   fileReadLink2("dir1", &result, &rc, &rsn);
   EXPECT_INTEGER_EQUAL(rc, 0);
@@ -51,7 +53,8 @@ static int captureDirectoryShape(const char *dirName, char *buffer, size_t buffe
 int directoryCopy_should_create_identical_dir3_from_dir2(void) {
   char dir2Shape[4096];
   char dir3Shape[4096];
-  int rc, rsn;
+  int rc;
+  int rsn;
 
   if ((rc = captureCommandOutput("rm -rf dir3", NULL, 0)) != 0) print_failure(__FILE__, __LINE__, "Failed to rm dir3, err: %d\n", errno);
   EXPECT_INTEGER_EQUAL(rc, 0);
@@ -74,7 +77,8 @@ int directoryCopy_should_create_identical_dir3_from_dir2(void) {
 }
 
 int directoryChangeModeRecursive_should_set_mode(void) {
-  int rc, rsn;
+  int rc;
+  int rsn;
   int mode777 = 00777;
   directoryChangeModeRecursive("dir3/dir2_1", 1, mode777, NULL, &rc, &rsn);
   EXPECT_INTEGER_EQUAL(rc, 0);
@@ -96,7 +100,8 @@ int directoryChangeModeRecursive_should_set_mode(void) {
 }
 
 int directoryChangeOwnerRecursive_should_change_owner(void) {
-  int rc, rsn;
+  int rc;
+  int rsn;
 
   const char *userIDName = "ZOSFILES_UT_USERID";
   const char *userSID = getenv(userIDName);
@@ -138,7 +143,8 @@ int directoryChangeOwnerRecursive_should_change_owner(void) {
 }
 
 int directoryDelete_should_delete_dir3(void) {
-  int rc, rsn;
+  int rc;
+  int rsn;
   directoryDeleteRecursive("dir3", &rc, &rsn);
   EXPECT_INTEGER_EQUAL(rc, 0);
   EXPECT_INTEGER_EQUAL(rsn, 0);
