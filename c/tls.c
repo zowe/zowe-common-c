@@ -120,7 +120,9 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   if (settings->certVerify == TLS_CERTVERIFY_STRICT || settings->certVerify == TLS_CERTVERIFY_NONSTRICT) {
     /* implemented in tlsSocketInit2() */
   } else if (settings->certVerify == TLS_CERTVERIFY_DISABLED) {
-    return TLS_CERTVERIFY_PARM_ERROR;
+    /* TODO: how do we implement the DISABLED mode? GSK doesn't seem to support it in z/OS */
+    zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "verifyCertificates: DISABLED is currently not supported, changing to NONSTRICT by default\n");
+    settings->certVerify = TLS_CERTVERIFY_NONSTRICT;
   } else {
     return TLS_CERTVERIFY_PARM_ERROR;
   }
@@ -312,6 +314,8 @@ const char *tlsStrError(int rc) {
     switch (rc) {
       case TLS_ALLOC_ERROR:
         return "Failed to allocate memory";
+      case TLS_CERTVERIFY_PARM_ERROR:
+        return "Unknown value for verifyCertificates";
       default:
         return "Unknown error";
     }
