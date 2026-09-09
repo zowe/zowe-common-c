@@ -489,7 +489,7 @@ void logConfigureComponent(LoggingContext *context, uint64 compID, char *compNam
   }
 
   unsigned int vendorID = (compID >> 48) & 0xFFFF;
-  unsigned short *id = (unsigned short *)&compID;
+  LOG_COMPONENT_ID_SHORTS(id, compID);
 
   if (vendorID == LOG_ZOWE_VENDOR_ID) {
 
@@ -579,7 +579,7 @@ static LoggingComponent *getComponent(LoggingContext *context, uint64 compID, in
     LoggingComponentTable *componentTable = component->subcomponents;
     maxLevel = component->currentDetailLevel > maxLevel ? component->currentDetailLevel : maxLevel;
 
-    unsigned short *id = (unsigned short *)&compID;
+    LOG_COMPONENT_ID_SHORTS(id, compID);
     for (int i = 1; i < 4 && id[i] != 0; i++) {
       if (componentTable != NULL && id[i] < componentTable->componentCount) {
         component = &componentTable->components[id[i]];
@@ -602,7 +602,7 @@ static LoggingComponent *getComponent(LoggingContext *context, uint64 compID, in
     LoggingHashTable *componentTable = component->subcomponents;
     maxLevel = component->currentDetailLevel > maxLevel ? component->currentDetailLevel : maxLevel;
 
-    unsigned short *id = (unsigned short *)&compID;
+    LOG_COMPONENT_ID_SHORTS(id, compID);
     for (int i = 1; i < 4 && id[i] != 0; i++) {
       component = componentTable != NULL ? logHTGet(componentTable, id[i]) : NULL;
       if (component != NULL) {
@@ -765,7 +765,7 @@ bool logShouldTraceInternal(LoggingContext *context, uint64 componentID, int lev
     context = getLoggingContext();
   }
 
-  unsigned short *id = (unsigned short *)&componentID;
+  LOG_COMPONENT_ID_SHORTS(id, componentID);
   bool shouldTrace = FALSE;
   if (id[0] == LOG_ZOWE_VENDOR_ID) {
     LoggingComponent *component = &context->zoweAnchor->topLevelComponent;
