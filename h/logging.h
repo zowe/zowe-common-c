@@ -72,6 +72,16 @@ ZOWE_PRAGMA_PACK_RESET
  * */
 #define LOG_ZOWE_VENDOR_ID     0x008F
 
+/* A component ID is four big-endian shorts: vendor, then up to three component
+   levels. A big-endian host reads them in place; any other host extracts them. */
+#ifdef __ZOWE_BIG_ENDIAN
+#define LOG_COMPONENT_ID_SHORTS(id, compID) unsigned short *id = (unsigned short *)&(compID)
+#else
+#define LOG_COMPONENT_ID_SHORTS(id, compID) \
+  unsigned short id[4] = { (unsigned short)((compID) >> 48), (unsigned short)((compID) >> 32), \
+                           (unsigned short)((compID) >> 16), (unsigned short)(compID) }
+#endif
+
 #define LOG_PROD_COMMON        0x008F000100000000LLU
 #define LOG_PROD_ZIS           0x008F000200000000LLU
 #define LOG_PROD_ZSS           0x008F000300000000LLU
@@ -299,7 +309,7 @@ bool logShouldTraceInternal(LoggingContext *context, uint64 componentID, int lev
     cntx = GET_LOGGING_CONTEXT();\
   }\
   uint64 componentIDLocal = componentID;\
-  unsigned short *id = (unsigned short *)&componentIDLocal;\
+  LOG_COMPONENT_ID_SHORTS(id, componentIDLocal);\
   bool shouldTrace = FALSE;\
   if (id[0] == LOG_ZOWE_VENDOR_ID) {\
     LoggingComponent *component = &cntx->zoweAnchor->topLevelComponent;\
