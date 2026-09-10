@@ -744,7 +744,7 @@ ByteOutputStream *makeByteOutputStream(int chunkSize){
   return bos;
 }
 
-int bosWrite(ByteOutputStream *bos, char *data, int dataSize){
+int bosWrite(ByteOutputStream *bos, const char *data, int dataSize){
   if (bos->size+dataSize > bos->capacity){
     int extendSize = (bos->chunkSize > dataSize) ? bos->chunkSize : dataSize;
 #ifdef NDEBUG
@@ -1016,9 +1016,11 @@ static int writeJsonAsYaml1(yaml_emitter_t *emitter, Json *json){
       char asciiName[pLen+1];
       memcpy(asciiName,propertyName,pLen+1);
       convertFromNative(asciiName,pLen);
+      /* a quote inside a plain key would look like a delimiter to the line folder */
+      bool quoteInKey = (strchr(propertyName,'"') != NULL) || (strchr(propertyName,'\'') != NULL);
       yaml_scalar_event_initialize(&event, NULL, (yaml_char_t *)YAML_STR_TAG_ASCII,
                                    (yaml_char_t *)asciiName, pLen,
-                                   1, 0, YAML_PLAIN_SCALAR_STYLE);
+                                   1, 0, quoteInKey ? YAML_DOUBLE_QUOTED_SCALAR_STYLE : YAML_PLAIN_SCALAR_STYLE);
       if (!yaml_emitter_emit(emitter, &event)) return YAML_GENERAL_FAILURE+5;
 
       int subStatus = writeJsonAsYaml1(emitter,propertyValue);
@@ -1044,8 +1046,7 @@ static int writeJsonAsYaml1(yaml_emitter_t *emitter, Json *json){
     sprintf(scalarBuffer,"%d",jsonAsNumber(json));
     return emitScalar(emitter,scalarBuffer,YAML_INT_TAG_ASCII, YAML_PLAIN_SCALAR_STYLE);
   } else if (jsonIsString(json)){
-    sprintf(scalarBuffer,"%s",jsonAsString(json));
-    return emitScalar(emitter,scalarBuffer,YAML_STR_TAG_ASCII, YAML_DOUBLE_QUOTED_SCALAR_STYLE);
+    return emitScalar(emitter,jsonAsString(json),YAML_STR_TAG_ASCII, YAML_DOUBLE_QUOTED_SCALAR_STYLE);
   } else if (jsonIsBoolean(json)){
     return emitScalar(emitter,(jsonAsBoolean(json) ? "true" : "false"),YAML_BOOL_TAG_ASCII, YAML_PLAIN_SCALAR_STYLE);
   } else if (jsonIsNull(json)){
@@ -1102,21 +1103,209 @@ static int yamlHandlerCallback(void *context, unsigned char *buffer, size_t size
 }
                                
 
-int json2Yaml2Buffer(Json *json, char **buffer, int *bufferLen){
+/* libyaml emits in the document encoding, ASCII here, not the native code page */
+enum {
+  YAML_A_SPACE = 0x20,
+  YAML_A_NEWLINE = 0x0A,
+  YAML_A_DQUOTE = 0x22,
+  YAML_A_SQUOTE = 0x27,
+  YAML_A_BACKSLASH = 0x5C,
+  YAML_A_LOWER_X = 0x78,
+  YAML_A_LOWER_U = 0x75,
+  YAML_A_UPPER_U = 0x55
+};
+static const char YAML_A_SPACE_BYTES[1] = {YAML_A_SPACE};
+static const char YAML_A_NEWLINE_BYTES[1] = {YAML_A_NEWLINE};
+static const char YAML_A_ESCAPED_BREAK[2] = {YAML_A_BACKSLASH, YAML_A_NEWLINE};
+static const char YAML_A_ESCAPED_SPACE[2] = {YAML_A_BACKSLASH, YAML_A_SPACE};
+
+/* Length of the escape sequence starting at text[i] inside a double-quoted scalar */
+static int yamlEscapeLength(const char *text, int textLen, int i){
+  if (i + 1 >= textLen){
+    return 1;
+  }
+  switch (text[i + 1]){
+  case YAML_A_LOWER_X: return 4;
+  case YAML_A_LOWER_U: return 6;
+  case YAML_A_UPPER_U: return 10;
+  default:  return 2;
+  }
+}
+
+static void writeSpaces(ByteOutputStream *out, int count){
+  for (int i = 0; i < count; i++){
+    bosWrite(out,YAML_A_SPACE_BYTES,1);
+  }
+}
+
+/* Index of the opening quote of the last double-quoted scalar on the line,
+   the value; -1 when there is none. Earlier quoted regions are keys. */
+static int lastDoubleQuotedOpen(const char *line, int len){
+  bool inDouble = false;
+  bool inSingle = false;
+  int lastOpen = -1;
+  int i = 0;
+  while (i < len){
+    if (inDouble && line[i] == YAML_A_BACKSLASH){
+      i += yamlEscapeLength(line,len,i);
+      continue;
+    }
+    if (!inDouble && !inSingle && line[i] == YAML_A_DQUOTE){
+      inDouble = true;
+      lastOpen = i;
+    } else if (inDouble && line[i] == YAML_A_DQUOTE){
+      inDouble = false;
+    } else if (!inDouble && line[i] == YAML_A_SQUOTE){
+      inSingle = !inSingle;
+    }
+    i++;
+  }
+  return lastOpen;
+}
+
+/* Fold one output line that is longer than maxWidth. An escaped line break
+   ("\" at end of line) splits a double-quoted scalar anywhere without
+   changing its value. That is the only thing in the output that can be
+   split, and only in the value: a key must stay on one line. So a long key
+   or plain scalar is an error rather than a truncation. Breaks land after a
+   space when one is available in the second half of the line; a
+   continuation that would start with a space escapes it, because the reader
+   drops leading white space of a continuation line. */
+static int foldOneLine(const char *line, int len, int maxWidth, ByteOutputStream *out){
+  int indent = 0;
+  while (indent < len && line[indent] == YAML_A_SPACE){
+    indent++;
+  }
+  int continuation = indent + 2;
+  if (continuation + 4 > maxWidth){
+    return YAML_LINE_TOO_LONG;
+  }
+  int valueOpen = lastDoubleQuotedOpen(line,len);
+  if (valueOpen < 0){
+    return YAML_LINE_TOO_LONG;
+  }
+  bool inDouble = false;
+  bool inSingle = false;
+  int start = 0;
+  int prefix = 0;
+  for (;;){
+    writeSpaces(out,prefix);
+    int column = prefix;
+    if (prefix > 0 && line[start] == YAML_A_SPACE){
+      bosWrite(out,YAML_A_ESCAPED_SPACE,2);
+      column += 2;
+      start++;
+    }
+    int rest = len - start;
+    if (column + rest <= maxWidth){
+      bosWrite(out,line + start,rest);
+      return YAML_SUCCESS;
+    }
+    int budget = maxWidth - 1 - column; /* content before the trailing backslash */
+    int i = start;
+    int hardCut = start;
+    int spaceCut = -1;
+    bool cutInDouble = false;
+    while (i < len){
+      int unit = 1;
+      bool isEscape = false;
+      if (inDouble && line[i] == YAML_A_BACKSLASH){
+        unit = yamlEscapeLength(line,len,i);
+        if (i + unit > len){
+          unit = len - i;
+        }
+        isEscape = true;
+      }
+      if (i + unit - start > budget){
+        break;
+      }
+      if (!inDouble && !inSingle && line[i] == YAML_A_DQUOTE){
+        inDouble = true;
+      } else if (inDouble && !isEscape && line[i] == YAML_A_DQUOTE){
+        inDouble = false;
+      } else if (!inDouble && line[i] == YAML_A_SQUOTE){
+        inSingle = !inSingle;
+      }
+      i += unit;
+      hardCut = i;
+      cutInDouble = inDouble && (i > valueOpen); /* inside the value, never inside a key */
+      if (cutInDouble && !isEscape && line[i - 1] == YAML_A_SPACE){
+        spaceCut = i;
+      }
+    }
+    if (!cutInDouble || hardCut == start){
+      return YAML_LINE_TOO_LONG;
+    }
+    int cut = (spaceCut > start && spaceCut - start >= budget / 2) ? spaceCut : hardCut;
+    bosWrite(out,line + start,cut - start);
+    bosWrite(out,YAML_A_ESCAPED_BREAK,2);
+    start = cut;
+    prefix = continuation;
+    inDouble = true;
+    inSingle = false;
+  }
+}
+
+static int foldLongLines(const char *text, int textLen, int maxWidth, ByteOutputStream *out){
+  if (maxWidth < 10){
+    return YAML_LINE_TOO_LONG;
+  }
+  int lineStart = 0;
+  while (lineStart < textLen){
+    int lineEnd = lineStart;
+    while (lineEnd < textLen && text[lineEnd] != YAML_A_NEWLINE){
+      lineEnd++;
+    }
+    int len = lineEnd - lineStart;
+    if (len <= maxWidth){
+      bosWrite(out,text + lineStart,len);
+    } else {
+      int status = foldOneLine(text + lineStart,len,maxWidth,out);
+      if (status){
+        return status;
+      }
+    }
+    if (lineEnd < textLen){
+      bosWrite(out,YAML_A_NEWLINE_BYTES,1);
+    }
+    lineStart = lineEnd + 1;
+  }
+  return YAML_SUCCESS;
+}
+
+int json2Yaml2BufferWithWidth(Json *json, char **buffer, int *bufferLen, int maxWidth){
   ByteOutputStream *baos = makeByteOutputStream(0x1000);
   yaml_emitter_t emitter;
   yaml_emitter_initialize(&emitter);
   yaml_emitter_set_output(&emitter,yamlHandlerCallback,baos);
+  if (maxWidth > 0){
+    /* libyaml would fold at spaces on its own; one folder keeps the output readable */
+    yaml_emitter_set_width(&emitter,-1);
+  }
 
   int emitStatus = emitYaml(&emitter,json);
   if (emitStatus){
     bosFree(baos,true);
-  } else {
-    *buffer = bosNullTerminateAndUse(baos);
-    *bufferLen = baos->size;
-    bosFree(baos,false);
+    return emitStatus;
   }
-  return emitStatus;
+  if (maxWidth > 0){
+    ByteOutputStream *folded = makeByteOutputStream(baos->size + 0x400);
+    int foldStatus = foldLongLines(baos->data,baos->size,maxWidth,folded);
+    bosFree(baos,true);
+    if (foldStatus){
+      bosFree(folded,true);
+      return foldStatus;
+    }
+    baos = folded;
+  }
+  *buffer = bosNullTerminateAndUse(baos);
+  *bufferLen = baos->size;
+  bosFree(baos,false);
+  return YAML_SUCCESS;
+}
+
+int json2Yaml2Buffer(Json *json, char **buffer, int *bufferLen){
+  return json2Yaml2BufferWithWidth(json,buffer,bufferLen,0);
 }
 
 int json2Yaml2File(Json *json, FILE *out){

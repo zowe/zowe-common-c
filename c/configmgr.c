@@ -1661,14 +1661,14 @@ static int getConfigDataWrapper(ConfigManager *mgr, EJSNativeInvocation *invocat
 
 #define YAML_BUFFER_SIZE 4096
 
-static int writeYAMLWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+static int writeYAMLCommon(ConfigManager *mgr, EJSNativeInvocation *invocation, int maxWidth){
   EmbeddedJS *ejs = ejsGetEnvironment(invocation);
   const char *configName = NULL;
   ejsStringArg(invocation,0,&configName);
   Json *data = cfgGetConfigData(mgr,configName);
   char *buffer = NULL;
   int bufferLength = 0;
-  int status = json2Yaml2Buffer(data,&buffer,&bufferLength);
+  int status = json2Yaml2BufferWithWidth(data,&buffer,&bufferLength,maxWidth);
   JsonBuilder *builder = ejsMakeJsonBuilder(ejs);
   int errorCode;
   char *nativeBuffer = NULL;
@@ -1688,6 +1688,17 @@ static int writeYAMLWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation)
   }
   freeJsonBuilder(builder,false);
   return EJS_OK;
+}
+
+static int writeYAMLWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  return writeYAMLCommon(mgr,invocation,0);
+}
+
+/* writeYAMLWithWidth(configName, maxLineLength): for PARMLIB members, whose records cannot hold a longer line */
+static int writeYAMLWithWidthWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
+  int maxWidth = 0;
+  ejsIntArg(invocation,1,&maxWidth);
+  return writeYAMLCommon(mgr,invocation,maxWidth);
 }
 
 
@@ -1763,6 +1774,12 @@ int cfgDeleteFromConfiguration(ConfigManager* mgr,
                                                    EJS_NATIVE_TYPE_JSON,
                                                    (EJSForeignFunction*)writeYAMLWrapper);
   ejsAddMethodArg(ejs,writeYAML,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+
+  EJSNativeMethod *writeYAMLWithWidth = ejsMakeNativeMethod(ejs,configmgr,"writeYAMLWithWidth",
+                                                            EJS_NATIVE_TYPE_JSON,
+                                                            (EJSForeignFunction*)writeYAMLWithWidthWrapper);
+  ejsAddMethodArg(ejs,writeYAMLWithWidth,"configName",EJS_NATIVE_TYPE_CONST_STRING);
+  ejsAddMethodArg(ejs,writeYAMLWithWidth,"maxLineLength",EJS_NATIVE_TYPE_INT32);
 
   EJSNativeMethod *validate = ejsMakeNativeMethod(ejs,configmgr,"validate",
                                                   EJS_NATIVE_TYPE_JSON,
