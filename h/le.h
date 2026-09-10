@@ -270,11 +270,43 @@ ZOWE_PRAGMA_PACK_RESET
 #define abortIfUnsupportedCAA LEARTCAA
 #define setRLEApplicationAnchor LESETANC
 #define getRLEApplicationAnchor LEGETANC
+#define getEDB LEGETEDB
+#define getOCB LEGETOCB
+#define getLEHeapOptions LEGETHPO
 
 #endif
 
 char *getCAA(void);
 void showRTL(void);
+
+/* Language Environment control blocks beyond the CAA.
+
+   getEDB returns the enclave data block, getOCB the options control block,
+   which holds the runtime options in effect for this enclave. Both return
+   NULL when the chain fails a sanity check (CAA self-pointer, eyecatchers)
+   and always under METTLE, where there is no Language Environment. */
+char *getEDB(void);
+char *getOCB(void);
+
+/* The heap-related runtime options in effect, read from the OCB.
+
+   HEAPPOOLS and HEAPPOOLS64 are ON/OFF options. HEAPZONES has no ON bit:
+   it is in effect for a heap when the corresponding size is nonzero.
+   The whereSet fields carry LE's CEEOCB_*_WHERE_SET code for each option
+   (observed: 0x64 for the default, 0x190 when set through _CEE_RUNOPTS). */
+typedef struct LEHeapOptions_tag {
+  bool           heapPools;         /* HEAPPOOLS(ON):   31-bit heap uses cell pools */
+  bool           heapPools64;       /* HEAPPOOLS64(ON): 64-bit heap uses cell pools */
+  unsigned int   heapZonesSize31;   /* HEAPZONES check-zone size, 31-bit heap; 0 = off */
+  unsigned int   heapZonesSize64;   /* HEAPZONES check-zone size, 64-bit heap; 0 = off */
+  unsigned short heapPoolsWhereSet;
+  unsigned short heapPools64WhereSet;
+  unsigned short heapZonesWhereSet;
+} LEHeapOptions;
+
+/* Fills *options. Returns 0 on success, -1 when the OCB could not be
+   reached (options is zeroed in that case). */
+int getLEHeapOptions(LEHeapOptions *options);
 
 #else /*  not __ZOWE_OS_ZOS - */
 

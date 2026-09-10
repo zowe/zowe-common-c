@@ -110,6 +110,134 @@ char *getCAA(void){
   return realCAA;
 }
 
+/* ---- Language Environment control blocks beyond the CAA ------------------
+
+   The runtime options in effect for this enclave live in LE's Options
+   Control Block (OCB): CAA -> EDB (CEECAAEDB) -> OCB (CEEEDBOPTCB). The
+   offsets below were computed by HLASM from the CEE.SCEEMAC mappings
+   (CEECAA, CEEEDB, CEEOCB; SYSSTATE AMODE64=YES selects the 64-bit CAA and
+   EDB forms, the OCB layout is the same in both modes) and verified on
+   z/OS 3.1 against live heap behaviour by tests/le-options. The OCB is
+   described in the LE Vendor Interfaces book.
+
+   Three things the mappings do not say:
+   - the 64-bit LE's OCB eyecatcher is 'CELQOCB', not 'CEEOCB';
+   - CEEOCB_*_SUB_OPTIONS is declared `DS A` but holds an offset from the
+     start of the OCB, not an address (following it as one takes an 0C4);
+   - HEAPZONES has no ON bit; its flag byte reads X'01' regardless, and the
+     option is in effect when the size in its sub-options is nonzero.
+
+   Eyecatchers are compared as EBCDIC bytes so this works in a source file
+   compiled in ASCII char mode too. */
+
+#ifndef METTLE
+
+#ifdef _LP64
+#define LE_CAA_EDB                0x388  /* CEECAAEDB    AD(EDB)      */
+#define LE_CAA_SELF               0x3A0  /* CEECAAPTR    AD(this CAA) */
+#define LE_EDB_OPTCB              0x110  /* CEEEDBOPTCB  AD(OCB)      */
+#else
+#define LE_CAA_EDB                0x2F0  /* CEECAAEDB    A(EDB)       */
+#define LE_CAA_SELF               0x2FC  /* CEECAAPTR    A(this CAA)  */
+#define LE_EDB_OPTCB              0x010  /* CEEEDBOPTCB  A(OCB)       */
+#endif
+#define LE_EDB_EYE                0x000  /* CEEEDBEYE          XL8 'CEEEDB  ' */
+#define LE_OCB_EYE                0x000  /* CEEOCB_EYECATCHER  CL8            */
+#define LE_OCB_LENGTH             0x00A  /* CEEOCB_LENGTH      H              */
+#define LE_OCB_HEAPPOOLS          0x1E4  /* CEEOCB_HEAPPOOLS_BIT_FLAG         */
+#define LE_OCB_HEAPPOOLS64        0x20C  /* CEEOCB_HEAPPOOLS64_BIT_FLAG       */
+#define LE_OCB_HEAPZONES          0x24C  /* CEEOCB_HEAPZONES_BIT_FLAG         */
+#define LE_OCB_HEAPZONES_SUBOPTS  0x250  /* CEEOCB_HEAPZONES_SUB_OPTIONS      */
+#define LE_OCB_OPTION_ON          0x80   /* CEEOCB_*_ON                       */
+#define LE_OCB_WHERE_SET          2      /* CEEOCB_*_WHERE_SET: H, two bytes after the flag */
+#define LE_OCB_HEAPZONES_SIZE31   0x04   /* CEEOCB_HEAPZONES_SIZE31, in the sub-options */
+#define LE_OCB_HEAPZONES_SIZE64   0x0C   /* CEEOCB_HEAPZONES_SIZE64             */
+
+static const unsigned char LE_EYE_CEEEDB[6]  = {0xC3,0xC5,0xC5,0xC5,0xC4,0xC2};      /* CEEEDB  */
+static const unsigned char LE_EYE_CEEOCB[6]  = {0xC3,0xC5,0xC5,0xD6,0xC3,0xC2};      /* CEEOCB  */
+static const unsigned char LE_EYE_CELQOCB[7] = {0xC3,0xC5,0xD3,0xD8,0xD6,0xC3,0xC2}; /* CELQOCB */
+
+char *getEDB(void){
+  char *caa = getCAA();
+  if (caa == NULL || *(char **)(caa + LE_CAA_SELF) != caa) {
+    return NULL;
+  }
+  char *edb = *(char **)(caa + LE_CAA_EDB);
+  if (edb == NULL ||
+      memcmp(edb + LE_EDB_EYE, LE_EYE_CEEEDB, sizeof(LE_EYE_CEEEDB)) != 0) {
+    return NULL;
+  }
+  return edb;
+}
+
+char *getOCB(void){
+  char *edb = getEDB();
+  if (edb == NULL) {
+    return NULL;
+  }
+  char *ocb = *(char **)(edb + LE_EDB_OPTCB);
+  if (ocb == NULL) {
+    return NULL;
+  }
+  if (memcmp(ocb + LE_OCB_EYE, LE_EYE_CELQOCB, sizeof(LE_EYE_CELQOCB)) != 0 &&
+      memcmp(ocb + LE_OCB_EYE, LE_EYE_CEEOCB,  sizeof(LE_EYE_CEEOCB))  != 0) {
+    return NULL;
+  }
+  return ocb;
+}
+
+/* A CEEOCB_*_SUB_OPTIONS field: an offset within the OCB when it is smaller
+   than the OCB's own length, otherwise taken as a 31-bit address. */
+static char *getOCBSubOptions(char *ocb, int fieldOffset){
+  unsigned int ocbLength = *(unsigned short *)(ocb + LE_OCB_LENGTH);
+  unsigned int ref = *(unsigned int *)(ocb + fieldOffset);
+  if (ref == 0) {
+    return NULL;
+  } else if (ref < ocbLength) {
+    return ocb + ref;
+  } else {
+    return (char *)(unsigned long)(ref & 0x7FFFFFFFu);
+  }
+}
+
+int getLEHeapOptions(LEHeapOptions *options){
+  memset(options, 0, sizeof(*options));
+  char *ocb = getOCB();
+  if (ocb == NULL) {
+    return -1;
+  }
+  unsigned char heapPoolsFlag   = *(unsigned char *)(ocb + LE_OCB_HEAPPOOLS);
+  unsigned char heapPools64Flag = *(unsigned char *)(ocb + LE_OCB_HEAPPOOLS64);
+  options->heapPools   = (heapPoolsFlag   & LE_OCB_OPTION_ON) != 0;
+  options->heapPools64 = (heapPools64Flag & LE_OCB_OPTION_ON) != 0;
+  options->heapPoolsWhereSet   = *(unsigned short *)(ocb + LE_OCB_HEAPPOOLS   + LE_OCB_WHERE_SET);
+  options->heapPools64WhereSet = *(unsigned short *)(ocb + LE_OCB_HEAPPOOLS64 + LE_OCB_WHERE_SET);
+  options->heapZonesWhereSet   = *(unsigned short *)(ocb + LE_OCB_HEAPZONES   + LE_OCB_WHERE_SET);
+  char *zones = getOCBSubOptions(ocb, LE_OCB_HEAPZONES_SUBOPTS);
+  if (zones != NULL) {
+    options->heapZonesSize31 = *(unsigned int *)(zones + LE_OCB_HEAPZONES_SIZE31);
+    options->heapZonesSize64 = *(unsigned int *)(zones + LE_OCB_HEAPZONES_SIZE64);
+  }
+  return 0;
+}
+
+#else /* METTLE: no Language Environment, so no EDB or OCB */
+
+char *getEDB(void){
+  return NULL;
+}
+
+char *getOCB(void){
+  return NULL;
+}
+
+int getLEHeapOptions(LEHeapOptions *options){
+  memset(options, 0, sizeof(*options));
+  return -1;
+}
+
+#endif /* METTLE */
+
 #ifndef LE_MAX_SUPPORTED_ZOS
 #define LE_MAX_SUPPORTED_ZOS 0x01030200u
 #endif
