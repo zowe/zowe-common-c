@@ -1,5 +1,8 @@
 # Zowe Common C Changelog
 
+## `2.18.7`
+- Bugfix: Fix potential buffer overrun in XML parser. ([#706](https://github.com/zowe/zowe-common-c/pull/706))
+
 ## `2.18.5`
 - Bugfix: Use "%.*s" version of snprintf to stop overreading in 'zosResolveSymbol()' which causes abend.([#595](https://github.com/zowe/zowe-common-c/pull/595))
 
