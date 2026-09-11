@@ -461,9 +461,10 @@ static void freeBAOS(ByteArrayOutputStream *baos){
 
 static void writeBAOS(ByteArrayOutputStream *baos, int b){
   if (baos->pos == (BAOS_MAX + baos->extraSize)){
-    printf("PANIC, baos out of room\n");
+    printf("PANIC, baos out of room, position %d\n", baos->pos);
+  } else {
+    baos->bytes[baos->pos++] = (char)b;
   }
-  baos->bytes[baos->pos++] = (char)b;
 }
 
 static void resetBAOS(ByteArrayOutputStream *baos){
@@ -474,7 +475,7 @@ static void syntaxError(XmlParser *p, char *formatString, ...){
   char buffer[2048];
   va_list argPointer;
   va_start(argPointer,formatString);
-  vsprintf(buffer,formatString,argPointer);
+  vsnprintf(buffer, sizeof(buffer), formatString, argPointer);
   va_end(argPointer);
   
   printf("SYNTAX ERROR line=%d %s\n",(p ? p->lineNumber : -1) ,buffer);
@@ -789,6 +790,9 @@ XMLToken *readCommentTail(XmlParser *p){
   while (TRUE){
     int b = safeRead(p);
 
+    if (b == -1) { // EOF in comment, bad
+      return NULL;
+    }
     switch (hyphenCount){
     case 0:
       if (b == '-'){
@@ -936,6 +940,9 @@ XMLToken *getXMLToken(XmlParser *p) {
 	  return makeXMLToken(p,XMLTOKEN_BROKEN);
 	}
       } else if (((char)b == ';') && (p->tokenState == XMLTOKEN_STATE_CHAR)){
+        if (p->charSequencePos >= sizeof(p->charSequence) -1) {
+          return makeXMLToken(p, XMLTOKEN_BROKEN);
+        }
 	p->charSequence[p->charSequencePos] = 0;
 	if (!strcmp(p->charSequence,"&lt")){
 	  writeBAOS(p->tokenBytes,'<');
@@ -950,6 +957,9 @@ XMLToken *getXMLToken(XmlParser *p) {
 	  return makeXMLToken(p,XMLTOKEN_BROKEN);
 	}
       } else if (p->tokenState == XMLTOKEN_STATE_CHAR){
+        if (p->charSequencePos >= sizeof(p->charSequence) - 1) {
+          return makeXMLToken(p, XMLTOKEN_BROKEN);
+        }
 	p->charSequence[p->charSequencePos++] = (char)b;
       } else {
 	writeBAOS(p->tokenBytes,b);
@@ -1126,6 +1136,10 @@ XMLNode *parseXMLNode(XmlParser *p) {
 	newElement = makeXMLNode(NODE_ELEMENT,idToken->bytes);
 	  
 	if (currentNode != NULL) {
+    if (stackPointer >= NODE_DEPTH_LIMIT) {
+      syntaxError(p, "exceeded node depth limit of %d", NODE_DEPTH_LIMIT);
+      return NULL;
+    }
 	  stack[stackPointer++] = currentNode;
 	  addChild(currentNode,newElement);
 	  currentNode = newElement;
