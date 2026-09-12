@@ -1654,9 +1654,13 @@ static HttpServer *makeSecureHttpServerInner(STCBase *base, int port,
   server->config = (HttpServerConfig*)safeMalloc31(sizeof(HttpServerConfig),"HttpServerConfig");
   server->properties = htCreate(4001,stringHash,stringCompare,NULL,NULL);
   memset(server->config,0,sizeof(HttpServerConfig));
-  int64 now = getFineGrainedTime();
-  server->config->sessionTokenKeySize = sizeof (now);
-  memcpy(&server->config->sessionTokenKey[0], &now, sizeof (now));
+  int64 sessionToken;
+  int icsfReason = 0;
+  if (icsfGenerateRandomNumber(&sessionToken, sizeof(sessionToken), &icsfReason) != 0) {
+    sessionToken = getFineGrainedTime();
+  }
+  server->config->sessionTokenKeySize = sizeof (sessionToken);
+  memcpy(&server->config->sessionTokenKey[0], &sessionToken, sizeof (sessionToken));
   server->config->httpRequestHeapMaxBlocks = HTTP_REQUEST_HEAP_DEFAULT_BLOCKS;
 
   return server;
@@ -5507,6 +5511,10 @@ static void upgradeToWebSocket(HttpConversation *conversation,
   if (!headerMatch(webSocketVersion,"13")){
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "WebSocket version\n");
     respondWithError(response,HTTP_STATUS_BAD_REQUEST,"bad web socket version");
+    // Response is finished on return
+  } else if (webSocketKey == NULL || webSocketKey->nativeValue == NULL){
+    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "missing WebSocket key\n");
+    respondWithError(response, HTTP_STATUS_BAD_REQUEST, "missing web socket key");
     // Response is finished on return
   } else{
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG3, "building web socket response\n");
