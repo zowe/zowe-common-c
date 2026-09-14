@@ -94,9 +94,9 @@ char *getCAA(void){
   char *realCAA = NULL;
 
 #if !defined(METTLE) && defined(_LP64)
-  char *laa = *(char * __ptr32 * __ptr32)0x04B8;
-  char *lca = *(char **)(laa + 88);
-  realCAA = *(char **)(lca + 8);
+  char *laa = *(char * __ptr32 * __ptr32)LAA_ADDRESS;
+  char *lca = *(char **)(laa + LAA_LCA_OFFSET);
+  realCAA = *(char **)(lca + LCA_CAA_OFFSET);
 #else
   __asm(
       ASM_PREFIX
