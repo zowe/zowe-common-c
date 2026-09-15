@@ -1380,7 +1380,6 @@ typedef struct SessionTokenKey_tag {
   char value[HTTPSERVER_SESSION_TOKEN_KEY_SIZE];
 } SessionTokenKey;
 
-/* Pass the ICSF codes back so the startup message can show them */
 static int initSessionTokenKey(SessionTokenKey *key, int *returnCode, int *reasonCode) {
 
 #ifdef __ZOWE_OS_ZOS
@@ -1389,15 +1388,10 @@ static int initSessionTokenKey(SessionTokenKey *key, int *returnCode, int *reaso
   int icsfRC = icsfGenerateRandomNumber(key, sizeof(SessionTokenKey), &icsfRSN);
   if (icsfRC != 0) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_SEVERE,
-            "ICSF random number generation failed, session token key not generated, RC = %d, RSN = %d "
-            "(the server user needs access to the CSFRNG service)\n",
+            "ICSF random number generation failed, session token key not generated, RC = %d, RSN = %d\n",
             icsfRC, icsfRSN);
-    if (returnCode) {
-      *returnCode = icsfRC;
-    }
-    if (reasonCode) {
-      *reasonCode = icsfRSN;
-    }
+    *returnCode = (icsfRC == 8) ? EACCES : EIO;
+    *reasonCode = 0;
     return -1;
   }
 
