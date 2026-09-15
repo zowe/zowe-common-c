@@ -388,7 +388,7 @@ static int __troo(char *output, char *input, unsigned long inputLength,
         "         ST    15,%0\n"
         : "=m"(cc)
         : "m"(gr0),"m"(table),"m"(output),"m"(input),"m"(inputLength)
-        : "cc", "memory");
+        : "cc", "memory", "r0", "r1", "r2", "r8", "r9", "r15");
     return cc;
   }
 #endif
