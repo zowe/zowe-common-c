@@ -67,7 +67,8 @@ typedef struct jsonPrinter_tag {
   //private
   size_t _conversionBufferSize;
   char *_conversionBuffer;
-  int ioErrorFlag;
+  int ioErrorFlag;             // real write/stream failure — gates ALL output
+  int dataConversionErrorFlag; // unmappable-byte failure — does NOT gate output
   int isInMultipartString;
   bool (*filter)(void *filterContext,
                  char *keyOrNull,
@@ -374,6 +375,15 @@ int jsonCheckIOErrorFlag(jsonPrinter *p);
  * 
  */
 void jsonSetIOErrorFlag(jsonPrinter *p);
+
+/*
+ * These functions set/check the data-conversion error flag on the JSON
+ * printer when an unmappable byte is encountered during charset conversion.
+ * Unlike the IO error flag, this flag does NOT suppress further output.
+ */
+void jsonSetDataConversionErrorFlag(jsonPrinter *p);
+int jsonCheckDataConversionErrorFlag(jsonPrinter *p);
+void jsonClearDataConversionErrorFlag(jsonPrinter *p);
 
 JsonBuffer *makeJsonBuffer(void);
 void jsonBufferTerminateString(JsonBuffer *buffer);
