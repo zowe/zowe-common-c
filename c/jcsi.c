@@ -428,8 +428,11 @@ EntryDataSet *getHLQs(char *typesAllowed, int typesCount, int workAreaSize, char
       for (int j = 0; j < entrySets[i]->length; j++){
         combinedEntrySet->entries[pos++]=entrySets[i]->entries[j];
       }
+      safeFree(entrySets[i]->entries, entrySets[i]->length * sizeof(EntryData*));
     }
+    safeFree(entrySets[i], sizeof(EntryDataSet));
   }
+  safeFree(entrySets, 29 * sizeof(EntryDataSet*))
   return combinedEntrySet;
 }
 
@@ -448,7 +451,7 @@ void freeEntryDataSet(EntryDataSet *entrySet) {
     }
     entrySet->size = 0;
     entrySet->length = 0;
-    safeFree((char*)entrySet, sizeof(entrySet));
+    safeFree((char*)entrySet, sizeof(EntryDataSet));
   }
 }
 
