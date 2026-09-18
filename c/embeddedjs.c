@@ -1945,7 +1945,39 @@ static bool evaluationVisitor(void *context, Json *json, Json *parent, char *key
 
 #define MAX_TEMPLATE_PASSES 16
 
-Json *evaluateJsonTemplates(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
+/* A "${{ }}" expression is data read out of a configuration file, not code the
+   operator chose to run, so it must not reach the process and file control the
+   'std' and 'os' globals carry (os.exec being the sharpest edge). Both are
+   withdrawn for the duration of template evaluation and put back after.
+
+   Scripts are not restricted: -script and modules import 'cm_std' / 'cm_os',
+   which is untouched. 'zos' stays visible; defaults.yaml calls zos.getEsm(). */
+typedef struct TemplateGlobals_tag {
+  JSValue std;
+  JSValue os;
+} TemplateGlobals;
+
+static TemplateGlobals withdrawNonTemplateGlobals(EmbeddedJS *ejs){
+  JSContext *ctx = ejs->ctx;
+  JSValue theGlobal = JS_GetGlobalObject(ctx);
+  TemplateGlobals saved;
+  saved.std = JS_GetPropertyStr(ctx,theGlobal,asciiSTD);
+  saved.os = JS_GetPropertyStr(ctx,theGlobal,asciiOS);
+  JS_SetPropertyStr(ctx,theGlobal,asciiSTD,JS_UNDEFINED);
+  JS_SetPropertyStr(ctx,theGlobal,asciiOS,JS_UNDEFINED);
+  JS_FreeValue(ctx,theGlobal);
+  return saved;
+}
+
+static void restoreNonTemplateGlobals(EmbeddedJS *ejs, TemplateGlobals saved){
+  JSContext *ctx = ejs->ctx;
+  JSValue theGlobal = JS_GetGlobalObject(ctx);
+  JS_SetPropertyStr(ctx,theGlobal,asciiSTD,saved.std);
+  JS_SetPropertyStr(ctx,theGlobal,asciiOS,saved.os);
+  JS_FreeValue(ctx,theGlobal);
+}
+
+static Json *evaluateJsonTemplatesUnrestricted(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
   if (!jsonIsObject(json)) {
     return NULL;
   }
@@ -1994,6 +2026,13 @@ Json *evaluateJsonTemplates(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
          "circular or excessively nested reference?\n",
          MAX_TEMPLATE_PASSES, evalContext.markersSeen);
   return NULL;
+}
+
+Json *evaluateJsonTemplates(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
+  TemplateGlobals saved = withdrawNonTemplateGlobals(ejs);
+  Json *result = evaluateJsonTemplatesUnrestricted(ejs,slh,json);
+  restoreNonTemplateGlobals(ejs,saved);
+  return result;
 }
 
 EmbeddedJS *allocateEmbeddedJS(EmbeddedJS *sharedRuntimeEJS /* can be NULL */){
