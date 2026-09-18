@@ -372,7 +372,7 @@ EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int w
                     entries = tempPtr;                   
                     entriesLength = entriesLength*2;
                     entrySet->entries = entries;
-                    entrySet->size = entriesLength*2;
+                    entrySet->size = entriesLength;
                   }
                   EntryData *entryCopy = (EntryData*)safeMalloc(advance,"Entry");
                   memcpy(entryCopy,entry,advance);
