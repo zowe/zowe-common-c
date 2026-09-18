@@ -1008,13 +1008,14 @@ void addChild(XMLNode *node, XMLNode *child) {
     node->childCount = 1;
     node->childrenLength = 4;
   } else if (node->childCount == node->childrenLength) {
-    XMLNode** newChildren = (XMLNode**)safeMalloc(node->childCount * 2 * sizeof(XMLNode*),"XML Node Array Extension");
+    int newLength = node->childrenLength * 2;
+    XMLNode** newChildren = (XMLNode**)safeMalloc(newLength * sizeof(XMLNode*),"XML Node Array Extension");
     memcpy(newChildren,node->children,node->childCount * sizeof(XMLNode*));
     safeFree((void*)node->children,node->childCount*sizeof(XMLNode*));
     newChildren[node->childCount++] = child;
     child->parent = node;
     node->children = newChildren;
-    node->childrenLength++;
+    node->childrenLength = newLength;
   } else {
     node->children[node->childCount++] = child;
     child->parent = node;
@@ -1034,13 +1035,16 @@ void addAttribute(XMLNode *node, char *attrName, char *attrValue) {
     node->attributes[0] = attrNode;
     attrNode->parent = node;
     node->attributeCount = 1;
+    node->attributesLength = 4;
   } else if (node->attributeCount == node->attributesLength) {
-    XMLNode **newAttributes = (XMLNode**)safeMalloc(node->attributeCount * 2 * sizeof(XMLNode*),"XML Attributes Extension");
+    int newLength = node->attributesLength * 2;
+    XMLNode **newAttributes = (XMLNode**)safeMalloc(newLength * sizeof(XMLNode*),"XML Attributes Extension");
     memcpy(newAttributes,node->attributes,node->attributeCount * sizeof(XMLNode*));
     safeFree((void*)node->attributes,node->attributeCount*sizeof(XMLNode*));
     newAttributes[node->attributeCount++] = attrNode;
     attrNode->parent = node;
     node->attributes = newAttributes;
+    node->attributesLength = newLength;
   } else {
     node->attributes[node->attributeCount++] = attrNode;
     attrNode->parent = node;
