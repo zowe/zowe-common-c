@@ -144,6 +144,24 @@ static void freeHttpResponseParser(HttpResponseParser *hrp) {
   }
 }
 
+static int pushCharToStatusReason(HttpResponseParser *hrp, char c) {
+    if (hrp->statusReasonLength >= sizeof(hrp->statusReason) - 1) {
+        zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "Status reason is too long. Currently received: \"%s\", next char: '%c'\n", hrp->statusReason, c);
+        return 1;
+    }
+    hrp->statusReason[hrp->statusReasonLength++] = c;
+    return 0;
+}
+
+static int pushCharToHeaderName(HttpResponseParser *hrp, char c) {
+    if (hrp->headerNameLength >= sizeof(hrp->headerName) - 1) {
+        zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "Header name is too long. Currently received: \"%s\", next char: '%c'\n", hrp->headerName, c);
+        return 1;
+    }
+    hrp->headerName[hrp->headerNameLength++] = c;
+    return 0;
+}
+
 static void prepareForNewResponse(HttpClientSession *session) {
   if (NULL != session) {
     session->response = NULL;
@@ -206,10 +224,10 @@ static int asciiHexDigitDecimalValue(char c) {
 }
 
 /* returns ansi status */
-static int processHttpResponseFragment(HttpResponseParser *parser,
-                                       char *data,
-                                       int len,
-                                       HttpClientResponse **outClientResponse) {
+int processHttpResponseFragment(HttpResponseParser *parser,
+                                char *data,
+                                int len,
+                                HttpClientResponse **outClientResponse) {
   for (int i = 0; i < len; i++) {
     char c = data[i];
     int isWhitespace = FALSE;
@@ -257,7 +275,9 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
       case HTTP_STATE_RESP_STATUS_GAP1:
         if (!isWhitespace) {
           parser->statusReasonLength = 0;
-          parser->statusReason[parser->statusReasonLength++] = c;
+          if (pushCharToStatusReason(parser, c) != 0) {
+            return ANSI_FAILED;
+          }
           parser->state = HTTP_STATE_RESP_STATUS_STATUS;
         } else if (isCR || isLF) {
           zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "Failing because saw CR or LF in GAP1 state\n");
@@ -274,7 +294,9 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
           parser->httpStatusCode = atoi(nativeStatusReason);
           parser->state = HTTP_STATE_RESP_STATUS_GAP2;
         } else {
-          parser->statusReason[parser->statusReasonLength++] = c;
+          if (pushCharToStatusReason(parser, c) != 0) {
+            return ANSI_FAILED;
+          }
         }
         break;
       case HTTP_STATE_RESP_STATUS_GAP2:
@@ -284,17 +306,23 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
           return ANSI_FAILED;
         } else if (isWhitespace) {
           /* include whitespace in statusReason string */
-          parser->statusReason[parser->statusReasonLength++] = c;
+          if (pushCharToStatusReason(parser, c) != 0) {
+            return ANSI_FAILED;
+          }
         } else {
           parser->state = HTTP_STATE_RESP_STATUS_REASON;
-          parser->statusReason[parser->statusReasonLength++] = c;
+          if (pushCharToStatusReason(parser, c) != 0) {
+            return ANSI_FAILED;
+          }
         }
         break;
       case HTTP_STATE_RESP_STATUS_REASON:
         if (isCR) {
           parser->state = HTTP_STATE_RESP_STATUS_CR_SEEN;
         } else if (isAsciiPrintable || isWhitespace) {
-          parser->statusReason[parser->statusReasonLength++] = c;
+          if (pushCharToStatusReason(parser, c) != 0) {
+            return ANSI_FAILED;
+          }
         } else {
           return ANSI_FAILED;
         }
@@ -322,7 +350,9 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
             parser->state = HTTP_STATE_HEADER_GAP1;
           }
         } else if (isAsciiPrintable) {
-          parser->headerName[parser->headerNameLength++] = c;
+          if (pushCharToHeaderName(parser, c) != 0) {
+            return ANSI_FAILED;
+          }
         } else {
           return ANSI_FAILED;
         }
