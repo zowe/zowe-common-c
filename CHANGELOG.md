@@ -5,6 +5,7 @@
 - Bugfix: `directoryMakeDirectoryRecursive()` now sizes its internal buffer to the z/OS USS path maximum (`USS_MAX_PATH_LENGTH`, 1023) and only rejects paths that exceed that limit, instead of overrunning a fixed 256-byte stack buffer. This fixes a 0C4 ABEND (crash) when creating a directory with a path longer than 255 characters, while still accepting valid paths up to the z/OS maximum. [(zss#2094)](https://github.com/zowe/zss/issues/2094)
 - Enhancement: `utils.c` gains bounded string helpers `strcpySafe`, `strncpySafe`, `strcatSafe`, `strncatSafe` and `strlenSafe`. They follow the argument shape of the C11 Annex K `_s` functions, so each buffer is followed immediately by its own size, treat that size as the size of the buffer, always null-terminate, and return -1 when the destination was too small to hold the whole result. They are deliberately not named `_s`: Annex K is optional, z/OS does not provide it, those identifiers are reserved for it, and these do not implement its semantics (constraint handlers, `errno_t`, `rsize_t`).
 - Bugfix: Fix potential buffer overrun in XML parser. ([#713](https://github.com/zowe/zowe-common-c/pull/713))
+- Bugfix: Fix potential ABEND in http client when receiving large http body. ([#704](https://github.com/zowe/zowe-common-c/pull/704))
 
 ## `2.18.5`
 - Bugfix: Use "%.*s" version of snprintf to stop overreading in 'zosResolveSymbol()' which causes abend.([#595](https://github.com/zowe/zowe-common-c/pull/595))
