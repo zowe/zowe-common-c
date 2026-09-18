@@ -1,6 +1,8 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+- Bugfix: `writeBinaryDataFromBase64()` and `writeAsciiDataFromBase64()` in `httpfileservice.c` check the result of each `safeMalloc()` and fail the request when memory runs out, instead of writing through a NULL pointer, which on z/OS lands in low storage rather than crashing. [(#642)](https://github.com/zowe/zowe-common-c/issues/642)
+
 - Chore: configmgr and the REXX configmgr build take QuickJS from `zowe/quickjs-portable` `staging`, the Open Mainframe Project home of the z/OS port, instead of a personal fork; the configmgr build scripts now label the engine `2024-01-13`, which is what they have built since March, instead of `2021-03-27`.
 - Bugfix: when ICSF random-number generation fails at HTTP server start, `initSessionTokenKey()` in `httpserver.c` logs the ICSF return and reason codes at SEVERE and reports the failure to `makeHttpServerInner()`'s caller as a POSIX code, `EACCES` for the usual cause (no access to the CSFRNG service) or `EIO`, so the ZSS startup message shows a meaningful code instead of 0/0. [(zowe/zss#810)](https://github.com/zowe/zss/issues/810)
 - Bugfix: `writeBinaryDataFromBase64()` and `writeAsciiDataFromBase64()` in `httpfileservice.c` size the decode buffer as `(length / 4) * 3` instead of `(length * 3) / 4`, so the multiply can no longer wrap on a large payload and undersize the buffer that `decodeBase64()` then fills. [(#641)](https://github.com/zowe/zowe-common-c/issues/641)
