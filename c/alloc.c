@@ -28,8 +28,6 @@
 #include "alloc.h"
 /* #include "utils.h" */
 
-static int MALLOC_TRACE_LEVEL = 0;
-
 #ifdef MALLOC_ABEND_ENABLED
 
 typedef void abend_os_fn(int, int);
@@ -273,28 +271,19 @@ static char *allocationNames[ALLOCATIONS_TO_TRACK];
 static int   allocationLengths[ALLOCATIONS_TO_TRACK];
 
 int showOutstanding(){
-  int i;
-
-  if (MALLOC_TRACE_LEVEL >= 1){
-    printf("total allocations done = %d\n",allocationsTracked);
-  }
-/*  dumpbuffer ((char *) allocations, 1024);*/
-  for (i=0; i<allocationsTracked; i++){
+#if MALLOC_TRACE_LEVEL >= 1
+  printf("total allocations done = %d\n",allocationsTracked);
+  /*  dumpbuffer ((char *) allocations, 1024);*/
+  for (int i=0; i<allocationsTracked; i++){
     char *ptr = allocations[i];
-    if ((ptr != NULL) &&
-        (ptr != (char*)(-1)))
-    {
-      if (MALLOC_TRACE_LEVEL >= 1){
-        printf("never freed allocNum=%d, size=%d at=0x%x '%s'\n",i,allocationLengths[i],ptr,allocationNames[i]);
-      }
-    } else if (0 != allocationLengths[i])
-    {
-      if (MALLOC_TRACE_LEVEL >= 1){
-        printf("%d outstanding bytes in NULL or free'd slot alloc=%d at=0x%x '%s'\n",
-              allocationLengths[i],i,ptr,allocationNames[i]);
-      }
+    if ((ptr != NULL) && (ptr != (char*)(-1))) {
+      printf("never freed allocNum=%d, size=%d at=0x%p '%s'\n",i,allocationLengths[i],ptr,allocationNames[i]);
+    } else if (0 != allocationLengths[i]) {
+      printf("%d outstanding bytes in NULL or free'd slot alloc=%d at=0x%p '%s'\n",
+        allocationLengths[i],i,ptr,allocationNames[i]);
     }
   }
+#endif
   return allocationsTracked;
 }
 
@@ -325,10 +314,10 @@ static void trackFree(char *ptr, int length){
       if ((length != allocationLengths[i]) &&
           ((272 == length) || (296 == length)))
       {
-        if (MALLOC_TRACE_LEVEL >= 1){
-          printf("bad attempt to free 272 or 296 at addr: %p\n", ptr);
-          /* memset((void*)0, 0x0, 1);*/ /* cause a crash */
-        }
+#if MALLOC_TRACE_LEVEL >= 1
+        printf("bad attempt to free 272 or 296 at addr: %p\n", ptr);
+        /* memset((void*)0, 0x0, 1);*/ /* cause a crash */
+#endif
       }
       allocations[i] = (char*)(-1);
       allocationLengths[i] = allocationLengths[i] - length;
@@ -393,19 +382,15 @@ static void *systemStorageObtain31(int size, int subpool){
 
 char *safeMalloc(int size, char *site){
   char *res = NULL;
+#if MALLOC_TRACE_LEVEL >= 1
   if (size > BIG_MALLOC_THRESHOLD){
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: big alloc coming %d from %s\n",size,site);
-    }
+    printf("MALLOC: big alloc coming %d from %s\n",size,site);
   } else if (size == 0){
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: zero alloc from %s\n",site);
-    }
+    printf("MALLOC: zero alloc from %s\n",site);
   } else if (size < 0){
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: negative malloc %d from %s\n",size,site);
-    }
+    printf("MALLOC: negative malloc %d from %s\n",size,site);
   }
+#endif
 #if defined ( METTLE )
   res = getmain31(size,SUBPOOL);
 #elif defined ( __ZOWE_OS_WINDOWS ) || defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
@@ -436,19 +421,15 @@ char *safeMalloc(int size, char *site){
 
 char *safeMalloc2(int size, char *site, int *indicator){
   char *res = NULL;
+#if MALLOC_TRACE_LEVEL >= 1
   if (size > BIG_MALLOC_THRESHOLD){
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: big alloc coming %d from %s\n",size,site);
-    }
+    printf("MALLOC: big alloc coming %d from %s\n",size,site);
   } else if (size == 0){
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: zero alloc from %s\n",site);
-    }
+    printf("MALLOC: zero alloc from %s\n",site);
   } else if (size < 0){
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: negative malloc %d from %s\n",size,site);
-    }
+    printf("MALLOC: negative malloc %d from %s\n",size,site);
   }
+#endif
 #if defined ( METTLE )
   res = getmain31(size,SUBPOOL);
 #elif defined (__ZOWE_OS_WINDOWS) || defined (__ZOWE_OS_LINUX)|| defined(__ZOWE_OS_AIX)
@@ -478,19 +459,15 @@ char *safeMalloc2(int size, char *site, int *indicator){
 
 char *safeMalloc31(int size, char *site){
   char *res = NULL;
+#if MALLOC_TRACE_LEVEL >= 1
   if (size > BIG_MALLOC_THRESHOLD){ /* 1 meg, roughly */
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: big alloc coming %d from %s\n",size,site);
-    }
+    printf("MALLOC: big alloc coming %d from %s\n",size,site);
   } else if (size == 0){
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: zero alloc from %s\n",site);
-    }
+    printf("MALLOC: zero alloc from %s\n",site);
   } else if (size < 0){
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("MALLOC: negative malloc %d from %s\n",size,site);
-    }
+    printf("MALLOC: negative malloc %d from %s\n",size,site);
   }
+#endif
 #ifdef METTLE 
   res = getmain31(size,SUBPOOL);
 #else
@@ -510,16 +487,15 @@ static char *safeMalloc64Internal(int size, char *site, long long token){
   char *res = NULL;
   int sizeInMegabytes = 0;
 
-  if (MALLOC_TRACE_LEVEL >= 1){
-    if (size > BIG_MALLOC64_THRESHOLD){ /* 1 meg, roughly */
-      printf("MALLOC: big alloc coming %d from %s\n",size,site);
-    } else if (size == 0){
-      printf("MALLOC: zero alloc from %s\n",site);
-    } else if (size < 0){
-      printf("MALLOC: negative malloc %d from %s\n",size,site);
-    }
+#if MALLOC_TRACE_LEVEL >= 1
+  if (size > BIG_MALLOC64_THRESHOLD){ /* 1 meg, roughly */
+    printf("MALLOC: big alloc coming %d from %s\n",size,site);
+  } else if (size == 0){
+    printf("MALLOC: zero alloc from %s\n",site);
+  } else if (size < 0){
+    printf("MALLOC: negative malloc %d from %s\n",size,site);
   }
-
+#endif
 
   if ((size & 0xFFFFF) == 0){
     sizeInMegabytes = size >> 20;
@@ -558,15 +534,15 @@ char *safeMalloc31Key8(int size, char *site){
   k8Bytes += size;
 #endif
   char *res = NULL;
-  if (MALLOC_TRACE_LEVEL >= 1){
-    if (size > BIG_MALLOC_THRESHOLD){ /* 10 meg, roughly */
-      printf("MALLOC: big alloc coming %d from %s\n",size,site);
-    } else if (size == 0){
-      printf("MALLOC: zero alloc from %s\n",site);
-    } else if (size < 0){
-      printf("MALLOC: negative malloc %d from %s\n",size,site);
-    }
+#if MALLOC_TRACE_LEVEL >= 1
+  if (size > BIG_MALLOC_THRESHOLD){ /* 10 meg, roughly */
+    printf("MALLOC: big alloc coming %d from %s\n",size,site);
+  } else if (size == 0){
+    printf("MALLOC: zero alloc from %s\n",site);
+  } else if (size < 0){
+    printf("MALLOC: negative malloc %d from %s\n",size,site);
   }
+#endif
 #ifdef METTLE 
   res = getmain31Key8(size,SUBPOOL);
 #else
@@ -588,7 +564,7 @@ void safeFree31(char *data, int size){
 #ifdef METTLE 
   freemain31(data,size,SUBPOOL);
 #else
-  free(data);
+  free31(data, size);
 #endif
 }
 
@@ -784,13 +760,13 @@ static void iarst64Free(void* __ptr64 data) {
 char *safeMalloc64v2(unsigned long long size, int zeroOut, char *site,
                      int *returnCode, int *sysRC, int *sysRSN) {
 
-  if (MALLOC_TRACE_LEVEL >= 1){
-    if (size > BIG_MALLOC64_THRESHOLD){ /* 1 meg, roughly */
-      printf("MALLOC: big alloc coming %llu from %s\n",size,site);
-    } else if (size == 0){
-      printf("MALLOC: zero alloc from %s\n",site);
-    }
+#if MALLOC_TRACE_LEVEL >= 1
+  if (size > BIG_MALLOC64_THRESHOLD){ /* 1 meg, roughly */
+    printf("MALLOC: big alloc coming %llu from %s\n",size,site);
+  } else if (size == 0){
+    printf("MALLOC: zero alloc from %s\n",site);
   }
+#endif
 
   char *data = NULL;
 #if defined(METTLE) && defined(_LP64)
@@ -808,9 +784,9 @@ char *safeMalloc64v2(unsigned long long size, int zeroOut, char *site,
     int getTCBTokenRC = getJobstepTCBToken(tcbToken);
     /* this is to insure that getTCBTokenRC doesn't get compiled out
      * and in case of an error we can access it in the SVC dump */
-    if (MALLOC_TRACE_LEVEL >= 1){
-      printf("safeMalloc64v2: job step TCB, rc=%d\n", getTCBTokenRC);
-    }
+#if MALLOC_TRACE_LEVEL >= 1
+    printf("safeMalloc64v2: job step TCB, rc=%d\n", getTCBTokenRC);
+#endif
 
     int rc = 0, rsn = 0;
     data = iarv64GetStorage(sizeInMegabytes, tcbToken, &rc, &rsn);
@@ -878,9 +854,9 @@ int safeFree64v2(void *data, unsigned long long size, int *sysRC, int *sysRSN) {
     char tcbToken[16];
     memset(tcbToken, 0, sizeof(tcbToken));
     int getTCBTokenRC = getJobstepTCBToken(tcbToken);
-    if (MALLOC_TRACE_LEVEL >= 2){
-      printf("safeFree64v2: job step TCB, rc=%d\n", getTCBTokenRC);
-    }
+#if MALLOC_TRACE_LEVEL >= 2
+    printf("safeFree64v2: job step TCB, rc=%d\n", getTCBTokenRC);
+#endif
 
     int rc = 0, rsn = 0;
     iarv64Detach(data, tcbToken, &rc, &rsn);
@@ -1002,13 +978,13 @@ static void* __ptr64 iarst64GetSingleOwner(int size,
 char *safeMalloc64v3(unsigned long long size, int zeroOut, char *site,
                      int *returnCode, int *sysRC, int *sysRSN) {
 
-  if (MALLOC_TRACE_LEVEL >= 1){
-    if (size > BIG_MALLOC64_THRESHOLD){ /* 1 meg, roughly */
-      printf("MALLOC: big alloc coming %llu from %s\n",size,site);
-    } else if (size == 0){
-      printf("MALLOC: zero alloc from %s\n",site);
-    }
+#if MALLOC_TRACE_LEVEL >= 1
+  if (size > BIG_MALLOC64_THRESHOLD){ /* 1 meg, roughly */
+    printf("MALLOC: big alloc coming %llu from %s\n",size,site);
+  } else if (size == 0){
+    printf("MALLOC: zero alloc from %s\n",site);
   }
+#endif
 
   char *data = NULL;
 #if defined(METTLE) && defined(_LP64)
