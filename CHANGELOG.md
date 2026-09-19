@@ -1,6 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+- Chore: configmgr and the REXX configmgr build take QuickJS from `zowe/quickjs-portable` `staging`, the Open Mainframe Project home of the z/OS port, instead of a personal fork; the configmgr build scripts now label the engine `2024-01-13`, which is what they have built since March, instead of `2021-03-27`.
 - Bugfix: when ICSF random-number generation fails at HTTP server start, `initSessionTokenKey()` in `httpserver.c` logs the ICSF return and reason codes at SEVERE and reports the failure to `makeHttpServerInner()`'s caller as a POSIX code, `EACCES` for the usual cause (no access to the CSFRNG service) or `EIO`, so the ZSS startup message shows a meaningful code instead of 0/0. [(zowe/zss#810)](https://github.com/zowe/zss/issues/810)
 - Bugfix: `writeBinaryDataFromBase64()` and `writeAsciiDataFromBase64()` in `httpfileservice.c` size the decode buffer as `(length / 4) * 3` instead of `(length * 3) / 4`, so the multiply can no longer wrap on a large payload and undersize the buffer that `decodeBase64()` then fills. [(#641)](https://github.com/zowe/zowe-common-c/issues/641)
 - Bugfix: the POSIX `fileReadLink()` in `platform/posix/psxfile.c` takes `const char *` like its declaration in `unixfile.h`, so the Linux build of configmgr compiles again after. [(#694)](https://github.com/zowe/zowe-common-c/issues/694)
@@ -40,8 +41,7 @@
 - Bugfix: `/unixfile` requests that force a `sourceEncoding`/`targetEncoding` pair the server cannot convert are rejected with 400 before the response starts, instead of returning 200 with an empty body; a default GET of a file whose CCSID tag cannot be converted falls back to raw binary streaming with a warning; and the streaming loop drains conversions that outgrow the translation buffer instead of truncating. [(#630)](https://github.com/zowe/zowe-common-c/pull/630)
 - Bugfix: charset conversion under ibm-clang64 (Open XL) now uses the iconv path. ibm-clang64 is `__ZOWE_COMP_CLANG`, not `__ZOWE_COMP_XLCLANG`, so `charsets.c` was routing it to the metal/CUNLCNV branch and mishandling multibyte and streaming conversion. [(zss#828)](https://github.com/zowe/zss/issues/828)
 - Enhancement: add a new function (`cmsTestAuth2`) to test any SAF level in xmem; fix ALTER SAF enum value [(#635)](https://github.com/zowe/zowe-common-c/issues/635)
-- Bugfix: Fixed memory leaks in CSI-related functions. [(#712)](https://github.com/zowe/zowe-common-c/pull/712)
-
+- Bugfix: Fixed memory leaks in CSI-related functions. [(#711)](https://github.com/zowe/zowe-common-c/pull/711) and [(#712)](https://github.com/zowe/zowe-common-c/pull/712)
 
 ## `3.5.0`
 - Enhancement: YAML comment preservation tooling for the YAML-to-JSON-to-YAML round-trip pipeline. Comments are scanned separately from libyaml, attached to the JSON tree, and re-emitted with configurable alignment (none, fixed, original). Opt-in; not yet enabled in configmgr. [(#583)](https://github.com/zowe/zowe-common-c/issues/583)
