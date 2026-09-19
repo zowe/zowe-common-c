@@ -256,6 +256,7 @@ int pseudoLS(char *dsn, int fieldCount, char **fieldNames){
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "no entries, no look up failure either\n");
     }
     safeFree31((char*)workArea,workAreaSize);
+    safeFree31((char*)csi_parms,sizeof(csi_parmblock));
     return result;
   } else{
     return DSN_CSI_FAILURE;
@@ -372,7 +373,7 @@ EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int w
                     entries = tempPtr;                   
                     entriesLength = entriesLength*2;
                     entrySet->entries = entries;
-                    entrySet->size = entriesLength*2;
+                    entrySet->size = entriesLength;
                   }
                   EntryData *entryCopy = (EntryData*)safeMalloc(advance,"Entry");
                   memcpy(entryCopy,entry,advance);
@@ -420,19 +421,18 @@ EntryDataSet *getHLQs(char *typesAllowed, int typesCount, int workAreaSize, char
   }
   safeFree(searchTerm,3);
   EntryDataSet *combinedEntrySet = (EntryDataSet*)safeMalloc(sizeof(EntryDataSet),"HLQ Combined Entries Set");
+  combinedEntrySet->size = combinedLength;
   combinedEntrySet->length = combinedLength;
   combinedEntrySet->entries = (EntryData**)safeMalloc(sizeof(EntryData*)*combinedLength,"HLQ Combined Entries");
   int pos = 0;  
   for (int i = 0; i < 29; i++){
-    if (entrySets[i]->length > 0) {
-      for (int j = 0; j < entrySets[i]->length; j++){
-        combinedEntrySet->entries[pos++]=entrySets[i]->entries[j];
-      }
-      safeFree(entrySets[i]->entries, entrySets[i]->length * sizeof(EntryData*));
+    for (int j = 0; j < entrySets[i]->length; j++){
+      combinedEntrySet->entries[pos++]=entrySets[i]->entries[j];
     }
-    safeFree(entrySets[i], sizeof(EntryDataSet));
+    safeFree((char*)entrySets[i]->entries, entrySets[i]->size * sizeof(EntryData*));
+    safeFree((char*)entrySets[i], sizeof(EntryDataSet));
   }
-  safeFree(entrySets, 29 * sizeof(EntryDataSet*))
+  safeFree((char*)entrySets, 29 * sizeof(EntryDataSet*));
   return combinedEntrySet;
 }
 
