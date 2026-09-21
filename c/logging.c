@@ -159,6 +159,9 @@ static LoggingComponentTable *makeComponentTable(int componentCount) {
 
   int tableSize = sizeof(LoggingComponentTable) + componentCount * sizeof(LoggingComponent);
   LoggingComponentTable *table = (LoggingComponentTable *)safeMalloc(tableSize, "LoggingComponentTable");
+  if (table == NULL) {
+    return NULL; /* out of memory (#686) */
+  }
   memset(table, 0, tableSize);
   memcpy(table->eyecatcher, "RSLOGCTB", sizeof(table->eyecatcher));
   table->componentCount = componentCount;
@@ -204,11 +207,18 @@ static void removeComponentTable(LoggingComponentTable *table) {
 static LoggingZoweAnchor *makeZoweAnchor() {
 
   LoggingZoweAnchor *anchor = (LoggingZoweAnchor *)safeMalloc(sizeof(LoggingZoweAnchor), "LoggingZoweAnchor");
+  if (anchor == NULL) {
+    return NULL; /* out of memory (#686) */
+  }
   memset(anchor, 0, sizeof(LoggingZoweAnchor));
   memcpy(anchor->eyecatcher, "RSLOGRSA", sizeof(anchor->eyecatcher));
   memcpy(anchor->topLevelComponentTable.eyecatcher, "RSLOGCTB", sizeof(anchor->topLevelComponentTable.eyecatcher));
   anchor->topLevelComponentTable.componentCount = 1;
   anchor->topLevelComponent.subcomponents = makeComponentTable(LOG_DEFAULT_COMPONENT_COUNT);
+  if (anchor->topLevelComponent.subcomponents == NULL) {
+    safeFree((char *)anchor, sizeof(LoggingZoweAnchor));
+    return NULL;
+  }
 
   return anchor;
 }
@@ -225,6 +235,9 @@ static void removeZoweAnchor(LoggingZoweAnchor *anchor) {
 static LoggingVendor *makeVendor(unsigned short vendorID) {
 
   LoggingVendor *vendor = (LoggingVendor *)safeMalloc(sizeof(LoggingVendor), "LoggingVendor");
+  if (vendor == NULL) {
+    return NULL; /* out of memory (#686) */
+  }
   memset(vendor, 0, sizeof(LoggingVendor));
   memcpy(vendor->eyecatcher, "RSLOGVNR", sizeof(vendor->eyecatcher));
   vendor->vendorID = vendorID;
@@ -255,9 +268,22 @@ LoggingContext *makeLocalLoggingContext() {
      4-byte slot in the CAA 
      */
   LoggingContext *context = (LoggingContext *)safeMalloc31(sizeof(LoggingContext),"LoggingContext");
+  if (context == NULL) {
+    return NULL; /* out of memory: this is the first allocation configmgr makes (#686) */
+  }
   memcpy(context->eyecatcher, "RSLOGCTX", sizeof(context->eyecatcher));
   context->vendorTable = htCreate(LOG_VENDOR_HT_BACKBONE_SIZE, NULL, NULL, NULL, NULL);
   context->zoweAnchor = makeZoweAnchor();
+  if (context->vendorTable == NULL || context->zoweAnchor == NULL) {
+    if (context->zoweAnchor != NULL) {
+      removeZoweAnchor(context->zoweAnchor);
+    }
+    if (context->vendorTable != NULL) {
+      htDestroy(context->vendorTable);
+    }
+    safeFree31((char *)context, sizeof(LoggingContext));
+    return NULL;
+  }
 
   return context;
 }
@@ -268,6 +294,9 @@ LoggingContext *makeLoggingContext() {
   if (existingContext == NULL) {
 
     LoggingContext *context = makeLocalLoggingContext();
+    if (context == NULL) {
+      return NULL; /* out of memory (#686); the caller decides how to fail */
+    }
     int setRC = setLoggingContext(context);
     if (setRC != RC_LOG_OK) {
       removeLocalLoggingContext(context);
