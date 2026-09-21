@@ -133,7 +133,7 @@ jobs:
         with:
           repository: zowe/quickjs-portable
           path: deps/configmgr/quickjs
-          ref: 'staging'
+          ref: 'bugfix/truncation'
 
       - name: '[Prep 2] Setup jFrog CLI'
         uses: jfrog/setup-jfrog-cli@v2
