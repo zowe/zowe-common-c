@@ -2061,10 +2061,14 @@ static JSValue js_native_print(JSContext *ctx, JSValueConst this_val,
       safeFree(native,MAX_PRINT_ELT_SIZE);
       return JS_EXCEPTION;
     }
-    size_t printLen = min(len,MAX_PRINT_ELT_SIZE);
-    memcpy(native,str,printLen);
-    convertToNative(native,printLen);
-    fwrite(native, 1, printLen, stdout);
+    size_t offset = 0;
+    while (offset < len){
+      size_t chunkLen = min(len - offset, MAX_PRINT_ELT_SIZE);
+      memcpy(native, str + offset, chunkLen);
+      convertToNative(native, chunkLen);
+      fwrite(native, 1, chunkLen, stdout);
+      offset += chunkLen;
+    }
     JS_FreeCString(ctx, str);
   }
   putchar('\n');
