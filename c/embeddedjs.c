@@ -2043,6 +2043,7 @@ static char **copyArrayFromNative(int sourceCount, char **sourceArray, ShortLive
   return copy;
 }
 
+#define PRINT_STACK_BUF_SIZE 256
 #define MAX_PRINT_ELT_SIZE 0x10000
 
 static JSValue js_native_print(JSContext *ctx, JSValueConst this_val,
@@ -2050,20 +2051,35 @@ static JSValue js_native_print(JSContext *ctx, JSValueConst this_val,
   int i;
   const char *str;
   size_t len;
-  char *native = safeMalloc(MAX_PRINT_ELT_SIZE,"native print");
-  
+  char stackBuffer[PRINT_STACK_BUF_SIZE];
+  char *heapBuffer = NULL;
+
   for(i = 0; i < argc; i++){
     if (i != 0){
       putchar(' ');
     }
     str = JS_ToCStringLen(ctx, &len, argv[i]);
     if (!str){
-      safeFree(native,MAX_PRINT_ELT_SIZE);
+      if (heapBuffer){
+        safeFree(heapBuffer,MAX_PRINT_ELT_SIZE);
+      }
       return JS_EXCEPTION;
+    }
+    char *native;
+    size_t chunkCap;
+    if (len <= PRINT_STACK_BUF_SIZE){
+      native = stackBuffer;
+      chunkCap = PRINT_STACK_BUF_SIZE;
+    } else {
+      if (!heapBuffer){
+        heapBuffer = safeMalloc(MAX_PRINT_ELT_SIZE,"native print");
+      }
+      native = heapBuffer;
+      chunkCap = MAX_PRINT_ELT_SIZE;
     }
     size_t offset = 0;
     while (offset < len){
-      size_t chunkLen = min(len - offset, MAX_PRINT_ELT_SIZE);
+      size_t chunkLen = min(len - offset, chunkCap);
       memcpy(native, str + offset, chunkLen);
       convertToNative(native, chunkLen);
       fwrite(native, 1, chunkLen, stdout);
@@ -2072,7 +2088,9 @@ static JSValue js_native_print(JSContext *ctx, JSValueConst this_val,
     JS_FreeCString(ctx, str);
   }
   putchar('\n');
-  safeFree(native,MAX_PRINT_ELT_SIZE);
+  if (heapBuffer){
+    safeFree(heapBuffer,MAX_PRINT_ELT_SIZE);
+  }
   return JS_UNDEFINED;
 }
 
