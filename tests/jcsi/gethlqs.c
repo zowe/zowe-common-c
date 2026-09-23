@@ -14,6 +14,7 @@
 #define NCSIPARMBLKS 29
 
 #ifdef TRACK_MEMORY
+// defined in zowe-common-c/c/alloc.c
 extern int safeBytes;
 extern int rawBytes;
 extern int k8Bytes;
@@ -23,6 +24,8 @@ typedef csi_parmblock * __ptr32 csi_parmblock_ptr32;
 typedef csi_parmblock_ptr32 * __ptr32 csi_parmblock_array_ptr32;
 
 int main(int argc, char* argv[]) {
+  setMallocTraceLevel(1);
+  initLoggings(ZOWE_LOG_DEBUG2);
   initCSI();
   csi_parmblock_array_ptr32 csi_parms_array = (csi_parmblock_array_ptr32)safeMalloc31(sizeof(csi_parmblock_ptr32) * NCSIPARMBLKS, "csi_parms_array");
   EntryDataSet* entrySets = getHLQs((char*)TYPES, NTYPES, 0, (char**)TESTFIELDS, NTESTFIELDS, csi_parms_array);
@@ -36,6 +39,7 @@ int main(int argc, char* argv[]) {
     safeFree((char*)csi_parms_array[i], sizeof(csi_parmblock));
   }
   safeFree((char*)csi_parms_array, sizeof(csi_parmblock_ptr32) * NCSIPARMBLKS);
+  uninitLoggings();
 #ifdef TRACK_MEMORY
   printf("memory tracking values when exiting:\n"
          "  safeBytes: %d\n"

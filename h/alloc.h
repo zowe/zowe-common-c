@@ -148,6 +148,17 @@ memset(name, 0, sizeof(struct STRUCT31_LOCAL_VAR_NAME(name)))
 
 #endif 
 
+/**
+ *  to turn on tracing report for malloc, set a value greater or equal to 1.
+ *  returns the current level before changing to the new level.
+ */
+int setMallocTraceLevel(int newLevel);
+
+/**
+ *  prints possibly leaked memory allocations.
+ *  returns total number of allocations have been made.
+ */
+int showOutstanding();
 
 #endif
 

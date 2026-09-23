@@ -10,8 +10,9 @@ extern const int NTYPES;
 extern char const TYPES[];
 
 void initCSI();
+void initLoggings(int level);
+void uninitLoggings();
+// returns a null-terminated string of name44. the returned string remains avaiable till the next call.
 const char* getCStringName(const char* name44);
-
-int showOutstanding(); // in alloc.c
 
 #endif // _COMMON_H_

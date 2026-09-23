@@ -29,22 +29,15 @@ char const TYPES[] = {
 };
 const int NTYPES = sizeof(TYPES)/sizeof(TYPES[0]);
 
-/*
-  Fake or simplified stub functions --- they are part of zowe-common-c but unrelated to/unused by the
-  current unit tests. These fake stub functions can noticeably simplify the Makefile.
-*/
-void abortIfUnsupportedCAA() {
+void initLoggings(int level) {
+  LoggingContext *logContext = makeLoggingContext();
+  logConfigureStandardDestinations(logContext);
+  logConfigureComponent(NULL, LOG_COMP_RESTDATASET, "JCSI", LOG_DEST_PRINTF_STDOUT, ZOWE_LOG_INFO);
+  logSetLevel(NULL, LOG_COMP_RESTDATASET, level);
 }
 
-char *getCAA(void) {
-  return "";
-}
-
-void zowelog(LoggingContext *context, uint64 compID, int level, char *formatString, ...){
-  va_list ap;
-  va_start(ap, formatString);
-  vprintf(formatString, ap);
-  va_end(ap);
+void uninitLoggings() {
+  removeLoggingContext();
 }
 
 void initCSI() {
