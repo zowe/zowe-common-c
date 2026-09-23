@@ -15,4 +15,13 @@ void uninitLoggings();
 // returns a null-terminated string of name44. the returned string remains avaiable till the next call.
 const char* getCStringName(const char* name44);
 
+/**
+ *  prints possibly leaked memory allocations.
+ *  returns total number of allocations have been made.
+ *  NOTICE: implemented in c/alloc.c
+ */
+#if ((!METTLE || WRITSTAT) && TRACK_MEMORY)
+int showOutstanding();
+#endif
+
 #endif // _COMMON_H_
