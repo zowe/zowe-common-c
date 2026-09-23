@@ -2073,6 +2073,10 @@ static JSValue js_native_print(JSContext *ctx, JSValueConst this_val,
     } else {
       if (!heapBuffer){
         heapBuffer = safeMalloc(MAX_PRINT_ELT_SIZE,"native print");
+        if (!heapBuffer){
+          JS_FreeCString(ctx, str);
+          return JS_ThrowOutOfMemory(ctx);
+        }
       }
       native = heapBuffer;
       chunkCap = MAX_PRINT_ELT_SIZE;
