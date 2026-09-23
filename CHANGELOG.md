@@ -6,6 +6,8 @@
 - Enhancement: `utils.c` gains bounded string helpers `strcpySafe`, `strncpySafe`, `strcatSafe`, `strncatSafe` and `strlenSafe`. They follow the argument shape of the C11 Annex K `_s` functions, so each buffer is followed immediately by its own size, treat that size as the size of the buffer, always null-terminate, and return -1 when the destination was too small to hold the whole result. They are deliberately not named `_s`: Annex K is optional, z/OS does not provide it, those identifiers are reserved for it, and these do not implement its semantics (constraint handlers, `errno_t`, `rsize_t`).
 - Bugfix: Fix potential buffer overrun in XML parser. ([#713](https://github.com/zowe/zowe-common-c/pull/713))
 - Bugfix: Fix potential ABEND in http client when receiving large http body. ([#704](https://github.com/zowe/zowe-common-c/pull/704))
+- Bugfix: Fix potential buffer overrun in http client when receiving long http status message. ([#703](https://github.com/zowe/zowe-common-c/pull/703))
+- Enhancement: stricter HTTP header key matching. ([#705](https://github.com/zowe/zowe-common-c/pull/705))
 
 ## `2.18.5`
 - Bugfix: Use "%.*s" version of snprintf to stop overreading in 'zosResolveSymbol()' which causes abend.([#595](https://github.com/zowe/zowe-common-c/pull/595))

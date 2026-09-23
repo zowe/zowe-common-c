@@ -1364,7 +1364,7 @@ HttpHeader *getHeaderLine(HttpRequest *request){
 HttpHeader *getHeader(HttpRequest *request, char *name){
   HttpHeader *headerChain = request->headerChain;
   while (headerChain){
-    if (!compareIgnoringCase(name, headerChain->nativeName, strlen(name))){
+    if (!compareStringsIgnoringCase(name, headerChain->nativeName)){
       return headerChain;
     }
     headerChain = headerChain->next;
@@ -1986,23 +1986,21 @@ static void addRequestHeader(HttpRequestParser *parser){
 
 
   /* pull out enough data for parsing the entity body */
-  if (!compareIgnoringCase(newHeader->nativeName,"Transfer-Encoding",parser->headerNameLength)){
-    if (!compareIgnoringCase(newHeader->nativeValue,"chunked",parser->headerValueLength)){
+  if (!compareStringsIgnoringCase(newHeader->nativeName,"Transfer-Encoding")){
+    if (!compareStringsIgnoringCase(newHeader->nativeValue,"chunked")){
       parser->isChunked = TRUE;
     }
-  } else if (!compareIgnoringCase(newHeader->nativeName,"Content-Length",parser->headerNameLength)){
+  } else if (!compareStringsIgnoringCase(newHeader->nativeName,"Content-Length")){
     parser->specifiedContentLength = atoi(newHeader->nativeValue);
-  } else if (!compareIgnoringCase(newHeader->nativeName,"Content-Type",parser->headerNameLength)){
+  } else if (!compareStringsIgnoringCase(newHeader->nativeName,"Content-Type")){
     parser->contentType = newHeader->nativeValue;
-  } else if (!compareIgnoringCase(newHeader->nativeName,"Upgrade",parser->headerNameLength)){
-    if (!compareIgnoringCase(newHeader->nativeValue,"websocket",parser->headerValueLength)){
+  } else if (!compareStringsIgnoringCase(newHeader->nativeName,"Upgrade")){
+    if (!compareStringsIgnoringCase(newHeader->nativeValue,"websocket")){
       parser->isWebSocket = TRUE;
     }
   }
-  else if (!compareIgnoringCase(newHeader->nativeName, "Connection",
-                                  parser->headerNameLength)) {
-    if (!compareIgnoringCase(newHeader->nativeValue, "Keep-Alive",
-                             parser->headerValueLength)) {
+  else if (!compareStringsIgnoringCase(newHeader->nativeName, "Connection")) {
+    if (!compareStringsIgnoringCase(newHeader->nativeValue, "Keep-Alive")) {
       parser->keepAlive = TRUE;
     }
   }
