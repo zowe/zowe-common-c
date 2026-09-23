@@ -51,7 +51,7 @@ void initCSI() {
 const char* getCStringName(const char* name44) {
   static char cstrName[45];
   int i = 0;
-  for (; i < 44; i++) cstrName[i] = name44[i];
+  for (; i < 44 && cstrName[i] != ' '; i++) cstrName[i] = name44[i];
   cstrName[i] = '\0';
   return cstrName;
 }

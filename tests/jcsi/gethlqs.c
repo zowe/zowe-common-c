@@ -28,7 +28,7 @@ int main(int argc, char* argv[]) {
   initLoggings(ZOWE_LOG_DEBUG2);
   initCSI();
   csi_parmblock_array_ptr32 csi_parms_array = (csi_parmblock_array_ptr32)safeMalloc31(sizeof(csi_parmblock_ptr32) * NCSIPARMBLKS, "csi_parms_array");
-  EntryDataSet* entrySets = getHLQs((char*)TYPES, NTYPES, 0, (char**)TESTFIELDS, NTESTFIELDS, csi_parms_array);
+  EntryDataSet* entrySets = getHLQs((char*)TYPES, NTYPES, 0, (char**)TESTFIELDS, NTESTFIELDS, csi_parms_array); // NOSONAR c:S3529
   printf("flags    type    name\n");
   for (int i = 0; i < entrySets->length; i++) {
     EntryData *entry = entrySets->entries[i];
@@ -41,6 +41,7 @@ int main(int argc, char* argv[]) {
   safeFree((char*)csi_parms_array, sizeof(csi_parmblock_ptr32) * NCSIPARMBLKS);
   uninitLoggings();
 #ifdef TRACK_MEMORY
+  // we expect all of them to be zero
   printf("memory tracking values when exiting:\n"
          "  safeBytes: %d\n"
          "  rawBytes: %d\n"
