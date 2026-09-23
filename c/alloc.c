@@ -30,6 +30,12 @@
 
 static int MALLOC_TRACE_LEVEL = 0;
 
+int setMallocTraceLevel(int newLevel) {
+    int oldLevel = MALLOC_TRACE_LEVEL;
+    MALLOC_TRACE_LEVEL = newLevel;
+    return oldLevel;
+}
+
 #ifdef MALLOC_ABEND_ENABLED
 
 typedef void abend_os_fn(int, int);
@@ -588,7 +594,7 @@ void safeFree31(char *data, int size){
 #ifdef METTLE 
   freemain31(data,size,SUBPOOL);
 #else
-  free(data);
+  free31(data, size);
 #endif
 }
 

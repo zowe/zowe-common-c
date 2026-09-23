@@ -408,6 +408,7 @@ static JSValue zosDatasetInfo(JSContext *ctx, JSValueConst this_val,
     }
   }
 
+  freeEntryDataSet(entrySet);
   JS_FreeCString(ctx, dsn);
 
   return result;
