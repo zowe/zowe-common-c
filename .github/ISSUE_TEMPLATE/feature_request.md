@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an idea for ZSS
+about: Suggest an idea for Zowe-common-c or related component
 labels: enhancement, new
 ---
 
