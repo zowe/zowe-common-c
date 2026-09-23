@@ -35,7 +35,6 @@ sh test_config_path_reset.sh
 sh test_enum_type_message.sh
 sh test_script_exit_status.sh
 sh test_oom_no_crash.sh
-sh test_print_chunking.sh
 ```
 
 Exit code is 0 if every assertion in every suite passed, non-zero otherwise.
@@ -54,7 +53,6 @@ Exit code is 0 if every assertion in every suite passed, non-zero otherwise.
 | `test_enum_type_message.sh` | `validate` diagnostics for enum/const mismatches, typed and untyped `oneOf` alternatives | the message names the schema's own type (`'string'`/`'integer'`) instead of always saying `'integer'` (zowe/zowe-common-c#563), including the untyped-`oneOf` case (no `type` keyword) that used to be misreported; both cases exit 99 |
 | `test_script_exit_status.sh` | `-script` mode error handling: top-level throw, top-level `ReferenceError`, missing script file, and a healthy run | throw and `ReferenceError` each exit 2 (`ZCFG_EVAL_FAILURE`) with the error text printed -- regression coverage for QuickJS 2024-01-13 turning a top-level throw into a silently-dropped rejected promise (zowe/zowe-install-packaging#3639, same symptom as zowe/zowe-common-c#585); a missing file also exits 2; a healthy script still exits 0 |
 | `test_oom_no_crash.sh` | `configmgr` startup path under memory pressure, via a descending `ulimit -v` sweep (Linux only) | no run dies by signal across the sweep -- pins the fix for the short-lived-heap and logging-context constructors returning NULL cleanly instead of writing through it (zowe/zowe-common-c#685, zowe/zowe-common-c#686) |
-| `test_print_chunking.sh` | native `console.log()` (`js_native_print()` in `embeddedjs.c`) stack-buffer (256B) / heap-buffer (64KB, chunked) split | no bytes dropped/duplicated/corrupted at the 256B and 64KB size boundaries; text+number+boolean+null+undefined arguments and several plain arguments join with single spaces. Only exercises the native path (vs. QuickJS's own `console.log()`) on a z/OS build |
 
 ## Known-broken behaviors pinned (intentionally)
 
@@ -120,7 +118,6 @@ All in `fixtures/`. Each yaml is small enough to read at a glance:
 - `throws.js` -- top-level `throw`, for `test_script_exit_status.sh`.
 - `reference_error_module.js` -- top-level reference to an undefined function, for `test_script_exit_status.sh`. (`does_not_exist.js`, also referenced by that suite, is intentionally absent -- the test point is a missing file.)
 - `oom_probe.js` -- the smallest script that exercises configmgr startup and the `-script` evaluation path, for `test_oom_no_crash.sh`'s `ulimit -v` sweep.
-- `print_chunking.js` -- driver for `test_print_chunking.sh`; prints marker-bracketed payloads at the native `console.log()` stack/heap buffer size boundaries, plus mixed-type and multi-argument calls, for the shell script to verify.
 
 ## Coverage gaps (not pinned by this suite)
 
