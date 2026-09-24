@@ -125,6 +125,11 @@ bool configureEmbeddedJS(EmbeddedJS *ejs,
                          EJSNativeModule **nativeModules, int nativeModuleCount,
                          int argc, char **argv);
 
+/* As configureEmbeddedJS, but publishes only the read-only members of 'std',
+   'os' and 'zos'. Use for a runtime that evaluates "${{ ... }}" templates out
+   of a configuration file, whose author is not necessarily trusted. */
+bool configureEmbeddedJSForTemplates(EmbeddedJS *ejs);
+
 JsonBuilder *ejsMakeJsonBuilder(EmbeddedJS *ejs);
 
 

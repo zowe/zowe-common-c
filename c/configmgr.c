@@ -597,9 +597,10 @@ ConfigManager *makeConfigManager(){
   mgr->traceOut = stderr;
   mgr->slh = makeShortLivedHeap(0x10000,0x100);
   EmbeddedJS *ejs = allocateEmbeddedJS(NULL);
-  /* configureEmbeddedJS tolerates a NULL ejs and frees ejs itself if it fails
-     partway, so the only cleanup owed here is what this function allocated. */
-  if (!configureEmbeddedJS(ejs,NULL,0,0,NULL)){
+  /* configureEmbeddedJSForTemplates tolerates a NULL ejs and frees ejs itself if
+     it fails partway, so the only cleanup owed here is what this function
+     allocated. */
+  if (!configureEmbeddedJSForTemplates(ejs)){
     SLHFree(mgr->slh);
     safeFree((char*)mgr,sizeof(ConfigManager));
     return NULL;

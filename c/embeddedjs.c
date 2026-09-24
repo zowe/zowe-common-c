@@ -2164,9 +2164,53 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
   return m;
 }
 
-bool configureEmbeddedJS(EmbeddedJS *embeddedJS, 
-                         EJSNativeModule **nativeModules, int nativeModuleCount,
-                         int argc, char **argv){
+/* Published on globalThis for code that is not a module. */
+static const char *fullGlobalsSource =
+  "import * as std from 'std';\n"
+  "import * as os from 'os';\n"
+#ifdef __ZOWE_OS_ZOS
+  "import * as zos from 'zos';\n"
+#endif
+  "globalThis.std = std;\n"
+  "globalThis.os = os;\n"
+#ifdef __ZOWE_OS_ZOS
+  "globalThis.zos = zos;\n"
+#endif
+  ;
+
+/* A "${{ ... }}" template is attacker-controlled as soon as anyone who is not a
+   Zowe administrator can write a file or PARMLIB member on the config path, and
+   it is evaluated before the configuration is validated. Templates therefore get
+   only the members that read state: anything that starts a process, evaluates
+   code, writes to the filesystem or its security attributes, or changes process
+   state is withheld, and a member added to one of these modules later is
+   withheld until it is named here. */
+static const char *templateGlobalsSource =
+  "import * as std from 'std';\n"
+  "import * as os from 'os';\n"
+#ifdef __ZOWE_OS_ZOS
+  "import * as zos from 'zos';\n"
+#endif
+  "const pick = (module, names) => {\n"
+  "  const surface = {};\n"
+  "  for (const name of names) {\n"
+  "    if (module[name] !== undefined) surface[name] = module[name];\n"
+  "  }\n"
+  "  return Object.freeze(surface);\n"
+  "};\n"
+  "globalThis.std = pick(std, ['getenv', 'getenviron']);\n"
+  "globalThis.os = pick(os, ['realpath', 'stat', 'lstat', 'readlink', 'readdir', 'getcwd', 'platform']);\n"
+#ifdef __ZOWE_OS_ZOS
+  "globalThis.zos = pick(zos, ['zstat', 'getZosVersion', 'getEsm', 'dslist', 'resolveSymbol', 'getStatvfs', 'EXTATTR_SHARELIB', 'EXTATTR_PROGCTL']);\n"
+#endif
+  /* js_std_add_helpers leaves an arbitrary-file script loader on globalThis. */
+  "delete globalThis.__loadScript;\n"
+  ;
+
+static bool configureEmbeddedJS1(EmbeddedJS *embeddedJS,
+                                 EJSNativeModule **nativeModules, int nativeModuleCount,
+                                 int argc, char **argv,
+                                 bool restrictToConfigTemplates){
   /*
      JS_SetMemoryLimit(rt, memory_limit);
      JS_SetMaxStackSize(rt, stack_size);
@@ -2214,20 +2258,7 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
   int evalStatus = 0;
   /* make 'std' and 'os' visible to non module code */
   if (true){ /* load_std) {*/
-    const char *source = "import * as std from 'std';\n"
-      "import * as os from 'os';\n"
-#ifdef __ZOWE_OS_ZOS
-      "import * as zos from 'zos';\n"
-#endif
-      /*  "import * as experiment from 'experiment';\n" */
-      /*       "import * as FFI1 from 'FFI1';\n" */
-      "globalThis.std = std;\n"
-      "globalThis.os = os;\n"
-#ifdef __ZOWE_OS_ZOS
-      "globalThis.zos = zos;\n"
-#endif
-      /* "globalThis.experiment = experiment;\n"; */
-      ;
+    const char *source = restrictToConfigTemplates ? templateGlobalsSource : fullGlobalsSource;
     size_t sourceLen = strlen(source);
     char asciiSource[sourceLen + 1];
     snprintf (asciiSource, sourceLen + 1, "%.*s", (int)sourceLen, source);
@@ -2240,6 +2271,16 @@ bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
     JSValue throwaway = ejsEvalBuffer1(embeddedJS, asciiSource, strlen(asciiSource), input, JS_EVAL_TYPE_MODULE, &evalStatus);
   }
   return true;
+}
+
+bool configureEmbeddedJS(EmbeddedJS *embeddedJS,
+                         EJSNativeModule **nativeModules, int nativeModuleCount,
+                         int argc, char **argv){
+  return configureEmbeddedJS1(embeddedJS,nativeModules,nativeModuleCount,argc,argv,false);
+}
+
+bool configureEmbeddedJSForTemplates(EmbeddedJS *embeddedJS){
+  return configureEmbeddedJS1(embeddedJS,NULL,0,0,NULL,true);
 }
 
 EmbeddedJS *ejsGetEnvironment(EJSNativeInvocation *invocation){
