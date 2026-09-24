@@ -13,5 +13,6 @@ run_case "300-char key" \
   "$CONFIGMGR" -s "$FX/any_object_schema.json" -p "FILE($FX/long_key.yaml)" validate
 assert_exit "config validates without the long key" 0
 assert_contains "warning shows the key text" "key too long 'kkkkkkkkkkkkkkkk" "$LAST_STDOUT"
+assert_contains "warning shows the key text" "key too long 'long_key_257_Lorem_ipsum" "$LAST_STDOUT"
 
 end_suite
