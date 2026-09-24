@@ -25,6 +25,8 @@
 
 #endif
 
+#include "zowe_bpx_prototypes.h"
+
 int signalControl(int signum, SignalHandler handler, int *returnCode, int *reasonCode) {
   int *reasonCodePtr;
   int returnValue;
@@ -38,7 +40,7 @@ int signalControl(int signum, SignalHandler handler, int *returnCode, int *reaso
   int zero = 0;
   SignalHandler oldHandler;
   int64 oldMask;
-  int64 oldFlags;
+  int oldFlags;
 
 
   BPXSIA(&signum,
@@ -48,7 +50,7 @@ int signalControl(int signum, SignalHandler handler, int *returnCode, int *reaso
          &oldHandler,
          &oldMask,
          &oldFlags,
-         &zero,
+         (char *)&zero,
          &returnValue,
          returnCode,
          reasonCodePtr);
@@ -62,7 +64,7 @@ int signalControl(int signum, SignalHandler handler, int *returnCode, int *reaso
          &zero,
          &zero,
          &zero,
-         &zero,
+         (char *)&zero,
          &returnValue,
          returnCode,
          reasonCodePtr);

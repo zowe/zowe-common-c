@@ -1,0 +1,5 @@
+zowe:
+  setup:
+    certificate:
+      type: BOGUS
+      file: x

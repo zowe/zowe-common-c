@@ -160,6 +160,8 @@ int httpClientSessionReceiveNative(HttpClientContext *ctx, HttpClientSession *se
 /* returns 0 when read/parse loop makes session->response non-NULL */
 int httpClientSessionReceiveNativeLoop(HttpClientContext *ctx, HttpClientSession *session);
 
+int processHttpResponseFragment(HttpResponseParser *parser, char *data, int len, HttpClientResponse **outClientResponse);
+
 #ifdef __cplusplus
 }
 #endif

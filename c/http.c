@@ -150,6 +150,9 @@ char* destructivelyNativize(char *s)
 }
 
 int headerMatch(HttpHeader *header, char *s){
+  if (header == NULL || header->nativeValue == NULL || s == NULL) {
+    return 0;
+  }
   return !strcmp(header->nativeValue,s);
 }
 
@@ -196,7 +199,7 @@ int writeFully(Socket *socket, char *buffer, int len){
 
   /* this is a sanity check for a bug that once happened on ZOS */
 #ifdef __ZOWE_OS_ZOS
-  if (((int)socket) < 0x1000000){
+  if ((uint64)socket < 0x1000000){
     return 0;
   }
 #endif

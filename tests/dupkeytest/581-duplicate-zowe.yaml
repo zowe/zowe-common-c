@@ -1,0 +1,8 @@
+zowe:
+  environments:
+    myPrefix: /my/runtime
+  runtimeDirectory: "${{ zowe.environments.myPrefix }}"
+  logDirectory: "${{ zowe.environments.myPrefix + '/log' }}"
+zowe:
+  externalDomains:
+    - one.example.com

@@ -42,6 +42,8 @@
 
 #endif
 
+#include "zowe_bpx_prototypes.h"
+
 int fdPipe(FileDescriptor pipefd[2], int *returnCode, int *reasonCode) {
   int *reasonCodePtr;
   int returnValue;

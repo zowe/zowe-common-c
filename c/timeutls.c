@@ -145,7 +145,7 @@ int pcCall(int serviceRoutine, void *parmlist){
   wrapper[0] = 0;
   wrapper[1] = 0;
   wrapper[2] = 0;
-  wrapper[3] = (int)routineUnderBar;
+  wrapper[3] = (int)(uint64)routineUnderBar;
 
   int res = 0;
 

@@ -270,19 +270,34 @@ typedef struct socket_tag{
   TlsEnvironment *tlsEnvironment;
   TlsSocket *tlsSocket;
 #endif
+#if defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
+  /* POSIX experimental idle-timeout tracking (used by psxskt.c only).
+   * Not promoted to universal until the feature is ported to z/OS/Windows. */
+#define IDLE_TIMEOUT_DISABLED 0
+#define IDLE_TIMEOUT_ENABLED  1
+  SocketAddress lastDestination;
+  int           idleTimeoutFlags;
+  uint64_t      createTime;
+  uint64_t      readyTime;
+#endif
 } Socket;
 
 typedef struct SocketSet_tag{
   int highestAllowedSD;
   Socket **sockets;
+  int socketCount;   /* count of valid entries in sockets[]; usable on every
+                      * platform. Winsock additionally uses this as the
+                      * fd_count when packing allWindowsSockets into its
+                      * count-prefixed fd_set. */
 #ifdef __ZOWE_OS_WINDOWS
-  int     socketCount;
   SOCKET *allWindowsSockets;
 #elif defined(__ZOWE_OS_LINUX) || defined(__ZOWE_OS_AIX)
   fd_set allSDs;
   fd_set scratchReadMask;
   fd_set scratchWriteMask;
   fd_set scratchErrorMask;
+  /* POSIX experimental idle-timeout tracking (used by psxskt.c only). */
+  uint64_t idleTimeLimit;
 #elif defined(__ZOWE_OS_ZOS)
   int *allSDs;
   int *scratchReadMask;

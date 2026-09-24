@@ -24,6 +24,7 @@
 #include "metalio.h"
 
 #else
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -112,10 +113,10 @@ void fbMgrDestroy(fixedBlockMgr *mgr){
    */
 
 hashtable *htCreate(int backboneSize,
-                    int (*hash)(void *key),
-                    int (*compare)(void *key1, void *key2),
-                    void (*keyReclaimer)(void *key),
-                    void (*valueReclaimer)(void *value)){
+                    HashFunction       hash,
+                    HashComparator     compare,
+                    HashKeyReclaimer   keyReclaimer,
+                    HashValueReclaimer valueReclaimer){
   hashtable *ht = (hashtable*)safeMalloc(sizeof(hashtable),"HashTable");
   int i;
 
@@ -179,7 +180,7 @@ void *htGet(hashtable *ht, void *key){
   int loopCount = 0;
 
   if (hashentry != NULL){
-    int (*compare)() = ht->comparator;
+    HashComparator compare = ht->comparator;
     while (hashentry != NULL){
       if (compare?
           (compare)(hashentry->key,key) :
@@ -296,7 +297,7 @@ static int htPut2(hashtable *ht, void *key, void *value){
   hashentry *entry = entry = ht->backbone[place];
   hashentry *tail = NULL;
   hashentry *newEntry = NULL;
-  int (*compare)() = ht->comparator;
+  HashComparator compare = ht->comparator;
 
   if (entry != NULL){
     while (entry != NULL){
@@ -478,7 +479,7 @@ int htRemove(hashtable *ht, void *key){
   hashentry *prev = NULL;
   int place = hashcode%(ht->backboneSize);
   hashentry *entry = ht->backbone[place];
-  int (*compare)() = ht->comparator;
+  HashComparator compare = ht->comparator;
   if (entry != NULL){
     while (entry != NULL){
       if (compare ? (compare)(entry->key,key) : (entry->key == key)){

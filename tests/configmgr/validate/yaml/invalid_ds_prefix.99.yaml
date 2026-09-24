@@ -1,0 +1,6 @@
+---
+zowe:
+  setup:
+    dataset:
+      prefix: 1NVALID.DATASET.NAME
+...

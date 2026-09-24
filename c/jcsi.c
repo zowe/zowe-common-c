@@ -50,9 +50,9 @@ int loadCsi() {
   }
 
   __asm(ASM_PREFIX
-        " LOAD EP=IGGCSI00 \n"
-        " ST 15,%0 \n"
-        " ST 0,%1 \n"
+        " LOAD EP=IGGCSI00\n"
+        " ST 15,%0\n"
+        " ST 0,%1\n"
         :"=m"(status),"=m"(entryPoint)
         : :"r0","r1","r15");
 
@@ -69,19 +69,19 @@ static int callCsi(CsiFn *csiFn, void *__ptr32 paramList, char* __ptr32 saveArea
   __asm(
       ASM_PREFIX
 #ifdef __XPLINK__
-      " L 13,%[saveArea] \n"
+      " L 13,%[saveArea]\n"
 #endif
 #ifdef _LP64
-      " SAM31 \n"
-      " SYSSTATE AMODE64=NO \n"
+      " SAM31\n"
+      " SYSSTATE AMODE64=NO\n"
 #endif
-      " LR 1,%[paramList] \n"
-      " CALL (%[csiFn]) \n"
+      " LR 1,%[paramList]\n"
+      " CALL (%[csiFn])\n"
 #ifdef _LP64
-      " SAM64 \n"
-      " SYSSTATE AMODE64=YES \n"
+      " SAM64\n"
+      " SYSSTATE AMODE64=YES\n"
 #endif
-      " ST 15,%[returnCode] \n"
+      " ST 15,%[returnCode]\n"
       : [returnCode] "=m"(returnCode)
       : [csiFn] "r"(csiFn),
         [paramList] "r"(paramList),
@@ -256,6 +256,7 @@ int pseudoLS(char *dsn, int fieldCount, char **fieldNames){
       zowelog(NULL, LOG_COMP_RESTDATASET, ZOWE_LOG_DEBUG, "no entries, no look up failure either\n");
     }
     safeFree31((char*)workArea,workAreaSize);
+    safeFree31((char*)csi_parms,sizeof(csi_parmblock));
     return result;
   } else{
     return DSN_CSI_FAILURE;
@@ -372,7 +373,7 @@ EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typesCount, int w
                     entries = tempPtr;                   
                     entriesLength = entriesLength*2;
                     entrySet->entries = entries;
-                    entrySet->size = entriesLength*2;
+                    entrySet->size = entriesLength;
                   }
                   EntryData *entryCopy = (EntryData*)safeMalloc(advance,"Entry");
                   memcpy(entryCopy,entry,advance);
@@ -420,16 +421,18 @@ EntryDataSet *getHLQs(char *typesAllowed, int typesCount, int workAreaSize, char
   }
   safeFree(searchTerm,3);
   EntryDataSet *combinedEntrySet = (EntryDataSet*)safeMalloc(sizeof(EntryDataSet),"HLQ Combined Entries Set");
+  combinedEntrySet->size = combinedLength;
   combinedEntrySet->length = combinedLength;
   combinedEntrySet->entries = (EntryData**)safeMalloc(sizeof(EntryData*)*combinedLength,"HLQ Combined Entries");
   int pos = 0;  
   for (int i = 0; i < 29; i++){
-    if (entrySets[i]->length > 0) {
-      for (int j = 0; j < entrySets[i]->length; j++){
-        combinedEntrySet->entries[pos++]=entrySets[i]->entries[j];
-      }
+    for (int j = 0; j < entrySets[i]->length; j++){
+      combinedEntrySet->entries[pos++]=entrySets[i]->entries[j];
     }
+    safeFree((char*)entrySets[i]->entries, entrySets[i]->size * sizeof(EntryData*));
+    safeFree((char*)entrySets[i], sizeof(EntryDataSet));
   }
+  safeFree((char*)entrySets, 29 * sizeof(EntryDataSet*));
   return combinedEntrySet;
 }
 
@@ -448,7 +451,7 @@ void freeEntryDataSet(EntryDataSet *entrySet) {
     }
     entrySet->size = 0;
     entrySet->length = 0;
-    safeFree((char*)entrySet, sizeof(entrySet));
+    safeFree((char*)entrySet, sizeof(EntryDataSet));
   }
 }
 

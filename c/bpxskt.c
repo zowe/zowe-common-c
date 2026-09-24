@@ -116,28 +116,7 @@
 
 #endif
 
-/* xlclang and clang what prototypes, these are incomplete, but quiet the compiler */
-int BPXSOC();
-int BPXCON();
-int BPXGHN();
-int BPXSLP();
-int BPXCHR();
-int BPXBND();
-int BPXLSN();
-int BPXACP();
-int BPXSEL();
-int BPXOPT();
-int BPXGNM();
-int BPXSTO();
-int BPXRFM();
-int BPXHST();
-int BPXIOC();
-int BPXRED();
-int BPXWRT();
-int BPXFCT();
-int BPXCLO();
-int BPXGAI();
-int BPXFAI();
+#include "zowe_bpx_prototypes.h"
 
 #define SOCK_SO_REUSEADDR 0x00000004
 #define SOCK_SO_SNDBUF    0x00001001
@@ -256,9 +235,9 @@ AddrInfoList getAddressInfoList(const char* nodeName, const char* serviceName,
       printf("about to call BPXGAI...\n");
     }
 
-    BPXGAI(nodeName,
+    BPXGAI((char*)nodeName,
            &nodeNameLen,
-           serviceName,
+           (char*)serviceName,
            &serviceNameLen,
            &hintsPtr,
            &addrInfoList,
@@ -1656,7 +1635,7 @@ int setSocketBlockingMode(Socket *socket, int isNonBlocking,
     return -1;
   } else {
     if (socketTrace){
-      printf("BPXFCT value %d returnValue %d \n",isNonBlocking, returnValue);
+      printf("BPXFCT value %d returnValue %d\n",isNonBlocking, returnValue);
     }
     *returnCode = 0;
     *reasonCode = 0;
@@ -1684,7 +1663,7 @@ int setSocketBlockingMode(Socket *socket, int isNonBlocking,
     return returnValue;
   } else {
     if (socketTrace){
-      printf("BPXFCT value %d returnValue %d \n",isNonBlocking, returnValue);
+      printf("BPXFCT value %d returnValue %d\n",isNonBlocking, returnValue);
     }
     /* this seems bogus 
      *returnCode = 0;
@@ -2273,7 +2252,7 @@ int getSocketName(
 
     int socketAddrSize = SOCKET_ADDRESS_SIZE_IPV4;
 
-    BPXGNM(socket,
+    BPXGNM(&(socket->sd),
             1,
             &socketAddrSize,
             socketAddress,
@@ -2305,13 +2284,13 @@ int getSocketName2(
 
     int socketAddrSize = SOCKET_ADDRESS_SIZE_IPV4;
 
-    BPXGNM(socket,
-            2,
-            &socketAddrSize,
-            socketAddress,
-            &returnValue,
-            &returnCode,
-            reasonCodePtr);
+    BPXGNM(&(socket->sd),
+           2,
+           &socketAddrSize,
+           socketAddress,
+           &returnValue,
+           &returnCode,
+           reasonCodePtr);
 
     if (returnValue == 0){
       return returnValue;
@@ -2343,7 +2322,7 @@ int getLocalHostName(char* inout_hostname,
   reasonCodePtr = reasonCode;
 #endif    
     BPXHST(AF_INET,
-            inout_hostname_len,
+            (int*)inout_hostname_len,
             inout_hostname,
             &cs_retval,
             returnCode,

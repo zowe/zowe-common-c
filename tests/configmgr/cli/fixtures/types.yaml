@@ -1,0 +1,25 @@
+# Template-eval type coverage. Each key is either a literal or a "${{ ... }}"
+# template; the test asserts the extracted value for each.
+literal_int: 117
+template_int: "${{ 9 * 13 }}"
+template_neg_int: "${{ -42 }}"
+literal_bool_false: false
+template_bool: "${{ 1 === 1 }}"
+literal_string: "Hello, World!"
+template_string: "${{ 'a'.repeat(16) }}"
+template_concat: "${{ 'a' + 'b' + 'c' }}"
+literal_null: null
+template_null: "${{ null }}"
+template_array_simple: "${{ [1, 2, 3] }}"
+template_array_strings: "${{ ['x', 'y', 'z'] }}"
+template_array_mixed: "${{ [1, 'two', true, null] }}"
+template_object: "${{ ({foo: 'bar', n: 42}) }}"
+template_math: "${{ Math.floor(Math.PI * 100) }}"
+template_string_replace: "${{ 'hello-world'.replace('-', '_') }}"
+template_json_stringify: "${{ JSON.stringify({k: 1}) }}"
+literal_array: [1, 2, 3]
+nested:
+  inner_int: 7
+  inner_template: "${{ 3 * 4 }}"
+  inner_object:
+    deepest_template: "${{ 'x' + 'y' }}"

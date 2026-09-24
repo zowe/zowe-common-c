@@ -12,6 +12,7 @@
 
 #ifdef METTLE
 #include <metal/metal.h>
+#include <metal/limits.h>
 #include <metal/stddef.h>
 #include <metal/stdio.h>
 #include <metal/stdlib.h>
@@ -21,6 +22,7 @@
 #include "metalio.h"
 
 #else
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,6 +42,77 @@
 #ifdef __ZOWE_OS_ZOS
 #include "zos.h"
 #endif
+
+int strlenSafe(const char *s, int maxLength) {
+  int length = 0;
+  if (s == NULL || maxLength <= 0) {
+    return 0;
+  }
+  while (length < maxLength && s[length] != '\0') {
+    length++;
+  }
+  return length;
+}
+
+int strncpySafe(char *dest, int destSize, const char *source, int count) {
+  int length = 0;
+  if (dest == NULL || destSize <= 0) {
+    return -1;
+  }
+  dest[0] = '\0';
+  if (source == NULL || count <= 0) {
+    return 0;
+  }
+  while (length < count && length < destSize - 1 && source[length] != '\0') {
+    dest[length] = source[length];
+    length++;
+  }
+  dest[length] = '\0';
+  if (length < count && source[length] != '\0') {
+    /* dest ran out first: the caller asked for more than it can hold */
+    return -1;
+  }
+  return length;
+}
+
+int strcpySafe(char *dest, int destSize, const char *source) {
+  /* destSize as the count means "as much of source as can possibly fit", so
+   * the truncation test in strncpySafe still reports a source that is too
+   * long. */
+  return strncpySafe(dest, destSize, source, destSize);
+}
+
+int strncatSafe(char *dest, int destSize, const char *source, int count) {
+  int destLength = 0;
+  int length = 0;
+  if (dest == NULL || destSize <= 0) {
+    return -1;
+  }
+  destLength = strlenSafe(dest, destSize);
+  if (destLength >= destSize) {
+    /* dest holds no terminator within the size we were given, so we cannot
+     * find the end to append to without reading past it. Change nothing. */
+    return -1;
+  }
+  if (source == NULL || count <= 0) {
+    return destLength;
+  }
+  while (length < count &&
+         destLength + length < destSize - 1 &&
+         source[length] != '\0') {
+    dest[destLength + length] = source[length];
+    length++;
+  }
+  dest[destLength + length] = '\0';
+  if (length < count && source[length] != '\0') {
+    return -1;
+  }
+  return destLength + length;
+}
+
+int strcatSafe(char *dest, int destSize, const char *source) {
+  return strncatSafe(dest, destSize, source, destSize);
+}
 
 char * strcopy_safe(char * dest, const char * source, int dest_size) {
   if( dest_size == 0 )
@@ -75,13 +148,76 @@ int parseInitialInt(const char *str, int start, int end){
   return x;
 }
 
+/* Strict, overflow-checked parse of a whole NUL-terminated decimal string.
+   Unlike parseInt/parseInitialInt above (fixed ranges, no validation) and
+   unlike sscanf("%d") (which accepts trailing junk such as "1047foo"), this
+   fails unless the ENTIRE string is one well-formed int: an optional sign,
+   then digits only, no leading/trailing whitespace, value within int range.
+   Deliberately avoids strtol/errno so it also builds for Metal C. Returns 0
+   and stores the value on success; returns -1 on any malformation. */
+int parseIntSafely(const char *str, int *out){
+  if (str == NULL || out == NULL){
+    return -1;
+  }
+  int i = 0;
+  int negative = 0;
+  if (str[i] == '+' || str[i] == '-'){
+    negative = (str[i] == '-');
+    i++;
+  }
+  if (str[i] == '\0'){
+    return -1; /* empty, or a bare sign */
+  }
+  int value = 0;
+  for (; str[i] != '\0'; i++){
+    int c = str[i] & 0xff;
+    if (c < '0' || c > '9'){
+      return -1; /* embedded or trailing non-digit */
+    }
+    int digit = c - '0';
+    if (negative){
+      if (value < (INT_MIN + digit) / 10){
+        return -1; /* would underflow */
+      }
+      value = value * 10 - digit;
+    } else {
+      if (value > (INT_MAX - digit) / 10){
+        return -1; /* would overflow */
+      }
+      value = value * 10 + digit;
+    }
+  }
+  *out = value;
+  return 0;
+}
+
+/**
+ * Null-terminate a blank-padded field in place. A null-terminator is written in
+ * the position after the last non-blank or non-null character in the string, or
+ * position 0 if none are found.
+ *
+ * @param[in,out] str the string to null-terminate; if @c NULL or there is no
+ * room for a null-terminator (no padding), the function does nothing the
+ * string.
+ * @param[in] len the length of the string; if the length <= 0, the function
+ * does nothing to the string.
+ * @returns the length of the resulting C-string or -1 if str is NULL or
+ * there was no room for a null-terminator or the length specified was <= 0.
+ * */
 int nullTerminate(char *str, int len){
   int i;
 
-  for (i=len-1; i>=0; i--){
-    if ((str[i] != 0x40) && (str[i] != 0)){
+  if (str == NULL || len <= 0) {
+    return -1;
+  }
+
+  for (i = len - 1; i >= 0; i--) {
+    if ((str[i] != ' ') && (str[i] != 0)) {
+      if (i == len - 1) {  // No room for a null-terminator; return an error code.
+        return -1;
+      }
       str[i+1] = 0;
-      return i+1;
+      return i + 1;
     }
   }
   str[0] = 0;
@@ -238,6 +374,12 @@ int indexOfStringInsensitive(char *str, int len, char *searchString, int startPo
 }
 
 static int upchar(char c){
+#ifndef __ZOWE_EBCDIC
+  /* The bands below are EBCDIC code points, so on an ASCII build they match
+     nothing and this would return every letter unchanged. Fold with the
+     library, which knows the execution character set. */
+  return toupper((unsigned char)c);
+#else
   char low = (char)(c & 0xf);
   char high = (char)(c &0xf0);
                                           
@@ -258,23 +400,42 @@ static int upchar(char c){
   default:
     return c&0xff;
   }
+#endif
 }
 
+/*
+ * Performs a case-insensitive comparison of two strings.
+ *
+ * len specifies the maximum number of characters to compare. A negative value means no limit.
+ */
 int compareIgnoringCase(char *s1, char *s2, int len){
-  int i;
-
-  for (i=0; i<len; i++){
+  for (int i=0; len<0 || i<len; i++){
     int c1 = upchar(s1[i]);
     int c2 = upchar(s2[i]);
     int diff = c1-c2;
     if (diff){
       return diff;
     }
+    if (!c1) {
+      break;
+    }
   }
   return 0;
 }
-                                          
+
+/*
+ * Performs a case-insensitive comparison of two complete strings.
+*/
+int compareStringsIgnoringCase(char *s1, char *s2){
+    return compareIgnoringCase(s1, s2, -1);
+}
+
 int isCharAN(char c){
+#ifndef __ZOWE_EBCDIC
+  /* As upchar(): EBCDIC bands below, so an ASCII build would call every
+     letter and digit non-alphanumeric. */
+  return isalnum((unsigned char)c) ? 1 : 0;
+#else
   char low = (char)(c & 0xf);
   char high = (char)(c &0xf0);
                                           
@@ -292,6 +453,7 @@ int isCharAN(char c){
   default:
     return 0;                             
   }                                       
+#endif
 }
 
 void freeToken(token *t){
@@ -1441,6 +1603,9 @@ int base32Encode (int alphabet,
 
 static ListElt *cons(void *data, ListElt *list){
   ListElt *newList = (ListElt*)safeMalloc(sizeof(ListElt),"ListElt");
+  if (newList == NULL) {
+    return NULL; /* the caller keeps `list` as it was (#685) */
+  }
   newList->data = data;
   newList->next = list;
   return newList;
@@ -1448,6 +1613,9 @@ static ListElt *cons(void *data, ListElt *list){
 
 static ListElt *cons64(void *data, ListElt *list){
   ListElt *newList = (ListElt*)safeMalloc(sizeof(ListElt),"ListElt");
+  if (newList == NULL) {
+    return NULL; /* the caller keeps `list` as it was (#685) */
+  }
   newList->data = data;
   newList->next = list;
   return newList;
@@ -1456,6 +1624,10 @@ static ListElt *cons64(void *data, ListElt *list){
 
 static ShortLivedHeap *makeShortLivedHeapInternal(int blockSize, int maxBlocks, int is64){
   ShortLivedHeap *heap = (ShortLivedHeap*)safeMalloc(sizeof(ShortLivedHeap),"ShortLivedHeap");
+  if (heap == NULL) {
+    /* safeMalloc returned NULL: report the failure as SLHAlloc does */
+    return NULL;
+  }
   memcpy(heap->eyecatcher,"SLH SLH ",8);
   
   heap->is64 = is64;
@@ -1493,10 +1665,21 @@ ShortLivedHeap *makeShortLivedHeap64(int blockSize, int maxBlocks){
 }
 
 char *SLHAlloc(ShortLivedHeap *slh, int size){
+    return SLHAlloc2(slh, size, false);
+}
+
+char *SLHAlloc2(ShortLivedHeap *slh, int size, bool suppressAbend){
+  if (size <= 0) {
+    return NULL;
+  }
   /* expand for fullword alignment */
   int rem = size & 0x7;
   if (rem != 0){
-    size += (8-rem);
+    int padding = 8 - rem;
+    if (size > INT_MAX - padding) {
+      return NULL; // Handle overflow error (out of memory range)
+    }
+    size += padding;
   }
   char *data;
   /* 
@@ -1508,8 +1691,10 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
     printf("SLH at 0x%p cannot allocate above block size %d > %d mxbl %d bkct %d bksz %d\n",
 	   slh,size,remainingHeapBytes,slh->maxBlocks,slh->blockCount,slh->blockSize);
     fflush(stdout);
-    char *mem = (char*)0;
-    mem[0] = 13;
+    if (!suppressAbend) {
+        char *mem = (char*)0;
+        mem[0] = 13;
+    }
     return NULL;
   } else if (size > slh->blockSize){
     char *bigBlock = (slh->is64 ? 
@@ -1527,9 +1712,29 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
       ListElt *newChainElement = (slh->is64 ?
                                   cons64(bigBlock,blockTail) :
                                   cons(bigBlock,blockTail));
+      if (newChainElement == NULL) {
+        /* No memory for the chain link: return the block and fail cleanly */
+        if (slh->is64) {
+          safeFree64(bigBlock-4,size+4);
+        } else {
+          safeFree31(bigBlock-4,size+4);
+        }
+        reportSLHFailure(slh,size);
+        return NULL;
+      }
       slh->blockChain->next = newChainElement;
     } else{
-      slh->blockChain = cons(bigBlock,NULL);
+      ListElt *firstChainElement = cons(bigBlock,NULL);
+      if (firstChainElement == NULL) {
+        if (slh->is64) {
+          safeFree64(bigBlock-4,size+4);
+        } else {
+          safeFree31(bigBlock-4,size+4);
+        }
+        reportSLHFailure(slh,size);
+        return NULL;
+      }
+      slh->blockChain = firstChainElement;
       slh->activeBlock = bigBlock;
       slh->bytesRemaining = 0;
     }
@@ -1549,10 +1754,21 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
     int *sizePtr = (int*)data;
     *sizePtr = slh->blockSize;
     data += 4;
+    ListElt *newChainElement = (slh->is64 ?
+                                cons64(data,slh->blockChain) :
+                                cons(data,slh->blockChain) );
+    if (newChainElement == NULL) {
+      /* Chain link failed: return the block, leave the heap unchanged */
+      if (slh->is64) {
+        safeFree64(data-4,slh->blockSize+4);
+      } else {
+        safeFree31(data-4,slh->blockSize+4);
+      }
+      reportSLHFailure(slh,size);
+      return NULL;
+    }
     slh->activeBlock = data;
-    slh->blockChain = (slh->is64 ?
-                       cons64(data,slh->blockChain) :
-                       cons(data,slh->blockChain) );
+    slh->blockChain = newChainElement;
     slh->bytesRemaining = slh->blockSize;
     slh->blockCount++;
   }
@@ -1560,7 +1776,7 @@ char *SLHAlloc(ShortLivedHeap *slh, int size){
   data = slh->activeBlock;
   slh->activeBlock += size;
   return (char *)data;
-  }
+}
 
 void SLHFree(ShortLivedHeap *slh){
   ListElt *chain = slh->blockChain;
@@ -1691,7 +1907,6 @@ char *stringListPrint(StringList *list, int start, int max, char *separator, cha
   /* printf("stringListPrint totalSize = %d listCount=%d buffer size %d, max=%d, slh=0x%x\n",
      list->totalSize,list->count,allocSize,max,list->slh); */
   out = SLHAlloc(list->slh, allocSize);
-  memcpy(out,"                        ",20);
   for (i=0; (i<start && elt); i++){
     elt = elt->next;
   }
@@ -2245,6 +2460,21 @@ bool isPassPhrase(const char *password) {
   return strlen(password) > 8;
 }
 
+/* timingsafe_memcompare compares two memory regions for equality in a way that is safe against timing attacks. */
+/* returns 0 if the regions are equal, non-zero otherwise */
+int timingsafe_memcompare(const void *a, const void *b, size_t n) {
+  const unsigned char *pointer_a = (const unsigned char *)a;
+  const unsigned char *pointer_b = (const unsigned char *)b;
+  volatile unsigned char result = 0;
+
+  for (size_t i = 0; i < n; i++) {
+    unsigned char diff = pointer_a[i] ^ pointer_b[i];
+    __asm volatile("" : "+r"(diff));
+    result |= diff;
+  }
+
+  return result;
+}
 
 
 /*

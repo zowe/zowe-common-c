@@ -1,0 +1,10 @@
+# Mutual-reference cycle.
+#
+# Behavior (post-2026-05-14): fixed-point iteration detects the cycle
+# because a pass sees markers but resolves none ("stalled"). It prints
+# a "stalled at pass 1 with 2 unresolved template(s); likely circular
+# reference or undefined variable" diagnostic, returns NULL from
+# evaluateJsonTemplates, and propagates ZCFG_EVAL_FAILURE (2) from
+# cfgLoadConfiguration. The extract subcommand never runs.
+a: "${{ b }}"
+b: "${{ a }}"

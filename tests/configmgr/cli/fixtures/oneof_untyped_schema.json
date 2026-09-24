@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2019-09/schema",
+  "$id": "https://zowe.org/schemas/test-563-oneof",
+  "type": "object",
+  "properties": {
+    "zowe": { "type": "object", "properties": {
+      "setup": { "type": "object", "properties": {
+        "certificate": {
+          "type": "object",
+          "oneOf": [
+            { "properties": { "type": { "const": "PKCS12" }, "file": { "type": "string" } }, "required": ["type", "file"] },
+            { "properties": { "type": { "enum": ["JCEKS", "JCECCAKS", "JCERACFKS", "JCECCARACFKS", "JCEHYBRIDRACFKS"] }, "keyring": { "type": "string" } }, "required": ["type", "keyring"] }
+          ]
+        }
+      } }
+    } }
+  }
+}

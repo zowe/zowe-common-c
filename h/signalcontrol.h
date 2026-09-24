@@ -55,19 +55,43 @@
 #define SIGCONT     19
 #define SIGTHCONT   35
 
+#ifndef SA_FLAGS_DFT
 #define SA_FLAGS_DFT      0000000
+#endif
+#ifndef SA_NOCLDSTOP
 #define SA_NOCLDSTOP      8000000
+#endif
+#ifndef SA_OLD_STYLE
 #define SA_OLD_STYLE      4000000
+#endif
+#ifndef SA_ONSTACK
 #define SA_ONSTACK        2000000
+#endif
+#ifndef SA_RESETHAND
 #define SA_RESETHAND      1000000
+#endif
+#ifndef SA_RESTART
 #define SA_RESTART        0800000
+#endif
+#ifndef SA_SIGINFO
 #define SA_SIGINFO        0400000
+#endif
+#ifndef SA_NOCLDWAIT
 #define SA_NOCLDWAIT      0200000
+#endif
+#ifndef SA_NODEFER
 #define SA_NODEFER        0100000
+#endif
+#ifndef SA_IGNORE
 #define SA_IGNORE         0000000
+#endif
 
+#ifndef SIG_DFL
 #define SIG_DFL (SignalHandler) 0
+#endif
+#ifndef SIG_IGN
 #define SIG_IGN (SignalHandler) 1
+#endif
 
 #elif defined(__ZOWE_OS_LINUX)
 #include <signal.h>

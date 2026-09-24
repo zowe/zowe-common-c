@@ -88,12 +88,12 @@ static int getTlsMax(TlsSettings *settings) {
   if (settings->maxTls != NULL) {
     for (int i = 0; i < sizeof(TLS_NAMES)/sizeof(TLS_NAMES[0]); i++) {
       if (!strcmp(settings->maxTls, TLS_NAMES[i])) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Min TLS requested=%s\n", TLS_NAMES[i]);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Max TLS requested=%s\n", TLS_NAMES[i]);
         return i;
       }
     }
   }
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Min TLS defaulting\n");
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Max TLS defaulting\n");
   return TLS_MAX_DEFAULT;
 }
 
@@ -101,12 +101,12 @@ static int getTlsMin(TlsSettings *settings) {
   if (settings->minTls != NULL) {
     for (int i = 0; i < sizeof(TLS_NAMES)/sizeof(TLS_NAMES[0]); i++) {
       if (!strcmp(settings->minTls, TLS_NAMES[i])) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Max TLS requested=%s\n", TLS_NAMES[i]);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Min TLS requested=%s\n", TLS_NAMES[i]);
         return i;
       }
     }
   }
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Max TLS defaulting\n");
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Min TLS defaulting\n");
   return TLS_MIN_DEFAULT;
 }
 
@@ -221,7 +221,11 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
   if (!socket) {
     return TLS_ALLOC_ERROR;
   }
-  char *label = env->settings->label;
+  /* Use clientLabel for outbound (client) connections when it is configured,
+     so that a dedicated client certificate with the appropriate EKU is used. */
+  char *label = (!isServer && env->settings->clientLabel)
+                  ? env->settings->clientLabel
+                  : env->settings->label;
   char *ciphers = env->settings->ciphers;
   char *keyshares = env->settings->keyshares;
   rc = rc || gsk_secure_socket_open(env->envHandle, &socket->socketHandle);
