@@ -31,6 +31,7 @@ sh test_template_order.sh
 sh test_schema_validation.sh
 sh test_overlay.sh
 sh test_configmgr_api.sh
+sh test_long_key_warning.sh
 ```
 
 Exit code is 0 if every assertion in every suite passed, non-zero otherwise.
@@ -45,6 +46,7 @@ Exit code is 0 if every assertion in every suite passed, non-zero otherwise.
 | `test_schema_validation.sh` | `validate` command outcomes for each violation class | clean exit 0 + "No validity Exceptions" on good config; exit 99 + diagnostic mentioning the violation on missing-required / wrong-type / out-of-range |
 | `test_overlay.sh` | multi-source merge semantics | scalars: leftmost source wins; objects: deep key-union; **arrays: rightmost source's elements appear FIRST in the concatenated result -- asymmetric with scalar precedence**, pinned explicitly |
 | `test_configmgr_api.sh` | embedded-JS Configuration native module via `-script` | every public method exercised; lifecycle isolation between ConfigManager instances; `validate()` response shape (including the **`ok` field that's always `true` regardless of exceptions** and the **legacy `shoeSize: 11` debugging field**); template eval observable through `getConfigData` |
+| `test_long_key_warning.sh` | `validate` against a YAML key longer than `MAX_JSON_KEY` | the `key too long` warning names the key text (not garbled bytes -- zowe-common-c#671) and the rest of the config still validates |
 
 ## Known-broken behaviors pinned (intentionally)
 
@@ -103,6 +105,11 @@ All in `fixtures/`. Each yaml is small enough to read at a glance:
 - `overlay_base.yaml`, `overlay_middle.yaml`, `overlay_top.yaml` --
   three-source merge scenarios.
 - `configmgr_api.js` -- driver script for `test_configmgr_api.sh`.
+- `any_object_schema.json` -- type:object, no other constraints. Used by
+  `test_long_key_warning.sh` so the assertion is only about the warning,
+  not schema validation.
+- `long_key.yaml` -- a 300-char key (over `MAX_JSON_KEY`) alongside a
+  normal key.
 
 ## Coverage gaps (not pinned by this suite)
 
