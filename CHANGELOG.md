@@ -1,6 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+- Bugfix: the `key too long` warning from the YAML reader prints the key in the native code page; on z/OS it came out as unreadable bytes. [(#671)](https://github.com/zowe/zowe-common-c/issues/671)
 - Bugfix: `writeBinaryDataFromBase64()` and `writeAsciiDataFromBase64()` in `httpfileservice.c` check the result of each `safeMalloc()` and fail the request when memory runs out, instead of writing through a NULL pointer, which on z/OS lands in low storage rather than crashing. [(#642)](https://github.com/zowe/zowe-common-c/issues/642)
 
 - Bugfix: `makeShortLivedHeap()` and the short-lived heap's block-chain helpers now return NULL when `safeMalloc` fails instead of writing through the NULL pointer (a segfault on Linux, a low-core store on z/OS); `SLHAlloc` gives a block back when its chain link cannot be allocated, and `ejsEvalFile()` reports "cannot allocate the evaluation heap" instead of crashing. [(#685)](https://github.com/zowe/zowe-common-c/issues/685)

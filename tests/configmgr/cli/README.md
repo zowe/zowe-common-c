@@ -31,6 +31,7 @@ sh test_template_order.sh
 sh test_schema_validation.sh
 sh test_overlay.sh
 sh test_configmgr_api.sh
+sh test_long_key_warning.sh
 sh test_config_path_reset.sh
 sh test_enum_type_message.sh
 sh test_script_exit_status.sh
@@ -49,6 +50,7 @@ Exit code is 0 if every assertion in every suite passed, non-zero otherwise.
 | `test_schema_validation.sh` | `validate` command outcomes for each violation class | clean exit 0 + "No validity Exceptions" on good config; exit 99 + diagnostic mentioning the violation on missing-required / wrong-type / out-of-range |
 | `test_overlay.sh` | multi-source merge semantics | scalars: leftmost source wins; objects: deep key-union; **arrays: rightmost source's elements appear FIRST in the concatenated result -- asymmetric with scalar precedence**, pinned explicitly |
 | `test_configmgr_api.sh` | embedded-JS Configuration native module via `-script` | every public method exercised; lifecycle isolation between ConfigManager instances; `validate()` response shape (including the **`ok` field that's always `true` regardless of exceptions** and the **legacy `shoeSize: 11` debugging field**); template eval observable through `getConfigData` |
+| `test_long_key_warning.sh` | `validate` against a YAML key longer than `MAX_JSON_KEY` | the `key too long` warning names the key text (not garbled bytes -- zowe-common-c#671) and the rest of the config still validates |
 | `test_config_path_reset.sh` | JS API: `cfgSetConfigPath()` called twice | second call replaces the first path instead of appending to it (zowe/zowe-common-c#571); driven by `fixtures/config_path_reset.js`, which self-reports `PASS:`/`FAIL:` lines -- asserted for zero `FAIL:` lines and exit 0 |
 | `test_enum_type_message.sh` | `validate` diagnostics for enum/const mismatches, typed and untyped `oneOf` alternatives | the message names the schema's own type (`'string'`/`'integer'`) instead of always saying `'integer'` (zowe/zowe-common-c#563), including the untyped-`oneOf` case (no `type` keyword) that used to be misreported; both cases exit 99 |
 | `test_script_exit_status.sh` | `-script` mode error handling: top-level throw, top-level `ReferenceError`, missing script file, and a healthy run | throw and `ReferenceError` each exit 2 (`ZCFG_EVAL_FAILURE`) with the error text printed -- regression coverage for QuickJS 2024-01-13 turning a top-level throw into a silently-dropped rejected promise (zowe/zowe-install-packaging#3639, same symptom as zowe/zowe-common-c#585); a missing file also exits 2; a healthy script still exits 0 |
@@ -111,6 +113,11 @@ All in `fixtures/`. Each yaml is small enough to read at a glance:
 - `overlay_base.yaml`, `overlay_middle.yaml`, `overlay_top.yaml` --
   three-source merge scenarios.
 - `configmgr_api.js` -- driver script for `test_configmgr_api.sh`.
+- `any_object_schema.json` -- type:object, no other constraints. Used by
+  `test_long_key_warning.sh` so the assertion is only about the warning,
+  not schema validation.
+- `long_key.yaml` -- a 300-char key (over `MAX_JSON_KEY`) alongside a
+  normal key.
 - `config_path_reset.js` -- driver for `test_config_path_reset.sh`; calls `cfgSetConfigPath()` twice and asserts the second call replaces the first.
 - `path_reset_a.yaml`, `path_reset_b.yaml` -- the two config paths swapped by `config_path_reset.js`.
 - `oneof_untyped_schema.json`, `oneof_untyped_bad.yaml` -- a `oneOf` alternative with no explicit `type` keyword, plus a value that violates its enum/const, for `test_enum_type_message.sh`.
