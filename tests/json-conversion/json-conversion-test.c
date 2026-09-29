@@ -167,7 +167,7 @@ int main(void){
           "conversion failure recorded on the soft flag", NULL);
     check(jsonCheckIOErrorFlag(p) == FALSE,
           "conversion failure did NOT latch ioErrorFlag", NULL);
-    check(indexOfString((char *)doc, docLen, "7", 0) >= 0,
+    check(indexOfString((const char *)doc, docLen, "7", 0) >= 0,
           "printing continued past the bad value", doc);
     check(docLen > 0 && doc[docLen - 1] == '}',
           "document is closed, not truncated", doc);
