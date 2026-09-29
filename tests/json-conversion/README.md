@@ -72,6 +72,32 @@ Note that keys go through the same conversion as values, so in case 1 the key
 `"bad"` collapses to `""` along with its value; ints and booleans do not use
 `inputCCSID` and come through intact. The document is `{"":"","":7}`.
 
+## Encodings inside the test
+
+The printer's output is always UTF-8, but this test's own string literals and
+`stdout` are in the compiler's charset — EBCDIC (IBM-1047) on z/OS. Comparing
+the buffer directly against a literal therefore fails on z/OS even when the
+output is correct, and printing it raw produces mojibake (`{` shows up as `#`,
+`}` as `'`). The helper `toNative()` converts the finished document back before
+any `strcmp`/`strstr`/`printf`, so both the assertions and the failure text are
+meaningful on every platform. On ASCII platforms it is a plain copy.
+
+`toNative()` uses `a2e()` from `c/xlate.c` (already in the object list), not
+`convertCharset()`. The documents under test are pure ASCII, where the
+translate table is exact, and on the `c89`/CUNLCNV build `convertCharset()`
+fails the UTF-8 → 1047 direction with `CHARSET_CONVERSION_ROUTINE_FAILURE`
+(`Return_Code` 4) — it only has a fast path for 1047 → UTF-8. The conversion
+actually under test happens inside `json.c`; this helper only renders the
+result, so it deliberately stays on the simplest mechanism that cannot itself
+be the thing that fails.
+
+The same rule applies going in: the healthy-path printers are built with
+`LITERAL_CCSID` (1047 on z/OS, UTF-8 elsewhere), because that is the charset of
+the strings this file hands them. `jsonConvertAndWriteBuffer()` skips
+conversion outright when `inputCCSID == CCSID_UTF_8`, so claiming UTF-8 on z/OS
+would copy raw EBCDIC into the document and the comparison would fail even
+though `json.c` did exactly what it was told.
+
 ## Adding more
 
 Natural follow-ups, in rough order of value:
