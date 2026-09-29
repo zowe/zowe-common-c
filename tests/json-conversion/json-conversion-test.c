@@ -28,6 +28,12 @@
  * convertToUtf8() while the printer's own structural characters
  * ({ } [ ] , : ") are written from SOURCE_CODE_CHARSET as usual -- exactly the
  * situation the fix is about, with no need to mock convertCharset().
+ *
+ * Note on encodings: the printer's output is UTF-8, while this file's string
+ * literals and stdout are in the compiler's charset (EBCDIC on z/OS), so the
+ * document is converted back with toNative() before it is compared or printed,
+ * and the healthy-path printers are built with LITERAL_CCSID -- the charset of
+ * the strings they are actually given.
  */
 #include <stdio.h>
 #include <string.h>
@@ -35,6 +41,7 @@
 #include "alloc.h"
 #include "utils.h"
 #include "charsets.h"
+#include "xlate.h"
 #include "json.h"
 
 /* ------------------------------------------------------------------ */
@@ -51,10 +58,58 @@ static void check(int cond, const char *what, const char *actual){
   if (cond){
     printf("  ok   %s\n", what);
   } else {
-    printf("  FAIL %s%s%s\n", what,
-           actual ? "  [got: " : "", actual ? actual : "");
+    if (actual){
+      printf("  FAIL %s  [got: %s]\n", what, actual);
+    } else {
+      printf("  FAIL %s\n", what);
+    }
     fails++;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* the printer emits UTF-8, the test's own string literals and stdout  */
+/* are in the compiler's charset (EBCDIC on z/OS) -- convert before    */
+/* comparing or printing, otherwise every comparison fails and the     */
+/* failure text comes out as mojibake.                                 */
+/*                                                                     */
+/* Done with xlate.c's a2e() table rather than convertCharset(): the   */
+/* documents under test are pure ASCII, where the table is exact, and  */
+/* the c89/CUNLCNV build of convertCharset() fails the UTF-8 -> 1047   */
+/* direction (rc 16 / Return_Code 4) -- convertCharset() only has a    */
+/* fast path for 1047 -> UTF-8. The conversion under test happens      */
+/* inside json.c; this helper only has to render the result.           */
+/* ------------------------------------------------------------------ */
+
+#define NATIVE_BUFFER_SIZE 4096
+
+/* The charset this file's own string literals are in, and therefore the
+ * inputCCSID any printer must be given when it is fed those literals: json.c
+ * converts caller data from inputCCSID to UTF-8, so claiming UTF-8 on z/OS
+ * makes that conversion a no-op and drops raw EBCDIC into the document. */
+#if defined(__ZOWE_OS_ZOS)
+#  define LITERAL_CCSID CCSID_IBM1047
+#else
+#  define LITERAL_CCSID CCSID_UTF_8
+#endif
+
+/* returns a NUL-terminated copy of the document in the native charset;
+ * valid until the next call (one static buffer, single-threaded test) */
+static const char *toNative(JsonBuffer *buf){
+  static char native[NATIVE_BUFFER_SIZE];
+  /* the JSON text is NUL-free, so strlen() is the document length whether or
+   * not jsonBufferTerminateString() has already appended the NUL */
+  int len = (int)strlen(buf->data);
+
+  if (len > NATIVE_BUFFER_SIZE - 1){
+    len = NATIVE_BUFFER_SIZE - 1;
+  }
+  memcpy(native, buf->data, len);
+  native[len] = 0;
+#if defined(__ZOWE_OS_ZOS)
+  a2e(native, len);
+#endif
+  return native;
 }
 
 /* ------------------------------------------------------------------ */
@@ -88,6 +143,8 @@ int main(void){
   {
     JsonBuffer *buf = makeJsonBuffer();
     jsonPrinter *p = makeBufferJsonPrinter(UNCONVERTIBLE_CCSID, buf);
+    const char *doc = NULL;
+    int docLen = 0;
 
     /* precondition: if this ever passes, the rest of the case proves nothing */
     check(isUnconvertible(UNCONVERTIBLE_CCSID),
@@ -99,15 +156,17 @@ int main(void){
     jsonEnd(p);
     jsonBufferTerminateString(buf);
 
+    doc = toNative(buf);
+    docLen = (int)strlen(doc);
+
     check(jsonCheckDataConversionErrorFlag(p),
           "conversion failure recorded on the soft flag", NULL);
     check(jsonCheckIOErrorFlag(p) == FALSE,
           "conversion failure did NOT latch ioErrorFlag", NULL);
-    check(strstr(buf->data, "7") != NULL,
-          "printing continued past the bad value", buf->data);
-    /* len - 2: jsonBufferTerminateString() appends a NUL and bumps len */
-    check(buf->data[buf->len - 2] == '}',
-          "document is closed, not truncated", buf->data);
+    check(strstr(doc, "7") != NULL,
+          "printing continued past the bad value", doc);
+    check(docLen > 0 && doc[docLen - 1] == '}',
+          "document is closed, not truncated", doc);
 
     freeJsonPrinter(p);
     freeJsonBuffer(buf);
@@ -116,7 +175,7 @@ int main(void){
   printf("\n== ioErrorFlag must still stop output ==\n");
   {
     JsonBuffer *buf = makeJsonBuffer();
-    jsonPrinter *p = makeBufferJsonPrinter(CCSID_UTF_8, buf);
+    jsonPrinter *p = makeBufferJsonPrinter(LITERAL_CCSID, buf);
     int lenAtFailure;
 
     jsonStart(p);
@@ -137,7 +196,7 @@ int main(void){
   printf("\n== the healthy path is untouched ==\n");
   {
     JsonBuffer *buf = makeJsonBuffer();
-    jsonPrinter *p = makeBufferJsonPrinter(CCSID_UTF_8, buf);
+    jsonPrinter *p = makeBufferJsonPrinter(LITERAL_CCSID, buf);
 
     jsonStart(p);
     jsonAddString(p, "name", "zowe");
@@ -145,8 +204,8 @@ int main(void){
     jsonEnd(p);
     jsonBufferTerminateString(buf);
 
-    check(strcmp(buf->data, "{\"name\":\"zowe\",\"n\":5}") == 0,
-          "normal output unchanged", buf->data);
+    check(strcmp(toNative(buf), "{\"name\":\"zowe\",\"n\":5}") == 0,
+          "normal output unchanged", toNative(buf));
     check(!jsonCheckIOErrorFlag(p) && !jsonCheckDataConversionErrorFlag(p),
           "no flags raised on the happy path", NULL);
 
