@@ -94,18 +94,22 @@ static void check(int cond, const char *what, const char *actual){
 #endif
 
 /* returns a NUL-terminated copy of the document in the native charset;
- * valid until the next call (one static buffer, single-threaded test) */
+ * valid until the next call (one static buffer, single-threaded test).
+ *
+ * JsonBuffer is a counted buffer, not a C string: writeToBuffer() only appends
+ * bytes and bumps len, and makeJsonBuffer() uses safeMalloc, so the bytes past
+ * len are uninitialized. strlen(buf->data) would scan past the document into
+ * that garbage. buf->len is the bound; strlenSafe() stops at it, and also stops
+ * early at the NUL that jsonBufferTerminateString() counts inside len. */
 static const char *toNative(JsonBuffer *buf){
   static char native[NATIVE_BUFFER_SIZE];
-  /* the JSON text is NUL-free, so strlen() is the document length whether or
-   * not jsonBufferTerminateString() has already appended the NUL */
-  int len = (int)strlen(buf->data);
+  int len = strlenSafe(buf->data, buf->len);
 
-  if (len > NATIVE_BUFFER_SIZE - 1){
-    len = NATIVE_BUFFER_SIZE - 1;
+  if (strncpySafe(native, sizeof(native), buf->data, len) < 0){
+    /* document longer than the render buffer: strncpySafe truncated and
+     * terminated it; keep the length in step so a2e() converts what is there */
+    len = sizeof(native) - 1;
   }
-  memcpy(native, buf->data, len);
-  native[len] = 0;
 #if defined(__ZOWE_OS_ZOS)
   a2e(native, len);
 #endif
@@ -157,13 +161,13 @@ int main(void){
     jsonBufferTerminateString(buf);
 
     doc = toNative(buf);
-    docLen = (int)strlen(doc);
+    docLen = strlenSafe(doc, NATIVE_BUFFER_SIZE);
 
     check(jsonCheckDataConversionErrorFlag(p),
           "conversion failure recorded on the soft flag", NULL);
     check(jsonCheckIOErrorFlag(p) == FALSE,
           "conversion failure did NOT latch ioErrorFlag", NULL);
-    check(strstr(doc, "7") != NULL,
+    check(indexOfString((char *)doc, docLen, "7", 0) >= 0,
           "printing continued past the bad value", doc);
     check(docLen > 0 && doc[docLen - 1] == '}',
           "document is closed, not truncated", doc);
@@ -195,8 +199,10 @@ int main(void){
 
   printf("\n== the healthy path is untouched ==\n");
   {
+    static const char expected[] = "{\"name\":\"zowe\",\"n\":5}";
     JsonBuffer *buf = makeJsonBuffer();
     jsonPrinter *p = makeBufferJsonPrinter(LITERAL_CCSID, buf);
+    const char *doc = NULL;
 
     jsonStart(p);
     jsonAddString(p, "name", "zowe");
@@ -204,8 +210,12 @@ int main(void){
     jsonEnd(p);
     jsonBufferTerminateString(buf);
 
-    check(strcmp(toNative(buf), "{\"name\":\"zowe\",\"n\":5}") == 0,
-          "normal output unchanged", toNative(buf));
+    /* one call only: toNative() returns its static buffer, so calling it twice
+     * in the same expression would let the second call clobber the first */
+    doc = toNative(buf);
+    check(strlenSafe(doc, NATIVE_BUFFER_SIZE) == sizeof(expected) - 1 &&
+          memcmp(doc, expected, sizeof(expected) - 1) == 0,
+          "normal output unchanged", doc);
     check(!jsonCheckIOErrorFlag(p) && !jsonCheckDataConversionErrorFlag(p),
           "no flags raised on the happy path", NULL);
 
