@@ -65,11 +65,11 @@
 #define isCallerLocked        ZOSCLCKD
 #define isCallerSRB           ZOSCSRB
 #define isCallerCrossMemory   ZOSCXMEM
+#define isKey8ProblemState    ZOSK8PBS
 
 #define getExternalSecurityManager GETESM
 
 #endif
-
 
 int extractPSW(void);
 int supervisorMode(int enable);
@@ -358,11 +358,15 @@ typedef struct ASVT_tag{
   /* variable number of ASCB pointers */
 } ASVT;
 
-#define CURRENT_TCB      0x21C                
-#define CURRENT_ASCB     0x224               
+#define CURRENT_TCB      0x21C
+#define CURRENT_ASCB     0x224
 #define ATCVT_ADDRESS    0x408
-#define ASCB_CSCB_OFFSET  0x38            
-#define CSCB_ACTIVITY_FLAGS_OFFSET 0x7   
+#define ASCB_CSCB_OFFSET  0x38
+#define CSCB_ACTIVITY_FLAGS_OFFSET 0x7
+
+#define LAA_ADDRESS      0x4B8
+#define LAA_LCA_OFFSET   0x58
+#define LCA_CAA_OFFSET   0x08
 
 typedef struct PSA_tag{
   int a;
@@ -1693,6 +1697,14 @@ bool isCallerSRB(void);
  * @return False if the caller's HASN=PASN=SASN, otherwise true.
  */
 bool isCallerCrossMemory(void);
+
+/**
+ * @brief Determine if the caller is in PSW key 8 and problem state.
+ * @return True only if the current PSW key is 8 and the caller is in problem
+ *         state. This is the state Language Environment requires, so callers
+ *         that need LE services can use it as a precondition check.
+ */
+bool isKey8ProblemState(void);
 
 #endif /* __ZOWE_OS_ZOS */
 

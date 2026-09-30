@@ -67,6 +67,7 @@ typedef int64_t ssize_t;
 #ifdef __ZOWE_OS_ZOS
 
 #include "porting/polyfill.h"
+#include "zos.h"
 
 #endif
 
@@ -163,6 +164,37 @@ static JSValue ejsEvalBuffer1(EmbeddedJS *ejs,
     if (!JS_IsException(val)) {
       js_module_set_import_meta(ctx, val, TRUE, TRUE);
       val = JS_EvalFunction(ctx, val);
+      /* Module evaluation returns a promise since QuickJS 2024-01-13; settle it like js_std_await */
+      for (;;) {
+        JSPromiseStateEnum state = JS_PromiseState(ctx, val);
+        if (state == JS_PROMISE_FULFILLED) {
+          JSValue result = JS_PromiseResult(ctx, val);
+          JS_FreeValue(ctx, val);
+          val = result;
+          break;
+        } else if (state == JS_PROMISE_REJECTED) {
+          JSValue reason = JS_PromiseResult(ctx, val);
+          JS_FreeValue(ctx, val);
+          val = JS_Throw(ctx, reason);
+          break;
+        } else if (state == JS_PROMISE_PENDING) {
+          JSContext *jobContext = NULL;
+          int jobStatus = JS_ExecutePendingJob(JS_GetRuntime(ctx), &jobContext);
+          if (jobStatus < 0) {
+            JSValue jobException = JS_GetException(jobContext);
+            ejsDumpError(jobContext, jobException);
+            JS_FreeValue(jobContext, jobException);
+          } else if (jobStatus == 0) {
+            /* No runnable job: run timers and handlers, stop if still pending */
+            js_std_loop(ctx);
+            if (JS_PromiseState(ctx, val) == JS_PROMISE_PENDING) {
+              break;
+            }
+          }
+        } else {
+          break; /* not a promise: an older engine or a non-module result */
+        }
+      }
     }
   } else {
     val = JS_Eval(ctx, buffer, bufferLength, filename, eval_flags);
@@ -221,6 +253,11 @@ int ejsEvalFile(EmbeddedJS *ejs, const char *filename, int loadMode){
       SLHFree(ejs->fileEvalHeap);
     }
     ejs->fileEvalHeap = makeShortLivedHeap(0x10000,0x100); /* hacky constants, I know */
+    if (ejs->fileEvalHeap == NULL) {
+      /* out of memory before the script could even be loaded (#685) */
+      fprintf(stderr, "%s: cannot allocate the evaluation heap\n", filename);
+      return -1;
+    }
     size_t sourceLen = strlen(filename);
     char asciiFilename[sourceLen + 1];
     snprintf (asciiFilename, sourceLen + 1, "%.*s", (int)sourceLen, filename);
@@ -1965,6 +2002,16 @@ Json *evaluateJsonTemplates(EmbeddedJS *ejs, ShortLivedHeap *slh, Json *json){
 }
 
 EmbeddedJS *allocateEmbeddedJS(EmbeddedJS *sharedRuntimeEJS /* can be NULL */){
+#ifdef __ZOWE_OS_ZOS
+  if (!isKey8ProblemState()){
+    wtoMessage("allocateEmbeddedJS: embedded JavaScript requires PSW key 8 and problem state");
+    return NULL;
+  }
+  if (isCallerSRB() || isCallerCrossMemory() || isCallerLocked()){
+    wtoMessage("allocateEmbeddedJS: embedded JavaScript cannot run under an SRB, in cross-memory mode or with a lock held");
+    return NULL;
+  }
+#endif
   EmbeddedJS *embeddedJS = (EmbeddedJS*)safeMalloc(sizeof(EmbeddedJS),"EmbeddedJS");
   memset(embeddedJS,0,sizeof(EmbeddedJS));
   if (sharedRuntimeEJS){
@@ -2125,10 +2172,13 @@ JSModuleDef *ejsModuleLoader(JSContext *ctx,
 bool configureEmbeddedJS(EmbeddedJS *embeddedJS, 
                          EJSNativeModule **nativeModules, int nativeModuleCount,
                          int argc, char **argv){
-  /* 
+  /*
      JS_SetMemoryLimit(rt, memory_limit);
      JS_SetMaxStackSize(rt, stack_size);
   */
+  if (embeddedJS == NULL){ /* allocateEmbeddedJS refused or failed */
+    return false;
+  }
   js_std_set_worker_new_context_func(makeEmbeddedJSContext);
   js_std_init_handlers(embeddedJS->rt);
   JS_SetMaxStackSize(embeddedJS->rt, 1048576);

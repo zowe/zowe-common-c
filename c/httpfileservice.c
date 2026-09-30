@@ -836,6 +836,10 @@ int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLen
   }
 
   char *convertBuffer = safeMalloc(convertBufferSize, "CONVERT BUFFER");
+  if (convertBuffer == NULL) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING, "Out of memory converting %d bytes of base64 content\n", contentLength);
+    return -1;
+  }
   int conversionLength = 0;
 
   char *resultBuffer = NULL;
@@ -853,8 +857,14 @@ int writeBinaryDataFromBase64(UnixFile *file, char *fileContents, int contentLen
                           &reasonCode);
 
   if (status == 0) {
-   resultBufferSize = (conversionLength * 3) / 4;
+   /* Avoid overflows by dividing first */
+   resultBufferSize = (conversionLength / 4) * 3;
    resultBuffer = safeMalloc(resultBufferSize, "ResultBuffer");
+   if (resultBuffer == NULL) {
+     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING, "Out of memory decoding %d bytes of base64 content\n", conversionLength);
+     safeFree(convertBuffer, convertBufferSize);
+     return -1;
+   }
    int dataSize = decodeBase64(convertBuffer, resultBuffer);
    if (dataSize > 0) {
      int writtenLength = 0;
@@ -912,6 +922,10 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
   }
 
   char *dataToWrite = safeMalloc(dataToWriteSize, "CONVERT BUFFER");
+  if (dataToWrite == NULL) {
+    zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING, "Out of memory converting %d bytes of base64 content\n", contentLength);
+    return -1;
+  }
   int dataSize = 0;
 
   char *resultBuffer = NULL;
@@ -929,8 +943,13 @@ int writeAsciiDataFromBase64(UnixFile *file, char *fileContents, int contentLeng
                           &reasonCode);
 
   if (status == 0) {
-   resultBufferSize = (dataSize * 3) / 4;
+   resultBufferSize = (dataSize / 4) * 3; /* Avoid overflows by dividing first */
    resultBuffer = safeMalloc(resultBufferSize, "ResultBuffer");
+   if (resultBuffer == NULL) {
+     zowelog(NULL, LOG_COMP_RESTFILE, ZOWE_LOG_WARNING, "Out of memory decoding %d bytes of base64 content\n", dataSize);
+     safeFree(dataToWrite, dataToWriteSize);
+     return -1;
+   }
    int decodedLength = decodeBase64(dataToWrite, resultBuffer);
    if (decodedLength > 0) {
      /* Disable automatic conversion to prevent any wacky

@@ -148,6 +148,11 @@ memset(name, 0, sizeof(struct STRUCT31_LOCAL_VAR_NAME(name)))
 
 #endif 
 
+/**
+ *  to turn on the tracing report for malloc, set a value greater than or equal to 1.
+ *  it returns the current level before changing to the new level.
+ */
+int setMallocTraceLevel(int newLevel);
 
 #endif
 

@@ -7,5 +7,5 @@ Some build targets within zowe-common-c use libraries from outside of the Zowe p
 
 configmgr uses the following libraries:
 
-* [quickjs](https://github.com/joenemo/quickjs-portable), [MIT license](https://raw.githubusercontent.com/JoeNemo/quickjs-portable/main/LICENSE)
+* [quickjs](https://github.com/zowe/quickjs-portable), [MIT license](https://raw.githubusercontent.com/zowe/quickjs-portable/staging/LICENSE)
 * [libyaml](https://github.com/yaml/libyaml), [MIT license](https://raw.githubusercontent.com/yaml/libyaml/master/License) 

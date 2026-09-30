@@ -243,14 +243,26 @@ no ifdef means XLC LE on ZOS, and everything else.  This is effectively our "def
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 
 /* either X86 or new Power Series Little-endian mode */
+#define __ZOWE_LITTLE_ENDIAN 1
 
 #else
 
 /* either Z-arch or Power Series traditional big-endian mode */
+#define __ZOWE_BIG_ENDIAN 1
 
 #endif
 
 #endif /* end of GCC-specific analysis */
+
+/* Byte order, for the few places that read a multi-byte value in place.
+   z/OS and AIX are big-endian; Windows is little-endian. */
+#if !defined(__ZOWE_LITTLE_ENDIAN) && !defined(__ZOWE_BIG_ENDIAN)
+#ifdef __ZOWE_OS_WINDOWS
+#define __ZOWE_LITTLE_ENDIAN 1
+#else
+#define __ZOWE_BIG_ENDIAN 1
+#endif
+#endif
 
 /* Long external names are OK for all platforms except z/OS */
 #ifndef __ZOWE_OS_ZOS

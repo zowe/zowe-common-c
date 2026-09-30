@@ -64,7 +64,8 @@
 #include "configmgr.h"
 #ifdef __ZOWE_OS_ZOS
 #include "pdsutil.h"
-#endif 
+#include "zos.h"
+#endif
 
 #ifdef __ZOWE_OS_WINDOWS
 typedef int64_t ssize_t;
@@ -596,7 +597,13 @@ ConfigManager *makeConfigManager(){
   mgr->traceOut = stderr;
   mgr->slh = makeShortLivedHeap(0x10000,0x100);
   EmbeddedJS *ejs = allocateEmbeddedJS(NULL);
-  configureEmbeddedJS(ejs,NULL,0,0,NULL);
+  /* configureEmbeddedJS tolerates a NULL ejs and frees ejs itself if it fails
+     partway, so the only cleanup owed here is what this function allocated. */
+  if (!configureEmbeddedJS(ejs,NULL,0,0,NULL)){
+    SLHFree(mgr->slh);
+    safeFree((char*)mgr,sizeof(ConfigManager));
+    return NULL;
+  }
   mgr->ejs = ejs;
   return mgr;
 }
@@ -667,6 +674,9 @@ int cfgSetConfigPath(ConfigManager *mgr, const char *configName, char *configPat
   if (!config){
     return ZCFG_UNKNOWN_CONFIG_NAME;
   }
+
+  /* Assigning NULL is not a leak because path is in the SLH */
+  config->configPath = NULL;
 
   trace(mgr,DEBUG,"before build config path\n");
   if (buildConfigPath(mgr,config,configPathArg)){
@@ -1849,6 +1859,10 @@ static int simpleMain(int argc, char **argv){
   }
 
   ConfigManager *mgr = makeConfigManager();
+  if (mgr == NULL){
+    fprintf(traceOut, "Could not create the embedded JavaScript runtime.\n");
+    return ZCFG_BAD_ENVIRONMENT;
+  }
   const char *configName = "only";
   cfgSetTraceLevel(mgr,traceLevel);
   cfgSetTraceStream(mgr,traceOut);
@@ -1985,13 +1999,13 @@ static int simpleMain(int argc, char **argv){
 static void ensureLE64(){
   char *realCAA = NULL;
 
-  char *laa = *(char * __ptr32 * __ptr32)0x04B8;
+  char *laa = *(char * __ptr32 * __ptr32)LAA_ADDRESS;
   printf("LAA at 0x%p\n",laa);
   dumpbuffer((char*)laa,0x180);
-  char *lca = *(char **)(laa + 88);
-  printf("LCA at 0%p\n",lca);
+  char *lca = *(char **)(laa + LAA_LCA_OFFSET);
+  printf("LCA at 0x%p\n",lca);
   dumpbuffer((char*)lca,0x358);
-  realCAA = *(char **)(lca + 8);
+  realCAA = *(char **)(lca + LCA_CAA_OFFSET);
   printf("realCAA = 0x%p\n",realCAA);
   dumpbuffer(realCAA,0x450);
   /*
@@ -2005,6 +2019,11 @@ static void ensureLE64(){
 #ifdef CMGRTEST
 int main(int argc, char **argv){
   LoggingContext *logContext = makeLoggingContext();
+  if (logContext == NULL) {
+    /* First allocation the program makes; nothing else can report without it */
+    fprintf(stderr, "configmgr: cannot allocate the logging context\n");
+    return ZCFG_BAD_ENVIRONMENT;
+  }
   logConfigureStandardDestinations(logContext);
   if (argc >= 3 && 
       (!strcmp("-script",argv[1]) ||
@@ -2016,8 +2035,15 @@ int main(int argc, char **argv){
       loadMode = EJS_LOAD_NOT_MODULE;
     }
     EmbeddedJS *ejs = allocateEmbeddedJS(NULL);
+    if (ejs == NULL){
+      fprintf(stderr,"Could not create the embedded JavaScript runtime.\n");
+      return ZCFG_BAD_ENVIRONMENT;
+    }
     modules[0] = exportConfigManagerToEJS(ejs);
-    configureEmbeddedJS(ejs,modules,1,argc,argv);
+    if (!configureEmbeddedJS(ejs,modules,1,argc,argv)){
+      fprintf(stderr,"Could not configure the embedded JavaScript runtime.\n");
+      return ZCFG_BAD_ENVIRONMENT;
+    }
     /* disabled due to verbosity causing scripting errors for those who read std as a return value 
       printf("configured EJS, and starting script_______________________________________________\n");
       fflush(stdout);
@@ -2025,6 +2051,8 @@ int main(int argc, char **argv){
     */
     int evalStatus = ejsEvalFile(ejs,filename,loadMode);
     /* printf("Done with EJS: File eval returns %d_______________________________________________\n",evalStatus); */
+    /* Callers use the exit status: a failed or throwing script must not exit 0 */
+    return evalStatus ? ZCFG_EVAL_FAILURE : ZCFG_SUCCESS;
   } else {
     return simpleMain(argc,argv);
   }

@@ -383,12 +383,12 @@ static int __troo(char *output, char *input, unsigned long inputLength,
         "         LG    2,%4 \n"        /* input */
         "         TROO  8,2,0\n"        /* M3=0: test before xlate */
         "         BRC   1,*-4\n"        /* CC=3 => partial, retry */
-        "         IPM   15\n"
-        "         SRL   15,28\n"
-        "         ST    15,%0\n"
+        "         IPM   15\n"           /* CC -> bits 34-35 of r15 */
+        "         SRL   15,28\n"        /* right-justify the 2-bit CC */
+        "         ST    15,%0\n"        /* save CC for the caller */
         : "=m"(cc)
         : "m"(gr0),"m"(table),"m"(output),"m"(input),"m"(inputLength)
-        : "cc", "memory");
+        : "cc", "memory", "r0", "r1", "r2", "r8", "r9", "r15");
     return cc;
   }
 #endif

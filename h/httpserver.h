@@ -450,6 +450,8 @@ HttpResponse *makeHttpResponse(HttpRequest *request, ShortLivedHeap *slh, Socket
    */
 #define HTTP_DISABLE_TCP_PORT 0x00DEAD00
 
+/* On failure returnCode is a POSIX errno and reasonCode the z/OS reason code of the
+   failing call (0 where there is none); callers compare returnCode with EADDRINUSE. */
 HttpServer *makeHttpServer3(STCBase *base, InetAddr *ip, int tlsFlags, int port,
                             char *cookieName, int *returnCode, int *reasonCode);
 HttpServer *makeHttpServer2(STCBase *base, InetAddr *ip, int tlsFlags, int port,
