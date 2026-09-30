@@ -1,6 +1,7 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+- Bugfix: `tlsInit()` now disables GSKit's session ID/ticket cache (`GSK_V3_SIDCACHE_SIZE=0`). Without this, a TLS 1.3 client on some z/OS releases sends a ClientHello that certain TLS 1.3 peers (e.g. api-layer on Java 17) mishandle, causing subsequent reads to fail with an SSL protocol violation -- for example ZSS failing to fetch the JWKS from the APIML Gateway.
 - Bugfix: the `key too long` warning from the YAML reader prints the key in the native code page; on z/OS it came out as unreadable bytes. [(#671)](https://github.com/zowe/zowe-common-c/issues/671)
 - Bugfix: `writeBinaryDataFromBase64()` and `writeAsciiDataFromBase64()` in `httpfileservice.c` check the result of each `safeMalloc()` and fail the request when memory runs out, instead of writing through a NULL pointer, which on z/OS lands in low storage rather than crashing. [(#642)](https://github.com/zowe/zowe-common-c/issues/642)
 
