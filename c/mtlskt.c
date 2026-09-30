@@ -1497,7 +1497,7 @@ char* getV4HostEntByName(char *string, int* rc, int* rsn){
   int returnValue = 0;
   int *reasonCodePtr;
   int len = strlen(string);
-  char *hostEntPtr;
+  char *hostEntPtr = NULL;
   int status;
 
 #ifndef _LP64
@@ -1525,7 +1525,7 @@ int getV4HostByName(char *string){
   int reasonCode = 0;
   int *reasonCodePtr;
   int len = strlen(string);
-  char *hostEntPtr;
+  char *hostEntPtr = NULL;
   int status;
 
 #ifndef _LP64
