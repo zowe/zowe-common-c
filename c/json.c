@@ -431,7 +431,8 @@ void jsonConvertAndWriteBuffer(jsonPrinter *p, char *text, size_t len,
       if (bytesWritten < 0){
         JSONERROR("jsonConvertAndWriteBuffer() error: bytesWritten = %zd\n",
                 bytesWritten);
-        jsonSetIOErrorFlag(p);
+        jsonSetDataConversionErrorFlag(p);   // data, not IO: do not gate all output
+        jsonWriteBufferInternal(p, "", 0);   // placeholder so string isn't left half-open
         return;
       }
     } else {
