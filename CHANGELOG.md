@@ -49,6 +49,7 @@
 - Bugfix: charset conversion under ibm-clang64 (Open XL) now uses the iconv path. ibm-clang64 is `__ZOWE_COMP_CLANG`, not `__ZOWE_COMP_XLCLANG`, so `charsets.c` was routing it to the metal/CUNLCNV branch and mishandling multibyte and streaming conversion. [(zss#828)](https://github.com/zowe/zss/issues/828)
 - Enhancement: add a new function (`cmsTestAuth2`) to test any SAF level in xmem; fix ALTER SAF enum value [(#635)](https://github.com/zowe/zowe-common-c/issues/635)
 - Bugfix: Fixed memory leaks in CSI-related functions. [(#711)](https://github.com/zowe/zowe-common-c/pull/711) and [(#712)](https://github.com/zowe/zowe-common-c/pull/712)
+- Bugfix: A single unmappable character no longer truncates the whole JSON response. Data-conversion failures now use a separate flag from real IO errors, so output continues instead of being suppressed. [(#675)](https://github.com/zowe/zowe-common-c/pull/675)
 
 ## `3.5.0`
 - Enhancement: YAML comment preservation tooling for the YAML-to-JSON-to-YAML round-trip pipeline. Comments are scanned separately from libyaml, attached to the JSON tree, and re-emitted with configurable alignment (none, fixed, original). Opt-in; not yet enabled in configmgr. [(#583)](https://github.com/zowe/zowe-common-c/issues/583)
