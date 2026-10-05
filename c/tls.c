@@ -129,6 +129,7 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
 
   env->settings = settings;
   rc = rc || gsk_environment_open(&env->envHandle);
+  rc = rc || gsk_attribute_set_numeric_value(env->envHandle, GSK_V3_SIDCACHE_SIZE, 0);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_SSLV2, GSK_PROTOCOL_SSLV2_OFF);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_SSLV3, GSK_PROTOCOL_SSLV3_OFF);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_OFF);

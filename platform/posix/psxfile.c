@@ -347,7 +347,7 @@ int fileWrite(UnixFile *file, const char *buffer, int desiredBytes,
   return (int)n;
 }
 
-int fileReadLink(char *fileName, char *buffer, int bufferSize,
+int fileReadLink(const char *fileName, char *buffer, int bufferSize,
                  int *returnCode, int *reasonCode) {
   ssize_t n = readlink(fileName, buffer, (size_t)bufferSize - 1);
   if (n < 0) {

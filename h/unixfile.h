@@ -29,7 +29,7 @@
 #include <windows.h>
 #endif
 
-#include <zosaccounts.h>
+#include "zosaccounts.h"
 
 /*
   "Unix" files are regular character-oriented files that
@@ -442,7 +442,7 @@ int symbolicFileInfo(const char *filename, FileInfo *fileInfo, int *returnCode, 
 /* Reads the target of a symbolic link into buffer.
    Returns the number of bytes written to buffer (not null-terminated by BPX service,
    but this wrapper adds a null terminator), or -1 on error. */
-int fileReadLink(char *fileName, char *buffer, int bufferSize, int *returnCode, int *reasonCode);
+int fileReadLink(const char *fileName, char *buffer, int bufferSize, int *returnCode, int *reasonCode);
 
 #ifdef __ZOWE_OS_ZOS
 int fileChangeTag(const char *fileName, int *returnCode, int *reasonCode, int ccsid);
@@ -556,13 +556,44 @@ int directoryChangeModeRecursive(const char *pathName, int flag,
 UnixFile *directoryOpen(const char *directoryName, int *returnCode, int *reasonCode);
 int directoryRead(UnixFile *directory, char *entryBuffer, int entryBufferLength, int *returnCode, int *reasonCode);
 int directoryClose(UnixFile *directory, int *returnCode, int *reasonCode);
-int directoryChangeOwner(char * message, int messageLength, char *directory,
-            int userId, int groupId, bool recursion, char * pattern,
-            int *returnCode, int *reasonCode);
+int directoryChangeOwnerRecursive(char * message, int messageLength, const char *pathName, int userId, int groupId,
+    int recursive, char * pattern, int *retCode, int *resCode);
 
 
 int setUmask(int mask);
 int getUmask();
+
+typedef enum {
+    RL2_TypeRealFile,
+    RL2_TypeRealDir,
+    RL2_TypeSymlink
+} ReadLink2_Type;
+
+typedef struct
+{
+  ReadLink2_Type type;
+  char realPath[USS_MAX_PATH_LENGTH + 1]; // only available when type is RL2_TypeSymlink
+} ReadLinkResult;
+
+/* This is an extended version of fileReadLink. In addition to resolving a symbolic link to
+   its actual path, it also determines whether a given path is an actual file, an actual
+   directory, or a symbolic link. */
+int fileReadLink2(const char *path, ReadLinkResult *result, int *returnCode, int *reasonCode);
+
+#define MAX_ENTRY_BUFFER_SIZE 2550
+#define MAX_NUM_ENTRIES       1000
+typedef struct
+{
+  int numEntries;
+  const char *entryArray[MAX_NUM_ENTRIES];
+  int entryLengthArray[MAX_NUM_ENTRIES];
+  char nameBuffer[USS_MAX_FILE_NAME + 1];
+  char entryBuffer[MAX_ENTRY_BUFFER_SIZE];
+} UnixDirectoryEntries;
+
+/* Unrecursively retrieves the entries of a given directory. */
+int directoryListEntries(const char *path, UnixDirectoryEntries *entries, int *returnCode, int *reasonCode);
+const char* getEntryName(UnixDirectoryEntries *entries, int index);
 
 #endif
 

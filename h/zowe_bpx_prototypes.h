@@ -387,6 +387,20 @@ extern int BPX4LCO(BPX_LCO_ARGS);
 extern int BPX1UMK(BPX_UMK_ARGS);
 extern int BPX4UMK(BPX_UMK_ARGS);
 
+/* symlink (BPX1SYM, BPX4SYM)
+ * CALL BPX1SYM,(Pathname_length, Pathname, Link_name_length, Link_name,
+ *               Return_value, Return_code, Reason_code) */
+#define BPX_SYM_ARGS                                                           \
+    int  *Pathname_length,                /* in  -- Integer,  fullword */      \
+    char *Pathname,                       /* in  -- Character, len=Pathname_length */ \
+    int  *Link_name_length,               /* in  -- Integer,  fullword */      \
+    char *Link_name,                      /* in  -- Character, len=Link_name_length */ \
+    int  *return_value,                   /* out -- Integer,  fullword */      \
+    int  *return_code,                    /* out -- Integer,  fullword */      \
+    int  *reason_code                     /* out -- Integer,  fullword */
+extern int BPX1SYM(BPX_SYM_ARGS);
+extern int BPX4SYM(BPX_SYM_ARGS);
+
 /* ------------------------------------------------------------------
  * Sockets
  * ------------------------------------------------------------------ */

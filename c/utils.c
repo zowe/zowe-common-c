@@ -1603,6 +1603,9 @@ int base32Encode (int alphabet,
 
 static ListElt *cons(void *data, ListElt *list){
   ListElt *newList = (ListElt*)safeMalloc(sizeof(ListElt),"ListElt");
+  if (newList == NULL) {
+    return NULL; /* the caller keeps `list` as it was (#685) */
+  }
   newList->data = data;
   newList->next = list;
   return newList;
@@ -1610,6 +1613,9 @@ static ListElt *cons(void *data, ListElt *list){
 
 static ListElt *cons64(void *data, ListElt *list){
   ListElt *newList = (ListElt*)safeMalloc(sizeof(ListElt),"ListElt");
+  if (newList == NULL) {
+    return NULL; /* the caller keeps `list` as it was (#685) */
+  }
   newList->data = data;
   newList->next = list;
   return newList;
@@ -1618,6 +1624,10 @@ static ListElt *cons64(void *data, ListElt *list){
 
 static ShortLivedHeap *makeShortLivedHeapInternal(int blockSize, int maxBlocks, int is64){
   ShortLivedHeap *heap = (ShortLivedHeap*)safeMalloc(sizeof(ShortLivedHeap),"ShortLivedHeap");
+  if (heap == NULL) {
+    /* safeMalloc returned NULL: report the failure as SLHAlloc does */
+    return NULL;
+  }
   memcpy(heap->eyecatcher,"SLH SLH ",8);
   
   heap->is64 = is64;
@@ -1702,9 +1712,29 @@ char *SLHAlloc2(ShortLivedHeap *slh, int size, bool suppressAbend){
       ListElt *newChainElement = (slh->is64 ?
                                   cons64(bigBlock,blockTail) :
                                   cons(bigBlock,blockTail));
+      if (newChainElement == NULL) {
+        /* No memory for the chain link: return the block and fail cleanly */
+        if (slh->is64) {
+          safeFree64(bigBlock-4,size+4);
+        } else {
+          safeFree31(bigBlock-4,size+4);
+        }
+        reportSLHFailure(slh,size);
+        return NULL;
+      }
       slh->blockChain->next = newChainElement;
     } else{
-      slh->blockChain = cons(bigBlock,NULL);
+      ListElt *firstChainElement = cons(bigBlock,NULL);
+      if (firstChainElement == NULL) {
+        if (slh->is64) {
+          safeFree64(bigBlock-4,size+4);
+        } else {
+          safeFree31(bigBlock-4,size+4);
+        }
+        reportSLHFailure(slh,size);
+        return NULL;
+      }
+      slh->blockChain = firstChainElement;
       slh->activeBlock = bigBlock;
       slh->bytesRemaining = 0;
     }
@@ -1724,10 +1754,21 @@ char *SLHAlloc2(ShortLivedHeap *slh, int size, bool suppressAbend){
     int *sizePtr = (int*)data;
     *sizePtr = slh->blockSize;
     data += 4;
+    ListElt *newChainElement = (slh->is64 ?
+                                cons64(data,slh->blockChain) :
+                                cons(data,slh->blockChain) );
+    if (newChainElement == NULL) {
+      /* Chain link failed: return the block, leave the heap unchanged */
+      if (slh->is64) {
+        safeFree64(data-4,slh->blockSize+4);
+      } else {
+        safeFree31(data-4,slh->blockSize+4);
+      }
+      reportSLHFailure(slh,size);
+      return NULL;
+    }
     slh->activeBlock = data;
-    slh->blockChain = (slh->is64 ?
-                       cons64(data,slh->blockChain) :
-                       cons(data,slh->blockChain) );
+    slh->blockChain = newChainElement;
     slh->bytesRemaining = slh->blockSize;
     slh->blockCount++;
   }
