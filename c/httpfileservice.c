@@ -622,7 +622,7 @@ static int writeEmptyUnixFile(char *absolutePath, int forceWrite) {
   }
 
   UnixFile *dest = fileOpen(absolutePath,
-                            FILE_OPTION_CREATE_IF_NON_EXISTENT | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY,
+                            FILE_OPTION_CREATE | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY,
                             0700,
                             0,
                             &returnCode,
