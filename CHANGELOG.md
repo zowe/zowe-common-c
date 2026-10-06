@@ -1,10 +1,10 @@
 # Zowe Common C Changelog
 
 ## `3.6.0`
+
 - Bugfix: `tlsInit()` now disables GSKit's session ID/ticket cache (`GSK_V3_SIDCACHE_SIZE=0`). Without this, a TLS 1.3 client on some z/OS releases sends a ClientHello that certain TLS 1.3 peers (e.g. api-layer on Java 17) mishandle, causing subsequent reads to fail with an SSL protocol violation -- for example ZSS failing to fetch the JWKS from the APIML Gateway.
 - Bugfix: the `key too long` warning from the YAML reader prints the key in the native code page; on z/OS it came out as unreadable bytes. [(#671)](https://github.com/zowe/zowe-common-c/issues/671)
 - Bugfix: `writeBinaryDataFromBase64()` and `writeAsciiDataFromBase64()` in `httpfileservice.c` check the result of each `safeMalloc()` and fail the request when memory runs out, instead of writing through a NULL pointer, which on z/OS lands in low storage rather than crashing. [(#642)](https://github.com/zowe/zowe-common-c/issues/642)
-
 - Bugfix: `makeShortLivedHeap()` and the short-lived heap's block-chain helpers now return NULL when `safeMalloc` fails instead of writing through the NULL pointer (a segfault on Linux, a low-core store on z/OS); `SLHAlloc` gives a block back when its chain link cannot be allocated, and `ejsEvalFile()` reports "cannot allocate the evaluation heap" instead of crashing. [(#685)](https://github.com/zowe/zowe-common-c/issues/685)
 - Bugfix: the logging constructors (`makeLoggingContext()` and the anchor, component-table and vendor allocations behind it) return NULL when `safeMalloc` fails instead of writing through the NULL pointer, and `configmgr` reports "cannot allocate the logging context" and exits with `ZCFG_BAD_ENVIRONMENT` instead of crashing before it can print anything. [(#686)](https://github.com/zowe/zowe-common-c/issues/686)
 - Chore: configmgr and the REXX configmgr build take QuickJS from `zowe/quickjs-portable` `staging`, the Open Mainframe Project home of the z/OS port, instead of a personal fork; the configmgr build scripts now label the engine `2024-01-13`, which is what they have built since March, instead of `2021-03-27`.
