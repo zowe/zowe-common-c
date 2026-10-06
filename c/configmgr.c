@@ -64,7 +64,8 @@
 #include "configmgr.h"
 #ifdef __ZOWE_OS_ZOS
 #include "pdsutil.h"
-#endif 
+#include "zos.h"
+#endif
 
 #ifdef __ZOWE_OS_WINDOWS
 typedef int64_t ssize_t;
@@ -1998,13 +1999,13 @@ static int simpleMain(int argc, char **argv){
 static void ensureLE64(){
   char *realCAA = NULL;
 
-  char *laa = *(char * __ptr32 * __ptr32)0x04B8;
+  char *laa = *(char * __ptr32 * __ptr32)LAA_ADDRESS;
   printf("LAA at 0x%p\n",laa);
   dumpbuffer((char*)laa,0x180);
-  char *lca = *(char **)(laa + 88);
-  printf("LCA at 0%p\n",lca);
+  char *lca = *(char **)(laa + LAA_LCA_OFFSET);
+  printf("LCA at 0x%p\n",lca);
   dumpbuffer((char*)lca,0x358);
-  realCAA = *(char **)(lca + 8);
+  realCAA = *(char **)(lca + LCA_CAA_OFFSET);
   printf("realCAA = 0x%p\n",realCAA);
   dumpbuffer(realCAA,0x450);
   /*
@@ -2018,6 +2019,11 @@ static void ensureLE64(){
 #ifdef CMGRTEST
 int main(int argc, char **argv){
   LoggingContext *logContext = makeLoggingContext();
+  if (logContext == NULL) {
+    /* First allocation the program makes; nothing else can report without it */
+    fprintf(stderr, "configmgr: cannot allocate the logging context\n");
+    return ZCFG_BAD_ENVIRONMENT;
+  }
   logConfigureStandardDestinations(logContext);
   if (argc >= 3 && 
       (!strcmp("-script",argv[1]) ||
