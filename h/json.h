@@ -67,8 +67,8 @@ typedef struct jsonPrinter_tag {
   //private
   size_t _conversionBufferSize;
   char *_conversionBuffer;
-  int ioErrorFlag;             // real write/stream failure — gates ALL output
-  int dataConversionErrorFlag; // unmappable-byte failure — does NOT gate output
+  int ioErrorFlag;             // real write/stream failure - gates ALL output
+  int dataConversionErrorFlag; // unmappable-byte failure - does NOT gate output
   int isInMultipartString;
   bool (*filter)(void *filterContext,
                  char *keyOrNull,
