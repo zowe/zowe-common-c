@@ -13,6 +13,8 @@
 #ifndef __QSAM__
 #define __QSAM__
 
+#include "zowetypes.h"
+
 #ifndef __LONGNAME__
 
 
@@ -124,15 +126,16 @@
 #define DCB_RECFM_FBS 0x98                                            
 #define DCB_RECFM_VBS 0x58                                            
 
-typedef _Packed struct dcbExtension{ /* Aka, the DCBE */
+ZOWE_PRAGMA_PACK
+typedef struct dcbExtension{ /* Aka, the DCBE */
   char id[4];
   short int len;
   char rsvd006[2];
   void * __ptr32 dcb;
   unsigned int rela;
-  _Packed union {
+  union {
     char flg1;       /* Set by OPEN processing */
-    _Packed struct {
+    struct {
       int open : 1;
       int md31 : 1;
       int slbi : 1;
@@ -140,9 +143,9 @@ typedef _Packed struct dcbExtension{ /* Aka, the DCBE */
       int rsvd010_4 : 4;
     };
   };
-  _Packed union {
+  union {
     char flg2;       /* Set by requestor prior to OPEN */
-    _Packed struct {
+    struct {
       int rmode31 : 1;
       int pasteod : 1;
       int rsvd011_2 : 1;
@@ -154,9 +157,9 @@ typedef _Packed struct dcbExtension{ /* Aka, the DCBE */
     };
   };
   short int nstr;
-  _Packed union {
+  union {
     char flg3;       /* Set by requestor prior to OPEN */
-    _Packed struct {
+    struct {
       int large   : 1;
       int fixedbuf: 1;
       int eadscb  : 1;
@@ -175,18 +178,22 @@ typedef _Packed struct dcbExtension{ /* Aka, the DCBE */
   char macc;
   char msdn;
 } DCBExtension;
+ZOWE_PRAGMA_PACK_RESET
 
 /* map dcbDevice at 0 size is 20 */
-typedef _Packed struct dcbDevice{
-  _Packed struct dcbExtension * __ptr32 dcbe;
+ZOWE_PRAGMA_PACK
+typedef struct dcbDevice{
+  struct dcbExtension * __ptr32 dcbe;
   char unmapped[16]; /* A complex, device type sensitive, portion of the DCB that we do not need */
 } DCBDevice;
+ZOWE_PRAGMA_PACK_RESET
                                                                       
 /* map dcbCommon at 20 (0x14) size is 32 */                           
 #define DCB_COMMON_OFFSET 0x14                                        
 #define VB_RECORD_OFFSET 4
 
-typedef _Packed struct dcbCommon{
+ZOWE_PRAGMA_PACK
+typedef struct dcbCommon{
   /* OFFSET 0x14 */
   char bufno;    /* 0 if no pool */                                   
   int  bufcb:24; /* buffer pool control block = 000001 if no pool */  
@@ -215,7 +222,8 @@ typedef _Packed struct dcbCommon{
   char openFlags;  /* 0x10 - DCB_OPENFLAGS_OPEN - is considered success */
   char iosFlags;
   int  macroFormat:16;
-} DCBCommon;                                                                 
+} DCBCommon;
+ZOWE_PRAGMA_PACK_RESET
 
 /* The #define for DCBOFOPN has been deprecated, and will be removed
    in the future.  The function isOpen, declared in metalio.h, is the
@@ -228,7 +236,8 @@ typedef _Packed struct dcbCommon{
 /* map dcbBBQCommon at 52 (0x34) BSAM/BPAM/QSAM common - size 20 */
 #define DCB_BBQ_COMMON_OFFSET 0x34
                                                                       
-typedef _Packed struct dcbBBQCommon {
+ZOWE_PRAGMA_PACK
+typedef struct dcbBBQCommon {
   char optionCodes;  /* OPTCD */
   int  check:24;     /* or internal QSAM ERROR RTN */
   int  synad;        /* synchns err rtn addr, =1 if not set */
@@ -240,11 +249,13 @@ typedef _Packed struct dcbBBQCommon {
   int  internalFlags2;
   int  internalMethodUse; /* seen "00000001" */
 } DCBBBQCommon;
+ZOWE_PRAGMA_PACK_RESET
 
 /* map dcbBsamBpamInterface at 72 (0x48) */
 #define DCB_BSAM_BPAM_OFFSET 0x48
 
-typedef _Packed struct dcbBsamBpamInterface{
+ZOWE_PRAGMA_PACK
+typedef struct dcbBsamBpamInterface{
   char ncp;      /* MAX NUM OF OUTSTANDING READ/WRITES */   
   int  eobr:24;  /* internal AM use */                      
   int  eobw;     /* internal AM use */                      
@@ -252,18 +263,22 @@ typedef _Packed struct dcbBsamBpamInterface{
   int  lrecl:16;                                            
   int  cnp;      /* control, note, point */                 
 } DCBBBQInterface;
+ZOWE_PRAGMA_PACK_RESET
 
-typedef _Packed struct {
+ZOWE_PRAGMA_PACK
+typedef struct {
   DCBDevice Device;
   DCBCommon Common;
   DCBBBQCommon BBQCommon;
   DCBBBQInterface BBQInterface;
 } DCBSAM;
+ZOWE_PRAGMA_PACK_RESET
 
 /* There is lots of code that adds 4 bytes to skip past the DCB
    open list that preceeds the DCB.  Do not declare additional
    variables prior to the DCB.                                 */
-typedef _Packed struct {
+ZOWE_PRAGMA_PACK
+typedef struct {
   union {
     DCBSAM * __ptr32 OpenCloseList;
     unsigned int OpenCloseListOptions;
@@ -271,6 +286,7 @@ typedef _Packed struct {
   DCBSAM dcb;
   DCBExtension dcbe;
 } dcbSAMwithPlist;
+ZOWE_PRAGMA_PACK_RESET
 
 #define OPEN_CLOSE_DISP    0x00000000
 #define OPEN_CLOSE_REWIND  0x40000000
@@ -286,7 +302,8 @@ typedef _Packed struct {
 #define OPEN_CLOSE_EXTEND  0x0E000000
 #define OPEN_CLOSE_OUTINX  0x06000000
 
-typedef _Packed struct {
+ZOWE_PRAGMA_PACK
+typedef struct {
   char flag1;
   char flag2;
   char sens0;
@@ -301,8 +318,10 @@ typedef _Packed struct {
   short int errct;
   char seek[8];
 } IOB;
+ZOWE_PRAGMA_PACK_RESET
 
-typedef _Packed struct DECB_tag{
+ZOWE_PRAGMA_PACK
+typedef struct DECB_tag{
   int ecb;
   char type1;  /* 0x80 - "S" coded for length */
   char type2;  /* 0x80 is a suggestion */
@@ -314,6 +333,7 @@ typedef _Packed struct DECB_tag{
   // Note: The DECB for BISAM is 8 bytes longer
   // Note: The DECB for BDAM is 12 bytes longer
 } DECB;
+ZOWE_PRAGMA_PACK_RESET
 
 typedef struct {
   unsigned short length;

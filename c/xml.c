@@ -461,9 +461,10 @@ static void freeBAOS(ByteArrayOutputStream *baos){
 
 static void writeBAOS(ByteArrayOutputStream *baos, int b){
   if (baos->pos == (BAOS_MAX + baos->extraSize)){
-    printf("PANIC, baos out of room\n");
+    printf("PANIC, baos out of room, position %d\n", baos->pos);
+  } else {
+    baos->bytes[baos->pos++] = (char)b;
   }
-  baos->bytes[baos->pos++] = (char)b;
 }
 
 static void resetBAOS(ByteArrayOutputStream *baos){
@@ -474,7 +475,7 @@ static void syntaxError(XmlParser *p, char *formatString, ...){
   char buffer[2048];
   va_list argPointer;
   va_start(argPointer,formatString);
-  vsprintf(buffer,formatString,argPointer);
+  vsnprintf(buffer, sizeof(buffer), formatString, argPointer);
   va_end(argPointer);
   
   printf("SYNTAX ERROR line=%d %s\n",(p ? p->lineNumber : -1) ,buffer);
@@ -789,6 +790,9 @@ XMLToken *readCommentTail(XmlParser *p){
   while (TRUE){
     int b = safeRead(p);
 
+    if (b == -1) { // EOF in comment, bad
+      return NULL;
+    }
     switch (hyphenCount){
     case 0:
       if (b == '-'){
@@ -936,6 +940,9 @@ XMLToken *getXMLToken(XmlParser *p) {
 	  return makeXMLToken(p,XMLTOKEN_BROKEN);
 	}
       } else if (((char)b == ';') && (p->tokenState == XMLTOKEN_STATE_CHAR)){
+        if (p->charSequencePos >= sizeof(p->charSequence) -1) {
+          return makeXMLToken(p, XMLTOKEN_BROKEN);
+        }
 	p->charSequence[p->charSequencePos] = 0;
 	if (!strcmp(p->charSequence,"&lt")){
 	  writeBAOS(p->tokenBytes,'<');
@@ -950,6 +957,9 @@ XMLToken *getXMLToken(XmlParser *p) {
 	  return makeXMLToken(p,XMLTOKEN_BROKEN);
 	}
       } else if (p->tokenState == XMLTOKEN_STATE_CHAR){
+        if (p->charSequencePos >= sizeof(p->charSequence) - 1) {
+          return makeXMLToken(p, XMLTOKEN_BROKEN);
+        }
 	p->charSequence[p->charSequencePos++] = (char)b;
       } else {
 	writeBAOS(p->tokenBytes,b);
@@ -998,13 +1008,14 @@ void addChild(XMLNode *node, XMLNode *child) {
     node->childCount = 1;
     node->childrenLength = 4;
   } else if (node->childCount == node->childrenLength) {
-    XMLNode** newChildren = (XMLNode**)safeMalloc(node->childCount * 2 * sizeof(XMLNode*),"XML Node Array Extension");
+    int newLength = node->childrenLength * 2;
+    XMLNode** newChildren = (XMLNode**)safeMalloc(newLength * sizeof(XMLNode*),"XML Node Array Extension");
     memcpy(newChildren,node->children,node->childCount * sizeof(XMLNode*));
     safeFree((void*)node->children,node->childCount*sizeof(XMLNode*));
     newChildren[node->childCount++] = child;
     child->parent = node;
     node->children = newChildren;
-    node->childrenLength++;
+    node->childrenLength = newLength;
   } else {
     node->children[node->childCount++] = child;
     child->parent = node;
@@ -1024,13 +1035,16 @@ void addAttribute(XMLNode *node, char *attrName, char *attrValue) {
     node->attributes[0] = attrNode;
     attrNode->parent = node;
     node->attributeCount = 1;
+    node->attributesLength = 4;
   } else if (node->attributeCount == node->attributesLength) {
-    XMLNode **newAttributes = (XMLNode**)safeMalloc(node->attributeCount * 2 * sizeof(XMLNode*),"XML Attributes Extension");
+    int newLength = node->attributesLength * 2;
+    XMLNode **newAttributes = (XMLNode**)safeMalloc(newLength * sizeof(XMLNode*),"XML Attributes Extension");
     memcpy(newAttributes,node->attributes,node->attributeCount * sizeof(XMLNode*));
     safeFree((void*)node->attributes,node->attributeCount*sizeof(XMLNode*));
     newAttributes[node->attributeCount++] = attrNode;
     attrNode->parent = node;
     node->attributes = newAttributes;
+    node->attributesLength = newLength;
   } else {
     node->attributes[node->attributeCount++] = attrNode;
     attrNode->parent = node;
@@ -1126,6 +1140,10 @@ XMLNode *parseXMLNode(XmlParser *p) {
 	newElement = makeXMLNode(NODE_ELEMENT,idToken->bytes);
 	  
 	if (currentNode != NULL) {
+    if (stackPointer >= NODE_DEPTH_LIMIT) {
+      syntaxError(p, "exceeded node depth limit of %d", NODE_DEPTH_LIMIT);
+      return NULL;
+    }
 	  stack[stackPointer++] = currentNode;
 	  addChild(currentNode,newElement);
 	  currentNode = newElement;

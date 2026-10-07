@@ -1,0 +1,47 @@
+# Document-level comment: Zowe configuration example
+# This file demonstrates YAML comment preservation
+# across a full round-trip pipeline.
+
+# Server configuration section
+server:
+  # The hostname for the server
+  host: "localhost"     # default to loopback
+  port: 8080            # standard HTTP port
+  # Enable TLS for production
+  tls: true
+
+# Logging configuration
+logging:
+  level: "info"         # options: trace, debug, info, warn, error
+  # The output targets for log messages
+  targets:
+    - "console"         # always log to stdout
+    # The file target rotates daily
+    - "file"
+    - "syslog"          # optional remote syslog
+
+# Feature flags
+features:
+  # Enable the new dashboard UI
+  dashboard: true
+  # Legacy API support (deprecated)
+  legacyApi: false      # will be removed in v3
+
+# Numeric and special value tests
+limits:
+  maxConnections: 256
+  timeout: 30           # seconds
+  retryCount: 3
+
+# Array of complex objects
+users:
+  # The default admin user
+  - name: "admin"
+    role: "administrator"   # full access
+  # A regular user account
+  - name: "guest"
+    role: "viewer"          # read-only access
+  - name: "service"        # service account
+    role: "api"
+
+# End of configuration

@@ -1,0 +1,29 @@
+# Inline Comment Alignment Demo
+# Use this file to compare alignment modes: none, fixed, original
+#
+# Try:
+#   ./commenttest inline-comments.yaml -y -A none
+#   ./commenttest inline-comments.yaml -y -A fixed -W 40
+#   ./commenttest inline-comments.yaml -y -A original
+
+# Short keys with nearby comments
+a: 1                    # right next to value
+bb: two                 # a short key
+ccc: true               # boolean flag
+
+# Longer keys push comments out
+longKeyName: 100        # after a long key
+veryLongKeyNameHere: x  # way out to the right
+
+# Mixed value lengths
+path: /usr/lpp/zowe     # installation path
+p: 443                  # port number
+description: This is a longer string value   # end of line
+
+# Nested alignments
+outer:
+  short: 1              # col varies by indent
+  mediumKey: hello      # deeper indent
+  inner:
+    deep: true          # three levels down
+    x: 0                # minimal key

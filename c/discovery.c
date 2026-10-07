@@ -348,11 +348,16 @@ static void visitSSCTEntry(DiscoveryContext *context,
   void *usr1 = (void*)INT2PTR(ssctChain->ssctsuse);
   zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "user pointer at 0x%x COMMON?=%s\n",usr1,isPointerCommon(gda,usr1) ? "YES" : "NO");
   if (isPointerCommon(gda,usr1)){
+    char *sname = &(ssctChain->sname[0]);
+    char *usrData = (char*)usr1;
+    bool deleted = ((ssctChain->flags & SSCTFLG1_SSCTLDEL) != 0);
+    if (deleted || !memcmp(sname, "!DEL", 4)) {
+      zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "skipping logically deleted unit. sname=%4.4s, flags=0x%x\n",sname,ssctChain->flags);
+      return;
+    }
     if (context->ssctTraceLevel >= 1){
       dumpbuffer((char*)usr1,48);
     }
-    char *sname = &(ssctChain->sname[0]);
-    char *usrData = (char*)usr1;
     zowelog(NULL, LOG_COMP_DISCOVERY, ZOWE_LOG_DEBUG, "sname=%4.4s\n",sname);
     if (!memcmp(sname,"CICS",4) && (context->ssctTraceLevel >= 1)){
       dumpbuffer(usrData+0x08,6);

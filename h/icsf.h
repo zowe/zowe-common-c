@@ -13,7 +13,7 @@
 #ifndef __ICSF__
 #define __ICSF__
 
-#define ICSF_HASH_CONTEXT_LENGTH 128
+#define ICSF_HASH_CONTEXT_LENGTH 512
 #define ICSF_HASH_BLOCK_LENGTH 64
 
 typedef struct ICSFDigest_tag{
@@ -24,7 +24,7 @@ typedef struct ICSFDigest_tag{
   int leftoverFill;
   char leftovers[ICSF_HASH_BLOCK_LENGTH];
   char context[ICSF_HASH_CONTEXT_LENGTH];
-  char hash[32]; /* big enough for many hash types */
+  char hash[64]; /* big enough for all hash types including SHA-512 */
 } ICSFDigest;
 
 #define ICSF_DIGEST_MD5  1
@@ -34,6 +34,11 @@ typedef struct ICSFDigest_tag{
 #define ICSF_DIGEST_SHA256 4
 #define ICSF_DIGEST_SHA384 5
 #define ICSF_DIGEST_SHA512 6
+/* SHA-3 (Keccak) family algorithms */
+#define ICSF_DIGEST_SHA3_224  7
+#define ICSF_DIGEST_SHA3_256  8
+#define ICSF_DIGEST_SHA3_384  9
+#define ICSF_DIGEST_SHA3_512 10
 
 #define icsfDigestFully  CFSDGFUL
 #define icsfDigestInit   CSFDGINI

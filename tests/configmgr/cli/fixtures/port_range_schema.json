@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2019-09",
+  "$id": "https://zowe.org/test/portrange",
+  "type": "object",
+  "required": ["port"],
+  "additionalProperties": true,
+  "properties": {
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    }
+  }
+}

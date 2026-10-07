@@ -77,6 +77,191 @@ struct sigaction prevSIGSEGVAction;
 #endif
 #endif
 
+/* ibm-clang64 per-__asm HLASM scoping: DSECTs defined in one __asm block
+ * are not visible in other blocks (xlclang shared the HLASM stream
+ * across all blocks in a TU; ibm-clang64 does not). Inline them locally
+ * via the per-DSECT macros below (each empty under xlclang).
+ *
+ * Originally this was a single monolithic RCV_DSECT_SUITE applied
+ * uniformly to every __asm block in this file. That worked for the
+ * blocks that USING-reference DSECT-defined symbols (CVT, PSA, SDWA,
+ * FRRS, the local RCVCTX/RCVSTATE/RCVSINF), but ibm-clang64 has a bug
+ * where the long DSECT-defining preamble silently suppresses subsequent
+ * macro emission for blocks that only call self-contained system
+ * services (storageObtain / storageRelease both lost their STORAGE
+ * macro body bytes). Reproducer: tests/clang_readiness/
+ * storageobtain_repro_v2.c (with SUITE) returns NULL, while the
+ * SUITE-free v1 returns a real pointer. Bug-report material; not yet
+ * upstreamed.
+ *
+ * Workaround: factor the SUITE into named per-DSECT pieces and have
+ * each __asm include only the pieces whose symbols it actually
+ * references. RCV_DSECT_CSECT_RESUME must come last (after any DSECT
+ * pieces) so HLASM resumes emission into the regular CSECT before any
+ * subsequent code instructions; without it, instructions land inside
+ * the last DSECT and produce zero bytes. RCV_DSECT_SUITE is kept as a
+ * backward-compat alias = all pieces in the original order. Existing
+ * callers that still use RCV_DSECT_SUITE get the legacy behavior;
+ * blocks that have been triaged to need fewer pieces (storageObtain,
+ * storageRelease) include none.
+ *
+ * Dependencies between pieces:
+ *   RCV_DSECT_RCVCTX and RCV_DSECT_RCVSTATE both reference RCVSINFL,
+ *   which is defined inside RCV_DSECT_RCVSINF. If you include either
+ *   RCVCTX or RCVSTATE you must also include RCVSINF before it.
+ */
+
+#ifdef __ZOWE_COMP_CLANG
+
+#define RCV_DSECT_RCVSINF \
+  "         DS    0H\n" \
+  "RCVSINF  DSECT ,\n" \
+  "RSIMODN  DS    CL8\n" \
+  "RSICSCT  DS    CL8\n" \
+  "RSIREXN  DS    CL8\n" \
+  "RSICID   DS    CL5\n" \
+  "RSISC    DS    CL23\n" \
+  "RSIMDAT  DS    CL8\n" \
+  "RSIMVRS  DS    CL8\n" \
+  "RSICIDB  DS    CL4\n" \
+  "RSIFNML  DS    CL2\n" \
+  "RSIFNAM  DS    CL255\n" \
+  "         DS    CL7\n" \
+  "RCVSINFL EQU   *-RCVSINF\n" \
+  "         EJECT ,\n"
+
+#define RCV_DSECT_RCVCTX \
+  "         DS    0H\n" \
+  "RCVCTX   DSECT ,\n" \
+  "RCXEYECT DS    CL8\n" \
+  "RCXFLAG1 DS    X\n" \
+  "R@CF1NIN EQU   X'01'\n" \
+  "R@CF1PCC EQU   X'02'\n" \
+  "R@CF1TRM EQU   X'04'\n" \
+  "R@CF1UCX EQU   X'08'\n" \
+  "R@CF1USP EQU   X'10'\n" \
+  "R@CF1SRB EQU   X'20'\n" \
+  "R@CF1LCK EQU   X'40'\n" \
+  "R@CF1FRR EQU   X'80'\n" \
+  "RCXFLAG2 DS    X\n" \
+  "RCXFLAG3 DS    X\n" \
+  "RCXFLAG4 DS    X\n" \
+  "RCXPRTK  DS    F\n" \
+  "RCXPRKEY DS    X\n" \
+  "RCXVER   DS    X\n" \
+  "RCXPRSV1 DS    2X\n" \
+  "RCXSCPID DS    F\n" \
+  "RCXRSC   DS    A\n" \
+  "RCXCAA   DS    A\n" \
+  "RCVXINF  DS    CL(RCVSINFL)\n" \
+  "RCXSDPLS DS    CL200\n" \
+  "RCXPRSV2 DS    56X\n" \
+  "RCXSDPSA DS    CL72\n" \
+  "RCXLEN   EQU   *-RCVCTX\n" \
+  "         EJECT ,\n"
+
+#define RCV_DSECT_RCVSTATE \
+  "         DS    0H\n" \
+  "RCVSTATE DSECT ,\n" \
+  "RSTEYECT DS    CL8\n" \
+  "RSTNEXT  DS    A\n" \
+  "RSTRTRAD DS    A\n" \
+  "RSTAFEP  DS    A\n" \
+  "RSTAFUD  DS    A\n" \
+  "RSTCFEP  DS    A\n" \
+  "RSTCFUD  DS    A\n" \
+  "RSTAFEV  DS    D\n" \
+  "RSTCFEV  DS    D\n" \
+  "RSTFLG1  DS    X\n" \
+  "R@F1SDMP EQU   X'01'\n" \
+  "R@F1RTRY EQU   X'02'\n" \
+  "R@F1DORT EQU   X'04'\n" \
+  "R@F1LREC EQU   X'08'\n" \
+  "R@F1LDSB EQU   X'10'\n" \
+  "R@F1CELL EQU   X'20'\n" \
+  "RSTFLG2  DS    X\n" \
+  "RSTFLG3  DS    X\n" \
+  "RSTFLG4  DS    X\n" \
+  "RSTSTATE DS    X\n" \
+  "R@STENBL EQU   X'01'\n" \
+  "R@STABND EQU   X'02'\n" \
+  "R@STIREC EQU   X'04'\n" \
+  "RSTLSTKN DS    2X\n" \
+  "RSTKEY   DS    1X\n" \
+  "RSTVER   DS    1X\n" \
+  "RSTRESRV DS    3X\n" \
+  "RSTSDRC  DS    F\n" \
+  "RSTRGPR  DS    16D\n" \
+  "RSTCGPR  DS    16D\n" \
+  "RSTSTFR  DS    CL256\n" \
+  "RSTUFPB  DS    CL32\n" \
+  "RSTRINF  DS    CL(RCVSINFL)\n" \
+  "RSTDMTLT DS    CL101\n" \
+  "RSTLEN   EQU   *-RCVSTATE\n" \
+  "         EJECT ,\n"
+
+#define RCV_DSECT_IHASDWA \
+  "         DS    0H\n" \
+  "         IHASDWA\n" \
+  "         EJECT ,\n"
+
+#define RCV_DSECT_IHAFRRS \
+  "         IHAFRRS\n" \
+  "         EJECT ,\n"
+
+#define RCV_DSECT_IHAPSA \
+  "         IHAPSA\n" \
+  "         EJECT ,\n"
+
+#ifndef METTLE
+#define RCV_DSECT_CEECAA \
+  "         DS    0H\n" \
+  "         CEECAA\n" \
+  "         EJECT ,\n"
+#else
+#define RCV_DSECT_CEECAA ""
+#endif
+
+#define RCV_DSECT_CVT \
+  "         CVT   DSECT=YES,LIST=NO\n" \
+  "         EJECT ,\n"
+
+#define RCV_DSECT_CSECT_RESUME \
+  "         CSECT ,\n"
+
+/* Backward-compat alias: the original full SUITE in original order.
+ * Existing __asm blocks that still reference RCV_DSECT_SUITE keep the
+ * legacy behavior. Triaged blocks (storageObtain, storageRelease) have
+ * had the SUITE removed entirely because they reference no DSECT
+ * symbol. */
+#define RCV_DSECT_SUITE_CEECAA RCV_DSECT_CEECAA
+#define RCV_DSECT_SUITE \
+  RCV_DSECT_RCVSINF \
+  RCV_DSECT_RCVCTX \
+  RCV_DSECT_RCVSTATE \
+  RCV_DSECT_IHASDWA \
+  RCV_DSECT_IHAFRRS \
+  RCV_DSECT_IHAPSA \
+  RCV_DSECT_CEECAA \
+  RCV_DSECT_CVT \
+  RCV_DSECT_CSECT_RESUME
+
+#else  /* !__ZOWE_COMP_CLANG -- xlclang and older */
+
+#define RCV_DSECT_RCVSINF       ""
+#define RCV_DSECT_RCVCTX        ""
+#define RCV_DSECT_RCVSTATE      ""
+#define RCV_DSECT_IHASDWA       ""
+#define RCV_DSECT_IHAFRRS       ""
+#define RCV_DSECT_IHAPSA        ""
+#define RCV_DSECT_CEECAA        ""
+#define RCV_DSECT_CVT           ""
+#define RCV_DSECT_CSECT_RESUME  ""
+#define RCV_DSECT_SUITE         ""
+#define RCV_DSECT_SUITE_CEECAA  ""
+
+#endif
+
 ZOWE_PRAGMA_PACK
 
 typedef struct ESTAEXFeedback_tag {
@@ -94,12 +279,13 @@ static void resetESPIE(int token) {
 
   __asm(
       ASM_PREFIX
-      "         SYSSTATE PUSH                                                  \n"
+      "         SYSSTATE PUSH\n"
 #ifdef _LP64
-      "         SYSSTATE AMODE64=YES                                           \n"
+      "         SYSSTATE AMODE64=YES\n"
 #endif
-      "         ESPIE RESET,(%0)                                               \n"
-      "         SYSSTATE POP                                                   \n"
+      "         ESPIE RESET,(%0)\n"
+      "         SYSSTATE POP\n"
+      RCV_DSECT_SUITE
       :
       : "r"(token)
       : "r0", "r1", "r14", "r15"
@@ -119,19 +305,20 @@ static int setDummyESPIE() {
 
   __asm(
       ASM_PREFIX
-      "         LARL  2,DUMEXIT                                                \n"
-      "         ST    2,%0                                                     \n"
-      "         J     DEBARND                                                  \n"
-      "DUMEXIT  DS    0H                                                       \n"
+      "         LARL  2,DUMEXIT\n"
+      "         ST    2,%0\n"
+      "         J     DEBARND\n"
+      "DUMEXIT  DS    0H\n"
 
       /*** EXIT ROUTINE START ***/
 
-      "         OI    153(1),X'10'        SET EPIEPERC BIT TO PERCOLATE        \n"
-      "         BR    14                                                       \n"
+      "         OI    153(1),X'10'        SET EPIEPERC BIT TO PERCOLATE\n"
+      "         BR    14\n"
 
       /*** EXIT ROUTINE END ***/
 
-      "DEBARND  NR    2,2                                                      \n"
+      "DEBARND  NR    2,2\n"
+      RCV_DSECT_SUITE
       : "=m"(dummyUserExit)
       :
       : "r2"
@@ -148,15 +335,16 @@ static int setDummyESPIE() {
   int token = 0;
   __asm(
       ASM_PREFIX
-      "         SYSSTATE PUSH                                                  \n"
+      "         SYSSTATE PUSH\n"
 #ifdef _LP64
-      "         SYSSTATE AMODE64=YES                                           \n"
+      "         SYSSTATE AMODE64=YES\n"
 #endif
-      "         IPM   2                                                        \n"
-      "         ESPIE SET,(%0),((1,15)),PARAM=(%1),MF=(E,(%1))                 \n"
-      "         SPM   2                                                        \n"
-      "         ST    1,0(%2)                                                  \n"
-      "         SYSSTATE POP                                                   \n"
+      "         IPM   2\n"
+      "         ESPIE SET,(%0),((1,15)),PARAM=(%1),MF=(E,(%1))\n"
+      "         SPM   2\n"
+      "         ST    1,0(%2)\n"
+      "         SYSSTATE POP\n"
+      RCV_DSECT_SUITE
       :
       : "r"(dummyUserExit), "r"(&parms31->espieParmList), "r"(&token)
       : "r0", "r1", "r2", "r14", "r15"
@@ -197,14 +385,15 @@ static ESTAEXFeedback setESTAEX(void * __ptr32 userExit, void *userData, char fl
 
   __asm(
       ASM_PREFIX
-      "         SYSSTATE PUSH                                                  \n"
+      "         SYSSTATE PUSH\n"
 #ifdef _LP64
-      "         SYSSTATE AMODE64=YES                                           \n"
+      "         SYSSTATE AMODE64=YES\n"
 #endif
-      "         ESTAEX (%0),PARAM=(%1),MF=(E,(%2))                             \n"
-      "         ST     15,0(%3)                                                \n"
-      "         ST     0,0(%4)                                                 \n"
-      "         SYSSTATE POP                                                   \n"
+      "         ESTAEX (%0),PARAM=(%1),MF=(E,(%2))\n"
+      "         ST     15,0(%3)\n"
+      "         ST     0,0(%4)\n"
+      "         SYSSTATE POP\n"
+      RCV_DSECT_SUITE
       :
       : "r"(userExit), "r"(userData), "r"(&parms31->estaexParmList),
         "r"(&parms31->feedback.returnCode), "r"(&parms31->feedback.reasonCode)
@@ -227,14 +416,15 @@ static ESTAEXFeedback deleteESTAEX() {
 
   __asm(
       ASM_PREFIX
-      "         SYSSTATE PUSH                                                  \n"
+      "         SYSSTATE PUSH\n"
 #ifdef _LP64
-      "         SYSSTATE AMODE64=YES                                           \n"
+      "         SYSSTATE AMODE64=YES\n"
 #endif
-      "         ESTAEX 0                                                       \n"
-      "         ST     15,0(%0)                                                \n"
-      "         ST     0,0(%1)                                                 \n"
-      "         SYSSTATE POP                                                   \n"
+      "         ESTAEX 0\n"
+      "         ST     15,0(%0)\n"
+      "         ST     0,0(%1)\n"
+      "         SYSSTATE POP\n"
+      RCV_DSECT_SUITE
       :
       : "r"(&localFeedback.returnCode),
         "r"(&localFeedback.reasonCode)
@@ -259,16 +449,17 @@ static void setFRR(void * __ptr32 userExit, void *userData,
 
     __asm(
         ASM_PREFIX
-        "         SYSSTATE PUSH                                                  \n"
-        "         SYSSTATE OSREL=ZOSV1R8                                         \n"
+        "         SYSSTATE PUSH\n"
+        "         SYSSTATE OSREL=ZOSV1R8\n"
         "         SETFRR A"
         ",FRRAD=(%[frr])"
         ",WRKREGS=(9,10)"
         ",PARMAD=%[parm]"
         ",CANCEL=NO"
         ",MODE=FULLXM"
-        ",SDWALOC31=YES                                                          \n"
-        "         SYSSTATE POP                                                   \n"
+        ",SDWALOC31=YES\n"
+        "         SYSSTATE POP\n"
+        RCV_DSECT_SUITE
         : [parm]"=m"(parmArea)
         : [frr]"r"(userExit)
         : "r9", "r10"
@@ -278,16 +469,17 @@ static void setFRR(void * __ptr32 userExit, void *userData,
 
     __asm(
         ASM_PREFIX
-        "         SYSSTATE PUSH                                                  \n"
-        "         SYSSTATE OSREL=ZOSV1R8                                         \n"
+        "         SYSSTATE PUSH\n"
+        "         SYSSTATE OSREL=ZOSV1R8\n"
         "         SETFRR A"
         ",FRRAD=(%[frr])"
         ",WRKREGS=(9,10)"
         ",PARMAD=%[parm]"
         ",CANCEL=YES"
         ",MODE=FULLXM"
-        ",SDWALOC31=YES                                                          \n"
-        "         SYSSTATE POP                                                   \n"
+        ",SDWALOC31=YES\n"
+        "         SYSSTATE POP\n"
+        RCV_DSECT_SUITE
         : [parm]"=m"(parmArea)
         : [frr]"r"(userExit)
         : "r9", "r10"
@@ -311,14 +503,15 @@ static void deleteFRR(void) {
 
   __asm(
       ASM_PREFIX
-      "         SYSSTATE PUSH                                                  \n"
-      "         SYSSTATE OSREL=ZOSV1R8                                         \n"
-      "         SETFRR D,WRKREGS=(9,10)                                        \n"
+      "         SYSSTATE PUSH\n"
+      "         SYSSTATE OSREL=ZOSV1R8\n"
+      "         SETFRR D,WRKREGS=(9,10)\n"
 #ifndef METTLE
-      "* Prevent LE compiler errors caused by the way XL C treats __asm        \n"
-      "         NOPR  0                                                        \n"
+      "* Prevent LE compiler errors caused by the way XL C treats __asm\n"
+      "         NOPR  0\n"
 #endif
-      "         SYSSTATE POP                                                   \n"
+      "         SYSSTATE POP\n"
+      RCV_DSECT_SUITE
       :
       :
       : "r9", "r10"
@@ -331,17 +524,24 @@ static void deleteFRR(void) {
 
 }
 
+/* storageObtain / storageRelease: reference no DSECT-defined symbol;
+ * STORAGE is a self-contained system service. RCV_DSECT_SUITE was
+ * previously included here uniformly with the rest of recovery.c, but
+ * its presence triggers an ibm-clang64 emission bug (see comment block
+ * at the top of this file) that causes STORAGE OBTAIN's body to be
+ * silently dropped. SUITE intentionally omitted here. */
+
 static void *storageObtain(int size){
   char * __ptr32 data = NULL;
   __asm(
       ASM_PREFIX
-      "         SYSSTATE PUSH                                                  \n"
+      "         SYSSTATE PUSH\n"
 #ifdef _LP64
-      "         SYSSTATE AMODE64=YES                                           \n"
+      "         SYSSTATE AMODE64=YES\n"
 #endif
-      "         STORAGE OBTAIN,LENGTH=(%1),LOC=31,SP=132,CALLRKY=YES           \n"
-      "         ST     1,%0                                                    \n"
-      "         SYSSTATE POP                                                   \n"
+      "         STORAGE OBTAIN,LENGTH=(%1),LOC=31,SP=132,CALLRKY=YES\n"
+      "         ST     1,%0\n"
+      "         SYSSTATE POP\n"
       : "=m"(data)
       : "r"(size)
       : "r0", "r1", "r14", "r15"
@@ -352,13 +552,13 @@ static void *storageObtain(int size){
 static void storageRelease(void *data, int size){
   __asm(
       ASM_PREFIX
-      "         SYSSTATE PUSH                                                  \n"
+      "         SYSSTATE PUSH\n"
 #ifdef _LP64
-      "         SYSSTATE AMODE64=YES                                           \n"
+      "         SYSSTATE AMODE64=YES\n"
 #endif
       /* TODO consider a different subpool */
-      "         STORAGE RELEASE,LENGTH=(%0),ADDR=(%1),SP=132,CALLRKY=YES       \n"
-      "         SYSSTATE POP                                                   \n"
+      "         STORAGE RELEASE,LENGTH=(%0),ADDR=(%1),SP=132,CALLRKY=YES\n"
+      "         SYSSTATE POP\n"
       :
       : "r"(size), "r"(data)
       : "r0", "r1", "r14", "r15"
@@ -427,10 +627,10 @@ static void * __ptr32 getRecoveryRouterAddress() {
 
   __asm(
       ASM_PREFIX
-      "         LARL  10,RCVEXIT                                               \n"
-      "         ST    10,%0                                                    \n"
-      "         J     RCVTRTN                                                  \n"
-      "RCVEXIT  DS    0H                                                       \n"
+      "         LARL  10,RCVEXIT\n"
+      "         ST    10,%0\n"
+      "         J     RCVTRTN\n"
+      "RCVEXIT  DS    0H\n"
 
       /*** EXIT ROUTINE START ***/
 
@@ -447,268 +647,268 @@ static void * __ptr32 getRecoveryRouterAddress() {
        *
        */
 
-      "         PUSH  USING                                                    \n"
-      "         DROP                                                           \n"
-      "         SYSSTATE OSREL=ZOSV1R6                                         \n"
-      "         BAKR  14,0                                                     \n"
-      "         LARL  10,RCVEXIT                                               \n"
-      "         USING RCVEXIT,10                                               \n"
+      "         PUSH  USING\n"
+      "         DROP\n"
+      "         SYSSTATE OSREL=ZOSV1R6\n"
+      "         BAKR  14,0\n"
+      "         LARL  10,RCVEXIT\n"
+      "         USING RCVEXIT,10\n"
       /* validate input */
-      "         CHI   0,12                HAVE SDWA (CAN BE 12 IN TCB ONLY)?   \n"
-      "         JE    RCVRET              NO, LEAVE                            \n"
-      "         DS    0H                                                       \n"
-      "         LGR   9,1                 SDWA WILL BE IN R9                   \n"
-      "         USING SDWA,9                                                   \n"
-      "         LTGF  2,SDWAPARM          LOAD RECOVERY PARMS HANDLE           \n"
-      "         BZ    RCVRET              ZERO? YES, LEAVE                     \n"
+      "         CHI   0,12 \n"                                   /* HAVE SDWA (CAN BE 12 IN TCB ONLY)? */
+      "         JE    RCVRET \n"                                 /* NO, LEAVE */
+      "         DS    0H\n"
+      "         LGR   9,1 \n"                                    /* SDWA WILL BE IN R9 */
+      "         USING SDWA,9\n"
+      "         LTGF  2,SDWAPARM \n"                             /* LOAD RECOVERY PARMS HANDLE */
+      "         BZ    RCVRET \n"                                 /* ZERO? YES, LEAVE */
 #ifdef _LP64
-      "         LTG   11,0(2)             LOAD RECOVERY ROUTER CONTEXT         \n"
+      "         LTG   11,0(2) \n"                                /* LOAD RECOVERY ROUTER CONTEXT */
 #else
-      "         LT    11,0(2)             LOAD RECOVERY ROUTER CONTEXT         \n"
+      "         LT    11,0(2) \n"                                /* LOAD RECOVERY ROUTER CONTEXT */
 #endif
-      "         BZ    RCVRET              ZERO? YES, LEAVE                     \n"
-      "         USING RCVCTX,11                                                \n"
-      "         CLC   RCXEYECT,=C'RSRCVCTX' EYECATHER IS VALID?                \n"
-      "         BNE   RCVRET              NO, LEAVE                            \n"
+      "         BZ    RCVRET  \n"                                /* ZERO? YES, LEAVE */
+      "         USING RCVCTX,11\n"
+      "         CLC   RCXEYECT,=C'RSRCVCTX' \n"                  /* EYECATHER IS VALID? */
+      "         BNE   RCVRET \n"                                 /* NO, LEAVE */
 #if !defined(METTLE) && !defined(_LP64)
       /* check if the LE ESTAE needs to handle this */
-      "         L     12,RCXCAA           LOAD CAA                             \n"
-      "         USING CEECAA,12                                                \n"
-      "         L     15,CEECAAHERP       ADDRESS OF CEE3ERP                   \n"
-      "         BALR  14,15                                                    \n"
-      "         CFI   15,4                LET LE HANDLE THIS?                  \n"
-      "         BE    RCVRET              YES, SETRP HAS BEEN SET UP           \n"
+      "         L     12,RCXCAA \n"                              /* LOAD CAA */
+      "         USING CEECAA,12\n"
+      "         L     15,CEECAAHERP \n"                          /* ADDRESS OF CEE3ERP */
+      "         BALR  14,15\n"
+      "         CFI   15,4 \n"                                   /* LET LE HANDLE THIS? */
+      "         BE    RCVRET \n"                                 /* YES, SETRP HAS BEEN SET UP */
 #endif
       /* see if we need to change PSW key */
-      "         LA    3,1                 STACKED STATE 1                      \n"
-      "         ESTA  2,3                 GET STATE                            \n"
-      "         SRL   2,16                MOVE KEY TO BIT 24-27                \n"
-      "         N     2,=X'000000F0'      CLEAR OUT THE REST                   \n"
-      "         ICM   3,X'0001',RCXPRKEY  LOAD ROUTER KEY INTO BITS 24-27      \n"
-      "         N     3,=X'000000F0'      CLEAR OUT THE REST                   \n"
-      "         CR    2,3                 EQUAL?                               \n"
-      "         BE    RCVFRL0             YES, SKIP SETTING KEY                \n"
-      "         SPKA  0(3)                SET KEY TO ROUTER VALUE              \n"
+      "         LA    3,1 \n"                                    /* STACKED STATE 1 */
+      "         ESTA  2,3 \n"                                    /* GET STATE */
+      "         SRL   2,16 \n"                                   /* MOVE KEY TO BIT 24-27 */
+      "         N     2,=X'000000F0' \n"                         /* CLEAR OUT THE REST */
+      "         ICM   3,X'0001',RCXPRKEY \n"                     /* LOAD ROUTER KEY INTO BITS 24-27 */
+      "         N     3,=X'000000F0' \n"                         /* CLEAR OUT THE REST */
+      "         CR    2,3 \n"                                    /* EQUAL? */
+      "         BE    RCVFRL0 \n"                                /* YES, SKIP SETTING KEY */
+      "         SPKA  0(3) \n"                                   /* SET KEY TO ROUTER VALUE */
       /* process recovery states */
-      "RCVFRL0  DS    0H                  CHECK IF ANY STATES ARE AVAILABLE    \n"
-      "         LLGT  8,RCXRSC            LOAD RECOVERY STATE ENTRY            \n"
-      "         LTR   8,8                 ZERO?                                \n"
-      "         BNZ   RCVFRL05            NO, GO CHECK FLAGS                   \n"
-      "         LA    1,RCVXINF           LOAD ROUTER SERVICE INFO             \n"
-      "         BRAS  14,RCVSIFLB         RECORD IT, REMOVE CONTEXT, PERCOLATE \n"
-      "         TM    RCXFLAG1,R@CF1USP   USER STATE POOL?                     \n"
-      "         BNZ   RCVFRL04            NO, DO NOT FREE IT                   \n"
-      "         LT    2,RCXSCPID          CELL POOL ZERO?                      \n"
-      "         BZ    RCVFRL04            YES, DO NOT FREE IT                  \n"
+      "RCVFRL0  DS    0H \n"                                     /* CHECK IF ANY STATES ARE AVAILABLE */
+      "         LLGT  8,RCXRSC \n"                               /* LOAD RECOVERY STATE ENTRY */
+      "         LTR   8,8 \n"                                    /* ZERO? */
+      "         BNZ   RCVFRL05 \n"                               /* NO, GO CHECK FLAGS */
+      "         LA    1,RCVXINF \n"                              /* LOAD ROUTER SERVICE INFO */
+      "         BRAS  14,RCVSIFLB \n"                            /* RECORD IT, REMOVE CONTEXT, PERCOLATE */
+      "         TM    RCXFLAG1,R@CF1USP \n"                      /* USER STATE POOL? */
+      "         BNZ   RCVFRL04 \n"                               /* NO, DO NOT FREE IT */
+      "         LT    2,RCXSCPID \n"                             /* CELL POOL ZERO? */
+      "         BZ    RCVFRL04 \n"                               /* YES, DO NOT FREE IT */
 #ifdef _LP64
-      "         SAM31                                                          \n"
-      "         SYSSTATE AMODE64=NO                                            \n"
+      "         SAM31\n"
+      "         SYSSTATE AMODE64=NO\n"
 #endif
-      "         CPOOL DELETE,CPID=(2)     FREE THE STATE CELL POOL             \n"
-      "         LGFI  2,X'7FFFFBA3'       MAKE AN OBVIOUSLY BAD ADDRESS        \n"
-      "         ST    2,RCXSCPID          MARK THE CPID FOR DEBUGGING PURPOSES \n"
+      "         CPOOL DELETE,CPID=(2) \n"                        /* FREE THE STATE CELL POOL */
+      "         LGFI  2,X'7FFFFBA3' \n"                          /* MAKE AN OBVIOUSLY BAD ADDRESS */
+      "         ST    2,RCXSCPID \n"                             /* MARK THE CPID FOR DEBUGGING PURPOSES */
 #ifdef _LP64
-      "         SAM64                                                          \n"
-      "         SYSSTATE AMODE64=YES                                           \n"
+      "         SAM64\n"
+      "         SYSSTATE AMODE64=YES\n"
 #endif
-      "RCVFRL04 DS    0H                                                       \n"
-      "         TM    RCXFLAG1,R@CF1UCX   USER CONTEXT?                        \n"
-      "         BNZ   RCVRET              YES, DO NOT FREE                     \n"
-      "         LA    4,RCXLEN            LENGTH OF CONTEXT                    \n"
-      "         STORAGE RELEASE,LENGTH=(4),ADDR=(11),SP=132,CALLRKY=YES        \n"
-      "         B     RCVRET                                                   \n"
-      "RCVFRL05 DS    0H                                                       \n"
-      "         USING RCVSTATE,8                                               \n"
-      "         TM    RSTSTATE,R@STENBL   IS IT ENABLED?                       \n"
-      "         BZ    RCVFRL5             NO, REMOVE                           \n"
-      "         NI    RSTSTATE,X'FF'-R@STENBL  DISABLE                         \n"
-      "         OI    RSTSTATE,R@STABND   MARK ABENDED                         \n"
-      "RCVFRL1  DS    0H                  ANALYSIS FUNCTION PROCESSING         \n"
-      "         CLC   RSTAFEP,=F'0'       ANALYSIS FUNCTION ZERO?              \n"
-      "         BE    RCVFRL15            YES, SKIP                            \n"
+      "RCVFRL04 DS    0H\n"
+      "         TM    RCXFLAG1,R@CF1UCX \n"                      /* USER CONTEXT? */
+      "         BNZ   RCVRET \n"                                 /* YES, DO NOT FREE */
+      "         LA    4,RCXLEN \n"                               /* LENGTH OF CONTEXT */
+      "         STORAGE RELEASE,LENGTH=(4),ADDR=(11),SP=132,CALLRKY=YES \n"
+      "         B     RCVRET\n"
+      "RCVFRL05 DS    0H\n"
+      "         USING RCVSTATE,8\n"
+      "         TM    RSTSTATE,R@STENBL \n"                      /* IS IT ENABLED? */
+      "         BZ    RCVFRL5 \n"                                /* NO, REMOVE */
+      "         NI    RSTSTATE,X'FF'-R@STENBL \n"                /* DISABLE */
+      "         OI    RSTSTATE,R@STABND \n"                      /* MARK ABENDED */
+      "RCVFRL1  DS    0H \n"                                     /* ANALYSIS FUNCTION PROCESSING */
+      "         CLC   RSTAFEP,=F'0' \n"                          /* ANALYSIS FUNCTION ZERO? */
+      "         BE    RCVFRL15 \n"                               /* YES, SKIP */
 #if !defined(METTLE) && defined(_LP64)
-      "         LGR   1,11                CONTEXT AS THE FIRST PARM            \n"
-      "         LGR   2,9                 SDWA AS THE SECOND PARM              \n"
-      "         LLGT  3,RSTAFUD           USER DATA AS THE THIRD PARM          \n"
-      "         LG    4,RSTRGPR+32        STACK                                \n"
-      "         LG    12,RSTRGPR+96       CAA                                  \n"
-      "         LLGT  6,RSTAFEP           ANALYSIS FUNCTION ENTRY POINT        \n"
-      "         LG    5,RSTAFEV           ANALYSIS FUNCTION ENVIRONMENT        \n"
-      "         BASR  7,6                 CALL ANALYSIS FUNCTION               \n"
-      "         NOPR  0                                                        \n"
+      "         LGR   1,11 \n"                                   /* CONTEXT AS THE FIRST PARM */
+      "         LGR   2,9 \n"                                    /* SDWA AS THE SECOND PARM */
+      "         LLGT  3,RSTAFUD \n"                              /* USER DATA AS THE THIRD PARM */
+      "         LG    4,RSTRGPR+32 \n"                           /* STACK */
+      "         LG    12,RSTRGPR+96 \n"                          /* CAA */
+      "         LLGT  6,RSTAFEP \n"                              /* ANALYSIS FUNCTION ENTRY POINT */
+      "         LG    5,RSTAFEV \n"                              /* ANALYSIS FUNCTION ENVIRONMENT */
+      "         BASR  7,6 \n"                                    /* CALL ANALYSIS FUNCTION */
+      "         NOPR  0\n"
 #elif !defined(METTLE) && defined(__XPLINK__) /* 31 by elimination */
-      "         LR    1,11                CONTEXT AS THE FIRST PARM            \n"
-      "         LR    2,9                 SDWA AS THE SECOND PARM              \n"
-      "         L     3,RSTAFUD           USER DATA AS THE THIRD PARM          \n"
-      "         LG    4,RSTRGPR+32        STACK                                \n"
-      "         LG    12,RSTRGPR+96       CAA                                  \n"
-      "         LLGT  6,RSTAFEP           ANALYSIS FUNCTION ENTRY POINT        \n"
-      "         LG    5,RSTAFEV           ANALYSIS FUNCTION ENVIRONMENT        \n"
-      "         BASR  7,6                 CALL ANALYSIS FUNCTION               \n"
-      "         DC    XL2'4700'                                                \n"
-      "         DC    XL2'0000'                                                \n"
+      "         LR    1,11 \n"                                   /* CONTEXT AS THE FIRST PARM */
+      "         LR    2,9 \n"                                    /* SDWA AS THE SECOND PARM */
+      "         L     3,RSTAFUD \n"                              /* USER DATA AS THE THIRD PARM */
+      "         LG    4,RSTRGPR+32 \n"                           /* STACK */
+      "         LG    12,RSTRGPR+96 \n"                          /* CAA */
+      "         LLGT  6,RSTAFEP \n"                              /* ANALYSIS FUNCTION ENTRY POINT */
+      "         LG    5,RSTAFEV \n"                              /* ANALYSIS FUNCTION ENVIRONMENT */
+      "         BASR  7,6 \n"                                    /* CALL ANALYSIS FUNCTION */
+      "         DC    XL2'4700'\n"
+      "         DC    XL2'0000'\n"
 #else
 #ifdef _LP64
-      "         STG   11,RSTUFPB          SAVE CONTEXT AS THE FIRST PARM       \n"
-      "         STG   9,RSTUFPB+8         SAVE SDWA AS THE SECOND              \n"
-      "         LLGT  1,RSTAFUD           ADDRESS OF USER PARMS                \n"
-      "         STG   1,RSTUFPB+16        SAVE USER PARMS                      \n"
+      "         STG   11,RSTUFPB \n"                             /* SAVE CONTEXT AS THE FIRST PARM */
+      "         STG   9,RSTUFPB+8 \n"                            /* SAVE SDWA AS THE SECOND */
+      "         LLGT  1,RSTAFUD \n"                              /* ADDRESS OF USER PARMS */
+      "         STG   1,RSTUFPB+16 \n"                           /* SAVE USER PARMS */
 #else
-      "         ST    11,RSTUFPB          SAVE CONTEXT AS THE FIRST PARM       \n"
-      "         ST    9,RSTUFPB+4         SAVE SDWA AS THE SECOND              \n"
-      "         L     1,RSTAFUD           ADDRESS OF USER PARMS                \n"
-      "         ST    1,RSTUFPB+8         SAVE USER PARMS                      \n"
+      "         ST    11,RSTUFPB \n"                             /* SAVE CONTEXT AS THE FIRST PARM */
+      "         ST    9,RSTUFPB+4 \n"                            /* SAVE SDWA AS THE SECOND */
+      "         L     1,RSTAFUD \n"                              /* ADDRESS OF USER PARMS */
+      "         ST    1,RSTUFPB+8 \n"                            /* SAVE USER PARMS */
 #endif
-      "         LG    12,RSTRGPR+96       CAA OR OTHER ENVIRONMENT             \n"
-      "         LG    13,RSTRGPR+104      STACK                                \n"
-      "         LA    1,RSTUFPB           PARM AREA ADDRESS                    \n"
-      "         LLGT  15,RSTAFEP          ANALYSIS FUNCTION ADDRESS            \n"
-      "         BASR  14,15               CALL ANALYSIS FUNCTION               \n"
+      "         LG    12,RSTRGPR+96 \n"                          /* CAA OR OTHER ENVIRONMENT */
+      "         LG    13,RSTRGPR+104 \n"                         /* STACK */
+      "         LA    1,RSTUFPB \n"                              /* PARM AREA ADDRESS */
+      "         LLGT  15,RSTAFEP \n"                             /* ANALYSIS FUNCTION ADDRESS */
+      "         BASR  14,15 \n"                                  /* CALL ANALYSIS FUNCTION */
 #endif
-      "RCVFRL15 DS    0H                  RECORD SERVICE INFO                  \n"
-      "         LA    1,RCVXINF           LOAD ROUTER SERVICE INFO             \n"
-      "         BRAS  14,RCVSIFLB         GO RECORD                            \n"
-      "         LA    1,RSTRINF           LOAD STATE SERVICE INFO              \n"
-      "         BRAS  14,RCVSIFLB         GO RECORD                            \n"
-      "         OI    RSTSTATE,R@STIREC   SERVICE INFO RECORDED                \n"
-      "RCVFRL2  DS    0H                                                       \n"
-      "         TM    RSTFLG1,R@F1SDMP    DUMP FLAG SET?                       \n"
-      "         BZ    RCVFRL3             NO, SKIP                             \n"
-      "         LA    5,RSTDMTLT          DUMP TITLE                           \n"
-      "         TM    RCXFLAG1,R@CF1PCC+R@CF1SRB+R@CF1LCK PC, SRB, OR LOCKED?  \n"
-      "         BNZ   RCVFRL25            YES, USE A SPECIAL SDUMPX CALL       \n"
+      "RCVFRL15 DS    0H \n"                                     /* RECORD SERVICE INFO */
+      "         LA    1,RCVXINF \n"                              /* LOAD ROUTER SERVICE INFO */
+      "         BRAS  14,RCVSIFLB \n"                            /* GO RECORD */
+      "         LA    1,RSTRINF \n"                              /* LOAD STATE SERVICE INFO */
+      "         BRAS  14,RCVSIFLB \n"                            /* GO RECORD */
+      "         OI    RSTSTATE,R@STIREC \n"                      /* SERVICE INFO RECORDED */
+      "RCVFRL2  DS    0H\n"
+      "         TM    RSTFLG1,R@F1SDMP \n"                       /* DUMP FLAG SET? */
+      "         BZ    RCVFRL3 \n"                                /* NO, SKIP */
+      "         LA    5,RSTDMTLT \n"                             /* DUMP TITLE */
+      "         TM    RCXFLAG1,R@CF1PCC+R@CF1SRB+R@CF1LCK \n"    /* PC, SRB, OR LOCKED? */
+      "         BNZ   RCVFRL25 \n"                               /* YES, USE A SPECIAL SDUMPX CALL */
       "         SDUMPX  PLISTVER=3,HDRAD=(5),TYPE=FAILRC,"
       ",SDATA=("
       "ALLNUC,ALLPSA,COUPLE,CSA,"
       "GRSQ,IO,LPA,LSQA,NUC,PSA,"
       "RGN,SQA,SUM,SWA,TRT,XESDATA"
       ")"
-      ",MF=(E,RCXSDPLS)                                                        \n"
-      "         ST    15,RSTSDRC          SDUMPX RC                            \n"
-      "         B     RCVFRL3                                                  \n"
-      "RCVFRL25 DS    0H                                                       \n"
-      "         LA    13,RCXSDPSA         SAVE AREA FOR SDUMPX                 \n"
+      ",MF=(E,RCXSDPLS)\n"
+      "         ST    15,RSTSDRC \n"                             /* SDUMPX RC */
+      "         B     RCVFRL3\n"
+      "RCVFRL25 DS    0H\n"
+      "         LA    13,RCXSDPSA \n"                            /* SAVE AREA FOR SDUMPX */
 #ifdef _LP64
-      "         SAM31                                                          \n"
-      "         SYSSTATE AMODE64=NO                                            \n"
+      "         SAM31\n"
+      "         SYSSTATE AMODE64=NO\n"
 #endif
-      "         IPK   ,                   PUT CURRENT KEY IN R2                \n"
-      "         SPKA  0                   KEY 0                                \n"
+      "         IPK \n"                                          /* ,                   PUT CURRENT KEY IN R2 */
+      "         SPKA  0 \n"                                      /* KEY 0 */
       "         SDUMPX  PLISTVER=3,HDRAD=(5),BRANCH=YES,TYPE=XMEME,"
       ",SDATA=("
       "ALLNUC,ALLPSA,COUPLE,CSA,"
       "GRSQ,IO,LPA,LSQA,NUC,PSA,"
       "RGN,SQA,SUM,SWA,TRT,XESDATA"
       ")"
-      ",MF=(E,RCXSDPLS)                                                        \n"
-      "         SPKA  0(2)                RESTORE KEY                          \n"
+      ",MF=(E,RCXSDPLS)\n"
+      "         SPKA  0(2) \n"                                   /* RESTORE KEY */
 #ifdef _LP64
-      "         SAM64                                                          \n"
-      "         SYSSTATE AMODE64=YES                                           \n"
+      "         SAM64\n"
+      "         SYSSTATE AMODE64=YES\n"
 #endif
-      "RCVFRL3  DS    0H                  CLEAN-UP FUNCTION PROCESSING         \n"
-      "         CLC   RSTCFEP,=F'0'       CLEAN-UP FUNCTION ZERO?              \n"
-      "         BE    RCVFRL4             YES, SKIP                            \n"
+      "RCVFRL3  DS    0H \n"                                     /* CLEAN-UP FUNCTION PROCESSING */
+      "         CLC   RSTCFEP,=F'0' \n"                          /* CLEAN-UP FUNCTION ZERO? */
+      "         BE    RCVFRL4 \n"                                /* YES, SKIP */
 #if !defined(METTLE) && defined(_LP64)
-      "         LGR   1,11                CONTEXT AS THE FIRST PARM            \n"
-      "         LGR   2,9                 SDWA AS THE SECOND PARM              \n"
-      "         LLGT  3,RSTCFUD           USER DATA AS THE THIRD PARM          \n"
-      "         LG    4,RSTRGPR+32        STACK                                \n"
-      "         LG    12,RSTRGPR+96       CAA                                  \n"
-      "         LLGT  6,RSTCFEP           CLEAN-UP FUNCTION ENTRY POINT        \n"
-      "         LG    5,RSTCFEV           CLEAN-UP FUNCTION ENVIRONMENT        \n"
-      "         BASR  7,6                 CALL CLEAN-UP FUNCTION               \n"
-      "         NOPR  0                                                        \n"
+      "         LGR   1,11 \n"                                   /* CONTEXT AS THE FIRST PARM */
+      "         LGR   2,9 \n"                                    /* SDWA AS THE SECOND PARM */
+      "         LLGT  3,RSTCFUD \n"                              /* USER DATA AS THE THIRD PARM */
+      "         LG    4,RSTRGPR+32 \n"                           /* STACK */
+      "         LG    12,RSTRGPR+96 \n"                          /* CAA */
+      "         LLGT  6,RSTCFEP \n"                              /* CLEAN-UP FUNCTION ENTRY POINT */
+      "         LG    5,RSTCFEV \n"                              /* CLEAN-UP FUNCTION ENVIRONMENT */
+      "         BASR  7,6 \n"                                    /* CALL CLEAN-UP FUNCTION */
+      "         NOPR  0\n"
 #elif !defined(METTLE) && defined(__XPLINK__) /* by elimination */
-      "         LR    1,11                CONTEXT AS THE FIRST PARM            \n"
-      "         LR    2,9                 SDWA AS THE SECOND PARM              \n"
-      "         L     3,RSTCFUD           USER DATA AS THE THIRD PARM          \n"
-      "         LG    4,RSTRGPR+32        STACK                                \n"
-      "         LG    12,RSTRGPR+96       CAA                                  \n"
-      "         LLGT  6,RSTCFEP           CLEAN-UP FUNCTION ENTRY POINT        \n"
-      "         LG    5,RSTCFEV           CLEAN-UP FUNCTION ENVIRONMENT        \n"
-      "         BASR  7,6                 CALL CLEAN-UP FUNCTION               \n"
-      "         DC    XL2'4700'                                                \n"
-      "         DC    XL2'0000'                                                \n"
+      "         LR    1,11 \n"                                   /* CONTEXT AS THE FIRST PARM */
+      "         LR    2,9 \n"                                    /* SDWA AS THE SECOND PARM */
+      "         L     3,RSTCFUD \n"                              /* USER DATA AS THE THIRD PARM */
+      "         LG    4,RSTRGPR+32 \n"                           /* STACK */
+      "         LG    12,RSTRGPR+96 \n"                          /* CAA */
+      "         LLGT  6,RSTCFEP \n"                              /* CLEAN-UP FUNCTION ENTRY POINT */
+      "         LG    5,RSTCFEV \n"                              /* CLEAN-UP FUNCTION ENVIRONMENT */
+      "         BASR  7,6 \n"                                    /* CALL CLEAN-UP FUNCTION */
+      "         DC    XL2'4700'\n"
+      "         DC    XL2'0000'\n"
 #else
 #ifdef _LP64
-      "         STG   11,RSTUFPB          SAVE CONTEXT AS THE FIRST PARM       \n"
-      "         STG   9,RSTUFPB+8         SAVE SDWA AS THE SECOND              \n"
-      "         LLGT  1,RSTCFUD           ADDRESS OF USER PARMS                \n"
-      "         STG   1,RSTUFPB+16        SAVE USER PARMS                      \n"
+      "         STG   11,RSTUFPB \n"                             /* SAVE CONTEXT AS THE FIRST PARM */
+      "         STG   9,RSTUFPB+8 \n"                            /* SAVE SDWA AS THE SECOND */
+      "         LLGT  1,RSTCFUD \n"                              /* ADDRESS OF USER PARMS */
+      "         STG   1,RSTUFPB+16 \n"                           /* SAVE USER PARMS */
 #else
-      "         ST    11,RSTUFPB          SAVE CONTEXT AS THE FIRST PARM       \n"
-      "         ST    9,RSTUFPB+4         SAVE SDWA AS THE SECOND              \n"
-      "         L     1,RSTCFUD           ADDRESS OF USER PARMS                \n"
-      "         ST    1,RSTUFPB+8         SAVE USER PARMS                      \n"
+      "         ST    11,RSTUFPB \n"                             /* SAVE CONTEXT AS THE FIRST PARM */
+      "         ST    9,RSTUFPB+4 \n"                            /* SAVE SDWA AS THE SECOND */
+      "         L     1,RSTCFUD \n"                              /* ADDRESS OF USER PARMS */
+      "         ST    1,RSTUFPB+8 \n"                            /* SAVE USER PARMS */
 #endif
-      "         LG    12,RSTRGPR+96       CAA OR OTHER ENVIRONMENT             \n"
-      "         LG    13,RSTRGPR+104      STACK                                \n"
-      "         LA    1,RSTUFPB           PARM AREA ADDRESS                    \n"
-      "         LLGT  15,RSTCFEP          CLEAN-UP FUNCTION ADDRESS            \n"
-      "         BASR  14,15               CALL CLEAN-UP FUNCTION               \n"
+      "         LG    12,RSTRGPR+96 \n"                          /* CAA OR OTHER ENVIRONMENT */
+      "         LG    13,RSTRGPR+104 \n"                         /* STACK */
+      "         LA    1,RSTUFPB \n"                              /* PARM AREA ADDRESS */
+      "         LLGT  15,RSTCFEP \n"                             /* CLEAN-UP FUNCTION ADDRESS */
+      "         BASR  14,15 \n"                                  /* CALL CLEAN-UP FUNCTION */
 #endif
-      "RCVFRL4  DS    0H                  RETRY PROCESSING                     \n"
-      "         TM    RSTFLG1,R@F1RTRY    ARE WE RETRYING?                     \n"
-      "         BZ    RCVFRL5             NO, REMOVE AND LEAVE                 \n"
-      "         LA    3,1                 STACKED STATE 1                      \n"
-      "         ESTA  2,3                 GET STATE                            \n"
-      "         SRL   2,16                MOVE KEY TO BIT 24-27                \n"
-      "         SPKA  0(2)                GO TO ORIGINAL KEY (PKM APPROVED)    \n"
-      "         LLGT  4,SDWAXPAD          LOAD EXTENSION POINTERS ADDRESS      \n"
-      "         USING SDWAPTRS,4                                               \n"
-      "         LLGT  5,SDWASRVP          LOAD RECORDABLE EXTENSION            \n"
-      "         USING SDWARC1,5                                                \n"
-      "         LLGT  4,SDWAXEME          LOAD 64-BIT EXTENSION                \n"
-      "         LTR   4,4                 IS IT THERE?                         \n"
-      "         BZ    RCVRET              NO, LEAVE                            \n"
-      "         USING SDWARC4,4                                                \n"
-      "         MVC   SDWAG64,RSTRGPR     MOVE OUR REGISTERS                   \n"
-      "         MVC   SDWALSLV,RSTLSTKN   MOVE LINKAGE STACK TOKEN             \n"
-      "         LLGT  7,RSTRTRAD          LOAD RETRY ADDRESS                   \n"
-      "         LGR   1,9                 RESTORE SDWA IN R1                   \n"
-      "         TM    RSTFLG1,R@F1LREC    RECORD SDWA TO LOGREC?               \n"
-      "         BZ    RCVFRL48            NO, USE SETRP WITHOUT RECORD=YES     \n"
-      "RCVFRL47 DS    0H                  SETRP WITH LOGREC                    \n"
+      "RCVFRL4  DS    0H \n"                                     /* RETRY PROCESSING */
+      "         TM    RSTFLG1,R@F1RTRY \n"                       /* ARE WE RETRYING? */
+      "         BZ    RCVFRL5 \n"                                /* NO, REMOVE AND LEAVE */
+      "         LA    3,1 \n"                                    /* STACKED STATE 1 */
+      "         ESTA  2,3 \n"                                    /* GET STATE */
+      "         SRL   2,16 \n"                                   /* MOVE KEY TO BIT 24-27 */
+      "         SPKA  0(2) \n"                                   /* GO TO ORIGINAL KEY (PKM APPROVED) */
+      "         LLGT  4,SDWAXPAD \n"                             /* LOAD EXTENSION POINTERS ADDRESS */
+      "         USING SDWAPTRS,4\n"
+      "         LLGT  5,SDWASRVP \n"                             /* LOAD RECORDABLE EXTENSION */
+      "         USING SDWARC1,5\n"
+      "         LLGT  4,SDWAXEME \n"                             /* LOAD 64-BIT EXTENSION */
+      "         LTR   4,4 \n"                                    /* IS IT THERE? */
+      "         BZ    RCVRET \n"                                 /* NO, LEAVE */
+      "         USING SDWARC4,4\n"
+      "         MVC   SDWAG64,RSTRGPR \n"                        /* MOVE OUR REGISTERS */
+      "         MVC   SDWALSLV,RSTLSTKN \n"                      /* MOVE LINKAGE STACK TOKEN */
+      "         LLGT  7,RSTRTRAD \n"                             /* LOAD RETRY ADDRESS */
+      "         LGR   1,9 \n"                                    /* RESTORE SDWA IN R1 */
+      "         TM    RSTFLG1,R@F1LREC \n"                       /* RECORD SDWA TO LOGREC? */
+      "         BZ    RCVFRL48 \n"                               /* NO, USE SETRP WITHOUT RECORD=YES */
+      "RCVFRL47 DS    0H \n"                                     /* SETRP WITH LOGREC */
       "         SETRP RC=4,RECORD=YES"
       ",DUMP=NO,RETREGS=64,RETRY15=YES,FRESDWA=YES"
-      ",RETADDR=(7)                                                            \n"
-      "         B     RCVRET              LEAVE                                \n"
-      "RCVFRL48 DS    0H                  SETRP WITHOUT LOGREC                 \n"
+      ",RETADDR=(7)\n"
+      "         B     RCVRET              LEAVE\n"
+      "RCVFRL48 DS    0H                  SETRP WITHOUT LOGREC\n"
       "         SETRP RC=4,RECORD=NO"
       ",DUMP=NO,RETREGS=64,RETRY15=YES,FRESDWA=YES"
-      ",RETADDR=(7)                                                            \n"
-      "         B     RCVRET              LEAVE                                \n"
-      "RCVFRL5  DS    0H                  ENTRY REMOVAL                        \n"
-      "         TM    RSTSTATE,R@STIREC   SERVICE INFO RECORDED?               \n"
-      "         BNZ   RCVFRL55            YES, SKIP RECORDING                  \n"
-      "         LA    1,RSTRINF           COLLECT SERVICE INFO BEFORE REMOVAL  \n"
-      "         BRAS  14,RCVSIFLB         GO RECORD                            \n"
-      "RCVFRL55 DS    0H                                                       \n"
-      "         MVC   RCXRSC,RSTNEXT      REMOVE ENTRY FROM CHAIN              \n"
-      "         TM    RSTFLG1,R@F1CELL    CELL POOL BASED?                     \n"
-      "         BZ    RCVFRL57            NO, DO STORAGE RELEASE               \n"
+      ",RETADDR=(7)\n"
+      "         B     RCVRET \n"                                 /* LEAVE */
+      "RCVFRL5  DS    0H \n"                                     /* ENTRY REMOVAL */
+      "         TM    RSTSTATE,R@STIREC \n"                      /* SERVICE INFO RECORDED? */
+      "         BNZ   RCVFRL55 \n"                               /* YES, SKIP RECORDING */
+      "         LA    1,RSTRINF \n"                              /* COLLECT SERVICE INFO BEFORE REMOVAL */
+      "         BRAS  14,RCVSIFLB \n"                            /* GO RECORD */
+      "RCVFRL55 DS    0H\n"
+      "         MVC   RCXRSC,RSTNEXT \n"                         /* REMOVE ENTRY FROM CHAIN */
+      "         TM    RSTFLG1,R@F1CELL \n"                       /* CELL POOL BASED? */
+      "         BZ    RCVFRL57 \n"                               /* NO, DO STORAGE RELEASE */
       /* CPOOL FREE */
-      "         LA    13,RCXSDPSA         SAVE AREA FOR CPOOL                  \n"
+      "         LA    13,RCXSDPSA \n"                            /* SAVE AREA FOR CPOOL */
 #ifdef _LP64
-      "         SAM31                                                          \n"
-      "         SYSSTATE AMODE64=NO                                            \n"
+      "         SAM31\n"
+      "         SYSSTATE AMODE64=NO\n"
 #endif
-      "         CPOOL FREE,CPID=RCXSCPID,CELL=(8),REGS=SAVE                    \n"
+      "         CPOOL FREE,CPID=RCXSCPID,CELL=(8),REGS=SAVE\n"
 #ifdef _LP64
-      "         SAM64                                                          \n"
-      "         SYSSTATE AMODE64=YES                                           \n"
+      "         SAM64\n"
+      "         SYSSTATE AMODE64=YES\n"
 #endif
-      "         B     RCVFRL0             GO LOOK FOR NEXT ENTRY               \n"
+      "         B     RCVFRL0 \n"                                /* GO LOOK FOR NEXT ENTRY */
       /* STORAGE RELEASE */
-      "RCVFRL57 DS    0H                                                       \n"
-      "         LA    4,RSTLEN            LENGTH OF RECOVERY STATE ENTRY       \n"
-      "         STORAGE RELEASE,LENGTH=(4),ADDR=(8),SP=132,CALLRKY=YES         \n"
-      "         B     RCVFRL0             GO LOOK FOR NEXT ENTRY               \n"
+      "RCVFRL57 DS    0H\n"
+      "         LA    4,RSTLEN \n"                               /* LENGTH OF RECOVERY STATE ENTRY */
+      "         STORAGE RELEASE,LENGTH=(4),ADDR=(8),SP=132,CALLRKY=YES \n"
+      "         B     RCVFRL0 \n"                                /* GO LOOK FOR NEXT ENTRY */
       /* leave */
-      "RCVRET   DS    0H                                                       \n"
-      "         EREGG 0,1                                                      \n"
-      "         PR                                                             \n"
+      "RCVRET   DS    0H\n"
+      "         EREGG 0,1\n"
+      "         PR\n"
       /*
        * Service info subroutine.
        *
@@ -721,83 +921,84 @@ static void * __ptr32 getRecoveryRouterAddress() {
        * R14      - return address
        *
        *  */
-      "RCVSIFLB DS    0H                  PROCESS SERVICE INFORMATION          \n"
-      "         USING RCVSINF,1                                                \n"
-      "         IPK   ,                   STORE OUR KEY IN R2                  \n"
-      "         LA    5,1                 STACKED STATE 1                      \n"
-      "         ESTA  4,5                 GET STATE                            \n"
-      "         SRL   4,16                MOVE KEY TO BIT 24-27                \n"
-      "         SPKA  0(4)                GO TO SDWA KEY                       \n"
-      "RCVSIF01 DS    0H                  RECORD LOAD MODULE NAME FIELD        \n"
-      "         CLC   SDWAMODN,=XL8'00'                                        \n"
-      "         BNE   RCVSIF02                                                 \n"
-      "         CLC   RSIMODN,=XL8'00'                                         \n"
-      "         BE    RCVSIF02                                                 \n"
-      "         MVC   SDWAMODN,RSIMODN                                         \n"
-      "RCVSIF02 DS    0H                  RECORD CSECT NAME FIELD              \n"
-      "         CLC   SDWACSCT,=XL8'00'                                        \n"
-      "         BNE   RCVSIF03                                                 \n"
-      "         CLC   RSICSCT,=XL8'00'                                         \n"
-      "         BE    RCVSIF03                                                 \n"
-      "         MVC   SDWACSCT,RSICSCT                                         \n"
-      "RCVSIF03 DS    0H                  RECORD RECOVERY ROUTINE NAME FIELD   \n"
-      "         CLC   SDWAREXN,=XL8'00'                                        \n"
-      "         BNE   RCVSIF04                                                 \n"
-      "         CLC   RSIREXN,=XL8'00'                                         \n"
-      "         BE    RCVSIF04                                                 \n"
-      "         MVC   SDWAREXN,RSIREXN                                         \n"
-      "RCVSIF04 DS    0H                  RECORD VARIABLE LENGTH USER DATA     \n"
-      "         CLC   RSIFNML,=XL2'00'    FUNCTION NAME LENGTH ZERO?           \n"
-      "         BE    RCVSIF05            YES, SKIP WRITING VRA                \n"
+      "RCVSIFLB DS    0H                  PROCESS SERVICE INFORMATION\n"
+      "         USING RCVSINF,1\n"
+      "         IPK   ,                   STORE OUR KEY IN R2\n"
+      "         LA    5,1                 STACKED STATE 1\n"
+      "         ESTA  4,5                 GET STATE\n"
+      "         SRL   4,16                MOVE KEY TO BIT 24-27\n"
+      "         SPKA  0(4)                GO TO SDWA KEY\n"
+      "RCVSIF01 DS    0H                  RECORD LOAD MODULE NAME FIELD\n"
+      "         CLC   SDWAMODN,=XL8'00'\n"
+      "         BNE   RCVSIF02\n"
+      "         CLC   RSIMODN,=XL8'00'\n"
+      "         BE    RCVSIF02\n"
+      "         MVC   SDWAMODN,RSIMODN\n"
+      "RCVSIF02 DS    0H                  RECORD CSECT NAME FIELD\n"
+      "         CLC   SDWACSCT,=XL8'00'\n"
+      "         BNE   RCVSIF03\n"
+      "         CLC   RSICSCT,=XL8'00'\n"
+      "         BE    RCVSIF03\n"
+      "         MVC   SDWACSCT,RSICSCT\n"
+      "RCVSIF03 DS    0H                  RECORD RECOVERY ROUTINE NAME FIELD\n"
+      "         CLC   SDWAREXN,=XL8'00'\n"
+      "         BNE   RCVSIF04\n"
+      "         CLC   RSIREXN,=XL8'00'\n"
+      "         BE    RCVSIF04\n"
+      "         MVC   SDWAREXN,RSIREXN\n"
+      "RCVSIF04 DS    0H                  RECORD VARIABLE LENGTH USER DATA\n"
+      "         CLC   RSIFNML,=XL2'00'    FUNCTION NAME LENGTH ZERO?\n"
+      "         BE    RCVSIF05            YES, SKIP WRITING VRA\n"
       "         VRADATA VRAINIT=SDWAVRA,KEY=VRALBL,LENADDR=RSIFNML,DATA=RSIFNAM"
-      ",SDWAREG=9,VRAREG=(5,NOSET),TYPE=(LEN,TEST)                             \n"
-      "RCVSIF05 DS    0H                                                       \n"
-      "         LLGT  5,SDWAXPAD          LOAD EXTENSION POINTERS ADDRESS      \n"
-      "         USING SDWAPTRS,5                                               \n"
-      "         LLGT  5,SDWASRVP          LOAD RECORDABLE EXTENSION            \n"
-      "         USING SDWARC1,5                                                \n"
-      "RCVSIF06 DS    0H                  RECORD COMPONENT ID FIELD            \n"
-      "         CLC   SDWACID,=XL5'00'                                         \n"
-      "         BNE   RCVSIF07                                                 \n"
-      "         CLC   RSICID,=XL5'00'                                          \n"
-      "         BE    RCVSIF07                                                 \n"
-      "         MVC   SDWACID,RSICID                                           \n"
-      "RCVSIF07 DS    0H                  RECORD SUBCOMPONENT NAME FIELD       \n"
-      "         CLC   SDWASC,=XL23'00'                                         \n"
-      "         BNE   RCVSIF08                                                 \n"
-      "         CLC   RSISC,=XL23'00'                                          \n"
-      "         BE    RCVSIF08                                                 \n"
-      "         MVC   SDWASC,RSISC                                             \n"
-      "RCVSIF08 DS    0H                  RECORD ASSEMBLY DATE FIELD           \n"
-      "         CLC   SDWAMDAT,=XL8'00'                                        \n"
-      "         BNE   RCVSIF09                                                 \n"
-      "         CLC   RSIMDAT,=XL8'00'                                         \n"
-      "         BE    RCVSIF09                                                 \n"
-      "         MVC   SDWAMDAT,RSIMDAT                                         \n"
-      "RCVSIF09 DS    0H                  RECORD VERSION FIELD                 \n"
-      "         CLC   SDWAMVRS,=XL8'00'                                        \n"
-      "         BNE   RCVSIF10                                                 \n"
-      "         CLC   RSIMVRS,=XL8'00'                                         \n"
-      "         BE    RCVSIF10                                                 \n"
-      "         MVC   SDWAMVRS,RSIMVRS                                         \n"
-      "RCVSIF10 DS    0H                  RECORD COMP ID BASE NUMBER FIELD     \n"
-      "         CLC   SDWACIDB,=XL4'00'                                        \n"
-      "         BNE   RCVSIF11                                                 \n"
-      "         CLC   RSICIDB,=XL4'00'                                         \n"
-      "         BE    RCVSIF11                                                 \n"
-      "         MVC   SDWACIDB,RSICIDB                                         \n"
-      "         DROP  5                                                        \n"
-      "RCVSIF11 DS    0H                                                       \n"
-      "         SPKA  0(2)                RESTORE CALLER'S KEY                 \n"
-      "         BR    14                  RETURN TO THE CALLER                 \n"
-      "         DROP  1                                                        \n"
+      ",SDWAREG=9,VRAREG=(5,NOSET),TYPE=(LEN,TEST)\n"
+      "RCVSIF05 DS    0H\n"
+      "         LLGT  5,SDWAXPAD          LOAD EXTENSION POINTERS ADDRESS\n"
+      "         USING SDWAPTRS,5\n"
+      "         LLGT  5,SDWASRVP          LOAD RECORDABLE EXTENSION\n"
+      "         USING SDWARC1,5\n"
+      "RCVSIF06 DS    0H                  RECORD COMPONENT ID FIELD\n"
+      "         CLC   SDWACID,=XL5'00'\n"
+      "         BNE   RCVSIF07\n"
+      "         CLC   RSICID,=XL5'00'\n"
+      "         BE    RCVSIF07\n"
+      "         MVC   SDWACID,RSICID\n"
+      "RCVSIF07 DS    0H                  RECORD SUBCOMPONENT NAME FIELD\n"
+      "         CLC   SDWASC,=XL23'00'\n"
+      "         BNE   RCVSIF08\n"
+      "         CLC   RSISC,=XL23'00'\n"
+      "         BE    RCVSIF08\n"
+      "         MVC   SDWASC,RSISC\n"
+      "RCVSIF08 DS    0H                  RECORD ASSEMBLY DATE FIELD\n"
+      "         CLC   SDWAMDAT,=XL8'00'\n"
+      "         BNE   RCVSIF09\n"
+      "         CLC   RSIMDAT,=XL8'00'\n"
+      "         BE    RCVSIF09\n"
+      "         MVC   SDWAMDAT,RSIMDAT\n"
+      "RCVSIF09 DS    0H                  RECORD VERSION FIELD\n"
+      "         CLC   SDWAMVRS,=XL8'00'\n"
+      "         BNE   RCVSIF10\n"
+      "         CLC   RSIMVRS,=XL8'00'\n"
+      "         BE    RCVSIF10\n"
+      "         MVC   SDWAMVRS,RSIMVRS\n"
+      "RCVSIF10 DS    0H                  RECORD COMP ID BASE NUMBER FIELD\n"
+      "         CLC   SDWACIDB,=XL4'00'\n"
+      "         BNE   RCVSIF11\n"
+      "         CLC   RSICIDB,=XL4'00'\n"
+      "         BE    RCVSIF11\n"
+      "         MVC   SDWACIDB,RSICIDB\n"
+      "         DROP  5\n"
+      "RCVSIF11 DS    0H\n"
+      "         SPKA  0(2)                RESTORE CALLER'S KEY\n"
+      "         BR    14                  RETURN TO THE CALLER\n"
+      "         DROP  1\n"
       /* non executable code */
-      "         LTORG                                                          \n"
-      "         POP   USING                                                    \n"
+      "         LTORG\n"
+      "         POP   USING\n"
 
       /*** EXIT ROUTINE END ***/
 
-      "RCVTRTN  NR    10,10                                                    \n"
+      "RCVTRTN  NR    10,10\n"
+      RCV_DSECT_SUITE
       : "=m"(address)
       :
       : "r10"
@@ -812,110 +1013,110 @@ static void * __ptr32 getRecoveryRouterAddress() {
 void recoveryDESCTs(){
 
   __asm(
-      "         DS    0H                                                       \n"
-      "RCVSINF  DSECT ,                                                        \n"
-      "RSIMODN  DS    CL8                                                      \n"
-      "RSICSCT  DS    CL8                                                      \n"
-      "RSIREXN  DS    CL8                                                      \n"
-      "RSICID   DS    CL5                                                      \n"
-      "RSISC    DS    CL23                                                     \n"
-      "RSIMDAT  DS    CL8                                                      \n"
-      "RSIMVRS  DS    CL8                                                      \n"
-      "RSICIDB  DS    CL4                                                      \n"
-      "RSIFNML  DS    CL2                                                      \n"
-      "RSIFNAM  DS    CL255                                                    \n"
-      "         DS    CL7                                                      \n"
-      "RCVSINFL EQU   *-RCVSINF                                                \n"
-      "         EJECT ,                                                        \n"
+      "         DS    0H\n"
+      "RCVSINF  DSECT ,\n"
+      "RSIMODN  DS    CL8\n"
+      "RSICSCT  DS    CL8\n"
+      "RSIREXN  DS    CL8\n"
+      "RSICID   DS    CL5\n"
+      "RSISC    DS    CL23\n"
+      "RSIMDAT  DS    CL8\n"
+      "RSIMVRS  DS    CL8\n"
+      "RSICIDB  DS    CL4\n"
+      "RSIFNML  DS    CL2\n"
+      "RSIFNAM  DS    CL255\n"
+      "         DS    CL7\n"
+      "RCVSINFL EQU   *-RCVSINF\n"
+      "         EJECT ,\n"
 
-      "         DS    0H                                                       \n"
-      "RCVCTX   DSECT ,                                                        \n"
-      "RCXEYECT DS    CL8                                                      \n"
-      "RCXFLAG1 DS    X                                                        \n"
-      "R@CF1NIN EQU   X'01'                                                    \n"
-      "R@CF1PCC EQU   X'02'                                                    \n"
-      "R@CF1TRM EQU   X'04'                                                    \n"
-      "R@CF1UCX EQU   X'08'                                                    \n"
-      "R@CF1USP EQU   X'10'                                                    \n"
-      "R@CF1SRB EQU   X'20'                                                    \n"
-      "R@CF1LCK EQU   X'40'                                                    \n"
-      "R@CF1FRR EQU   X'80'                                                    \n"
-      "RCXFLAG2 DS    X                                                        \n"
-      "RCXFLAG3 DS    X                                                        \n"
-      "RCXFLAG4 DS    X                                                        \n"
-      "RCXPRTK  DS    F                                                        \n"
-      "RCXPRKEY DS    X                                                        \n"
-      "RCXVER   DS    X                                                        \n"
-      "RCXPRSV1 DS    2X                                                       \n"
-      "RCXSCPID DS    F                                                        \n"
-      "RCXRSC   DS    A                                                        \n"
-      "RCXCAA   DS    A                                                        \n"
-      "RCVXINF  DS    CL(RCVSINFL)                                             \n"
-      "RCXSDPLS DS    CL200                                                    \n"
-      "RCXPRSV2 DS    56X                                                      \n"
-      "RCXSDPSA DS    CL72                                                     \n"
-      "RCXLEN   EQU   *-RCVCTX                                                 \n"
-      "         EJECT ,                                                        \n"
+      "         DS    0H\n"
+      "RCVCTX   DSECT ,\n"
+      "RCXEYECT DS    CL8\n"
+      "RCXFLAG1 DS    X\n"
+      "R@CF1NIN EQU   X'01'\n"
+      "R@CF1PCC EQU   X'02'\n"
+      "R@CF1TRM EQU   X'04'\n"
+      "R@CF1UCX EQU   X'08'\n"
+      "R@CF1USP EQU   X'10'\n"
+      "R@CF1SRB EQU   X'20'\n"
+      "R@CF1LCK EQU   X'40'\n"
+      "R@CF1FRR EQU   X'80'\n"
+      "RCXFLAG2 DS    X\n"
+      "RCXFLAG3 DS    X\n"
+      "RCXFLAG4 DS    X\n"
+      "RCXPRTK  DS    F\n"
+      "RCXPRKEY DS    X\n"
+      "RCXVER   DS    X\n"
+      "RCXPRSV1 DS    2X\n"
+      "RCXSCPID DS    F\n"
+      "RCXRSC   DS    A\n"
+      "RCXCAA   DS    A\n"
+      "RCVXINF  DS    CL(RCVSINFL)\n"
+      "RCXSDPLS DS    CL200\n"
+      "RCXPRSV2 DS    56X\n"
+      "RCXSDPSA DS    CL72\n"
+      "RCXLEN   EQU   *-RCVCTX\n"
+      "         EJECT ,\n"
 
-      "         DS    0H                                                       \n"
-      "RCVSTATE DSECT ,                                                        \n"
-      "RSTEYECT DS    CL8                                                      \n"
-      "RSTNEXT  DS    A                                                        \n"
-      "RSTRTRAD DS    A                                                        \n"
-      "RSTAFEP  DS    A                                                        \n"
-      "RSTAFUD  DS    A                                                        \n"
-      "RSTCFEP  DS    A                                                        \n"
-      "RSTCFUD  DS    A                                                        \n"
-      "RSTAFEV  DS    D                                                        \n"
-      "RSTCFEV  DS    D                                                        \n"
-      "RSTFLG1  DS    X                                                        \n"
-      "R@F1SDMP EQU   X'01'                                                    \n"
-      "R@F1RTRY EQU   X'02'                                                    \n"
-      "R@F1DORT EQU   X'04'                                                    \n"
-      "R@F1LREC EQU   X'08'                                                    \n"
-      "R@F1LDSB EQU   X'10'                                                    \n"
-      "R@F1CELL EQU   X'20'                                                    \n"
-      "RSTFLG2  DS    X                                                        \n"
-      "RSTFLG3  DS    X                                                        \n"
-      "RSTFLG4  DS    X                                                        \n"
-      "RSTSTATE DS    X                                                        \n"
-      "R@STENBL EQU   X'01'                                                    \n"
-      "R@STABND EQU   X'02'                                                    \n"
-      "R@STIREC EQU   X'04'                                                    \n"
-      "RSTLSTKN DS    2X                                                       \n"
-      "RSTKEY   DS    1X                                                       \n"
-      "RSTVER   DS    1X                                                       \n"
-      "RSTRESRV DS    3X                                                       \n"
-      "RSTSDRC  DS    F                                                        \n"
-      "RSTRGPR  DS    16D                                                      \n"
-      "RSTCGPR  DS    16D                                                      \n"
-      "RSTSTFR  DS    CL256                                                    \n"
-      "RSTUFPB  DS    CL32                                                     \n"
-      "RSTRINF  DS    CL(RCVSINFL)                                             \n"
-      "RSTDMTLT DS    CL101                                                    \n"
-      "RSTLEN   EQU   *-RCVSTATE                                               \n"
-      "         EJECT ,                                                        \n"
+      "         DS    0H\n"
+      "RCVSTATE DSECT ,\n"
+      "RSTEYECT DS    CL8\n"
+      "RSTNEXT  DS    A\n"
+      "RSTRTRAD DS    A\n"
+      "RSTAFEP  DS    A\n"
+      "RSTAFUD  DS    A\n"
+      "RSTCFEP  DS    A\n"
+      "RSTCFUD  DS    A\n"
+      "RSTAFEV  DS    D\n"
+      "RSTCFEV  DS    D\n"
+      "RSTFLG1  DS    X\n"
+      "R@F1SDMP EQU   X'01'\n"
+      "R@F1RTRY EQU   X'02'\n"
+      "R@F1DORT EQU   X'04'\n"
+      "R@F1LREC EQU   X'08'\n"
+      "R@F1LDSB EQU   X'10'\n"
+      "R@F1CELL EQU   X'20'\n"
+      "RSTFLG2  DS    X\n"
+      "RSTFLG3  DS    X\n"
+      "RSTFLG4  DS    X\n"
+      "RSTSTATE DS    X\n"
+      "R@STENBL EQU   X'01'\n"
+      "R@STABND EQU   X'02'\n"
+      "R@STIREC EQU   X'04'\n"
+      "RSTLSTKN DS    2X\n"
+      "RSTKEY   DS    1X\n"
+      "RSTVER   DS    1X\n"
+      "RSTRESRV DS    3X\n"
+      "RSTSDRC  DS    F\n"
+      "RSTRGPR  DS    16D\n"
+      "RSTCGPR  DS    16D\n"
+      "RSTSTFR  DS    CL256\n"
+      "RSTUFPB  DS    CL32\n"
+      "RSTRINF  DS    CL(RCVSINFL)\n"
+      "RSTDMTLT DS    CL101\n"
+      "RSTLEN   EQU   *-RCVSTATE\n"
+      "         EJECT ,\n"
 
-      "         DS    0H                                                       \n"
-      "         IHASDWA                                                        \n"
-      "         EJECT ,                                                        \n"
-      "         IHAFRRS                                                        \n"
-      "         EJECT ,                                                        \n"
-      "         IHAPSA                                                         \n"
-      "         EJECT ,                                                        \n"
+      "         DS    0H\n"
+      "         IHASDWA\n"
+      "         EJECT ,\n"
+      "         IHAFRRS\n"
+      "         EJECT ,\n"
+      "         IHAPSA\n"
+      "         EJECT ,\n"
 #ifndef METTLE
-      "         DS    0H                                                       \n"
-      "         CEECAA                                                         \n"
-      "         EJECT ,                                                        \n"
+      "         DS    0H\n"
+      "         CEECAA\n"
+      "         EJECT ,\n"
 #endif
 
-      "         CVT   DSECT=YES,LIST=NO                                        \n"
-      "         EJECT ,                                                        \n"
+      "         CVT   DSECT=YES,LIST=NO\n"
+      "         EJECT ,\n"
 
       /* TODO figure out why CSECT makes the compiler skip some __asm blocks when building for LE */
 #ifdef METTLE
-      "         CSECT ,                                                        \n"
-      "         RMODE ANY                                                      \n"
+      "         CSECT ,\n"
+      "         RMODE ANY\n"
 #endif
   );
 
@@ -1021,32 +1222,33 @@ static StackedState getStackedState(StackedStateExtractionCode code) {
 
   __asm(
       ASM_PREFIX
-      "         PUSH  USING                                                    \n"
-      "         DROP                                                           \n"
-      "GSSGN    DS    0H                                                       \n"
-      "         LARL  10,GSSGN                                                 \n"
-      "         USING GSSGN,10                                                 \n"
-      "         LARL  14,GSSEXT                                                \n"
+      "         PUSH  USING\n"
+      "         DROP\n"
+      "GSSGN    DS    0H\n"
+      "         LARL  10,GSSGN\n"
+      "         USING GSSGN,10\n"
+      "         LARL  14,GSSEXT\n"
 #ifdef _LP64
-      "         OILL  14,X'0001'                                               \n"
+      "         OILL  14,X'0001'\n"
 #else
-      "         OILH  14,X'8000'                                               \n"
+      "         OILH  14,X'8000'\n"
 #endif
-      "         BAKR  14,0                                                     \n"
-      "         LR    3,6                                                      \n"
-      "         ESTA  2,3                                                      \n"
-      "         CLFI  6,X'00000004'                                            \n"
-      "         BE    GSS04                                                    \n"
-      "         ST    2,0(,5)                                                  \n"
-      "         ST    3,4(,5)                                                  \n"
-      "         B     GSSPR                                                    \n"
-      "GSS04    DS    0H                                                       \n"
-      "         STG   2,0(,5)                                                  \n"
-      "         STG   3,8(,5)                                                  \n"
-      "GSSPR    DS    0H                                                       \n"
-      "         PR                                                             \n"
-      "GSSEXT   DS    0H                                                       \n"
-      "         POP   USING                                                    \n"
+      "         BAKR  14,0\n"
+      "         LR    3,6\n"
+      "         ESTA  2,3\n"
+      "         CLFI  6,X'00000004'\n"
+      "         BE    GSS04\n"
+      "         ST    2,0(,5)\n"
+      "         ST    3,4(,5)\n"
+      "         B     GSSPR\n"
+      "GSS04    DS    0H\n"
+      "         STG   2,0(,5)\n"
+      "         STG   3,8(,5)\n"
+      "GSSPR    DS    0H\n"
+      "         PR\n"
+      "GSSEXT   DS    0H\n"
+      "         POP   USING\n"
+      RCV_DSECT_SUITE
       :
       : "NR:r5"(&state), "NR:r6"(code)
       : "r5", "r6", "r10", "r14"
@@ -1181,7 +1383,7 @@ static int establishRouterInternal(RecoveryContext *userContext,
   context->routerPSWKey = getPSWKey() << 4;
 
   __asm(
-      "         ST    12,%0                                                    \n"
+      "         ST    12,%0\n"
       : "=m"(context->caa)
       :
       :
@@ -1705,15 +1907,15 @@ static int16_t getLinkageStackToken(void) {
   __asm(
       ASM_PREFIX
 #ifdef _LP64
-      "         SAM31                                                          \n"
-      "         SYSSTATE AMODE64=NO                                            \n"
+      "         SAM31\n"
+      "         SYSSTATE AMODE64=NO\n"
 #endif
-      "         IEALSQRY                                                       \n"
+      "         IEALSQRY\n"
 #ifdef _LP64
-      "         SAM64                                                          \n"
-      "         SYSSTATE AMODE64=YES                                           \n"
+      "         SAM64\n"
+      "         SYSSTATE AMODE64=YES\n"
 #endif
-
+      RCV_DSECT_SUITE
       : "=NR:r0"(token), "=NR:r15"(rc)
       :
       : "r0", "r1", "r14", "r15"
@@ -1774,61 +1976,62 @@ int recoveryPush(char *name, int flags, char *dumpTitle,
        */
 
       ASM_PREFIX
-      "&LX      SETA  &LX+1                                                    \n"
-      "&LRETRY  SETC  'RETRY&LX'                                               \n"
-      "&LRSTORE SETC  'RSTR&LX'                                                \n"
-      "&LEXIT   SETC  'EXIT&LX'                                                \n"
-      "&LRSEYE  SETC  'RSEC&LX'                                                \n"
-      "         PUSH  USING                                                    \n"
-      "         DROP                                                           \n"
-      "         USING RCVSTATE,9                                               \n"
-      "         LARL  10,&LRETRY         GET RETRY ADDRESS                     \n"
-      "         ST    10,RSTRTRAD        STORE RETRY ADDRESS FOR SETRP         \n"
-      "         LA    10,RSTSTFR         ADDRESS OF STACK FRAME BUFFER         \n"
-      "         LA    11,L'RSTSTFR       SIZE OF STACK FRAME BUFFER            \n"
+      "&LX      SETA  &LX+1\n"
+      "&LRETRY  SETC  'RETRY&LX'\n"
+      "&LRSTORE SETC  'RSTR&LX'\n"
+      "&LEXIT   SETC  'EXIT&LX'\n"
+      "&LRSEYE  SETC  'RSEC&LX'\n"
+      "         PUSH  USING\n"
+      "         DROP\n"
+      "         USING RCVSTATE,9\n"
+      "         LARL  10,&LRETRY         GET RETRY ADDRESS\n"
+      "         ST    10,RSTRTRAD        STORE RETRY ADDRESS FOR SETRP\n"
+      "         LA    10,RSTSTFR         ADDRESS OF STACK FRAME BUFFER\n"
+      "         LA    11,L'RSTSTFR       SIZE OF STACK FRAME BUFFER\n"
 #if defined(_LP64) && !defined(METTLE)
-      "         LA    14,2048(4)         ADDRESS OF STACK FRAME                \n"
+      "         LA    14,2048(4)         ADDRESS OF STACK FRAME\n"
 #elif defined(__XPLINK__) && !defined(METTLE)
-      "         LA    14,2048(4)         ADDRESS OF STACK FRAME                \n"
+      "         LA    14,2048(4)         ADDRESS OF STACK FRAME\n"
 #else
-      "         LGR   14,13              ADDRESS OF STACK FRAME                \n"
+      "         LGR   14,13              ADDRESS OF STACK FRAME\n"
 #endif
-      "         LGR   15,11              SIZE OF STACK FRAME                   \n"
-      "         STMG  0,15,RSTRGPR       SAVE GRPs FOR RETRY                   \n"
-      "         MVCL  10,14              SAVE STACK FRAME                      \n"
+      "         LGR   15,11              SIZE OF STACK FRAME\n"
+      "         STMG  0,15,RSTRGPR       SAVE GRPs FOR RETRY\n"
+      "         MVCL  10,14              SAVE STACK FRAME\n"
 #if !defined(_LP64) && !defined(__XPLINK__)
-      "         L     10,4(13)           ADDRESS OF PREVIOUS SAVE AREA         \n"
-      "         MVC   RSTCGPR(60),12(10) CALLER'S REGISTERS                    \n"
+      "         L     10,4(13)           ADDRESS OF PREVIOUS SAVE AREA\n"
+      "         MVC   RSTCGPR(60),12(10) CALLER'S REGISTERS\n"
 #elif defined(_LP64) && defined(METTLE)
-      "         LG    10,128(13)         ADDRESS OF PREVIOUS SAVE AREA         \n"
-      "         MVC   RSTCGPR(120),8(10) CALLER'S REGISTERS                    \n"
+      "         LG    10,128(13)         ADDRESS OF PREVIOUS SAVE AREA\n"
+      "         MVC   RSTCGPR(120),8(10) CALLER'S REGISTERS\n"
 #endif
-      "         J     &LEXIT             BRANCH AROUND RETRY BLOCK             \n"
+      "         J     &LEXIT             BRANCH AROUND RETRY BLOCK\n"
       /* retry block */
-      "&LRETRY  DS    0H                                                       \n"
-      "         LARL  2,&LRSEYE          LOAD EYECATCHER CONSTANT ADDRESS      \n"
-      "         CLC   RSTEYECT,0(2)      STATE EYECATCHER IS VALID?            \n"
-      "         JE    &LRSTORE           YES, CONTINUE                         \n"
-      "         ABEND 1                  SOMETHING WENT TERRIBLY WRONG         \n"
-      "&LRSEYE  DC    CL8'RSRSENTR'      STATE EYECATCHER CONSTANT             \n"
-      "&LRSTORE DS    0H                                                       \n"
-      "         LLC   2,RSTKEY           LOAD KEY TO R2                        \n"
-      "         SPKA  0(2)               RESTORE KEY                           \n"
-      "         MVCL  14,10              RESTORE STACK FRAME ON RETRY          \n"
+      "&LRETRY  DS    0H\n"
+      "         LARL  2,&LRSEYE          LOAD EYECATCHER CONSTANT ADDRESS\n"
+      "         CLC   RSTEYECT,0(2)      STATE EYECATCHER IS VALID?\n"
+      "         JE    &LRSTORE           YES, CONTINUE\n"
+      "         ABEND 1                  SOMETHING WENT TERRIBLY WRONG\n"
+      "&LRSEYE  DC    CL8'RSRSENTR'      STATE EYECATCHER CONSTANT\n"
+      "&LRSTORE DS    0H\n"
+      "         LLC   2,RSTKEY           LOAD KEY TO R2\n"
+      "         SPKA  0(2)               RESTORE KEY\n"
+      "         MVCL  14,10              RESTORE STACK FRAME ON RETRY\n"
 #if !defined(_LP64) && !defined(__XPLINK__) 
-      "         L     10,4(13)           ADDRESS OF PREVIOUS SAVE AREA         \n"
-      "         MVC   12(60,10),RSTCGPR  RESTORE CALLER'S REGISTERS            \n"
+      "         L     10,4(13)           ADDRESS OF PREVIOUS SAVE AREA\n"
+      "         MVC   12(60,10),RSTCGPR  RESTORE CALLER'S REGISTERS\n"
 #elif defined(_LP64) && defined(METTLE)
-      "         LG    10,128(13)         ADDRESS OF PREVIOUS SAVE AREA         \n"
-      "         MVC   8(120,10),RSTCGPR  RESTORE CALLER'S REGISTERS            \n"
+      "         LG    10,128(13)         ADDRESS OF PREVIOUS SAVE AREA\n"
+      "         MVC   8(120,10),RSTCGPR  RESTORE CALLER'S REGISTERS\n"
 #endif
       /* exit */
-      "&LEXIT   DS    0H                                                       \n"
-      "         POP   USING                                                    \n"
+      "&LEXIT   DS    0H\n"
+      "         POP   USING\n"
 #ifndef METTLE
-      "* Prevent LE compiler errors caused by the way XL C treats __asm        \n"
-      "         NOPR  0                                                        \n"
+      "* Prevent LE compiler errors caused by the way XL C treats __asm\n"
+      "         NOPR  0\n"
 #endif
+      RCV_DSECT_SUITE
       :
       : "NR:r9"(newEntry)
       : "r2", "r10", "r11", "r14", "r15"

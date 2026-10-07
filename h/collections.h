@@ -96,6 +96,17 @@ void fbMgrFree(fixedBlockMgr *mgr, void *block);
 void fbMgrDestroy(fixedBlockMgr *);
 
 
+/* Function-pointer types for hashtable callbacks. Declared in the header
+ * so both collections.c and external users can reference them with a real
+ * prototype in scope -- C23 forbids the empty-parens "(*compare)()" form. */
+typedef int  (*HashFunction)(void *key);
+typedef int  (*HashComparator)(void *key1, void *key2);
+typedef void (*HashKeyReclaimer)(void *key);
+typedef void (*HashValueReclaimer)(void *value);
+typedef int  (*HashEntryPredicate)(void *value);
+typedef void (*HashVisitor)(void *key, void *value);
+typedef void (*HashVisitor2)(void *userData, void *key, void *value);
+
 typedef struct hashentry_tag{
   void *key;
   void *value;
@@ -116,13 +127,13 @@ typedef struct hashtable_tag{
   int backboneSize;
   hashentry **backbone;
   fixedBlockMgr *mgr;
-  int (*hashFunction)(void *key);
-  int (*comparator)(void *key1, void *key2);
-  void (*keyReclaimer)(void *key);
-  void (*valueReclaimer)(void *value);
-  int (*keepEntry)(void *value);            // Determines what to do if a duplicate key is found
-  int (*entryExpired)(void *value);         // Determines if an entry is still valid
-  int (*removeEntry)(void *value);          // Determines if entry should be removed if it is found
+  HashFunction       hashFunction;
+  HashComparator     comparator;
+  HashKeyReclaimer   keyReclaimer;
+  HashValueReclaimer valueReclaimer;
+  HashEntryPredicate keepEntry;             // Determines what to do if a duplicate key is found
+  HashEntryPredicate entryExpired;          // Determines if an entry is still valid
+  HashEntryPredicate removeEntry;           // Determines if entry should be removed if it is found
 } hashtable;
 
 typedef struct LongHashEntry_tag{
@@ -164,10 +175,10 @@ void lhtMap(LongHashtable *ht, void (*visitor)(void *userData, int64, void *valu
  */
 
 hashtable *htCreate(int backboneSize,
-                    int (*hash)(void *key),
-                    int (*compare)(void *key1, void *key2),
-                    void (*keyReclaimer)(void *key),
-                    void (*valueReclaimer)(void *value));
+                    HashFunction       hash,
+                    HashComparator     compare,
+                    HashKeyReclaimer   keyReclaimer,
+                    HashValueReclaimer valueReclaimer);
 
 /**
  *   \brief  The primary getter for the hashtable.  Returns NULL if key not found.

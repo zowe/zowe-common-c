@@ -88,12 +88,12 @@ static int getTlsMax(TlsSettings *settings) {
   if (settings->maxTls != NULL) {
     for (int i = 0; i < sizeof(TLS_NAMES)/sizeof(TLS_NAMES[0]); i++) {
       if (!strcmp(settings->maxTls, TLS_NAMES[i])) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Min TLS requested=%s\n", TLS_NAMES[i]);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Max TLS requested=%s\n", TLS_NAMES[i]);
         return i;
       }
     }
   }
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Min TLS defaulting\n");
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Max TLS defaulting\n");
   return TLS_MAX_DEFAULT;
 }
 
@@ -101,12 +101,12 @@ static int getTlsMin(TlsSettings *settings) {
   if (settings->minTls != NULL) {
     for (int i = 0; i < sizeof(TLS_NAMES)/sizeof(TLS_NAMES[0]); i++) {
       if (!strcmp(settings->minTls, TLS_NAMES[i])) {
-        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Max TLS requested=%s\n", TLS_NAMES[i]);
+        zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Min TLS requested=%s\n", TLS_NAMES[i]);
         return i;
       }
     }
   }
-  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Max TLS defaulting\n");
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Min TLS defaulting\n");
   return TLS_MIN_DEFAULT;
 }
 
@@ -116,8 +116,20 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   if (!env) {
     return TLS_ALLOC_ERROR;
   }
+
+  if (settings->certVerify == TLS_CERTVERIFY_STRICT || settings->certVerify == TLS_CERTVERIFY_NONSTRICT) {
+    /* implemented in tlsSocketInit2() */
+  } else if (settings->certVerify == TLS_CERTVERIFY_DISABLED) {
+    /* TODO: how do we implement the DISABLED mode? GSK doesn't seem to support it in z/OS */
+    zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "verifyCertificates: DISABLED is currently not supported, will default to NONSTRICT\n");
+    settings->certVerify = TLS_CERTVERIFY_NONSTRICT;
+  } else {
+    return TLS_CERTVERIFY_PARM_ERROR;
+  }
+
   env->settings = settings;
   rc = rc || gsk_environment_open(&env->envHandle);
+  rc = rc || gsk_attribute_set_numeric_value(env->envHandle, GSK_V3_SIDCACHE_SIZE, 0);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_SSLV2, GSK_PROTOCOL_SSLV2_OFF);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_SSLV3, GSK_PROTOCOL_SSLV3_OFF);
   rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_OFF);
@@ -214,7 +226,7 @@ static int secureSocketSend(int fd, void *data, int len, char *userData) {
   return rc;
 }
  
-int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isServer) {
+int tlsSocketInit2(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isServer, const char *peerHost) {
   int rc = 0;
   gsk_iocallback ioCallbacks = {secureSocketRecv, secureSocketSend, NULL, NULL, NULL, NULL};
   TlsSocket *socket = (TlsSocket*)safeMalloc(sizeof(TlsSocket), "Tls Socket");
@@ -262,6 +274,11 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
     }
   }
   rc = rc || gsk_attribute_set_callback(socket->socketHandle, GSK_IO_CALLBACK, &ioCallbacks);
+  if (!isServer && env->settings->certVerify == TLS_CERTVERIFY_STRICT && peerHost) {
+    rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_REFERENCE_ID_DNS, peerHost, 0);
+    rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_REFERENCE_ID_CN, peerHost, 0);
+    rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_WILDCARD_VALIDATION_ENABLE, GSK_WILDCARD_VALIDATION_ENABLE_ON);
+  }
   rc = rc || gsk_secure_socket_init(socket->socketHandle);
   if (rc == 0) {
     *outSocket = socket;
@@ -270,6 +287,10 @@ int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSer
     *outSocket = NULL;
   }
   return rc;
+}
+
+int tlsSocketInit(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isServer) {
+    return tlsSocketInit2(env, outSocket, fd, isServer, NULL);
 }
 
 int tlsRead(TlsSocket *socket, const char *buf, int size, int *outLength) {
@@ -294,6 +315,8 @@ const char *tlsStrError(int rc) {
     switch (rc) {
       case TLS_ALLOC_ERROR:
         return "Failed to allocate memory";
+      case TLS_CERTVERIFY_PARM_ERROR:
+        return "Unknown value for verifyCertificates";
       default:
         return "Unknown error";
     }

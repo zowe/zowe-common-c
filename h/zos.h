@@ -13,6 +13,8 @@
 #ifndef __ZOS__
 #define __ZOS__  1
 
+#ifdef __ZOWE_OS_ZOS
+
 #ifdef METTLE
 #include <metal/stdarg.h>
 #else
@@ -63,11 +65,11 @@
 #define isCallerLocked        ZOSCLCKD
 #define isCallerSRB           ZOSCSRB
 #define isCallerCrossMemory   ZOSCXMEM
+#define isKey8ProblemState    ZOSK8PBS
 
 #define getExternalSecurityManager GETESM
 
 #endif
-
 
 int extractPSW(void);
 int supervisorMode(int enable);
@@ -356,11 +358,15 @@ typedef struct ASVT_tag{
   /* variable number of ASCB pointers */
 } ASVT;
 
-#define CURRENT_TCB      0x21C                
-#define CURRENT_ASCB     0x224               
+#define CURRENT_TCB      0x21C
+#define CURRENT_ASCB     0x224
 #define ATCVT_ADDRESS    0x408
-#define ASCB_CSCB_OFFSET  0x38            
-#define CSCB_ACTIVITY_FLAGS_OFFSET 0x7   
+#define ASCB_CSCB_OFFSET  0x38
+#define CSCB_ACTIVITY_FLAGS_OFFSET 0x7
+
+#define LAA_ADDRESS      0x4B8
+#define LAA_LCA_OFFSET   0x58
+#define LCA_CAA_OFFSET   0x08
 
 typedef struct PSA_tag{
   int a;
@@ -471,6 +477,7 @@ typedef struct SymbTable1_tag{
 #define SYMBT_MAXSTATIC_TABLE_SIZE 32512
 
 #define RESOLVESYMBOL_RETURN_BAD_INPUT 1
+#define RESOLVESYMBOL_RETURN_ALLOC_FAILED 2
 
 typedef struct ecvt_tag{
   char  eyecatcher[4];
@@ -1284,6 +1291,10 @@ typedef struct SSCT_tag{
   struct SSCT_tag *__ptr32 scta;  /* chain pointer */
   char sname[4];          /* 4 letter name */
   unsigned char flags;    /* equates */
+#define SSCTFLG1_SSCTSFOR 0x80
+#define SSCTFLG1_SSCTUPSS 0x40
+#define SSCTFLG1_SSCTARDR 0x20
+#define SSCTFLG1_SSCTLDEL 0x10
   unsigned char ssid;     /* JES2 or 3 */
   unsigned char reserved1[2];
   Addr31 ssvt;              /* SUBSYSTEM VECTOR TABLE POINTER */
@@ -1687,7 +1698,17 @@ bool isCallerSRB(void);
  */
 bool isCallerCrossMemory(void);
 
-#endif
+/**
+ * @brief Determine if the caller is in PSW key 8 and problem state.
+ * @return True only if the current PSW key is 8 and the caller is in problem
+ *         state. This is the state Language Environment requires, so callers
+ *         that need LE services can use it as a precondition check.
+ */
+bool isKey8ProblemState(void);
+
+#endif /* __ZOWE_OS_ZOS */
+
+#endif /* __ZOS__ */
 
 
 /*

@@ -11,11 +11,6 @@
 # Copyright Contributors to the Zowe Project.
 #######################################################################
 
-if [ `uname` != "OS/390" ]; then
-    echo "Error: this test must run on a z/OS system."
-    exit 1
-fi
-
 if [ "${1}" = "--help" ]; then
     echo "Test the configmgr with 'extract' option"
     echo "  no parm: tries to run configmgr from current 'zowe-common-c/bin'"

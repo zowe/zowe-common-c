@@ -13,9 +13,7 @@
 
 #endif
 
-/* xlclang and clang demand a prototype */
-
-int BPXPOL();
+#include "zowe_bpx_prototypes.h"
 
 int fdPoll(PollItem* fds, short nmqs, short nfds, int timeout, int *returnCode, int *reasonCode) {
   int returnValue;

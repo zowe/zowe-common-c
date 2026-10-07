@@ -194,6 +194,15 @@ typedef struct CrossMemoryService_tag {
   PAD_LONG(1, void *serviceData);
 } CrossMemoryService;
 
+#pragma enum(1)
+typedef enum CMSSAFAccessLevel_tag {
+  CMS_SAF_ACCESS_LEVEL_READ = 0x02,
+  CMS_SAF_ACCESS_LEVEL_UPDATE = 0x04,
+  CMS_SAF_ACCESS_LEVEL_CONTROL = 0x08,
+  CMS_SAF_ACCESS_LEVEL_ALTER = 0x80,
+} CMSSAFAccessLevel;
+#pragma enum(reset)
+
 /*
  * TODO this version must not be incremented until the following gets addressed.
  *
@@ -235,7 +244,8 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   unsigned short size;
   unsigned int flags;
 #define CMS_GLOBAL_AREA_FLAG_PRIVATE_MODULE 0x00000001
-  char reserved1[56];
+  volatile int callerCount;
+  char reserved1[52];
 
   void * __ptr32 userServerAnchor;
 
@@ -243,7 +253,7 @@ typedef struct CrossMemoryServerGlobalArea_tag {
   struct CrossMemoryServer_tag * __ptr32 localServerAddress;
   unsigned short serverASID;
   char padding1[2];
-  unsigned int serverFlags;
+  volatile unsigned int serverFlags;
   int ecsaBlockCount; /* must be on a 4-byte boundary for atomicIncrement */
 #define CMS_MAX_ECSA_BLOCK_NUMBER 32
 #define CMS_MAX_ECSA_BLOCK_SIZE   65536
@@ -437,6 +447,7 @@ ZOWE_PRAGMA_PACK_RESET
 #define cmsGetGlobalArea CMGETGA
 #define cmsAddConfigParm CMADDPRM
 #define cmsTestAuth CMTSAUTH
+#define cmsTestAuth2 CMTSAUT2
 #define cmsCallService CMCMSRCS
 #define cmsCallService2 CMCALLS2
 #define cmsCallService3 CMCALLS3
@@ -510,6 +521,20 @@ bool cmsTestAuth(CrossMemoryServerGlobalArea *globalArea,
                  const char *className,
                  const char *entityName);
 
+/**
+ * Checks if the cross-memory caller has access to the provided class and
+ * entity.
+ *
+ * @param globalArea The global area of the server.
+ * @param className The class to be checked.
+ * @param entityName The entity to be checked.
+ * @param accessLevel The access level to be checked.
+ * @return True if the caller has access to the class/entity, otherwise false.
+ */
+bool cmsTestAuth2(CrossMemoryServerGlobalArea *globalArea,
+                  const char *className,
+                  const char *entityName,
+                  CMSSAFAccessLevel accessLevel);
 
 /* Use these inside your service functions if they need ECSA.
  * The number of allocated blocks is tracked in the CMS global area. */
@@ -819,6 +844,18 @@ typedef struct CMSDynlinkEnv_tag {
 #endif
 #define CMS_LOG_BAD_SERVER_KEY_MSG_TEXT         "Core server started in wrong key %d"
 #define CMS_LOG_BAD_SERVER_KEY_MSG              CMS_LOG_BAD_SERVER_KEY_MSG_ID" "CMS_LOG_BAD_SERVER_KEY_MSG_TEXT
+
+#ifndef CMS_LOG_CALLER_ACTIVE_MSG_ID
+#define CMS_LOG_CALLER_ACTIVE_MSG_ID            CMS_MSG_PRFX"0119I"
+#endif
+#define CMS_LOG_CALLER_ACTIVE_MSG_TEXT          "%d active callers detected; waiting for %d seconds (attempt %d/%d)"
+#define CMS_LOG_CALLER_ACTIVE_MSG               CMS_LOG_CALLER_ACTIVE_MSG_ID" "CMS_LOG_CALLER_ACTIVE_MSG_TEXT
+
+#ifndef CMS_LOG_TERM_CALLER_ACTIVE_MSG_ID
+#define CMS_LOG_TERM_CALLER_ACTIVE_MSG_ID       CMS_MSG_PRFX"0120W"
+#endif
+#define CMS_LOG_TERM_CALLER_ACTIVE_MSG_TEXT     "Terminating with active callers"
+#define CMS_LOG_TERM_CALLER_ACTIVE_MSG          CMS_LOG_TERM_CALLER_ACTIVE_MSG_ID" "CMS_LOG_TERM_CALLER_ACTIVE_MSG_TEXT
 
 #ifndef CMS_LOG_MODIFY_CMD_INFO_MSG_ID
 #define CMS_LOG_MODIFY_CMD_INFO_MSG_ID          CMS_MSG_PRFX"0200I"
