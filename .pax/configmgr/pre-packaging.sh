@@ -20,6 +20,17 @@ SCRIPT_DIR=$(pwd)
 echo "$SCRIPT_NAME build configmgr ..."
 STEPLIB=CBC.SCCNCMP "$SCRIPT_DIR/content/build/build_cmgr_xlclang.sh"
 
+# run unit tests
+# TODO: move this to a dedicated CI step once the .pax/.github structure is overhauled.
+echo "$SCRIPT_NAME running unit tests ..."
+cd "$SCRIPT_DIR/content"
+cp -r deps/configmgr/* tests
+mv tests/quickjs tests/quickjs-portable
+cd "$SCRIPT_DIR/content/tests"
+STEPLIB=CBC.SCCNCMP make test_noprepare
+cd "$SCRIPT_DIR"
+echo "$SCRIPT_NAME unit tests passed."
+
 # clean up content folder
 echo "$SCRIPT_NAME cleaning up pax folder ..."
 cd "$SCRIPT_DIR"
