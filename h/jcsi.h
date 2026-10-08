@@ -114,6 +114,9 @@ int loadCsi();
 char * __ptr32 csi(csi_parmblock* __ptr32 csi_parms, int *workAreaSize);
 EntryDataSet *returnEntries(char *dsn, char *typesAllowed, int typeCount, int workAreaSize, char **fields, int fieldCount, char *resumeName, char *resumeCatalogName, csi_parmblock * __ptr32 returnParms);
 EntryDataSet *getHLQs(char *typesAllowed, int typeCount, int workAreaSize, char **fields, int fieldCount, csi_parmblock *__ptr32 * __ptr32 returnParmsArray);
+/* Frees the entries, the entry array and the set itself. A caller that has
+   already released one entry should clear its slot; a NULL slot is skipped, and
+   each slot is cleared as it is freed, so no entry can be reached twice. */
 void freeEntryDataSet(EntryDataSet *entrySet);
 #endif
 

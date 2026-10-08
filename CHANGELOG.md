@@ -2,6 +2,7 @@
 
 ## `3.6.0`
 
+- Bugfix: `freeEntryDataSet()` skips an entry slot a caller has already cleared instead of dereferencing it, and clears each slot as it frees it, so no entry can be reached twice. Previously a caller could not release one entry early and clear its slot, because the loop read a length through the NULL pointer: on z/OS that read succeeds in low storage and yields a garbage length, which the following `memset` then writes. [(#721)](https://github.com/zowe/zowe-common-c/issues/721)
 - Bugfix: `tlsInit()` now disables GSKit's session ID/ticket cache (`GSK_V3_SIDCACHE_SIZE=0`). Without this, a TLS 1.3 client on some z/OS releases sends a ClientHello that certain TLS 1.3 peers (e.g. api-layer on Java 17) mishandle, causing subsequent reads to fail with an SSL protocol violation -- for example ZSS failing to fetch the JWKS from the APIML Gateway.
 - Bugfix: the `key too long` warning from the YAML reader prints the key in the native code page; on z/OS it came out as unreadable bytes. [(#671)](https://github.com/zowe/zowe-common-c/issues/671)
 - Bugfix: `writeBinaryDataFromBase64()` and `writeAsciiDataFromBase64()` in `httpfileservice.c` check the result of each `safeMalloc()` and fail the request when memory runs out, instead of writing through a NULL pointer, which on z/OS lands in low storage rather than crashing. [(#642)](https://github.com/zowe/zowe-common-c/issues/642)
