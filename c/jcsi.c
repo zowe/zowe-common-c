@@ -441,10 +441,14 @@ void freeEntryDataSet(EntryDataSet *entrySet) {
     if (entrySet->entries) {
       for (int i = 0; i < entrySet->length; i++) {
         EntryData *currentEntry = entrySet->entries[i];
+        if (currentEntry == NULL) {
+          continue;
+        }
         int fieldDataLength = currentEntry->data.fieldInfoHeader.totalLength;
         int entrySize = sizeof(EntryData) + fieldDataLength - 4;
         memset((char*)(currentEntry),0, entrySize);
         safeFree((char*)(currentEntry), entrySize);
+        entrySet->entries[i] = NULL;
       }
       safeFree((char*)entrySet->entries, entrySet->size * sizeof(EntryData*));
       entrySet->entries = NULL;

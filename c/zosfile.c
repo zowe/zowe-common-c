@@ -596,8 +596,9 @@ int fileCopyConverted(const char *existingFileName, const char *newFileName,
     return -1;
   }
 
+  /* Use FILE_OPTION_CREATE (O_CREAT) not FILE_OPTION_CREATE_IF_NON_EXISTENT (O_CREAT|O_EXCL) so overwriting an existing destination does not fail with EEXIST. */
   UnixFile *newFile = fileOpen(newFileName,
-                               FILE_OPTION_CREATE_IF_NON_EXISTENT | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY,
+                               FILE_OPTION_CREATE | FILE_OPTION_TRUNCATE | FILE_OPTION_WRITE_ONLY,
                                fileMode,
                                0,
                                &returnCode,
