@@ -1387,7 +1387,7 @@ char* getV4HostEntByName(char *string, int* rc, int* rsn){
   int returnValue = 0;
   int *reasonCodePtr;
   int len = strlen(string);
-  char *hostEntPtr = NULL;
+  char *hostEntPtr;
   int status;
 
 #ifndef _LP64
@@ -1402,7 +1402,7 @@ char* getV4HostEntByName(char *string, int* rc, int* rsn){
                   rc,
                   reasonCodePtr);
   if (socketTrace){
-    printf("hostent addr = %p\n",hostEntPtr);
+    printf("hostent addr = %x\n",*((int*)hostEntPtr));
   }
 
   return hostEntPtr;
@@ -1414,7 +1414,7 @@ int getV4HostByName(char *string){
   int reasonCode = 0;
   int *reasonCodePtr;
   int len = strlen(string);
-  char *hostEntPtr = NULL;
+  char *hostEntPtr;
   int status;
 
 #ifndef _LP64
@@ -1430,7 +1430,7 @@ int getV4HostByName(char *string){
          reasonCodePtr);
   /* TBD: Check return codes */
   if (socketTrace){
-    printf("hostent addr = %p\n",hostEntPtr);
+    printf("hostent addr = %x\n",*((int*)hostEntPtr));
   }
   if (hostEntPtr){
     Hostent *hostent = (Hostent*)hostEntPtr;
