@@ -1403,6 +1403,7 @@ char* getV4HostEntByName(char *string, int* rc, int* rsn){
                   reasonCodePtr);
   if (socketTrace){
     printf("hostent addr = %p\n", hostEntPtr);
+    printf("BPXGHN rv=%d, rc=0x%x, rsn=0x%x\n", returnValue, *rc, *rsn);
   }
 
   return hostEntPtr;
@@ -1437,15 +1438,13 @@ int getV4HostByName(char *string){
    */
   if (socketTrace){
     printf("hostent addr = %p\n", hostEntPtr);
-    printf("BPXGHN rc=0x%x, rsn=0x%x\n", returnCode, *reasonCodePtr);
+    printf("BPXGHN rv=%d, rc=0x%x, rsn=0x%x\n", returnValue, returnCode, reasonCode);
   }
   if (returnValue == 0) {
     if (hostEntPtr){
       Hostent *hostent = (Hostent*)hostEntPtr;
       int numericAddress = 0;
-      /* addrList is null-terminated. hostent->length is the width of a single
-         address (4 for IPv4), NOT how many there are, so it must not be used
-         as a loop bound. The first address wins, as before. */
+      /* addrList is null-terminated; length is the width of one address */
       if (hostent->addrList != NULL && hostent->addrList[0] != NULL){
         numericAddress = *(hostent->addrList[0]);
       }
