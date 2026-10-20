@@ -1497,7 +1497,7 @@ char* getV4HostEntByName(char *string, int* rc, int* rsn){
   int returnValue = 0;
   int *reasonCodePtr;
   int len = strlen(string);
-  char *hostEntPtr;
+  char *hostEntPtr = NULL;
   int status;
 
 #ifndef _LP64
@@ -1513,6 +1513,7 @@ char* getV4HostEntByName(char *string, int* rc, int* rsn){
                   reasonCodePtr);
   if (socketTrace){
     printf("hostent addr = %p\n",hostEntPtr);
+    printf("BPXGHN rv=%d, rc=0x%x, rsn=0x%x\n",returnValue,*rc,*rsn);
   }
 
   return hostEntPtr;
@@ -1525,7 +1526,7 @@ int getV4HostByName(char *string){
   int reasonCode = 0;
   int *reasonCodePtr;
   int len = strlen(string);
-  char *hostEntPtr;
+  char *hostEntPtr = NULL;
   int status;
 
 #ifndef _LP64
@@ -1541,21 +1542,24 @@ int getV4HostByName(char *string){
                   reasonCodePtr);
   if (socketTrace){
     printf("hostent addr = %p\n",hostEntPtr);
+    printf("BPXGHN rv=%d, rc=0x%x, rsn=0x%x\n",returnValue,returnCode,reasonCode);
   }
-  if (hostEntPtr){
+  if (returnValue == 0 && hostEntPtr){
     Hostent *hostent = (Hostent*)hostEntPtr;
-    int i;
     int numericAddress = 0;
     if (socketTrace){
       dumpbuffer((char*)hostent,20);
     }
-    for (i=0; i<hostent->length; i++){
-      if (socketTrace){
-        printf("  addr[%d] = %x\n",i,hostent->addrList[i]);
-      }
-      if (hostent->addrList[i]){
-        numericAddress = *(hostent->addrList[i]);
-        break;
+    /* addrList is null-terminated; length is the width of one address */
+    if (hostent->addrList != NULL && hostent->addrList[0] != NULL){
+      numericAddress = *(hostent->addrList[0]);
+    }
+    if (socketTrace){
+      for (int i = 0; hostent->addrList != NULL && hostent->addrList[i] != NULL; i++){
+        unsigned char *octets = (unsigned char *)hostent->addrList[i];
+        printf("  addr[%d] = %d.%d.%d.%d (0x%08x)\n",i,
+               octets[0],octets[1],octets[2],octets[3],
+               *(hostent->addrList[i]));
       }
     }
     return numericAddress;
