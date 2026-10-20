@@ -64,7 +64,8 @@
 #include "configmgr.h"
 #ifdef __ZOWE_OS_ZOS
 #include "pdsutil.h"
-#endif 
+#include "zos.h"
+#endif
 
 #ifdef __ZOWE_OS_WINDOWS
 typedef int64_t ssize_t;
@@ -474,6 +475,10 @@ static bool addPathElement(ConfigManager *mgr, CFGConfig *config, char *pathElem
 static int buildConfigPath(ConfigManager *mgr, CFGConfig *config, char *configPathArg){
   int pos = 0;
   int len = strlen(configPathArg);
+  if (len == 0) {
+    trace(mgr, INFO, "empty config path\n");
+    return 8;
+  }
   while (pos < len){
     int nextColon = indexOf(configPathArg,len,':',pos);
     int nextPos;
@@ -592,7 +597,13 @@ ConfigManager *makeConfigManager(){
   mgr->traceOut = stderr;
   mgr->slh = makeShortLivedHeap(0x10000,0x100);
   EmbeddedJS *ejs = allocateEmbeddedJS(NULL);
-  configureEmbeddedJS(ejs,NULL,0,0,NULL);
+  /* configureEmbeddedJS tolerates a NULL ejs and frees ejs itself if it fails
+     partway, so the only cleanup owed here is what this function allocated. */
+  if (!configureEmbeddedJS(ejs,NULL,0,0,NULL)){
+    SLHFree(mgr->slh);
+    safeFree((char*)mgr,sizeof(ConfigManager));
+    return NULL;
+  }
   mgr->ejs = ejs;
   return mgr;
 }
@@ -606,6 +617,11 @@ int cfgLoadSchemas(ConfigManager *mgr, const char *configName, char *schemaList)
 
   int pos = 0;
   int len = strlen(schemaList);
+  if (len == 0) {
+    fprintf(mgr->traceOut, "empty schema list\n");
+    fflush(mgr->traceOut);
+    return ZCFG_BAD_JSON_SCHEMA;
+  }
   int schemaCount = 0;
   while (pos < len){
     int nextColon = indexOf(schemaList,len,':',pos);
@@ -658,6 +674,9 @@ int cfgSetConfigPath(ConfigManager *mgr, const char *configName, char *configPat
   if (!config){
     return ZCFG_UNKNOWN_CONFIG_NAME;
   }
+
+  /* Assigning NULL is not a leak because path is in the SLH */
+  config->configPath = NULL;
 
   trace(mgr,DEBUG,"before build config path\n");
   if (buildConfigPath(mgr,config,configPathArg)){
@@ -1232,14 +1251,17 @@ static int extractText(ConfigManager *mgr, const char *configName, JsonPointer *
 
   if (jsonIsArray(value)) {
     JsonArray *array = jsonAsArray(value);
-    for (int i = 0; i < jsonArrayGetCount(array); i++) {
+    int arrayCount = jsonArrayGetCount(array);
+    for (int i = 0; i < arrayCount; i++) {
       Json *arrayItem = jsonArrayGetItem(array, i);
       if (jsonIsObject(arrayItem) || jsonIsArray(arrayItem)) {
         fprintf(out,"error: cannot access objects or arrays in arrays");
         return ZCFG_EXTRACT_ERROR;
       } else {
         ret = printPrimitiveDataType(arrayItem, out);
-        fprintf(out, "\n");
+        if (i < (arrayCount - 1)) {
+          fprintf(out, "\n");
+        }
         if (ret) {
           return ret;
         }
@@ -1292,13 +1314,16 @@ static void showDirectory(const char *dirname){
   }
 }
 
-char *getStringOption(int argc, char **argv, int *argxPtr, char *key){
+static char *getStringOption(int argc, char **argv, int *argxPtr, char *key){
   int argx = *argxPtr;
   if (argx+1 < argc){
     char *option = argv[argx];
     if (!strcmp(option,key)){
       char *value = argv[argx+1];
       *argxPtr = argx+2;
+      if (strlen(value) == 0) {
+        return NULL;
+      }
       return value;
     } else {
       return NULL;
@@ -1306,6 +1331,18 @@ char *getStringOption(int argc, char **argv, int *argxPtr, char *key){
   } else {
     return NULL;
   }
+}
+
+static bool getSwitch(int argc, char **argv, int *argxPtr, char *key) {
+  int argx = *argxPtr;
+  if (argx >= argc) {
+    return false;
+  }
+  if (strcmp(argv[argx], key) == 0) {
+    *argxPtr = argx + 1;
+    return true;
+  }
+  return false;
 }
 
 static void showHelp(FILE *out){
@@ -1609,7 +1646,6 @@ static int validateWrapper(ConfigManager *mgr, EJSNativeInvocation *invocation){
     jsonBuildBool(builder,result,"ok",false,&errorCode);
     break;
   }
-  jsonBuildInt(builder,result,"shoeSize",11,&errorCode);
   freeJsonValidator(validator);
   ejsReturnJson(invocation,result);
   freeJsonBuilder(builder,false); 
@@ -1770,7 +1806,7 @@ static int simpleMain(int argc, char **argv){
     char *optionValue = NULL;
     if (strcmp(argv[argx], "-h") == 0) {
       showHelp(traceOut);
-      return 0;
+      return ZCFG_SUCCESS;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-s")) != NULL){
       schemaList = optionValue;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-t")) != NULL){
@@ -1785,11 +1821,14 @@ static int simpleMain(int argc, char **argv){
       parmlibMemberName = optionValue;
     } else if ((optionValue = getStringOption(argc,argv,&argx,"-p")) != NULL){
       configPath = optionValue;
-    } else if ((optionValue = getStringOption(argc,argv,&argx,"-c")) != NULL){
+    } else if (getSwitch(argc, argv, &argx, "-c")) {
       jqCompact = true;
-    } else if ((optionValue = getStringOption(argc,argv,&argx,"-r")) != NULL){
+    } else if (getSwitch(argc, argv, &argx, "-r")) {
       jqRaw = true;
     } else {
+      if (argx >= argc) { /* an empty option value advanced argx past the end */
+        break;
+      }
       char *nextArg = argv[argx];
       if (strlen(nextArg) && nextArg[0] == '-'){
         fprintf(traceOut,"\n *** unknown option *** '%s'\n",nextArg);
@@ -1809,17 +1848,21 @@ static int simpleMain(int argc, char **argv){
   }
 
   if (schemaList == NULL){
-    fprintf(traceOut,"Must specify schema list with at least one schema");
+    fprintf(traceOut, "Must specify schema list with at least one schema.\n");
     showHelp(traceOut);
     return ZCFG_BAD_JSON_SCHEMA;
   }
   if (configPath == NULL){
-    fprintf(traceOut,"Must specify config path\n");
+    fprintf(traceOut, "Must specify config path.\n");
     showHelp(traceOut);
     return ZCFG_BAD_CONFIG_PATH;
   }
 
   ConfigManager *mgr = makeConfigManager();
+  if (mgr == NULL){
+    fprintf(traceOut, "Could not create the embedded JavaScript runtime.\n");
+    return ZCFG_BAD_ENVIRONMENT;
+  }
   const char *configName = "only";
   cfgSetTraceLevel(mgr,traceLevel);
   cfgSetTraceStream(mgr,traceOut);
@@ -1859,8 +1902,10 @@ static int simpleMain(int argc, char **argv){
   }
   trace(mgr,DEBUG,"configuration parms are loaded\n");
   if (!strcmp(command,"validate")){ /* just a testing mode */
-    trace(mgr,INFO,"about to validate merged yamls as\n");
-    jsonPrettyPrint(mgr,cfgGetConfigData(mgr,configName));
+    trace(mgr, DEBUG, "about to validate merged yamls as\n");
+    if (mgr->traceLevel > 0) {
+      jsonPrettyPrint(mgr, cfgGetConfigData(mgr,configName));
+    }
     JsonValidator *validator = makeJsonValidator();
     validator->traceLevel = mgr->traceLevel;
     trace(mgr,DEBUG,"Before Validate\n");
@@ -1949,29 +1994,36 @@ static int simpleMain(int argc, char **argv){
   return ZCFG_SUCCESS;
 }
 
+#ifdef __ZOWE_OS_ZOS
 /* a diagnostic function that can be used if other logging initialization bugs come up */
 static void ensureLE64(){
   char *realCAA = NULL;
 
-  char *laa = *(char * __ptr32 * __ptr32)0x04B8;
+  char *laa = *(char * __ptr32 * __ptr32)LAA_ADDRESS;
   printf("LAA at 0x%p\n",laa);
   dumpbuffer((char*)laa,0x180);
-  char *lca = *(char **)(laa + 88);
-  printf("LCA at 0%p\n",lca);
+  char *lca = *(char **)(laa + LAA_LCA_OFFSET);
+  printf("LCA at 0x%p\n",lca);
   dumpbuffer((char*)lca,0x358);
-  realCAA = *(char **)(lca + 8);
+  realCAA = *(char **)(lca + LCA_CAA_OFFSET);
   printf("realCAA = 0x%p\n",realCAA);
   dumpbuffer(realCAA,0x450);
-  /* 
+  /*
      memset(realCAA+0x2A0,0,8);
      printf("realCAA again = 0x%p\n",realCAA);
      dumpbuffer(realCAA,0x450);
      */
 }
+#endif
 
 #ifdef CMGRTEST
 int main(int argc, char **argv){
   LoggingContext *logContext = makeLoggingContext();
+  if (logContext == NULL) {
+    /* First allocation the program makes; nothing else can report without it */
+    fprintf(stderr, "configmgr: cannot allocate the logging context\n");
+    return ZCFG_BAD_ENVIRONMENT;
+  }
   logConfigureStandardDestinations(logContext);
   if (argc >= 3 && 
       (!strcmp("-script",argv[1]) ||
@@ -1983,8 +2035,15 @@ int main(int argc, char **argv){
       loadMode = EJS_LOAD_NOT_MODULE;
     }
     EmbeddedJS *ejs = allocateEmbeddedJS(NULL);
+    if (ejs == NULL){
+      fprintf(stderr,"Could not create the embedded JavaScript runtime.\n");
+      return ZCFG_BAD_ENVIRONMENT;
+    }
     modules[0] = exportConfigManagerToEJS(ejs);
-    configureEmbeddedJS(ejs,modules,1,argc,argv);
+    if (!configureEmbeddedJS(ejs,modules,1,argc,argv)){
+      fprintf(stderr,"Could not configure the embedded JavaScript runtime.\n");
+      return ZCFG_BAD_ENVIRONMENT;
+    }
     /* disabled due to verbosity causing scripting errors for those who read std as a return value 
       printf("configured EJS, and starting script_______________________________________________\n");
       fflush(stdout);
@@ -1992,6 +2051,8 @@ int main(int argc, char **argv){
     */
     int evalStatus = ejsEvalFile(ejs,filename,loadMode);
     /* printf("Done with EJS: File eval returns %d_______________________________________________\n",evalStatus); */
+    /* Callers use the exit status: a failed or throwing script must not exit 0 */
+    return evalStatus ? ZCFG_EVAL_FAILURE : ZCFG_SUCCESS;
   } else {
     return simpleMain(argc,argv);
   }

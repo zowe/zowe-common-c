@@ -144,6 +144,24 @@ static void freeHttpResponseParser(HttpResponseParser *hrp) {
   }
 }
 
+static int pushCharToStatusReason(HttpResponseParser *hrp, char c) {
+    if (hrp->statusReasonLength >= sizeof(hrp->statusReason) - 1) {
+        zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "Status reason is too long. Currently received: \"%s\", next char: '%c'\n", hrp->statusReason, c);
+        return 1;
+    }
+    hrp->statusReason[hrp->statusReasonLength++] = c;
+    return 0;
+}
+
+static int pushCharToHeaderName(HttpResponseParser *hrp, char c) {
+    if (hrp->headerNameLength >= sizeof(hrp->headerName) - 1) {
+        zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "Header name is too long. Currently received: \"%s\", next char: '%c'\n", hrp->headerName, c);
+        return 1;
+    }
+    hrp->headerName[hrp->headerNameLength++] = c;
+    return 0;
+}
+
 static void prepareForNewResponse(HttpClientSession *session) {
   if (NULL != session) {
     session->response = NULL;
@@ -166,14 +184,14 @@ static void addResponseHeader(HttpResponseParser *parser) {
 #endif
 
   /* pull out enough data for parsing the entity body */
-  if (!compareIgnoringCase(newHeader->nativeName, "Transfer-Encoding", parser->headerNameLength)) {
-    if (!compareIgnoringCase(newHeader->nativeValue, "chunked", parser->headerValueLength)) {
+  if (!compareStringsIgnoringCase(newHeader->nativeName, "Transfer-Encoding")) {
+    if (!compareStringsIgnoringCase(newHeader->nativeValue, "chunked")) {
       parser->isChunked = TRUE;
     }
-  } else if (!compareIgnoringCase(newHeader->nativeName, "Content-Length", parser->headerNameLength)) {
+  } else if (!compareStringsIgnoringCase(newHeader->nativeName, "Content-Length")) {
     /* printf("worry about atoi\n"); */
     parser->specifiedContentLength = atoi(newHeader->nativeValue);
-  } else if (!compareIgnoringCase(newHeader->nativeName, "Content-Type", parser->headerNameLength)) {
+  } else if (!compareStringsIgnoringCase(newHeader->nativeName, "Content-Type")) {
     parser->contentType = newHeader->nativeValue;
   }
 
@@ -206,10 +224,10 @@ static int asciiHexDigitDecimalValue(char c) {
 }
 
 /* returns ansi status */
-static int processHttpResponseFragment(HttpResponseParser *parser,
-                                       char *data,
-                                       int len,
-                                       HttpClientResponse **outClientResponse) {
+int processHttpResponseFragment(HttpResponseParser *parser,
+                                char *data,
+                                int len,
+                                HttpClientResponse **outClientResponse) {
   for (int i = 0; i < len; i++) {
     char c = data[i];
     int isWhitespace = FALSE;
@@ -257,7 +275,9 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
       case HTTP_STATE_RESP_STATUS_GAP1:
         if (!isWhitespace) {
           parser->statusReasonLength = 0;
-          parser->statusReason[parser->statusReasonLength++] = c;
+          if (pushCharToStatusReason(parser, c) != 0) {
+            return ANSI_FAILED;
+          }
           parser->state = HTTP_STATE_RESP_STATUS_STATUS;
         } else if (isCR || isLF) {
           zowelog(NULL, LOG_COMP_HTTPCLIENT, ZOWE_LOG_DEBUG, "Failing because saw CR or LF in GAP1 state\n");
@@ -274,7 +294,9 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
           parser->httpStatusCode = atoi(nativeStatusReason);
           parser->state = HTTP_STATE_RESP_STATUS_GAP2;
         } else {
-          parser->statusReason[parser->statusReasonLength++] = c;
+          if (pushCharToStatusReason(parser, c) != 0) {
+            return ANSI_FAILED;
+          }
         }
         break;
       case HTTP_STATE_RESP_STATUS_GAP2:
@@ -284,17 +306,23 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
           return ANSI_FAILED;
         } else if (isWhitespace) {
           /* include whitespace in statusReason string */
-          parser->statusReason[parser->statusReasonLength++] = c;
+          if (pushCharToStatusReason(parser, c) != 0) {
+            return ANSI_FAILED;
+          }
         } else {
           parser->state = HTTP_STATE_RESP_STATUS_REASON;
-          parser->statusReason[parser->statusReasonLength++] = c;
+          if (pushCharToStatusReason(parser, c) != 0) {
+            return ANSI_FAILED;
+          }
         }
         break;
       case HTTP_STATE_RESP_STATUS_REASON:
         if (isCR) {
           parser->state = HTTP_STATE_RESP_STATUS_CR_SEEN;
         } else if (isAsciiPrintable || isWhitespace) {
-          parser->statusReason[parser->statusReasonLength++] = c;
+          if (pushCharToStatusReason(parser, c) != 0) {
+            return ANSI_FAILED;
+          }
         } else {
           return ANSI_FAILED;
         }
@@ -322,7 +350,9 @@ static int processHttpResponseFragment(HttpResponseParser *parser,
             parser->state = HTTP_STATE_HEADER_GAP1;
           }
         } else if (isAsciiPrintable) {
-          parser->headerName[parser->headerNameLength++] = c;
+          if (pushCharToHeaderName(parser, c) != 0) {
+            return ANSI_FAILED;
+          }
         } else {
           return ANSI_FAILED;
         }
@@ -577,7 +607,7 @@ int httpClientContextInit(HttpClientSettings *settings, LoggingContext *logConte
       sts = HTTP_CLIENT_REQDSETTING_MISSING;
       break;
     }
-    serverAddr = getAddressByName(settings->host);
+    serverAddr = getAddressByName2(settings->host, ANSI_FALSE);  /* not IPv4 only; allow AF_INET6 addresses */
     if (NULL == serverAddr) {
       HTTP_CLIENT_TRACE_VERBOSE("%s (host lookup error)\n", HTTP_CLIENT_MSG_SESSION_ERR);
       sts = HTTP_CLIENT_LOOKUP_FAILED;
@@ -665,34 +695,44 @@ int httpClientSessionInitv2(HttpClientContext *ctx, HttpClientSession **outSessi
   HttpClientSession *session = NULL;
   ShortLivedHeap *slh = NULL;
 
+  char addrString[64] = {0};
+  int addrStringLen = sizeof(addrString);
+
+  
   do {
     if ((NULL == ctx) || (NULL == outSession)) {
       sts = HTTP_CLIENT_INVALID_ARGUMENT;
       break;
     }
 
+    int ansiStatus = SocketAddress_toString(ctx->serverAddress, addrString, &addrStringLen);
+    if (ANSI_FAILED == ansiStatus) {
+      HTTP_CLIENT_TRACE_VERBOSE("Error creating string from host socket address\n");
+      sts = HTTP_CLIENT_CONNECT_FAILED;
+      break;
+    }
+    
     Socket *socket = tcpClient2(ctx->serverAddress, 1000 * ctx->recvTimeoutSeconds, bpxrc, &bpxrsn);
     if ((*bpxrc != 0) || (NULL == socket)) {
 #ifdef __ZOWE_OS_ZOS
       HTTP_CLIENT_TRACE_VERBOSE("%s (rc=%d, rsn=0x%x, addr=0x%08x, port=%d)\n", HTTP_CLIENT_MSG_CONNECT_FAILED, *bpxrc,
-                                bpxrsn, ctx->serverAddress->v4Address, ctx->serverAddress->port);
+                                bpxrsn, addrString, ctx->serverAddress->port);
 #else
       HTTP_CLIENT_TRACE_VERBOSE("%s (rc=%d, rsn=0x%x, addr=0x%08x, port=%d)\n", HTTP_CLIENT_MSG_CONNECT_FAILED, *bpxrc,
-                                bpxrsn, ctx->serverAddress->internalAddress.v4Address, ctx->serverAddress->port);
+                                bpxrsn, addrString, ctx->serverAddress->port);
 #endif
       sts = HTTP_CLIENT_CONNECT_FAILED;
       break;
     } else {
 #ifdef __ZOWE_OS_ZOS
-      HTTP_CLIENT_TRACE_VERBOSE("Connected to peer addr=0x%08x, port=%d)\n", ctx->serverAddress->v4Address,
-                                ctx->serverAddress->port);
+      HTTP_CLIENT_TRACE_VERBOSE("Connected to peer addr=0x%08x, port=%d)\n", addrString, ctx->serverAddress->port);
 #else
       HTTP_CLIENT_TRACE_VERBOSE("Connected to peer port=%d)\n", ctx->serverAddress->port);
 #endif
     }
 #ifdef USE_ZOWE_TLS
   if (ctx->tlsEnvironment) {
-    int rc = tlsSocketInit(ctx->tlsEnvironment, &socket->tlsSocket, socket->sd, false);
+    int rc = tlsSocketInit2(ctx->tlsEnvironment, &socket->tlsSocket, socket->sd, false, ctx->settings->host);
     if (rc != 0) {
       HTTP_CLIENT_TRACE_VERBOSE("failed to init tls socket, rc=%d, (%s)", rc, tlsStrError(rc));
       socketClose(socket, bpxrc, &bpxrsn);
@@ -740,7 +780,21 @@ int httpClientSessionStageRequest(HttpClientContext *ctx,
     req->slh = slh;
     req->method = slhDuplicateString(slh, method);
     req->uri = slhDuplicateString(slh, urlQuery);
-    requestStringHeader(req, TRUE, "Host", slhDuplicateString(slh, ctx->settings->host));
+    int ipv6ColonIndex = indexOf(ctx->settings->host, strlen(ctx->settings->host), ':', 0);
+    if (ctx->settings->port==80 || ctx->settings->port==443) {
+      int fullHostNameLen = strlen(ctx->settings->host) + 32;  /* buffer for "host:port" string */
+      char *fullHostName = (char*) SLHAlloc(slh, fullHostNameLen);
+      snprintf(fullHostName, fullHostNameLen, ipv6ColonIndex != -1 ? "[%s]:%d" : "%s:%d", 
+                                              ctx->settings->host, ctx->settings->port);
+      requestStringHeader(req, TRUE, "Host", fullHostName);
+    } else if (ipv6ColonIndex != -1){
+      int fullHostNameLen = strlen(ctx->settings->host) + 8;  /* buffer for "[ipv6]" string */
+      char *fullHostName = (char*) SLHAlloc(slh, fullHostNameLen);
+      snprintf(fullHostName, fullHostNameLen, "[%s]", ctx->settings->host);
+      requestStringHeader(req, TRUE, "Host", fullHostName);
+    } else {
+      requestStringHeader(req, TRUE, "Host", slhDuplicateString(slh, ctx->settings->host));
+    }
 
     /* compose basic auth header if userid and password are specified */
     if ((NULL != userid) && (NULL != password)) {

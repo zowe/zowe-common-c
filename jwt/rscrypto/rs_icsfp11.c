@@ -147,7 +147,7 @@ int rs_icsfp11_getEnvironment(ICSFP11_ENV_T **out_env,
         &handle_count,
         (unsigned char*)output_list);
 
-    if (8 <= *out_rc) {
+    if (out_rc && 8 <= *out_rc) {
       /* we weren't able to extract token information for some reason */
       rscFree(env, sizeof(ICSFP11_ENV_T));
       *out_env = NULL;
@@ -251,7 +251,11 @@ int rs_icsfp11_getRandomBytes(const ICSFP11_HANDLE_T *token_handle,
         randbuf);
 
   } while(0);
-
+  
+  if (out_rc && 8 <= *out_rc) {
+    status = RSCRYPTO_CALLABLE_SERVICE_ERROR;
+  }
+  
   return status;
 }
 
@@ -437,7 +441,7 @@ int rs_icsfp11_deleteObject(ICSFP11_HANDLE_T *in_object_handle,
       &rule_array_count,
       (unsigned char*)RS_OBJECT_KEYWORD);
 
-  if (8 <= *out_rc) {
+  if (out_rc && 8 <= *out_rc) {
     status = RSCRYPTO_CALLABLE_SERVICE_ERROR;
   }
 
@@ -483,7 +487,7 @@ int rs_icsfp11_setObjectApplicationAttribute(ICSFP11_HANDLE_T *in_object_handle,
         &serialized_attrlist_len,
         serialized_attrlist);
 
-    if (8 <= *out_rc) {
+    if (out_rc && 8 <= *out_rc) {
       sts = RSCRYPTO_CALLABLE_SERVICE_ERROR;
     }
 
@@ -523,7 +527,7 @@ int rs_icsfp11_getObjectApplicationAttribute(ICSFP11_HANDLE_T *in_object_handle,
         &serialized_attrlist_len,
         serialized_attrlist);
 
-    if (8 <= *out_rc) {
+    if (out_rc && 8 <= *out_rc) {
       sts = RSCRYPTO_CALLABLE_SERVICE_ERROR;
       break;
     }
@@ -591,7 +595,7 @@ int rs_icsfp11_getObjectValue(const ICSFP11_HANDLE_T *in_object_handle,
         &serialized_attrlist_len,
         serialized_attrlist);
 
-    if (8 <= *out_rc) {
+    if (out_rc && 8 <= *out_rc) {
       sts = RSCRYPTO_CALLABLE_SERVICE_ERROR;
       break;
     }
@@ -650,7 +654,7 @@ int rs_icsfp11_deleteTokenByHandle(const ICSFP11_HANDLE_T *in_handle,
       &rule_array_count,
       (unsigned char*)RS_TOKEN_KEYWORD);
 
-  if (8 <= *out_rc) {
+  if (out_rc && 8 <= *out_rc) {
     status = RSCRYPTO_CALLABLE_SERVICE_ERROR;
   }
 
@@ -757,7 +761,7 @@ int rs_icsfp11_findToken(const char *in_token_name,
       dumpbuffer(output_list, output_list_length);
   #endif
 
-      if (8 <= *out_rc) {
+      if (out_rc && 8 <= *out_rc) {
         *out_handle = NULL;
         status = RSCRYPTO_CALLABLE_SERVICE_ERROR;
         break;
@@ -853,7 +857,7 @@ int rs_icsfp11_createToken(const char *in_name,
         &attr_list_len,
         (unsigned char*)in_tokenattrs);
 
-    if (8 <= *out_rc) {
+    if (out_rc && 8 <= *out_rc) {
       *out_handle = NULL;
       status = RSCRYPTO_CALLABLE_SERVICE_ERROR;
       break;
@@ -950,7 +954,7 @@ int rs_icsfp11_RS256_sign(const ICSFP11_HANDLE_T *in_key_handle, /* RSA privkey 
            (unsigned char*)in_key_handle,
            out_sig_len,
            out_sig);
-  if (8 <= *out_rc) {
+  if (out_rc && 8 <= *out_rc) {
     status = RSCRYPTO_CALLABLE_SERVICE_ERROR;
   }
 
@@ -992,7 +996,7 @@ int rs_icsfp11_RS256_verify(const ICSFP11_HANDLE_T *in_key_handle, /* RSA pubkey
            &in_sig_len,
            (unsigned char *)in_sig);
 
-  if (8 <= *out_rc) {
+  if (out_rc && 8 <= *out_rc) {
     status = RSCRYPTO_CALLABLE_SERVICE_ERROR;
   }
 
@@ -1098,7 +1102,7 @@ static int rs_icsfp11_hmacSHA_internal(
     dumpbuffer(out_hmac, *out_hmac_len);
 #endif
 
-    if (8 <= *out_rc) {
+    if (out_rc && 8 <= *out_rc) {
       status = RSCRYPTO_CALLABLE_SERVICE_ERROR;
       break;
     }
@@ -1175,7 +1179,7 @@ static int rs_icsfp11_findObjects_internal (
         &handle_count,
         output_list);
 
-    if (8 <= *out_rc) {
+    if (out_rc && 8 <= *out_rc) {
       *out_handles = NULL;
       status = RSCRYPTO_CALLABLE_SERVICE_ERROR;
       break;
@@ -1254,7 +1258,7 @@ static int rs_icsfp11_createObject_internal(const ICSFP11_HANDLE_T *in_token_han
         &attrlistlen,
         attrlist);
 
-    if (8 <= *out_rc) {
+    if (out_rc && 8 <= *out_rc) {
       *out_obj_handle = NULL;
       status = RSCRYPTO_CALLABLE_SERVICE_ERROR;
       break;

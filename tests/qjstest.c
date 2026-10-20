@@ -231,8 +231,15 @@ int main(int argc, char **argv){
   char *filename = argv[1];
   EJSNativeModule *modules[1];
   EmbeddedJS *ejs = allocateEmbeddedJS(NULL);
+  if (ejs == NULL){
+    printf("could not create the embedded JS runtime\n");
+    return 8;
+  }
   modules[0] = makeFFITestData(ejs);
-  configureEmbeddedJS(ejs,modules,1,argc,argv);
+  if (!configureEmbeddedJS(ejs,modules,1,argc,argv)){
+    printf("could not configure the embedded JS runtime\n");
+    return 8;
+  }
 
   int evalStatus = ejsEvalFile(ejs,filename,EJS_LOAD_IS_MODULE);
   printf("File eval returns %d\n",evalStatus);

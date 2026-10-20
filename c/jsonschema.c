@@ -194,9 +194,31 @@ typedef struct JSValueSpec_tag {
   struct JSValueSpec_tag *parent;
 } JSValueSpec;
 
+/* Type word for enum/const messages, taken from the schema's own value */
+static const char *jsonValueTypeName(const Json *value){
+  if (value == NULL){
+    return "unknown";
+  }
+  switch (value->type){
+  case JSON_TYPE_STRING:  return "string";
+  case JSON_TYPE_NUMBER:
+  case JSON_TYPE_INT64:   return "integer";
+  case JSON_TYPE_DOUBLE:  return "number";
+  case JSON_TYPE_BOOLEAN: return "boolean";
+  case JSON_TYPE_NULL:    return "null";
+  case JSON_TYPE_OBJECT:  return "object";
+  case JSON_TYPE_ARRAY:   return "array";
+  default:                return "unknown";
+  }
+}
+
 typedef struct AccessPathUnion_tag {
   int dummy;
 } AccessPathUnion;
+
+
+//forward declaration
+static int appendPathSegment(char *buf, int pos, bool isName, char *name, int index);
 
 static void printAccessPath(FILE *out, AccessPath *path){
   for (int i=0; i<path->currentSize; i++){
@@ -213,15 +235,10 @@ static char *fillAccessPathString(char *buffer, int bufferLen, AccessPath *path)
   memset(buffer,0,bufferLen);
   int pos = 0;
   for (int i=0; i<path->currentSize; i++){
-    if (pos + 100 >= bufferLen){
-      sprintf(buffer+pos,"...");
-      break;
-    }
-    if (path->elements[i].isName){
-      pos += sprintf(buffer+pos,"/%s",path->elements[i].key.name);
-    } else {
-      pos += sprintf(buffer+pos,"/%d",path->elements[i].key.index);
-    }
+    pos = appendPathSegment(buffer, pos,
+                            path->elements[i].isName,
+                            path->elements[i].key.name,
+                            path->elements[i].key.index);
   }
   return buffer;
 }
@@ -246,8 +263,6 @@ static void accessPathPop(AccessPath *accessPath){
     accessPath->currentSize--;
   }
 }
-
-
 
 #define ERROR_MAX 1024
 
@@ -583,6 +598,80 @@ static bool hasBeenEvaluated(EvalSet *evalSet, JsonObject *object, char *propert
 static VResult validateJSON(JsonValidator *validator, Json *value, JSValueSpec *valueSpec, int depth,
                             EvalSet *evalSetList);
 
+/* Appends one dot-separated path segment to buf at position pos, returning
+   the updated position.  A leading dot is only written when pos > 0. */
+static int appendPathSegment(char *buf, int pos, bool isName, char *name, int index){
+  if (pos + 100 >= MAX_ACCESS_PATH){
+    return pos + snprintf(buf + pos, MAX_ACCESS_PATH - pos, "...");
+  }
+  const char *sep = (pos == 0) ? "" : ".";
+  if (isName){
+    return pos + snprintf(buf + pos, MAX_ACCESS_PATH - pos, "%s%s", sep, name);
+  } else {
+    return pos + snprintf(buf + pos, MAX_ACCESS_PATH - pos, "%s%d", sep, index);
+  }
+}
+
+/*
+  Checks whether a property that was not found in the current schema spec exists
+  as a property in the *parent* spec (i.e., is a peer of the current container).
+  When such a peer is found, returns a hint string showing the full correct path
+  vs the full incorrect path so the user can immediately see what change to make.
+  Returns an empty string otherwise so callers can always use "%s" without a NULL
+  check.
+
+  Example: if the access path is zowe.setup.certificate.truststore.keystore and
+  'keystore' is a peer of 'truststore' in the schema, the hint will read:
+      ; did you mean 'zowe.setup.certificate.keystore'
+        instead of 'zowe.setup.certificate.truststore.keystore'?
+*/
+static char *makePeerHint(JsonValidator *validator,
+                          JSValueSpec *valueSpec,
+                          char *propertyName,
+                          AccessPath *accessPath){
+  if (valueSpec->parent != NULL && valueSpec->parent->properties != NULL){
+    JSValueSpec *peerSpec = (JSValueSpec*)htGet(valueSpec->parent->properties, propertyName);
+    if (peerSpec != NULL){
+      int pathSize = accessPath->currentSize;
+      /* accessPath->elements[pathSize-1] is the just-pushed propertyName;
+         elements[pathSize-2] is the name of the container object we are inside. */
+      if (pathSize >= 2 && accessPath->elements[pathSize-2].isName){
+
+        /* Build the full "incorrect" path (all elements including the
+           accidental container and the misplaced key). */
+        char incorrectPath[MAX_ACCESS_PATH];
+        memset(incorrectPath, 0, MAX_ACCESS_PATH);
+        int ipos = 0;
+        for (int i = 0; i < pathSize; i++){
+          ipos = appendPathSegment(incorrectPath, ipos,
+                                   accessPath->elements[i].isName,
+                                   accessPath->elements[i].key.name,
+                                   accessPath->elements[i].key.index);
+        }
+
+        /* Build the "correct" path: all elements except the accidental
+           container (pathSize-2) and the misplaced key (pathSize-1),
+           then append propertyName directly under the grandparent. */
+        char correctPath[MAX_ACCESS_PATH];
+        memset(correctPath, 0, MAX_ACCESS_PATH);
+        int cpos = 0;
+        for (int i = 0; i < pathSize - 2; i++){
+          cpos = appendPathSegment(correctPath, cpos,
+                                   accessPath->elements[i].isName,
+                                   accessPath->elements[i].key.name,
+                                   accessPath->elements[i].key.index);
+        }
+        cpos = appendPathSegment(correctPath, cpos, true, propertyName, 0);
+
+        return validityMessage(validator,
+                               "; did you mean '%s' instead?",
+                               correctPath);
+      }
+    }
+  }
+  return "";
+}
+
 static VResult validateJSONObject(JsonValidator *validator,
                                   JsonObject *object,
                                   JSValueSpec *valueSpec,
@@ -638,11 +727,13 @@ static VResult validateJSONObject(JsonValidator *validator,
       }
     } else {
       if (valueSpec->additionalProperties == false){
+        char *peerHint = makePeerHint(validator, valueSpec, propertyName, accessPath);
         addValidityChild(pendingException,
                          makeValidityException(validator,
                                                validityMessage(validator,
-                                                               "unspecified additional property not allowed: '%s' at '%s'",
-                                                               propertyName,validatorAccessPath(validator))));
+                                                               "unspecified additional property not allowed: '%s' at '%s'%s",
+                                                               propertyName,validatorAccessPath(validator),
+                                                               peerHint)));
       } else if (valueSpec->unevaluatedProperties == false){
         if (validator->traceLevel >= 1){
           trace(validator,depth,"Is '%s' in the following eval sets for obj=0x%p myEvalSet=0x%p\n",propertyName,object,evalSetList);
@@ -655,11 +746,13 @@ static VResult validateJSONObject(JsonValidator *validator,
           if (validator->traceLevel >= 1){
             trace(validator,depth,"Invalid object on unevaluated property '%s'\n",propertyName);
           }
+          char *peerHint = makePeerHint(validator, valueSpec, propertyName, accessPath);
           addValidityChild(pendingException,
                            makeValidityException(validator,
                                                  validityMessage(validator,
-                                                                 "unevaluated property not allowed: '%s' at '%s'",
-                                                                 propertyName,validatorAccessPath(validator))));
+                                                                 "unevaluated property not allowed: '%s' at '%s'%s",
+                                                                 propertyName,validatorAccessPath(validator),
+                                                                 peerHint)));
         }
       } else if (validator->flags && VALIDATOR_WARN_ON_UNDEFINED_PROPERTIES){
         trace(validator,depth,"*WARNING* unspecified property seen, '%s', and checking code is not complete, vspec->props=0x%p\n",
@@ -1310,10 +1403,12 @@ static VResult validateJSON(JsonValidator *validator,
     if (!eq){
       if (jsonIsString(valueSpec->constValue)) {
         return simpleFailure(validator,"unequal constant value at %s; expecting value '%s' of type '%s'",
-                             validatorAccessPath(validator), jsonAsString(valueSpec->constValue), getJSTypeName(valueSpec->type));
+                             validatorAccessPath(validator), jsonAsString(valueSpec->constValue),
+                             jsonValueTypeName(valueSpec->constValue));
       } else if (jsonIsNumber(valueSpec->constValue)) {
         return simpleFailure(validator,"unequal constant value at %s; expecting value '%d' of type '%s'",
-                             validatorAccessPath(validator), jsonAsNumber(valueSpec->constValue), getJSTypeName(valueSpec->type));
+                             validatorAccessPath(validator), jsonAsNumber(valueSpec->constValue),
+                             jsonValueTypeName(valueSpec->constValue));
       } else {
         return simpleFailure(validator,"unequal constant value at %s",
                              validatorAccessPath(validator));
@@ -1344,10 +1439,9 @@ static VResult validateJSON(JsonValidator *validator,
       }
     }
 
-    unsigned int validValuesMaxSize = (valueSpec->enumeratedValuesCount * (sizeof(Json*) + 3)) + 1;
-    char *validValues = SLHAlloc(validator->evalHeap, validValuesMaxSize);
+	char *validValues = SLHAlloc(validator->evalHeap, MAX_VALIDITY_EXCEPTION_MSG);
     if (validValues) {
-      memset(validValues, 0, validValuesMaxSize);
+      memset(validValues, 0, MAX_VALIDITY_EXCEPTION_MSG);
     }
 
     Json *whichValue = nullToString == true ? emptyStringJson : value;
@@ -1383,7 +1477,8 @@ static VResult validateJSON(JsonValidator *validator,
     if (!matched){
       if (validValues && strlen(validValues) > 0) {
         return simpleFailure(validator,"no matching enum value at %s; expecting one of values '[%s]' of type '%s'",
-                             validatorAccessPath(validator), validValues, getJSTypeName(valueSpec->type));
+                             validatorAccessPath(validator), validValues,
+                             jsonValueTypeName(valueSpec->enumeratedValues[0]));
       } else {
         return simpleFailure(validator,"no matching enum value at %s",
                              validatorAccessPath(validator));

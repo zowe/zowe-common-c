@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2019-09/schema",
+  "$id": "https://zowe.org/schemas/test-563-typed",
+  "type": "object",
+  "properties": {
+    "zowe": { "type": "object", "properties": {
+      "port": { "type": "integer", "enum": [7554, 7555, 7556] },
+      "mode": { "type": "string", "const": "STANDARD" }
+    } }
+  }
+}

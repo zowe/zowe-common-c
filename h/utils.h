@@ -38,9 +38,49 @@ extern "C" {
 #define isBlanks ISBLANKS
 #define hasText HASTEXT
 #define parseInt PARSEINT
+#define parseIntSafely PRSINTSF
+#define strcpySafe  STRCPYSF
+#define strncpySafe STRNCPSF
+#define strcatSafe  STRCATSF
+#define strncatSafe STRNCTSF
+#define strlenSafe  STRLENSF
 #endif
 
 char * strcopy_safe(char * dest, const char * source, int dest_size);
+
+/* Bounded string operations, shaped after the C11 Annex K "_s" functions --
+ * each buffer is followed immediately by its own size, so a call site cannot
+ * silently pair a pointer with the wrong length.
+ *
+ * They are deliberately NOT named "_s": Annex K is an optional feature that
+ * z/OS does not provide, those identifiers are reserved for it, and these do
+ * not implement its semantics (errno_t, rsize_t, constraint handlers).
+ *
+ * destSize/maxLength are always the SIZE OF THE BUFFER, terminator included.
+ * Nothing is read or written past it and the destination is always
+ * null-terminated. Unlike strncpy, no padding is written past the terminator.
+ *
+ * Each returns the resulting string length, or -1 if the destination was too
+ * small to hold the whole result -- it then holds a valid truncated string --
+ * or if the arguments are unusable. Stopping because the source ended, or
+ * because "count" was reached, is not an error. */
+
+/* Copy source into dest. */
+int strcpySafe(char *dest, int destSize, const char *source);
+
+/* Copy at most count characters from source into dest. */
+int strncpySafe(char *dest, int destSize, const char *source, int count);
+
+/* Append source to dest. */
+int strcatSafe(char *dest, int destSize, const char *source);
+
+/* Append at most count characters from source to dest. */
+int strncatSafe(char *dest, int destSize, const char *source, int count);
+
+/* Length of s examining at most maxLength bytes. Returns maxLength when no
+ * terminator appears within that many bytes, so a return equal to maxLength
+ * means "not a string of this size". */
+int strlenSafe(const char *s, int maxLength);
 
 int indexOf(char *str, int len, char c, int startPos);
 int lastIndexOf(const char *str, int len, char c);
@@ -70,6 +110,15 @@ int isBlanks(char *data, int offset, int length);
 int hasText(char* data, int offset, int length);
 
 int parseInt(const char *str, int start, int end);
+
+/**
+ * Strict, overflow-checked parse of a whole NUL-terminated decimal string:
+ * optional sign, digits only, no whitespace, no trailing characters
+ * ("1047foo" fails), value within int range. Returns 0 and stores the value
+ * in *out on success; -1 on any malformation. Safe for Metal C (no
+ * strtol/errno). Prefer this over sscanf("%d") for validating user input.
+ */
+int parseIntSafely(const char *str, int *out);
 
 #ifndef __LONGNAME__
 #define parseInitialInt PSINTINT
@@ -127,6 +176,7 @@ int tknLength(token *t);
 #define dumpbuffer2 DMPBFFR2
 #define dumpBufferToStream DMPBFFRS
 #define compareIgnoringCase CMPIGNCS
+#define compareStringsIgnoringCase CMPSTRNC
 #define strupcase STRUPCAS
 #endif
 
@@ -162,6 +212,7 @@ char *simpleHexPrintLower(char *buffer, char *data, int len);
 void hexdump(char *buffer, int length, int nominalStartAddress, int formatWidth, char *pad1, char *pad2);
 void dumpbuffer2(char *buffer, int length);
 int compareIgnoringCase(char *s1, char *s2, int len);
+int compareStringsIgnoringCase(char *s1, char *s2);
 char *strupcase(char *s);
 
 typedef struct ListElt_tag {
@@ -192,6 +243,7 @@ typedef struct ShortLivedHeap_tag{
 #define makeShortLivedHeap MAKESLH
 #define makeShortLivedHeap64 MAKSLH64
 #define SLHAlloc SLHALLOC
+#define SLHAlloc2 SLHALLC2
 #define SLHFree SLHFREE
 #define noisyMalloc NYMALLOC
 #define base32Encode DECODB32
@@ -220,10 +272,22 @@ ShortLivedHeap *makeShortLivedHeap64(int blockSize, int maxBlocks);
  *    \brief   This is the "malloc" of a short lived heap.
  *
  *    If the size is greater than the blockSize of the ShortLivedHeap a new block will be added to the heap
- *    with exactly this size.  
+ *    with exactly this size. If the heap is running out of space, it will trigger ABEND.
  */
 
 char *SLHAlloc(ShortLivedHeap *slh, int size);
+
+/**
+ *    \brief   This is the "malloc" of a short lived heap.
+ *
+ *    If the size is greater than the blockSize of the ShortLivedHeap a new block will be added to the heap
+ *    with exactly this size. If the heap is running out of space, it will return NULL if surpressAbend is
+ *    true, otherwise it will trigger ABEND.
+ */
+
+#define SLHALLOC2_NO_ABEND true
+#define SLHALLOC2_MAY_ABEND false
+char *SLHAlloc2(ShortLivedHeap *slh, int size, bool suppressAbend);
 
 /**
  *    \brief   This will reclaim the whole heap.

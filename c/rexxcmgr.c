@@ -457,6 +457,9 @@ int REXXCMGR(REXXInvocation *invocation){
     if (invocation->traceLevel >= 1){
       printf("configmgr made at 0x%p\n",theConfigManager);
     }
+    if (!theConfigManager){
+      return ZCFG_BAD_ENVIRONMENT;
+    }
     theConfigManager->traceOut = fopen("//dd:cmgrout","w");
   }
   FILE *out = theConfigManager->traceOut;

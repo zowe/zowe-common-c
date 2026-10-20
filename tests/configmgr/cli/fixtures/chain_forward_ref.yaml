@@ -1,0 +1,16 @@
+# Cross-reference chain where the dependency is declared AFTER its consumer.
+#
+# Behavior (post-2026-05-14, after fixed-point iteration landed in
+# c/embeddedjs.c::evaluateJsonTemplates):
+#   pass 1: 'result' visited first. 'middle' is a still-unresolved marker
+#           and is intentionally SKIPPED from the published JS globals.
+#           Evaluating "middle + ' z'" throws ReferenceError. Marker left
+#           in place. Then 'middle' is visited; 'base' is a literal and
+#           is published. "base + ' middle'" evaluates to "base middle".
+#           Marker for 'middle' is replaced.
+#   pass 2: 'result' re-visited. 'middle' is now the string "base middle"
+#           and is published as a global. "middle + ' z'" evaluates to
+#           "base middle z". Marker for 'result' is replaced. Done.
+result: "${{ middle + ' z' }}"
+middle: "${{ base + ' middle' }}"
+base: "base"

@@ -1,0 +1,43 @@
+# Array-Focused Comment Test
+# Exercises comments on sequences: before, inline, and on nested elements.
+
+# Simple scalar array
+colors:
+  # Primary colors
+  - red                   # warm
+  - green                 # nature
+  - blue                  # cool
+  # Secondary colors
+  - yellow
+  - cyan
+  - magenta               # printing
+
+# Array of objects
+servers:
+  # Production cluster
+  - host: prod1.example.com   # primary
+    port: 443                  # HTTPS
+    tls: true
+  # Disaster recovery
+  - host: dr1.example.com     # standby
+    port: 443
+    tls: true
+  # Development
+  - host: dev.local            # no TLS needed
+    port: 8080
+    tls: false                 # plaintext ok for dev
+
+# Nested arrays
+matrix:
+  # Row 1
+  - - 1        # top-left
+    - 0
+    - 0
+  # Row 2
+  - - 0
+    - 1        # center
+    - 0
+  # Row 3
+  - - 0
+    - 0
+    - 1        # bottom-right

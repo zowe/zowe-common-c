@@ -1,0 +1,7 @@
+# Cross-reference chain in dependency-correct DOCUMENT ORDER.
+# Each line's template can reference any key that appeared earlier as a
+# fully-resolved top-level global. This is the supported pattern.
+base: "MYHOST"
+hlq: "${{ base + '.ZWE' }}"
+proclib: "${{ hlq + '.PROCLIB' }}"
+deep_chain: "${{ proclib + '.MEMBER' }}"

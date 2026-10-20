@@ -240,6 +240,10 @@ int fileGetINode(const FileInfo *info) {
   return info->st_ino;
 }
 
+int fileGetDeviceID(const FileInfo *info) {
+  return info->st_dev;
+}
+
 #define FILE_BUFFER_SIZE 4096
 #define MAX_CONVERT_FACTOR 4
 

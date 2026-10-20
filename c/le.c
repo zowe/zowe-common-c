@@ -94,13 +94,13 @@ char *getCAA(void){
   char *realCAA = NULL;
 
 #if !defined(METTLE) && defined(_LP64)
-  char *laa = *(char * __ptr32 * __ptr32)0x04B8;
-  char *lca = *(char **)(laa + 88);
-  realCAA = *(char **)(lca + 8);
+  char *laa = *(char * __ptr32 * __ptr32)LAA_ADDRESS;
+  char *lca = *(char **)(laa + LAA_LCA_OFFSET);
+  realCAA = *(char **)(lca + LCA_CAA_OFFSET);
 #else
   __asm(
       ASM_PREFIX
-      "         LA    %0,0(,12) \n"
+      "         LA    %0,0(,12)\n"
       : "=r"(realCAA)
       :
       :
@@ -154,7 +154,7 @@ char *makeFakeCAA(char *stackArea, int stackSize){
 
   memcpy(fakeCAA+copyStart,realCAA+copyStart,copyEnd-copyStart);
   /* move the top of stack indicator */
-  *((int*)(fakeCAA+0x314)) = (int)(stackArea + stackSize);
+  *((int*)(fakeCAA+0x314)) = (int)(uint64)(stackArea + stackSize);
   return fakeCAA;
 }
 

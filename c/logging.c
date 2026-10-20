@@ -159,6 +159,9 @@ static LoggingComponentTable *makeComponentTable(int componentCount) {
 
   int tableSize = sizeof(LoggingComponentTable) + componentCount * sizeof(LoggingComponent);
   LoggingComponentTable *table = (LoggingComponentTable *)safeMalloc(tableSize, "LoggingComponentTable");
+  if (table == NULL) {
+    return NULL; /* out of memory (#686) */
+  }
   memset(table, 0, tableSize);
   memcpy(table->eyecatcher, "RSLOGCTB", sizeof(table->eyecatcher));
   table->componentCount = componentCount;
@@ -204,11 +207,18 @@ static void removeComponentTable(LoggingComponentTable *table) {
 static LoggingZoweAnchor *makeZoweAnchor() {
 
   LoggingZoweAnchor *anchor = (LoggingZoweAnchor *)safeMalloc(sizeof(LoggingZoweAnchor), "LoggingZoweAnchor");
+  if (anchor == NULL) {
+    return NULL; /* out of memory (#686) */
+  }
   memset(anchor, 0, sizeof(LoggingZoweAnchor));
   memcpy(anchor->eyecatcher, "RSLOGRSA", sizeof(anchor->eyecatcher));
   memcpy(anchor->topLevelComponentTable.eyecatcher, "RSLOGCTB", sizeof(anchor->topLevelComponentTable.eyecatcher));
   anchor->topLevelComponentTable.componentCount = 1;
   anchor->topLevelComponent.subcomponents = makeComponentTable(LOG_DEFAULT_COMPONENT_COUNT);
+  if (anchor->topLevelComponent.subcomponents == NULL) {
+    safeFree((char *)anchor, sizeof(LoggingZoweAnchor));
+    return NULL;
+  }
 
   return anchor;
 }
@@ -225,6 +235,9 @@ static void removeZoweAnchor(LoggingZoweAnchor *anchor) {
 static LoggingVendor *makeVendor(unsigned short vendorID) {
 
   LoggingVendor *vendor = (LoggingVendor *)safeMalloc(sizeof(LoggingVendor), "LoggingVendor");
+  if (vendor == NULL) {
+    return NULL; /* out of memory (#686) */
+  }
   memset(vendor, 0, sizeof(LoggingVendor));
   memcpy(vendor->eyecatcher, "RSLOGVNR", sizeof(vendor->eyecatcher));
   vendor->vendorID = vendorID;
@@ -255,9 +268,22 @@ LoggingContext *makeLocalLoggingContext() {
      4-byte slot in the CAA 
      */
   LoggingContext *context = (LoggingContext *)safeMalloc31(sizeof(LoggingContext),"LoggingContext");
+  if (context == NULL) {
+    return NULL; /* out of memory: this is the first allocation configmgr makes (#686) */
+  }
   memcpy(context->eyecatcher, "RSLOGCTX", sizeof(context->eyecatcher));
   context->vendorTable = htCreate(LOG_VENDOR_HT_BACKBONE_SIZE, NULL, NULL, NULL, NULL);
   context->zoweAnchor = makeZoweAnchor();
+  if (context->vendorTable == NULL || context->zoweAnchor == NULL) {
+    if (context->zoweAnchor != NULL) {
+      removeZoweAnchor(context->zoweAnchor);
+    }
+    if (context->vendorTable != NULL) {
+      htDestroy(context->vendorTable);
+    }
+    safeFree31((char *)context, sizeof(LoggingContext));
+    return NULL;
+  }
 
   return context;
 }
@@ -268,6 +294,9 @@ LoggingContext *makeLoggingContext() {
   if (existingContext == NULL) {
 
     LoggingContext *context = makeLocalLoggingContext();
+    if (context == NULL) {
+      return NULL; /* out of memory (#686); the caller decides how to fail */
+    }
     int setRC = setLoggingContext(context);
     if (setRC != RC_LOG_OK) {
       removeLocalLoggingContext(context);
@@ -489,7 +518,7 @@ void logConfigureComponent(LoggingContext *context, uint64 compID, char *compNam
   }
 
   unsigned int vendorID = (compID >> 48) & 0xFFFF;
-  unsigned short *id = (unsigned short *)&compID;
+  LOG_COMPONENT_ID_SHORTS(id, compID);
 
   if (vendorID == LOG_ZOWE_VENDOR_ID) {
 
@@ -499,7 +528,7 @@ void logConfigureComponent(LoggingContext *context, uint64 compID, char *compNam
     LoggingComponentTable **componentTableHandle = (LoggingComponentTable **)&component->subcomponents;
     LoggingComponentTable *componentTable = component->subcomponents;
 
-    for (int i = 1; id[i] != 0 && i < 4; i++) {
+    for (int i = 1; i < 4 && id[i] != 0; i++) {
       if (componentTable == NULL || componentTable->componentCount <= id[i]) {
         componentTable = reallocComponentTable(componentTable, min(id[i] * 2 + 1, 0xFFFF));
         *componentTableHandle = componentTable;
@@ -526,7 +555,7 @@ void logConfigureComponent(LoggingContext *context, uint64 compID, char *compNam
     LoggingHashTable **componentTableHandle = (LoggingHashTable **)&component->subcomponents;
     LoggingHashTable *componentTable = component->subcomponents;
 
-    for (int i = 1; id[i] != 0 && i < 4; i++) {
+    for (int i = 1; i < 4 && id[i] != 0; i++) {
       LoggingComponent localLoggingComponent;
       memset(&localLoggingComponent, 0, sizeof(LoggingComponent));
       if (componentTable == NULL) {
@@ -579,8 +608,8 @@ static LoggingComponent *getComponent(LoggingContext *context, uint64 compID, in
     LoggingComponentTable *componentTable = component->subcomponents;
     maxLevel = component->currentDetailLevel > maxLevel ? component->currentDetailLevel : maxLevel;
 
-    unsigned short *id = (unsigned short *)&compID;
-    for (int i = 1; id[i] != 0 && i < 4; i++) {
+    LOG_COMPONENT_ID_SHORTS(id, compID);
+    for (int i = 1; i < 4 && id[i] != 0; i++) {
       if (componentTable != NULL && id[i] < componentTable->componentCount) {
         component = &componentTable->components[id[i]];
         maxLevel = component->currentDetailLevel > maxLevel ? component->currentDetailLevel : maxLevel;
@@ -602,8 +631,8 @@ static LoggingComponent *getComponent(LoggingContext *context, uint64 compID, in
     LoggingHashTable *componentTable = component->subcomponents;
     maxLevel = component->currentDetailLevel > maxLevel ? component->currentDetailLevel : maxLevel;
 
-    unsigned short *id = (unsigned short *)&compID;
-    for (int i = 1; id[i] != 0 && i < 4; i++) {
+    LOG_COMPONENT_ID_SHORTS(id, compID);
+    for (int i = 1; i < 4 && id[i] != 0; i++) {
       component = componentTable != NULL ? logHTGet(componentTable, id[i]) : NULL;
       if (component != NULL) {
         maxLevel = component->currentDetailLevel > maxLevel ? component->currentDetailLevel : maxLevel;
@@ -765,7 +794,7 @@ bool logShouldTraceInternal(LoggingContext *context, uint64 componentID, int lev
     context = getLoggingContext();
   }
 
-  unsigned short *id = (unsigned short *)&componentID;
+  LOG_COMPONENT_ID_SHORTS(id, componentID);
   bool shouldTrace = FALSE;
   if (id[0] == LOG_ZOWE_VENDOR_ID) {
     LoggingComponent *component = &context->zoweAnchor->topLevelComponent;

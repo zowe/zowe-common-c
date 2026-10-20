@@ -40,6 +40,8 @@ typedef struct pollfd PollItem;
 #define POLLEOUT POLLOUT
 #define POLLROUT POLLOUT
 #define POLLRHUP POLLHUP
+#define POLLEWRNORM POLLWRNORM
+#define POLLRWRNORM POLLWRNORM
 
 #elif defined(__ZOWE_OS_WINDOWS)
 

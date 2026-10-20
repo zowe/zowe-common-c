@@ -98,7 +98,11 @@ int main(int argc, char **argv){
   fflush(stdout);
   
   EmbeddedJS *ejs = allocateEmbeddedJS(NULL);
-  configureEmbeddedJS(ejs,NULL,0,argc,argv);
+  if (!configureEmbeddedJS(ejs,NULL,0,argc,argv)){
+    printf("could not create the embedded JS runtime\n");
+    fflush(stdout);
+    return 8;
+  }
 
   /* no includes yet 
   for(i = 0; i < include_count; i++) {
@@ -159,8 +163,12 @@ int main(int argc, char **argv){
       }
     } else {
       Json *resultantJSON = evaluateJsonTemplates(ejs,slh,json);
-      printf("JSON templates evaluated\n");
-      jsonPrint(p,resultantJSON);
+      if (resultantJSON == NULL){
+        printf("JSON template evaluation failed\n");
+      } else {
+        printf("JSON templates evaluated\n");
+        jsonPrint(p,resultantJSON);
+      }
     }
   }
 

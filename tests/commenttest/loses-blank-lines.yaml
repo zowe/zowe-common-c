@@ -1,0 +1,30 @@
+# Blank line preservation demonstration for PR review
+# Blank lines between sections are lost during round-trip.
+# This is cosmetic -- the YAML is semantically identical without them.
+
+# Server section
+server:
+  host: localhost
+  port: 8080
+
+# Database section
+database:
+  url: jdbc:db2://localhost:446/DVIPA
+  pool-size: 10
+
+# Logging section
+logging:
+  level: info
+
+
+# Note: the blank lines above separate logical sections for readability.
+# After round-trip they collapse to:
+#
+#   server:
+#     host: localhost
+#     port: 8080
+#   # Database section
+#   database:
+#     ...
+#
+# The data is identical. Only the visual breathing room is lost.

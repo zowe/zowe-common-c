@@ -1,0 +1,7 @@
+port: 7000
+name: "base"
+extras:
+  fromBase: true
+colors:
+  - red
+  - green
