@@ -1,0 +1,2 @@
+zowe:
+  aVeryLongPropertyNameThatCannotBeFoldedBecauseKeysArePlainScalarsInTheOutput: 1
