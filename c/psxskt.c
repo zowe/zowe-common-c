@@ -981,7 +981,7 @@ int getV4HostByName(char *hostName){
 
   hostEntPtr = gethostbyname(hostName);
   if (socketTrace){
-    printf("hostent addr = %x\n",*((int*)hostEntPtr));
+    printf("hostent addr = %p\n",hostEntPtr);
   }
   if (hostEntPtr){
     int i = 0;
