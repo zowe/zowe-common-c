@@ -1584,7 +1584,7 @@ int patternChangeTagTest(char *message, int message_length,
       return -1;
     }
     else {
-      *ccsid =  CCSID_BINARY;
+      *ccsid =  (unsigned short)CCSID_BINARY;
       return 0;
     }
   } 
