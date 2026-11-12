@@ -1,0 +1,8 @@
+# Shapes raised in review of #550: comments, a flow-style array, and templates
+# whose evaluated value is much longer than the YAML source that produced it.
+zowe:
+  # an indented comment, itself longer than a parmlib record could hold
+  expanded: "${{ 'x'.repeat(180) }}"
+  pathish: "${{ '/u/users/robot/pullRequests/pr4459/' + 'longPathToZoweRuntimeDirectoryToTestSplitFeature' }}"
+  flowArray: [11, 22, 33]
+  port: 7554   # a trailing comment
