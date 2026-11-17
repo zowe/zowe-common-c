@@ -64,8 +64,18 @@ int sxDequeueRead(SocketExtension *socketExtension,
                   int *length,
                   SocketAddress **socketAddress);
 
-/* use either AT-TLS ioctls or analogous rs_ssl functions to populate HAVE_ flags */
+/* use either AT-TLS ioctls or analogous rs_ssl functions to populate HAVE_ flags.
+   With USE_ZOWE_TLS, a peer socket that has no GSK tlsSocket is queried as AT-TLS. */
 int sxUpdateTLSInfo(SocketExtension *sext, int onceOnly);
+
+#define SX_PEERCERT_OK               0
+#define SX_PEERCERT_NONE             1 /* no certificate was obtained for this connection */
+#define SX_PEERCERT_BUFFER_TOO_SMALL 2
+#define SX_PEERCERT_BAD_ARGUMENT     3
+
+/* Copies the DER peer certificate saved by sxUpdateTLSInfo() into buffer. */
+int sxGetPeerCertificate(SocketExtension *sext, char *buffer, unsigned int bufferSize,
+                         unsigned int *certificateLength);
 
 #endif 
 

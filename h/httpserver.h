@@ -593,6 +593,9 @@ void addStringHeader(HttpResponse *response, char *name, char *value);
 void addIntHeader(HttpResponse *response, char *name, int value);
 HttpHeader *getHeader(HttpRequest *request, char *name);
 void requestStringHeader(HttpRequest *request, int inEbcdic, char *name, char *value);
+
+/* Returns 0 and the DER client certificate if the connection carried one, whether it was negotiated by GSK or by AT-TLS. Nonzero otherwise. */
+int httpGetClientCertificate(HttpResponse *response, char *buffer, unsigned int bufferSize, unsigned int *certificateLength);
 void requestIntHeader(HttpRequest *request, int inEbcdic, char *name, int value);
 void setContentType(HttpResponse *response, char *contentType);
 void writeHeader(HttpResponse *response);
