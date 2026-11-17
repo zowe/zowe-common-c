@@ -8,6 +8,10 @@ Copyright Contributors to the Zowe Project.
 
 # C Libraries for various OS & Networking needs 
 
+# AI Contributions
+
+The maintainers of this package reserve the right to reject or close AI contributions, 
+especially contributions which have not been tested and/or reproduced on ZOS.
 
 This program and the accompanying materials are
 made available under the terms of the Eclipse Public License v2.0 which accompanies
