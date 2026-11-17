@@ -95,9 +95,12 @@ COMMON_OBJS:=alloc.o \
   /usr/lpp/gskssl/lib/GSKSSL64.x \
   /usr/lpp/gskssl/lib/GSKCMS64.x
 
-all: bigreqtest
+all: bigreqtest clientcerttest
 
 bigreqtest: bigreqtest.o $(COMMON_OBJS)
+	$(CC) $(LD_FLAGS) -o $@ $^
+
+clientcerttest: clientcerttest.o $(COMMON_OBJS)
 	$(CC) $(LD_FLAGS) -o $@ $^
 
 # more test units go here...

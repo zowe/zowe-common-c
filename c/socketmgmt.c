@@ -22,6 +22,7 @@
 #include <stdio.h>                                                   
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #endif
 
@@ -33,6 +34,7 @@
 
 #ifdef __ZOWE_OS_ZOS
 #include "ezbztlsc.h" /* for TTLS ioctl support */
+#include "logging.h"
 #endif
 
 #ifdef USE_RS_SSL
@@ -116,70 +118,20 @@ SocketExtension *makeSocketExtension(Socket *socket,
   return socketExtension;
 }
 
+#ifdef __ZOWE_OS_ZOS
+static int sxQueryAttls(SocketExtension *sext, int onceOnly, int wantCert);
+#endif
+
 #if defined(__ZOWE_OS_ZOS) || defined(USE_RS_SSL) || defined(USE_ZOWE_TLS)
 int sxUpdateTLSInfo(SocketExtension *sext, int onceOnly)
 {
   int sts=0;
-  int iocmd=0, arglen=0;
-  int bpxrc=0, bpxrsn=0;
-  char* arg = NULL;
 
 #if !defined(USE_RS_SSL) && !defined(USE_ZOWE_TLS) /* AT-TLS ioctl version */
-  struct TTLS_IOCTL ioc;            /* ioctl data structure          */
-  char certbuf[2048];               /* buffer for certificate        */
-  memset(&ioc,0,sizeof(ioc));       /* set all unused fields to zero */
-  ioc.TTLSi_Ver = TTLS_VERSION1;
-
   /* only call ioctl's if we WANT_TLS */
-  if (onceOnly && (sext->tlsFlags & RS_TTLS_IOCTL_DONE)) {
-    return 0;
-  }
   if (sext->tlsFlags & RS_TLS_WANT_TLS)
   {
-    if (sext->tlsFlags & RS_TLS_WANT_PEERCERT)
-    {
-      ioc.TTLSi_Req_Type = TTLS_RETURN_CERTIFICATE;
-      ioc.TTLSi_BufferPtr = &(certbuf[0]);
-      ioc.TTLSi_BufferLen = sizeof(certbuf);
-    } else
-    {
-      ioc.TTLSi_Req_Type = TTLS_QUERY_ONLY;
-    }
-    arglen = sizeof(ioc);
-    sts = tcpIOControl(sext->socket, SIOCTTLSCTL, arglen, (char*)&ioc, &bpxrc, &bpxrsn);
-    if ((0 == sts) && (0 == bpxrc))
-    {
-      sext->tlsFlags = sext->tlsFlags | RS_TTLS_IOCTL_DONE;
-
-#ifdef DEBUG
-      printf("contents of TTLS_IOCTL struct:\n");
-      dumpbuffer((char*) &ioc, sizeof(struct TTLS_IOCTL));
-#endif
-      if (TTLS_CONN_SECURE == ioc.TTLSi_Stat_Conn)
-      {
-        sext->tlsFlags = sext->tlsFlags | RS_TLS_HAVE_TLS;
-      }
-      if ((sext->tlsFlags & RS_TLS_WANT_PEERCERT) &&
-          (0 < ioc.TTLSi_Cert_Len))
-      {
-        sext->peerCertificate = SLHAlloc(sext->slh, ioc.TTLSi_Cert_Len);
-        memcpy(sext->peerCertificate, certbuf, ioc.TTLSi_Cert_Len);
-        sext->peerCertificateLength = ioc.TTLSi_Cert_Len;
-        sext->tlsFlags = sext->tlsFlags | RS_TLS_HAVE_PEERCERT;
-#ifdef DEBUG
-        printf("copied peer certificate (%d bytes):\n", sext->peerCertificateLength);
-        dumpbuffer(sext->peerCertificate, sext->peerCertificateLength);
-#endif
-      }
-    }
-    else
-    {
-      /* error from tcpIOControl */
-#ifdef DEBUG
-      printf("sxUpdateTTLSInfo: error from tcpIOControl (sts=%d,rc=%d,rsn=0x%x)\n",
-             sts, bpxrc, bpxrsn);
-#endif
-    }
+    sts = sxQueryAttls(sext, onceOnly, (sext->tlsFlags & RS_TLS_WANT_PEERCERT) != 0);
   }
 #elif USE_RS_SSL /* RS_SSL version */
   if ((0 == sext->isServerSocket) &&
@@ -209,9 +161,146 @@ int sxUpdateTLSInfo(SocketExtension *sext, int onceOnly)
   if (!sext->isServerSocket && sext->socket->tlsSocket) {
     sext->tlsFlags = sext->tlsFlags | RS_TLS_HAVE_TLS;
   }
+#ifdef __ZOWE_OS_ZOS
+  else if (!sext->isServerSocket) {
+    /* No GSK session, so TLS (if any) was done by AT-TLS; a plain socket just fails the ioctl. */
+    sxQueryAttls(sext, onceOnly, TRUE);
+  }
+#endif
 #endif
 
   return sts;
+}
+
+#ifdef __ZOWE_OS_ZOS
+
+#define SX_ATTLS_CERT_INITIAL_SIZE 2048
+#define SX_ATTLS_CERT_MAX_SIZE     65536
+
+/* PassThru hands over whatever the client sent without validating its chain. */
+static int sxAttlsValidatesClientCert(int secType) {
+  return (secType == TTLS_SEC_SRV_CA_FULL ||
+          secType == TTLS_SEC_SRV_CA_REQD ||
+          secType == TTLS_SEC_SRV_CA_SAFCHK);
+}
+
+/* Returns 0 when the SIOCTTLSCTL ioctl succeeded, nonzero when it failed (not AT-TLS, for example). */
+static int sxQueryAttls(SocketExtension *sext, int onceOnly, int wantCert)
+{
+  if (onceOnly && (sext->tlsFlags & RS_TTLS_IOCTL_DONE)) {
+    return 0;
+  }
+
+  char initialBuffer[SX_ATTLS_CERT_INITIAL_SIZE];
+  char *certBuffer = initialBuffer;
+  int certBufferSize = sizeof(initialBuffer);
+  char *heapBuffer = NULL;
+  struct TTLS_IOCTL ioc;
+  int sts = 0;
+  int bpxrc = 0;
+  int bpxrsn = 0;
+
+  for (int attempt = 0; attempt < 2; attempt++) {
+    memset(&ioc, 0, sizeof(ioc));
+    ioc.TTLSi_Ver = TTLS_VERSION1;
+    if (wantCert) {
+      ioc.TTLSi_Req_Type = TTLS_RETURN_CERTIFICATE;
+      ioc.TTLSi_BufferPtr = certBuffer;
+      ioc.TTLSi_BufferLen = certBufferSize;
+    } else {
+      ioc.TTLSi_Req_Type = TTLS_QUERY_ONLY;
+    }
+    bpxrc = 0;
+    bpxrsn = 0;
+    sts = tcpIOControl(sext->socket, SIOCTTLSCTL, sizeof(ioc), (char*)&ioc, &bpxrc, &bpxrsn);
+
+    /* On ENOBUFS the ioctl reports the size it needs in TTLSi_Cert_Len. */
+    if (wantCert && attempt == 0 && bpxrc == ENOBUFS &&
+        (int)ioc.TTLSi_Cert_Len > certBufferSize &&
+        (int)ioc.TTLSi_Cert_Len <= SX_ATTLS_CERT_MAX_SIZE) {
+      heapBuffer = safeMalloc(ioc.TTLSi_Cert_Len, "AT-TLS certificate");
+      if (heapBuffer == NULL) {
+        break;
+      }
+      certBuffer = heapBuffer;
+      certBufferSize = ioc.TTLSi_Cert_Len;
+      continue;
+    }
+    break;
+  }
+
+  zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+          "SIOCTTLSCTL sts=%d rc=%d rsn=0x%x policy=%d conn=%d secType=%d certLen=%d\n",
+          sts, bpxrc, bpxrsn, (int)ioc.TTLSi_Stat_Policy, (int)ioc.TTLSi_Stat_Conn,
+          (int)ioc.TTLSi_Sec_Type, (int)ioc.TTLSi_Cert_Len);
+#ifdef DEBUG
+  printf("contents of TTLS_IOCTL struct:\n");
+  dumpbuffer((char*) &ioc, sizeof(struct TTLS_IOCTL));
+#endif
+
+  int result = 0;
+  if (sts != 0 || bpxrc != 0) {
+    /* Not an AT-TLS connection (or the ioctl is unsupported); don't ask again. */
+    sext->tlsFlags = sext->tlsFlags | RS_TTLS_IOCTL_DONE;
+    result = sts ? sts : bpxrc;
+  } else if (ioc.TTLSi_Stat_Conn == TTLS_CONN_HS_INPROGRESS) {
+    /* Leave RS_TTLS_IOCTL_DONE clear so the next read asks again. */
+  } else {
+    sext->tlsFlags = sext->tlsFlags | RS_TTLS_IOCTL_DONE;
+    if (TTLS_CONN_SECURE == ioc.TTLSi_Stat_Conn) {
+      sext->tlsFlags = sext->tlsFlags | RS_TLS_HAVE_TLS;
+      if (wantCert && (int)ioc.TTLSi_Cert_Len > 0) {
+        if (!sxAttlsValidatesClientCert(ioc.TTLSi_Sec_Type)) {
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                  "AT-TLS client certificate ignored, client authentication type %d does not validate it\n",
+                  (int)ioc.TTLSi_Sec_Type);
+        } else if ((int)ioc.TTLSi_Cert_Len > certBufferSize) {
+          zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG,
+                  "AT-TLS client certificate ignored, %d bytes exceeds the %d byte limit\n",
+                  (int)ioc.TTLSi_Cert_Len, SX_ATTLS_CERT_MAX_SIZE);
+        } else {
+          unsigned char *copy = (unsigned char*)SLHAlloc(sext->slh, ioc.TTLSi_Cert_Len);
+          if (copy != NULL) {
+            memcpy(copy, certBuffer, ioc.TTLSi_Cert_Len);
+            sext->peerCertificate = copy;
+            sext->peerCertificateLength = ioc.TTLSi_Cert_Len;
+            sext->tlsFlags = sext->tlsFlags | RS_TLS_HAVE_PEERCERT;
+#ifdef DEBUG
+            printf("copied peer certificate (%d bytes):\n", sext->peerCertificateLength);
+            dumpbuffer(sext->peerCertificate, sext->peerCertificateLength);
+#endif
+          }
+        }
+      }
+    }
+  }
+
+  if (heapBuffer != NULL) {
+    safeFree(heapBuffer, certBufferSize);
+  }
+  return result;
+}
+
+#endif /* __ZOWE_OS_ZOS */
+
+int sxGetPeerCertificate(SocketExtension *sext, char *buffer, unsigned int bufferSize,
+                         unsigned int *certificateLength)
+{
+  if (sext == NULL || buffer == NULL || certificateLength == NULL) {
+    return SX_PEERCERT_BAD_ARGUMENT;
+  }
+  *certificateLength = 0;
+  if (0 == (sext->tlsFlags & RS_TLS_HAVE_PEERCERT) ||
+      sext->peerCertificate == NULL ||
+      sext->peerCertificateLength <= 0) {
+    return SX_PEERCERT_NONE;
+  }
+  if ((unsigned int)sext->peerCertificateLength > bufferSize) {
+    return SX_PEERCERT_BUFFER_TOO_SMALL;
+  }
+  memcpy(buffer, sext->peerCertificate, sext->peerCertificateLength);
+  *certificateLength = (unsigned int)sext->peerCertificateLength;
+  return SX_PEERCERT_OK;
 }
 #endif /* only Z or rs_ssl users can build this */
 

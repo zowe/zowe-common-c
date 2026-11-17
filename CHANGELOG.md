@@ -1,5 +1,9 @@
 # Zowe Common C Changelog
 
+## `3.7.0`
+
+- Enhancement: client certificate authentication is now possible over AT-TLS, as it was previously in native TLS.
+
 ## `3.6.0`
 
 - Bugfix: `getV4HostByName()` and `getV4HostEntByName()` on z/OS (`c/bpxskt.c`, `c/mtlskt.c`) initialise the host entry pointer, which `BPX1GHN` leaves unset when a lookup fails, so the null checks no longer pass on stack garbage and `getV4HostEntByName()` no longer returns it. `getV4HostByName()` checks the service's return value before using the result, and walks the address list to its null terminator instead of using `hostent->length`, which is the width of one address, as a count; on an empty list that read past the end of it. The socket trace prints the pointer instead of dereferencing it, and adds the service's return value, return code and reason code. [(#548)](https://github.com/zowe/zowe-common-c/pull/548)
