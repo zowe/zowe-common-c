@@ -121,7 +121,7 @@ typedef struct LogComponentsMap_tag {
   {LOG_COMP_DATASERVICE, "dataservice"},\
   {LOG_COMP_CMS, "cms"},\
   {LOG_COMP_LPA, "lpa"},\
-  {LOG_COMP_RESTDATASET, "resetdataset"},\
+  {LOG_COMP_RESTDATASET, "restdataset"},\
   {LOG_COMP_RESTFILE, "restfile"},\
   {LOG_COMP_ZOS, "zos"},\
   {LOG_COMP_HTTPCLIENT, "httpclient"},\
