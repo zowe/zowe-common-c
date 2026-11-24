@@ -128,12 +128,13 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   }
 
   env->settings = settings;
-  rc = rc || gsk_environment_open(&env->envHandle);
-  rc = rc || gsk_attribute_set_numeric_value(env->envHandle, GSK_V3_SIDCACHE_SIZE, 0);
-  rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_SSLV2, GSK_PROTOCOL_SSLV2_OFF);
-  rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_SSLV3, GSK_PROTOCOL_SSLV3_OFF);
-  rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_OFF);
-  rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_1, GSK_PROTOCOL_TLSV1_1_OFF);
+  /* Run each GSK call only while rc is 0, and keep the status of the one that fails (rc || ... would make it 1). */
+  rc = rc ? rc : gsk_environment_open(&env->envHandle);
+  rc = rc ? rc : gsk_attribute_set_numeric_value(env->envHandle, GSK_V3_SIDCACHE_SIZE, 0);
+  rc = rc ? rc : gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_SSLV2, GSK_PROTOCOL_SSLV2_OFF);
+  rc = rc ? rc : gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_SSLV3, GSK_PROTOCOL_SSLV3_OFF);
+  rc = rc ? rc : gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1, GSK_PROTOCOL_TLSV1_OFF);
+  rc = rc ? rc : gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_1, GSK_PROTOCOL_TLSV1_1_OFF);
 
   int tlsMin = getTlsMin(settings);
   int tlsMax = getTlsMax(settings);
@@ -143,31 +144,31 @@ int tlsInit(TlsEnvironment **outEnv, TlsSettings *settings) {
   
   if (tlsMin <= TLS_V1_2 && tlsMax >= TLS_V1_2) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.2 on\n");
-    rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_2, GSK_PROTOCOL_TLSV1_2_ON);
+    rc = rc ? rc : gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_2, GSK_PROTOCOL_TLSV1_2_ON);
   } else {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.2 off\n");
-    rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_2, GSK_PROTOCOL_TLSV1_2_OFF);
+    rc = rc ? rc : gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_2, GSK_PROTOCOL_TLSV1_2_OFF);
   }
   if (isTLSV13Available(settings) && tlsMin <= TLS_V1_3 && tlsMax >= TLS_V1_3) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.3 on\n");
-    rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_3, GSK_PROTOCOL_TLSV1_3_ON);
+    rc = rc ? rc : gsk_attribute_set_enum(env->envHandle, GSK_PROTOCOL_TLSV1_3, GSK_PROTOCOL_TLSV1_3_ON);
   } else {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "TLS 1.3 off\n");
   }
-  rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_SERVER_EPHEMERAL_DH_GROUP_SIZE, GSK_SERVER_EPHEMERAL_DH_GROUP_SIZE_2048);
+  rc = rc ? rc : gsk_attribute_set_enum(env->envHandle, GSK_SERVER_EPHEMERAL_DH_GROUP_SIZE, GSK_SERVER_EPHEMERAL_DH_GROUP_SIZE_2048);
 
 #ifdef DEV_DO_NOT_VALIDATE_CLIENT_CERTIFICATES
-  rc = rc || gsk_attribute_set_enum(env->envHandle, GSK_CLIENT_AUTH_TYPE, GSK_CLIENT_AUTH_PASSTHRU_TYPE);
+  rc = rc ? rc : gsk_attribute_set_enum(env->envHandle, GSK_CLIENT_AUTH_TYPE, GSK_CLIENT_AUTH_PASSTHRU_TYPE);
 #endif
 
-  rc = rc || gsk_attribute_set_buffer(env->envHandle, GSK_KEYRING_FILE, settings->keyring, 0);
+  rc = rc ? rc : gsk_attribute_set_buffer(env->envHandle, GSK_KEYRING_FILE, settings->keyring, 0);
   if (settings->stash) {
-    rc = rc || gsk_attribute_set_buffer(env->envHandle, GSK_KEYRING_STASH_FILE, settings->stash, 0);
+    rc = rc ? rc : gsk_attribute_set_buffer(env->envHandle, GSK_KEYRING_STASH_FILE, settings->stash, 0);
   }
   if (settings->password) {
-    rc = rc || gsk_attribute_set_buffer(env->envHandle, GSK_KEYRING_PW, settings->password, 0);
+    rc = rc ? rc : gsk_attribute_set_buffer(env->envHandle, GSK_KEYRING_PW, settings->password, 0);
   }
-  rc = rc || gsk_environment_init(env->envHandle);
+  rc = rc ? rc : gsk_environment_init(env->envHandle);
   if (rc == 0) {
   *outEnv = env;
   } else {
@@ -240,17 +241,19 @@ int tlsSocketInit2(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSe
                   : env->settings->label;
   char *ciphers = env->settings->ciphers;
   char *keyshares = env->settings->keyshares;
-  rc = rc || gsk_secure_socket_open(env->envHandle, &socket->socketHandle);
-  rc = rc || gsk_attribute_set_numeric_value(socket->socketHandle, GSK_FD, fd);
+  int sessionType = isServer ? GSK_SERVER_SESSION_WITH_CL_AUTH : GSK_CLIENT_SESSION;
+  /* As in tlsInit(): run each GSK call only while rc is 0, and keep the failing status. */
+  rc = rc ? rc : gsk_secure_socket_open(env->envHandle, &socket->socketHandle);
+  rc = rc ? rc : gsk_attribute_set_numeric_value(socket->socketHandle, GSK_FD, fd);
   if (label) {
-    rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_KEYRING_LABEL, label, 0);
+    rc = rc ? rc : gsk_attribute_set_buffer(socket->socketHandle, GSK_KEYRING_LABEL, label, 0);
   }
   if (ciphers) {
     zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Ciphers set to %s\n", ciphers);
-    rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_V3_CIPHER_SPECS_EXPANDED, ciphers, 0);
-    rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);
+    rc = rc ? rc : gsk_attribute_set_buffer(socket->socketHandle, GSK_V3_CIPHER_SPECS_EXPANDED, ciphers, 0);
+    rc = rc ? rc : gsk_attribute_set_enum(socket->socketHandle, GSK_V3_CIPHERS, GSK_V3_CIPHERS_CHAR4);
   }
-  rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_SESSION_TYPE, isServer ? GSK_SERVER_SESSION_WITH_CL_AUTH : GSK_CLIENT_SESSION);
+  rc = rc ? rc : gsk_attribute_set_enum(socket->socketHandle, GSK_SESSION_TYPE, sessionType);
 
   int tlsMin = getTlsMin(env->settings);
   int tlsMax = getTlsMax(env->settings);
@@ -267,19 +270,19 @@ int tlsSocketInit2(TlsEnvironment *env, TlsSocket **outSocket, int fd, bool isSe
        Only TLS 1.3 needs this.
      */
       if (isServer) {
-        rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_SERVER_TLS_KEY_SHARES, keyshares, 0);
+        rc = rc ? rc : gsk_attribute_set_buffer(socket->socketHandle, GSK_SERVER_TLS_KEY_SHARES, keyshares, 0);
       } else {
-        rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_CLIENT_TLS_KEY_SHARES, keyshares, 0);
+        rc = rc ? rc : gsk_attribute_set_buffer(socket->socketHandle, GSK_CLIENT_TLS_KEY_SHARES, keyshares, 0);
       }
     }
   }
-  rc = rc || gsk_attribute_set_callback(socket->socketHandle, GSK_IO_CALLBACK, &ioCallbacks);
+  rc = rc ? rc : gsk_attribute_set_callback(socket->socketHandle, GSK_IO_CALLBACK, &ioCallbacks);
   if (!isServer && env->settings->certVerify == TLS_CERTVERIFY_STRICT && peerHost) {
-    rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_REFERENCE_ID_DNS, peerHost, 0);
-    rc = rc || gsk_attribute_set_buffer(socket->socketHandle, GSK_REFERENCE_ID_CN, peerHost, 0);
-    rc = rc || gsk_attribute_set_enum(socket->socketHandle, GSK_WILDCARD_VALIDATION_ENABLE, GSK_WILDCARD_VALIDATION_ENABLE_ON);
+    rc = rc ? rc : gsk_attribute_set_buffer(socket->socketHandle, GSK_REFERENCE_ID_DNS, peerHost, 0);
+    rc = rc ? rc : gsk_attribute_set_buffer(socket->socketHandle, GSK_REFERENCE_ID_CN, peerHost, 0);
+    rc = rc ? rc : gsk_attribute_set_enum(socket->socketHandle, GSK_WILDCARD_VALIDATION_ENABLE, GSK_WILDCARD_VALIDATION_ENABLE_ON);
   }
-  rc = rc || gsk_secure_socket_init(socket->socketHandle);
+  rc = rc ? rc : gsk_secure_socket_init(socket->socketHandle);
   if (rc == 0) {
     *outSocket = socket;
   } else {
