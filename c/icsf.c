@@ -105,11 +105,8 @@ CALL CSNBSYE( return_code,
 
    Diffie-Helmann
   */
-//----------------------------
-// DO NOT USE IN PRD! --------
-static int digestTrace = TRUE;
-// DO NOT USE IN PRD! --------
-//----------------------------
+
+static int digestTrace = FALSE;
 
 static int icsfContextLength(int type){
   switch (type){
