@@ -105,8 +105,11 @@ CALL CSNBSYE( return_code,
 
    Diffie-Helmann
   */
-
+//----------------------------
+// DO NOT USE IN PRD! --------
 static int digestTrace = TRUE;
+// DO NOT USE IN PRD! --------
+//----------------------------
 
 int icsfDigestInit(ICSFDigest *digest, int type){
   memset((char*)digest,0,sizeof(ICSFDigest));
