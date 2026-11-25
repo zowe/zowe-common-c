@@ -106,7 +106,7 @@ CALL CSNBSYE( return_code,
    Diffie-Helmann
   */
 
-static int digestTrace = FALSE;
+static int digestTrace = TRUE;
 
 int icsfDigestInit(ICSFDigest *digest, int type){
   memset((char*)digest,0,sizeof(ICSFDigest));
