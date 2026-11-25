@@ -111,6 +111,18 @@ static int digestTrace = TRUE;
 // DO NOT USE IN PRD! --------
 //----------------------------
 
+static int icsfContextLength(int type){
+  switch (type){
+  case ICSF_DIGEST_SHA3_224:
+  case ICSF_DIGEST_SHA3_256:
+  case ICSF_DIGEST_SHA3_384:
+  case ICSF_DIGEST_SHA3_512:
+    return ICSF_HASH_CONTEXT_LENGTH_SHA3;
+  default:
+    return ICSF_HASH_CONTEXT_LENGTH_DEFAULT;
+  }
+}
+
 int icsfDigestInit(ICSFDigest *digest, int type){
   memset((char*)digest,0,sizeof(ICSFDigest));
   digest->type = type;
@@ -176,9 +188,7 @@ int icsfDigestInit(ICSFDigest *digest, int type){
   
   int exitDataLength = 0;
   char *exitData = NULL;
-  int contextLength =
-      (digest->type >= ICSF_DIGEST_SHA3_224 &&
-       digest->type <= ICSF_DIGEST_SHA3_512) ? 256 : 128;
+  int contextLength = icsfContextLength(digest->type);
   int zero = 0;
   char *null = NULL;
 
@@ -254,9 +264,7 @@ int icsfDigestUpdate(ICSFDigest *digest, char *data, int len){
   char *null = NULL;
   int exitDataLength = 0;
   char *exitData = NULL;
-  int contextLength =
-      (digest->type >= ICSF_DIGEST_SHA3_224 &&
-       digest->type <= ICSF_DIGEST_SHA3_512) ? 256 : 128;
+  int contextLength = icsfContextLength(digest->type);
 
   int newFill = digest->leftoverFill + len;
   if (digestTrace){
@@ -370,9 +378,7 @@ int icsfDigestFinish(ICSFDigest *digest, char *hash){
 
   int exitDataLength = 0;
   char *exitData = NULL;
-  int contextLength =
-      (digest->type >= ICSF_DIGEST_SHA3_224 &&
-       digest->type <= ICSF_DIGEST_SHA3_512) ? 256 : 128;
+  int contextLength = icsfContextLength(digest->type);
   char *s = digest->leftovers;
   int len = digest->leftoverFill;
 
