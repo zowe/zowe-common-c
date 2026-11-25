@@ -13,7 +13,9 @@
 #ifndef __ICSF__
 #define __ICSF__
 
-#define ICSF_HASH_CONTEXT_LENGTH 512
+#define ICSF_HASH_CONTEXT_LENGTH_DEFAULT 128 /* MD5, SHA-1 and SHA-2 family */
+#define ICSF_HASH_CONTEXT_LENGTH_SHA3    256 /* SHA-3 (Keccak) family */
+#define ICSF_HASH_CONTEXT_LENGTH ICSF_HASH_CONTEXT_LENGTH_SHA3
 #define ICSF_HASH_BLOCK_LENGTH 64
 
 typedef struct ICSFDigest_tag{
@@ -29,7 +31,7 @@ typedef struct ICSFDigest_tag{
 
 #define ICSF_DIGEST_MD5  1
 #define ICSF_DIGEST_SHA1 2
-/* SHA-2 Familt algoithms */
+/* SHA-2 Family algoithms */
 #define ICSF_DIGEST_SHA224 3
 #define ICSF_DIGEST_SHA256 4
 #define ICSF_DIGEST_SHA384 5

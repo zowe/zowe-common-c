@@ -108,6 +108,18 @@ CALL CSNBSYE( return_code,
 
 static int digestTrace = FALSE;
 
+static int icsfContextLength(int type){
+  switch (type){
+  case ICSF_DIGEST_SHA3_224:
+  case ICSF_DIGEST_SHA3_256:
+  case ICSF_DIGEST_SHA3_384:
+  case ICSF_DIGEST_SHA3_512:
+    return ICSF_HASH_CONTEXT_LENGTH_SHA3;
+  default:
+    return ICSF_HASH_CONTEXT_LENGTH_DEFAULT;
+  }
+}
+
 int icsfDigestInit(ICSFDigest *digest, int type){
   memset((char*)digest,0,sizeof(ICSFDigest));
   digest->type = type;
@@ -124,22 +136,22 @@ int icsfDigestInit(ICSFDigest *digest, int type){
     break;
   case ICSF_DIGEST_SHA224:
     digest->ruleArrayCount = 2;
-    digest->ruleArray = "SHA224  FIRST   ";
+    digest->ruleArray = "SHA-224 FIRST   ";
     digest->hashLength = 28;
     break;
   case ICSF_DIGEST_SHA256:
     digest->ruleArrayCount = 2;
-    digest->ruleArray = "SHA256  FIRST   ";
+    digest->ruleArray = "SHA-256 FIRST   ";
     digest->hashLength = 32;
     break;
   case ICSF_DIGEST_SHA384:
     digest->ruleArrayCount = 2;
-    digest->ruleArray = "SHA384  FIRST   ";
+    digest->ruleArray = "SHA-384 FIRST   ";
     digest->hashLength = 48;
     break;
   case ICSF_DIGEST_SHA512:
     digest->ruleArrayCount = 2;
-    digest->ruleArray = "SHA512  FIRST   ";
+    digest->ruleArray = "SHA-512 FIRST   ";
     digest->hashLength = 64;
     break;
   case ICSF_DIGEST_SHA3_224:
@@ -173,7 +185,7 @@ int icsfDigestInit(ICSFDigest *digest, int type){
   
   int exitDataLength = 0;
   char *exitData = NULL;
-  int contextLength = ICSF_HASH_CONTEXT_LENGTH;
+  int contextLength = icsfContextLength(digest->type);
   int zero = 0;
   char *null = NULL;
 
@@ -190,7 +202,7 @@ int icsfDigestInit(ICSFDigest *digest, int type){
 	  &digest->hashLength,digest->hash);
   if (digestTrace){
     printf("CSNBOWH (FIRST) retcode=%d reason=%d leftoverFill=%d\n",
-	   returnCode,reasonCode,digest->leftoverFill);
+	  returnCode,reasonCode,digest->leftoverFill);
   }
 
   return returnCode;  
@@ -208,19 +220,19 @@ int icsfDigestUpdate(ICSFDigest *digest, char *data, int len){
     break;
   case ICSF_DIGEST_SHA224:
     digest->ruleArrayCount = 2;
-    digest->ruleArray = "SHA224  MIDDLE  ";
+    digest->ruleArray = "SHA-224 MIDDLE  ";
     break;
   case ICSF_DIGEST_SHA256:
     digest->ruleArrayCount = 2;
-    digest->ruleArray = "SHA256  MIDDLE  ";
+    digest->ruleArray = "SHA-256 MIDDLE  ";
     break;
   case ICSF_DIGEST_SHA384:
     digest->ruleArrayCount = 2;
-    digest->ruleArray = "SHA384  MIDDLE  ";
+    digest->ruleArray = "SHA-384 MIDDLE  ";
     break;
   case ICSF_DIGEST_SHA512:
     digest->ruleArrayCount = 2;
-    digest->ruleArray = "SHA512  MIDDLE  ";
+    digest->ruleArray = "SHA-512 MIDDLE  ";
     break;
   case ICSF_DIGEST_SHA3_224:
     digest->ruleArrayCount = 2;
@@ -249,7 +261,7 @@ int icsfDigestUpdate(ICSFDigest *digest, char *data, int len){
   char *null = NULL;
   int exitDataLength = 0;
   char *exitData = NULL;
-  int contextLength = ICSF_HASH_CONTEXT_LENGTH;
+  int contextLength = icsfContextLength(digest->type);
 
   int newFill = digest->leftoverFill + len;
   if (digestTrace){
@@ -322,19 +334,19 @@ int icsfDigestFinish(ICSFDigest *digest, char *hash){
     break;
   case ICSF_DIGEST_SHA224:
     digest->ruleArrayCount = 2;
-    digest->ruleArray = "SHA224  LAST    ";
+    digest->ruleArray = "SHA-224 LAST    ";
     break;
   case ICSF_DIGEST_SHA256:
     digest->ruleArrayCount = 2;
-    digest->ruleArray = "SHA256  LAST    ";
+    digest->ruleArray = "SHA-256 LAST    ";
     break;
   case ICSF_DIGEST_SHA384:
     digest->ruleArrayCount = 2;
-    digest->ruleArray = "SHA384  LAST    ";
+    digest->ruleArray = "SHA-384 LAST    ";
     break;
   case ICSF_DIGEST_SHA512:
     digest->ruleArrayCount = 2;
-    digest->ruleArray = "SHA512  LAST    ";
+    digest->ruleArray = "SHA-512 LAST    ";
     break;
   case ICSF_DIGEST_SHA3_224:
     digest->ruleArrayCount = 2;
@@ -363,7 +375,7 @@ int icsfDigestFinish(ICSFDigest *digest, char *hash){
 
   int exitDataLength = 0;
   char *exitData = NULL;
-  int contextLength = ICSF_HASH_CONTEXT_LENGTH;
+  int contextLength = icsfContextLength(digest->type);
   char *s = digest->leftovers;
   int len = digest->leftoverFill;
 
