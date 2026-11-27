@@ -3154,6 +3154,24 @@ static char *getSessionTokenCookieName(HttpService *service) {
   return service->server->cookieName;
 }
 
+int httpGetClientCertificate(HttpResponse *response, char *buffer, unsigned int bufferSize,
+                             unsigned int *certificateLength) {
+  if (response == NULL || response->socket == NULL || certificateLength == NULL) {
+    return -1;
+  }
+  *certificateLength = 0;
+#ifdef USE_ZOWE_TLS
+  if (response->socket->tlsSocket != NULL) {
+    return getClientCertificate(response->socket->tlsSocket->socketHandle, buffer, bufferSize, certificateLength);
+  }
+#endif
+  HttpConversation *conversation = response->conversation;
+  if (conversation == NULL || conversation->socketExtension == NULL) {
+    return -1;
+  }
+  return sxGetPeerCertificate(conversation->socketExtension, buffer, bufferSize, certificateLength);
+}
+
 static char *generateSessionTokenKeyValue(HttpService *service, HttpRequest *request, char *username){
   HttpServer *server = service->server;
   ShortLivedHeap *slh = request->slh;
@@ -3224,25 +3242,24 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
 #define TLS_CLIENT_CERTIFICATE_MAX_LENGTH 65536
 
   char *userid = NULL; /* allocate on slh so we have for duration of request and response. */
-  char *clientCertificate = safeMalloc(TLS_CLIENT_CERTIFICATE_MAX_LENGTH, "Client Certificate");
+  char *clientCertificate = NULL;
   unsigned int clientCertificateLength = 0;
 
-  int rc = getClientCertificate(response->socket->tlsSocket->socketHandle, clientCertificate, TLS_CLIENT_CERTIFICATE_MAX_LENGTH, &clientCertificateLength);
-  if (rc != 0) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "getClientCertificate - %d.\n", rc);    
-  }
+  /* A certificate is only used when the request has no other credentials. */
+  if (authDataFound == FALSE) {
+    clientCertificate = safeMalloc(TLS_CLIENT_CERTIFICATE_MAX_LENGTH, "Client Certificate");
+    int rc = httpGetClientCertificate(response, clientCertificate, TLS_CLIENT_CERTIFICATE_MAX_LENGTH, &clientCertificateLength);
+    if (rc != 0) {
+      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "httpGetClientCertificate - %d.\n", rc);
+      clientCertificateLength = 0;
+    }
 
 #ifdef ENABLE_DANGEROUS_AUTH_TRACING
   /* We probably don't want to dump their certificate, right? */
   dumpbuffer(clientCertificate, clientCertificateLength);
 #endif
 
-  if (rc == 0 && clientCertificateLength > 0) {
-    zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "There is a client certificate attached to the request.\n");
-    /*
-     * We don't want to do this if we already found authentication data.
-     */
-    if (authDataFound == FALSE) {
+    if (clientCertificateLength > 0) {
       int racfReturnCode = 0, racfReasonCode = 0;
       zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "There was no token or credentials found in the request. Server is attempting to map the client certificate.\n");
       userid = SLHAlloc(response->request->slh, 9);
@@ -3257,12 +3274,8 @@ static int serviceAuthNativeWithSessionToken(HttpService *service, HttpRequest *
       } else {
         zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "No user was found for client certificate. (rc = 0x%x racfRC = 0x%x racfRSN = 0x%x)\n", safReturnCode, racfReturnCode, racfReasonCode);
       }
-    } else {
-      zowelog(NULL, LOG_COMP_HTTPSERVER, ZOWE_LOG_DEBUG, "Client certificate was attached to request, but credentials are also attached. Server won't attempt to map the client certificate.\n");
     }
-  }
 
-  if (clientCertificate) {
     safeFree(clientCertificate, TLS_CLIENT_CERTIFICATE_MAX_LENGTH);
     clientCertificate = NULL;
   }
