@@ -36,6 +36,8 @@ sh test_config_path_reset.sh
 sh test_enum_type_message.sh
 sh test_script_exit_status.sh
 sh test_oom_no_crash.sh
+sh test_write_yaml_width.sh
+sh test_write_yaml_width_fuzz.sh
 ```
 
 Exit code is 0 if every assertion in every suite passed, non-zero otherwise.
@@ -55,6 +57,8 @@ Exit code is 0 if every assertion in every suite passed, non-zero otherwise.
 | `test_enum_type_message.sh` | `validate` diagnostics for enum/const mismatches, typed and untyped `oneOf` alternatives | the message names the schema's own type (`'string'`/`'integer'`) instead of always saying `'integer'` (zowe/zowe-common-c#563), including the untyped-`oneOf` case (no `type` keyword) that used to be misreported; both cases exit 99 |
 | `test_script_exit_status.sh` | `-script` mode error handling: top-level throw, top-level `ReferenceError`, missing script file, and a healthy run | throw and `ReferenceError` each exit 2 (`ZCFG_EVAL_FAILURE`) with the error text printed -- regression coverage for QuickJS 2024-01-13 turning a top-level throw into a silently-dropped rejected promise (zowe/zowe-install-packaging#3639, same symptom as zowe/zowe-common-c#585); a missing file also exits 2; a healthy script still exits 0 |
 | `test_oom_no_crash.sh` | `configmgr` startup path under memory pressure, via a descending `ulimit -v` sweep (Linux only) | no run dies by signal across the sweep -- pins the fix for the short-lived-heap and logging-context constructors returning NULL cleanly instead of writing through it (zowe/zowe-common-c#685, zowe/zowe-common-c#686) |
+| `test_write_yaml_width.sh` | JS API: `writeYAMLWithWidth(name, maxLineLength)` against long values, a long key, and the YAML shapes raised in review | no output line exceeds the width and the folded text reads back to an identical config; a key wider than the width is an **error, not a truncation**; a `${{ ... }}` template is evaluated before the writer sees it, so **an over-long output line cannot be predicted from the input file** (24 bytes of source, 180 bytes of value); comments are **not** emitted by this writer and non-empty flow arrays come back in block style, so neither shape can produce a long line here (zowe/zowe-common-c#550) |
+| `test_write_yaml_width_fuzz.sh` | same API, randomized: random values, random widths | every generated config either folds within the width and round-trips to an identical config, or is refused -- never truncated |
 
 ## Known-broken behaviors pinned (intentionally)
 
@@ -125,6 +129,11 @@ All in `fixtures/`. Each yaml is small enough to read at a glance:
 - `throws.js` -- top-level `throw`, for `test_script_exit_status.sh`.
 - `reference_error_module.js` -- top-level reference to an undefined function, for `test_script_exit_status.sh`. (`does_not_exist.js`, also referenced by that suite, is intentionally absent -- the test point is a missing file.)
 - `oom_probe.js` -- the smallest script that exercises configmgr startup and the `-script` evaluation path, for `test_oom_no_crash.sh`'s `ulimit -v` sweep.
+- `write_yaml_width.js` -- driver for `test_write_yaml_width.sh`; folds, stores, re-reads and compares.
+- `long_values.yaml` -- values that pass a parmlib record length: a long path with no spaces, a long sentence with spaces, escapes (`\t`, `\"`, `\\`) that must not be split mid-sequence, a run of spaces at a fold point, and a long list member.
+- `long_key_unfoldable.yaml` -- a key wider than the test's width. A key is a plain scalar in the output and cannot be folded, so this is the error case.
+- `write_yaml_shapes.yaml` -- the shapes raised in review of #550: a template whose evaluated value is far longer than its source text, leading/indented/trailing comments, and a flow-style array.
+- `write_yaml_width_fuzz.js` -- driver for `test_write_yaml_width_fuzz.sh`; generates random values and widths.
 
 ## Coverage gaps (not pinned by this suite)
 
@@ -141,6 +150,12 @@ All in `fixtures/`. Each yaml is small enough to read at a glance:
   separate build-driver test is appropriate.
 - z/OS out-of-memory behavior: `test_oom_no_crash.sh` drives its sweep with `ulimit -v`, which is a no-op lever on z/OS USS. The z/OS
   equivalent (`MEMLIMIT`) isn't driven by this harness, so the #685/#686 fix is exercised there only by code review, not by this suite.
+- Line width in the *other* YAML writer. `json2Yaml2BufferWithComments()`
+  (zowe-common-c#582) keeps comments but takes no width and does no folding,
+  and it emits string values as plain rather than double-quoted scalars. The
+  width control here therefore does not apply to it, and the folding approach
+  used here would not transfer unchanged. Only `tests/commenttest` drives that
+  writer today; nothing in this suite reaches it.
 
 ## Build dependency for Linux mode
 
